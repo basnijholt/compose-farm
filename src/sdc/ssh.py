@@ -1,4 +1,4 @@
-"""SSH command execution with asyncssh."""
+"""Command execution via SSH or locally."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ import asyncssh
 if TYPE_CHECKING:
     from .config import Config, Host
 
+LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
+
 
 @dataclass
 class CommandResult:
@@ -22,7 +24,57 @@ class CommandResult:
     success: bool
 
 
-async def run_ssh_command(
+def _is_local(host: Host) -> bool:
+    """Check if host should run locally (no SSH)."""
+    return host.address.lower() in LOCAL_ADDRESSES
+
+
+async def _run_local_command(
+    command: str,
+    service: str,
+    *,
+    stream: bool = True,
+) -> CommandResult:
+    """Run a command locally with streaming output."""
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        if stream and proc.stdout and proc.stderr:
+
+            async def read_stream(
+                reader: asyncio.StreamReader,
+                prefix: str,
+                *,
+                is_stderr: bool = False,
+            ) -> None:
+                output = sys.stderr if is_stderr else sys.stdout
+                while True:
+                    line = await reader.readline()
+                    if not line:
+                        break
+                    print(f"[{prefix}] {line.decode()}", end="", file=output, flush=True)
+
+            await asyncio.gather(
+                read_stream(proc.stdout, service),
+                read_stream(proc.stderr, service, is_stderr=True),
+            )
+
+        await proc.wait()
+        return CommandResult(
+            service=service,
+            exit_code=proc.returncode or 0,
+            success=proc.returncode == 0,
+        )
+    except OSError as e:
+        print(f"[{service}] Local error: {e}", file=sys.stderr)
+        return CommandResult(service=service, exit_code=1, success=False)
+
+
+async def _run_ssh_command(
     host: Host,
     command: str,
     service: str,
@@ -68,6 +120,19 @@ async def run_ssh_command(
         return CommandResult(service=service, exit_code=1, success=False)
 
 
+async def run_command(
+    host: Host,
+    command: str,
+    service: str,
+    *,
+    stream: bool = True,
+) -> CommandResult:
+    """Run a command on a host (locally or via SSH)."""
+    if _is_local(host):
+        return await _run_local_command(command, service, stream=stream)
+    return await _run_ssh_command(host, command, service, stream=stream)
+
+
 async def run_compose(
     config: Config,
     service: str,
@@ -80,7 +145,7 @@ async def run_compose(
     compose_path = config.get_compose_path(service)
 
     command = f"docker compose -f {compose_path} {compose_cmd}"
-    return await run_ssh_command(host, command, service, stream=stream)
+    return await run_command(host, command, service, stream=stream)
 
 
 async def run_on_services(
