@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import getpass
-import os
 from pathlib import Path
-from typing import Annotated
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
@@ -47,7 +45,7 @@ class Config(BaseModel):
         return self.compose_dir / service / "docker-compose.yml"
 
 
-def _parse_hosts(raw_hosts: dict) -> dict[str, Host]:
+def _parse_hosts(raw_hosts: dict[str, str | dict[str, str | int]]) -> dict[str, Host]:
     """Parse hosts from config, handling both simple and full forms."""
     hosts = {}
     for name, value in raw_hosts.items():

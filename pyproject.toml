@@ -23,3 +23,38 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/sdc"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D",       # pydocstyle (too noisy for now)
+    "ANN",     # flake8-annotations (using mypy instead)
+    "COM812",  # trailing comma (conflicts with formatter)
+    "ISC001",  # single-line implicit string concat (conflicts with formatter)
+    "FBT",     # boolean args are fine for CLI
+    "T201",    # print needed for streaming output
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]  # allow assert in tests
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = "asyncssh.*"
+ignore_missing_imports = true
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.0",
+    "pre-commit>=4.5.0",
+    "ruff>=0.14.8",
+    "types-pyyaml>=6.0.12.20250915",
+]

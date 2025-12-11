@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, TypeVar
 
 import typer
 
-from .config import load_config
+from .config import Config, load_config
 from .ssh import (
+    CommandResult,
     run_on_services,
     run_sequential_on_services,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Coroutine
+
+T = TypeVar("T")
 
 app = typer.Typer(
     name="sdc",
@@ -26,7 +31,7 @@ def _get_services(
     services: list[str],
     all_services: bool,
     config_path: Path | None,
-) -> tuple[list[str], any]:
+) -> tuple[list[str], Config]:
     """Resolve service list and load config."""
     config = load_config(config_path)
 
@@ -38,12 +43,12 @@ def _get_services(
     return list(services), config
 
 
-def _run_async(coro):
+def _run_async(coro: Coroutine[None, None, T]) -> T:
     """Run async coroutine."""
     return asyncio.run(coro)
 
 
-def _report_results(results: list) -> None:
+def _report_results(results: list[CommandResult]) -> None:
     """Report command results and exit with appropriate code."""
     failed = [r for r in results if not r.success]
     if failed:
@@ -53,7 +58,7 @@ def _report_results(results: list) -> None:
 
 
 ServicesArg = Annotated[
-    Optional[list[str]],
+    list[str] | None,
     typer.Argument(help="Services to operate on"),
 ]
 AllOption = Annotated[
@@ -61,7 +66,7 @@ AllOption = Annotated[
     typer.Option("--all", "-a", help="Run on all services"),
 ]
 ConfigOption = Annotated[
-    Optional[Path],
+    Path | None,
     typer.Option("--config", "-c", help="Path to config file"),
 ]
 
@@ -122,9 +127,7 @@ def update(
 ) -> None:
     """Update services (pull + down + up)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
-    results = _run_async(
-        run_sequential_on_services(cfg, svc_list, ["pull", "down", "up -d"])
-    )
+    results = _run_async(run_sequential_on_services(cfg, svc_list, ["pull", "down", "up -d"]))
     _report_results(results)
 
 
