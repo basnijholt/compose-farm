@@ -11,6 +11,23 @@ I run 100+ Docker Compose stacks on an LXC container that frequently runs out of
 
 **Compose Farm is intentionally simple**: one YAML config mapping services to hosts, and a CLI that runs `docker compose` commands over SSH. That's it.
 
+## Key Assumption: Shared Storage
+
+Compose Farm assumes **all your compose files are accessible at the same path on all hosts**. This is typically achieved via:
+
+- **NFS mount** (e.g., `/opt/compose` mounted from a NAS)
+- **Synced folders** (e.g., Syncthing, rsync)
+- **Shared filesystem** (e.g., GlusterFS, Ceph)
+
+```
+# Example: NFS mount on all hosts
+nas:/volume1/compose  →  /opt/compose (on nas01)
+nas:/volume1/compose  →  /opt/compose (on nas02)
+nas:/volume1/compose  →  /opt/compose (on nas03)
+```
+
+Compose Farm simply runs `docker compose -f /opt/compose/{service}/docker-compose.yml` on the appropriate host—it doesn't copy or sync files.
+
 ## Installation
 
 ```bash
@@ -24,7 +41,7 @@ uv pip install compose-farm
 Create `~/.config/compose-farm/compose-farm.yaml` (or `./compose-farm.yaml` in your working directory):
 
 ```yaml
-compose_dir: /opt/compose
+compose_dir: /opt/compose  # Must be the same path on all hosts
 
 hosts:
   nas01:
@@ -33,12 +50,13 @@ hosts:
   nas02:
     address: 192.168.1.11
     # user defaults to current user
+  local: localhost  # Run locally without SSH
 
 services:
   plex: nas01
   jellyfin: nas02
   sonarr: nas01
-  radarr: nas02
+  radarr: local  # Runs on the machine where you invoke compose-farm
 ```
 
 Compose files are expected at `{compose_dir}/{service}/docker-compose.yml`.
@@ -74,8 +92,18 @@ compose-farm ps
 
 - Python 3.11+
 - SSH key-based authentication to your hosts (uses ssh-agent)
-- Docker and Docker Compose on target hosts
-- Compose files accessible via NFS or similar (same path on all hosts)
+- Docker and Docker Compose installed on all target hosts
+- **Shared storage**: All compose files at the same path on all hosts (NFS, Syncthing, etc.)
+
+## How It Works
+
+1. You run `compose-farm up plex`
+2. Compose Farm looks up which host runs `plex` (e.g., `nas01`)
+3. It SSHs to `nas01` (or runs locally if `localhost`)
+4. It executes `docker compose -f /opt/compose/plex/docker-compose.yml up -d`
+5. Output is streamed back with `[plex]` prefix
+
+That's it. No orchestration, no service discovery, no magic.
 
 ## License
 
