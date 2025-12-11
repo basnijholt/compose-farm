@@ -1,4 +1,4 @@
-# SDC Development Guidelines
+# Compose Farm Development Guidelines
 
 ## Core Principles
 
@@ -9,7 +9,7 @@
 ## Architecture
 
 ```
-sdc/
+compose_farm/
 ├── config.py  # Pydantic models, YAML loading
 ├── ssh.py     # asyncssh execution, streaming
 └── cli.py     # Typer commands
@@ -22,6 +22,7 @@ sdc/
 3. **Streaming output**: Real-time stdout/stderr with `[service]` prefix
 4. **SSH key auth only**: Uses ssh-agent, no password handling (YAGNI)
 5. **NFS assumption**: Compose files at same path on all hosts
+6. **Local execution**: When host is `localhost`/`local`, skip SSH and run locally
 
 ## Development Notes
 

@@ -21,8 +21,8 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 app = typer.Typer(
-    name="sdc",
-    help="Simple Distributed Compose - run docker compose commands across hosts",
+    name="compose-farm",
+    help="Compose Farm - run docker compose commands across multiple hosts",
     no_args_is_help=True,
 )
 

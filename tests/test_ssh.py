@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from sdc.config import Config, Host
-from sdc.ssh import (
+from compose_farm.config import Config, Host
+from compose_farm.ssh import (
     CommandResult,
     _is_local,
     _run_local_command,

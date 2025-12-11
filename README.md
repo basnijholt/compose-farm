@@ -1,27 +1,27 @@
-# SDC - Simple Distributed Compose
+# Compose Farm
 
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
-## Why SDC?
+## Why Compose Farm?
 
 I run 100+ Docker Compose stacks on an LXC container that frequently runs out of memory. I needed a way to distribute services across multiple machines without the complexity of:
 
 - **Kubernetes**: Overkill for my use case. I don't need pods, services, ingress controllers, or YAML manifests 10x the size of my compose files.
-- **Docker Swarm**: Effectively in maintenance modeno longer being invested in by Docker.
+- **Docker Swarm**: Effectively in maintenance mode—no longer being invested in by Docker.
 
-**SDC is intentionally simple**: one YAML config mapping services to hosts, and a CLI that runs `docker compose` commands over SSH. That's it.
+**Compose Farm is intentionally simple**: one YAML config mapping services to hosts, and a CLI that runs `docker compose` commands over SSH. That's it.
 
 ## Installation
 
 ```bash
-pip install sdc
+pip install compose-farm
 # or
-uv pip install sdc
+uv pip install compose-farm
 ```
 
 ## Configuration
 
-Create `~/.config/sdc/sdc.yaml` (or `./sdc.yaml` in your working directory):
+Create `~/.config/compose-farm/compose-farm.yaml` (or `./compose-farm.yaml` in your working directory):
 
 ```yaml
 compose_dir: /opt/compose
@@ -47,27 +47,27 @@ Compose files are expected at `{compose_dir}/{service}/docker-compose.yml`.
 
 ```bash
 # Start services
-sdc up plex jellyfin
-sdc up --all
+compose-farm up plex jellyfin
+compose-farm up --all
 
 # Stop services
-sdc down plex
+compose-farm down plex
 
 # Pull latest images
-sdc pull --all
+compose-farm pull --all
 
 # Restart (down + up)
-sdc restart plex
+compose-farm restart plex
 
 # Update (pull + down + up) - the end-to-end update command
-sdc update --all
+compose-farm update --all
 
 # View logs
-sdc logs plex
-sdc logs -f plex  # follow
+compose-farm logs plex
+compose-farm logs -f plex  # follow
 
 # Show status
-sdc ps
+compose-farm ps
 ```
 
 ## Requirements

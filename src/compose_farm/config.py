@@ -63,12 +63,12 @@ def load_config(path: Path | None = None) -> Config:
 
     Search order:
     1. Explicit path if provided
-    2. ./sdc.yaml
-    3. ~/.config/sdc/sdc.yaml
+    2. ./compose-farm.yaml
+    3. ~/.config/compose-farm/compose-farm.yaml
     """
     search_paths = [
-        Path("sdc.yaml"),
-        Path.home() / ".config" / "sdc" / "sdc.yaml",
+        Path("compose-farm.yaml"),
+        Path.home() / ".config" / "compose-farm" / "compose-farm.yaml",
     ]
 
     if path:

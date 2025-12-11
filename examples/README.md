@@ -1,6 +1,6 @@
-# SDC Examples
+# Compose Farm Examples
 
-This folder contains example Docker Compose services for testing SDC locally.
+This folder contains example Docker Compose services for testing Compose Farm locally.
 
 ## Quick Start
 
@@ -8,28 +8,28 @@ This folder contains example Docker Compose services for testing SDC locally.
 cd examples
 
 # Check status of all services
-sdc ps
+compose-farm ps
 
 # Pull images
-sdc pull --all
+compose-farm pull --all
 
 # Start hello-world (runs and exits)
-sdc up hello
+compose-farm up hello
 
 # Start nginx (stays running)
-sdc up nginx
+compose-farm up nginx
 
 # Check nginx is running
 curl localhost:8080
 
 # View logs
-sdc logs nginx
+compose-farm logs nginx
 
 # Stop nginx
-sdc down nginx
+compose-farm down nginx
 
 # Update all (pull + restart)
-sdc update --all
+compose-farm update --all
 ```
 
 ## Services
@@ -39,4 +39,4 @@ sdc update --all
 
 ## Config
 
-The `sdc.yaml` in this directory configures both services to run locally (no SSH).
+The `compose-farm.yaml` in this directory configures both services to run locally (no SSH).

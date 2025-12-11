@@ -1,5 +1,5 @@
-# Example SDC configuration
-# Copy to ~/.config/sdc/sdc.yaml or ./sdc.yaml
+# Example Compose Farm configuration
+# Copy to ~/.config/compose-farm/compose-farm.yaml or ./compose-farm.yaml
 
 compose_dir: /opt/compose
 
@@ -12,6 +12,9 @@ hosts:
 
   # Short form (just address, user defaults to current user)
   nas02: 192.168.1.11
+
+  # Local execution (no SSH)
+  local: localhost
 
 services:
   # Map service names to hosts

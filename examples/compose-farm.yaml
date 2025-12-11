@@ -1,0 +1,11 @@
+# Example Compose Farm config for local testing
+# Run from the examples directory: cd examples && compose-farm ps
+
+compose_dir: .
+
+hosts:
+  local: localhost
+
+services:
+  hello: local
+  nginx: local

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from sdc.config import Config, Host, load_config
+from compose_farm.config import Config, Host, load_config
 
 
 class TestHost:
