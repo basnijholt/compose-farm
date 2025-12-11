@@ -1,0 +1,6 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: sdc-nginx
+    ports:
+      - "8080:80"

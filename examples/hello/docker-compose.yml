@@ -1,0 +1,4 @@
+services:
+  hello:
+    image: hello-world
+    container_name: sdc-hello
