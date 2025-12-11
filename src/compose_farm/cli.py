@@ -171,7 +171,6 @@ def snapshot(
     config: ConfigOption = None,
 ) -> None:
     """Record current image digests into the Dockerfarm TOML log."""
-
     svc_list, cfg = _get_services(services or [], all_services, config)
     try:
         path = _run_async(snapshot_services(cfg, svc_list, log_path=log_path))

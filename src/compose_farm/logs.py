@@ -35,7 +35,6 @@ class SnapshotEntry:
 
     def as_dict(self, first_seen: str, last_seen: str) -> dict[str, str]:
         """Render snapshot as a TOML-friendly dict."""
-
         return {
             "service": self.service,
             "host": self.host,
@@ -60,7 +59,6 @@ def _parse_images_output(raw: str) -> list[dict[str, Any]]:
 
     Handles both a JSON array and newline-separated JSON objects for robustness.
     """
-
     raw = raw.strip()
     if not raw:
         return []
@@ -84,7 +82,6 @@ def _parse_images_output(raw: str) -> list[dict[str, Any]]:
 
 def _extract_image_fields(record: dict[str, Any]) -> tuple[str, str]:
     """Extract image name and digest with fallbacks."""
-
     image = record.get("Image") or record.get("Repository") or record.get("Name") or ""
     tag = record.get("Tag") or record.get("Version")
     if tag and ":" not in image.rsplit("/", 1)[-1]:
@@ -112,7 +109,6 @@ async def _collect_service_entries(
     run_compose_fn: Callable[..., Awaitable[CommandResult]] = run_compose,
 ) -> list[SnapshotEntry]:
     """Run `docker compose images` for a service and normalize results."""
-
     result = await run_compose_fn(config, service, "images --format json", stream=False)
     if not result.success:
         msg = result.stderr or f"compose images exited with {result.exit_code}"
@@ -207,7 +203,6 @@ async def snapshot_services(
     - Updates `last_seen` for digests observed in this snapshot
     - Leaves untouched digests that were not part of this run (history is kept)
     """
-
     if not services:
         error = "No services specified for snapshot"
         raise RuntimeError(error)
