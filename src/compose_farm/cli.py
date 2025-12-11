@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Annotated, TypeVar
 import typer
 
 from .config import Config, load_config
+from .logs import snapshot_services
 from .ssh import (
     CommandResult,
     run_on_services,
@@ -68,6 +69,10 @@ AllOption = Annotated[
 ConfigOption = Annotated[
     Path | None,
     typer.Option("--config", "-c", help="Path to config file"),
+]
+LogPathOption = Annotated[
+    Path | None,
+    typer.Option("--log-path", "-l", help="Path to Dockerfarm TOML log"),
 ]
 
 
@@ -156,6 +161,25 @@ def ps(
     cfg = load_config(config)
     results = _run_async(run_on_services(cfg, list(cfg.services.keys()), "ps"))
     _report_results(results)
+
+
+@app.command()
+def snapshot(
+    services: ServicesArg = None,
+    all_services: AllOption = False,
+    log_path: LogPathOption = None,
+    config: ConfigOption = None,
+) -> None:
+    """Record current image digests into the Dockerfarm TOML log."""
+
+    svc_list, cfg = _get_services(services or [], all_services, config)
+    try:
+        path = _run_async(snapshot_services(cfg, svc_list, log_path=log_path))
+    except RuntimeError as exc:  # pragma: no cover - error path
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo(f"Snapshot written to {path}")
 
 
 if __name__ == "__main__":

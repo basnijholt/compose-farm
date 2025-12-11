@@ -80,6 +80,10 @@ compose-farm restart plex
 # Update (pull + down + up) - the end-to-end update command
 compose-farm update --all
 
+# Capture image digests to a TOML log (per service or all)
+compose-farm snapshot plex
+compose-farm snapshot --all  # writes ~/.config/compose-farm/dockerfarm-log.toml
+
 # View logs
 compose-farm logs plex
 compose-farm logs -f plex  # follow

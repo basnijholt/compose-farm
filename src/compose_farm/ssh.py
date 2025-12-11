@@ -22,6 +22,8 @@ class CommandResult:
     service: str
     exit_code: int
     success: bool
+    stdout: str = ""
+    stderr: str = ""
 
 
 def _is_local(host: Host) -> bool:
@@ -63,11 +65,19 @@ async def _run_local_command(
                 read_stream(proc.stderr, service, is_stderr=True),
             )
 
-        await proc.wait()
+        stdout_data = b""
+        stderr_data = b""
+        if not stream:
+            stdout_data, stderr_data = await proc.communicate()
+        else:
+            await proc.wait()
+
         return CommandResult(
             service=service,
             exit_code=proc.returncode or 0,
             success=proc.returncode == 0,
+            stdout=stdout_data.decode() if stdout_data else "",
+            stderr=stderr_data.decode() if stderr_data else "",
         )
     except OSError as e:
         print(f"[{service}] Local error: {e}", file=sys.stderr)
@@ -109,11 +119,19 @@ async def _run_ssh_command(
                     read_stream(proc.stderr, service, is_stderr=True),
                 )
 
+            stdout_data = ""
+            stderr_data = ""
+            if not stream:
+                stdout_data = await proc.stdout.read()
+                stderr_data = await proc.stderr.read()
+
             await proc.wait()
             return CommandResult(
                 service=service,
                 exit_code=proc.exit_status or 0,
                 success=proc.exit_status == 0,
+                stdout=stdout_data,
+                stderr=stderr_data,
             )
     except (OSError, asyncssh.Error) as e:
         print(f"[{service}] SSH error: {e}", file=sys.stderr)
