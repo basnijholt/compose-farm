@@ -1,0 +1,143 @@
+"""Tests for config module."""
+
+from pathlib import Path
+
+import pytest
+import yaml
+
+from sdc.config import Config, Host, load_config
+
+
+class TestHost:
+    """Tests for Host model."""
+
+    def test_host_with_all_fields(self) -> None:
+        host = Host(address="192.168.1.10", user="docker", port=2222)
+        assert host.address == "192.168.1.10"
+        assert host.user == "docker"
+        assert host.port == 2222
+
+    def test_host_defaults(self) -> None:
+        host = Host(address="192.168.1.10")
+        assert host.address == "192.168.1.10"
+        assert host.port == 22
+        # user defaults to current user, just check it's set
+        assert host.user
+
+    def test_local_host(self) -> None:
+        host = Host(address="local")
+        assert host.address == "local"
+
+
+class TestConfig:
+    """Tests for Config model."""
+
+    def test_config_validation(self) -> None:
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas01": Host(address="192.168.1.10")},
+            services={"plex": "nas01"},
+        )
+        assert config.compose_dir == Path("/opt/compose")
+        assert "nas01" in config.hosts
+        assert config.services["plex"] == "nas01"
+
+    def test_config_invalid_service_host(self) -> None:
+        with pytest.raises(ValueError, match="unknown host"):
+            Config(
+                compose_dir=Path("/opt/compose"),
+                hosts={"nas01": Host(address="192.168.1.10")},
+                services={"plex": "nonexistent"},
+            )
+
+    def test_get_host(self) -> None:
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas01": Host(address="192.168.1.10")},
+            services={"plex": "nas01"},
+        )
+        host = config.get_host("plex")
+        assert host.address == "192.168.1.10"
+
+    def test_get_host_unknown_service(self) -> None:
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas01": Host(address="192.168.1.10")},
+            services={"plex": "nas01"},
+        )
+        with pytest.raises(ValueError, match="Unknown service"):
+            config.get_host("unknown")
+
+    def test_get_compose_path(self) -> None:
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas01": Host(address="192.168.1.10")},
+            services={"plex": "nas01"},
+        )
+        path = config.get_compose_path("plex")
+        assert path == Path("/opt/compose/plex/docker-compose.yml")
+
+
+class TestLoadConfig:
+    """Tests for load_config function."""
+
+    def test_load_config_full_host_format(self, tmp_path: Path) -> None:
+        config_data = {
+            "compose_dir": "/opt/compose",
+            "hosts": {
+                "nas01": {"address": "192.168.1.10", "user": "docker", "port": 2222},
+            },
+            "services": {"plex": "nas01"},
+        }
+        config_file = tmp_path / "sdc.yaml"
+        config_file.write_text(yaml.dump(config_data))
+
+        config = load_config(config_file)
+        assert config.hosts["nas01"].address == "192.168.1.10"
+        assert config.hosts["nas01"].user == "docker"
+        assert config.hosts["nas01"].port == 2222
+
+    def test_load_config_simple_host_format(self, tmp_path: Path) -> None:
+        config_data = {
+            "compose_dir": "/opt/compose",
+            "hosts": {"nas01": "192.168.1.10"},
+            "services": {"plex": "nas01"},
+        }
+        config_file = tmp_path / "sdc.yaml"
+        config_file.write_text(yaml.dump(config_data))
+
+        config = load_config(config_file)
+        assert config.hosts["nas01"].address == "192.168.1.10"
+
+    def test_load_config_mixed_host_formats(self, tmp_path: Path) -> None:
+        config_data = {
+            "compose_dir": "/opt/compose",
+            "hosts": {
+                "nas01": {"address": "192.168.1.10", "user": "docker"},
+                "nas02": "192.168.1.11",
+            },
+            "services": {"plex": "nas01", "jellyfin": "nas02"},
+        }
+        config_file = tmp_path / "sdc.yaml"
+        config_file.write_text(yaml.dump(config_data))
+
+        config = load_config(config_file)
+        assert config.hosts["nas01"].user == "docker"
+        assert config.hosts["nas02"].address == "192.168.1.11"
+
+    def test_load_config_not_found(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(FileNotFoundError, match="Config file not found"):
+            load_config()
+
+    def test_load_config_local_host(self, tmp_path: Path) -> None:
+        config_data = {
+            "compose_dir": "/opt/compose",
+            "hosts": {"local": "localhost"},
+            "services": {"test": "local"},
+        }
+        config_file = tmp_path / "sdc.yaml"
+        config_file.write_text(yaml.dump(config_data))
+
+        config = load_config(config_file)
+        assert config.hosts["local"].address == "localhost"
