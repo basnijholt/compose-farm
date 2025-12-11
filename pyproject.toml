@@ -31,16 +31,32 @@ line-length = 100
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
-    "D",       # pydocstyle (too noisy for now)
-    "ANN",     # flake8-annotations (using mypy instead)
-    "COM812",  # trailing comma (conflicts with formatter)
-    "ISC001",  # single-line implicit string concat (conflicts with formatter)
-    "FBT",     # boolean args are fine for CLI
-    "T201",    # print needed for streaming output
+    "T20",     # allow print-style streaming output
+    "S101",    # assertions are fine in tests
+    "S603",    # `subprocess` is constrained and intentional
+    "ANN002",  # allow args without type comments in some call sites
+    "ANN003",  # allow kwargs without type comments in some call sites
+    "ANN401",  # allow `Any` for external library hooks
+    "D401",    # short docstrings are acceptable
+    "D402",    # allow "Return" in first line
+    "PLW0603", # global statements not used here
+    "SLF001",  # internal attributes may be accessed in helpers
+    "PLR0913", # typer command signatures naturally take many params
+    "TD002",   # allow TODOs without issue links
+    "E501",    # formatter handles line length
+    "TRY300",  # nested try blocks sometimes clearer for SSH flows
+    "FBT001",  # boolean positional args in CLI are acceptable
+    "FBT002",  # boolean keyword-only args in CLI are acceptable
+    "BLE001",  # broad exceptions acceptable when surfacing remote errors
+    "COM812",  # avoid formatter conflicts
+    "ISC001",  # allow implicit string concat on single line when clearer
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "PLR2004", "S108"]  # allow assert, magic values, /tmp in tests
+"tests/*" = ["S101", "PLR2004", "S108", "D102", "D103"]  # relaxed docstrings + asserts in tests
+
+[tool.ruff.lint.mccabe]
+max-complexity = 18
 
 [tool.mypy]
 python_version = "3.11"
@@ -59,6 +75,25 @@ disallow_untyped_decorators = false
 asyncio_mode = "auto"
 testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "--cov=compose_farm",
+    "--cov-report=term",
+    "--cov-report=xml",
+    "--cov-report=html",
+    "--no-cov-on-fail",
+    "-v",
+]
+
+[tool.coverage.run]
+omit = []
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    'if __name__ == "__main__":',
+]
 
 [dependency-groups]
 dev = [
@@ -66,6 +101,8 @@ dev = [
     "pre-commit>=4.5.0",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
+    "pytest-cov>=6.0.0",
     "ruff>=0.14.8",
     "types-pyyaml>=6.0.12.20250915",
+    "markdown-code-runner>=0.7.0",
 ]
