@@ -54,6 +54,10 @@ class TestRunLocalCommand:
         assert result.success is False
         assert result.exit_code != 0
 
+    async def test_run_local_command_captures_output(self) -> None:
+        result = await _run_local_command("echo hello", "test-service", stream=False)
+        assert "hello" in result.stdout
+
 
 class TestRunCommand:
     """Tests for run_command dispatcher."""
