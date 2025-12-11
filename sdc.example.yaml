@@ -1,0 +1,22 @@
+# Example SDC configuration
+# Copy to ~/.config/sdc/sdc.yaml or ./sdc.yaml
+
+compose_dir: /opt/compose
+
+hosts:
+  # Full form with all options
+  nas01:
+    address: 192.168.1.10
+    user: docker
+    port: 22
+
+  # Short form (just address, user defaults to current user)
+  nas02: 192.168.1.11
+
+services:
+  # Map service names to hosts
+  # Compose file expected at: {compose_dir}/{service}/docker-compose.yml
+  plex: nas01
+  jellyfin: nas02
+  sonarr: nas01
+  radarr: nas02
