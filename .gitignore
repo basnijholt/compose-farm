@@ -38,3 +38,4 @@ htmlcov/
 
 # Local config (don't commit real configs)
 sdc.yaml
+!examples/sdc.yaml
