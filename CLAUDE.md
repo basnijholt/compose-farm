@@ -24,11 +24,15 @@ compose_farm/
 5. **NFS assumption**: Compose files at same path on all hosts
 6. **Local execution**: When host is `localhost`/`local`, skip SSH and run locally
 
-## Development Notes
+## Communication Notes
 
-The user frequently dictates requirements, so watch for:
-- Homophones (e.g., "right" vs "write", "their" vs "there")
-- Similar-sounding words that may need clarification
+- Clarify ambiguous wording (e.g., homophones like "right"/"write", "their"/"there").
+
+## Git Safety
+
+- Never amend commits.
+- Never merge into a branch; prefer fast-forward or rebase as directed.
+- Never force push.
 
 ## Commands Quick Reference
 
