@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Annotated, TypeVar
 import typer
 import yaml
 
+from . import __version__
 from .config import Config, load_config
 from .logs import snapshot_services
 from .ssh import (
@@ -22,11 +23,34 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 
+def _version_callback(value: bool) -> None:
+    """Print version and exit."""
+    if value:
+        typer.echo(f"compose-farm {__version__}")
+        raise typer.Exit
+
+
 app = typer.Typer(
     name="compose-farm",
     help="Compose Farm - run docker compose commands across multiple hosts",
     no_args_is_help=True,
 )
+
+
+@app.callback()
+def main(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            "-v",
+            help="Show version and exit",
+            callback=_version_callback,
+            is_eager=True,
+        ),
+    ] = False,
+) -> None:
+    """Compose Farm - run docker compose commands across multiple hosts."""
 
 
 def _get_services(
