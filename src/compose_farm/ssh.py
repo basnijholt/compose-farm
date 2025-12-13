@@ -167,6 +167,25 @@ async def run_compose(
     return await run_command(host, command, service, stream=stream)
 
 
+async def run_compose_on_host(
+    config: Config,
+    service: str,
+    host_name: str,
+    compose_cmd: str,
+    *,
+    stream: bool = True,
+) -> CommandResult:
+    """Run a docker compose command for a service on a specific host.
+
+    Used for migration - running 'down' on the old host before 'up' on new host.
+    """
+    host = config.hosts[host_name]
+    compose_path = config.get_compose_path(service)
+
+    command = f"docker compose -f {compose_path} {compose_cmd}"
+    return await run_command(host, command, service, stream=stream)
+
+
 async def run_on_services(
     config: Config,
     services: list[str],
