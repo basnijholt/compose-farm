@@ -1,3 +1,19 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [Compose Farm](#compose-farm)
+  - [Why Compose Farm?](#why-compose-farm)
+  - [Key Assumption: Shared Storage](#key-assumption-shared-storage)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
+  - [Usage](#usage)
+  - [Traefik Multihost Ingress (File Provider)](#traefik-multihost-ingress-file-provider)
+  - [Requirements](#requirements)
+  - [How It Works](#how-it-works)
+  - [License](#license)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Compose Farm
 
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
