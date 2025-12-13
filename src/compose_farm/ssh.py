@@ -225,3 +225,20 @@ async def run_sequential_on_services(
         run_sequential_commands(config, service, commands, stream=stream) for service in services
     ]
     return await asyncio.gather(*tasks)
+
+
+async def check_service_running(
+    config: Config,
+    service: str,
+    host_name: str,
+) -> bool:
+    """Check if a service has running containers on a specific host."""
+    host = config.hosts[host_name]
+    compose_path = config.get_compose_path(service)
+
+    # Use ps --status running to check for running containers
+    command = f"docker compose -f {compose_path} ps --status running -q"
+    result = await run_command(host, command, service, stream=False)
+
+    # If command succeeded and has output, containers are running
+    return result.success and bool(result.stdout.strip())
