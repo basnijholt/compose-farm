@@ -41,8 +41,17 @@ class Config(BaseModel):
         return self.hosts[self.services[service]]
 
     def get_compose_path(self, service: str) -> Path:
-        """Get compose file path for a service."""
-        return self.compose_dir / service / "docker-compose.yml"
+        """Get compose file path for a service.
+
+        Tries compose.yaml first, then docker-compose.yml.
+        """
+        service_dir = self.compose_dir / service
+        for filename in ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"):
+            candidate = service_dir / filename
+            if candidate.exists():
+                return candidate
+        # Default to compose.yaml if none exist (will error later)
+        return service_dir / "compose.yaml"
 
 
 def _parse_hosts(raw_hosts: dict[str, str | dict[str, str | int]]) -> dict[str, Host]:
