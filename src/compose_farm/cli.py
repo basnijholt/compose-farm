@@ -14,12 +14,13 @@ from .config import Config, load_config
 from .logs import snapshot_services
 from .ssh import (
     CommandResult,
+    check_service_running,
     run_compose,
     run_compose_on_host,
     run_on_services,
     run_sequential_on_services,
 )
-from .state import get_service_host, remove_service, set_service_host
+from .state import get_service_host, load_state, remove_service, save_state, set_service_host
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
@@ -287,6 +288,99 @@ def traefik_file(
 
     for warning in warnings:
         typer.echo(warning, err=True)
+
+
+async def _discover_running_services(cfg: Config) -> dict[str, str]:
+    """Discover which services are running on which hosts.
+
+    Returns a dict mapping service names to host names for running services.
+    """
+    discovered: dict[str, str] = {}
+
+    for service, assigned_host in cfg.services.items():
+        # Check assigned host first (most common case)
+        if await check_service_running(cfg, service, assigned_host):
+            discovered[service] = assigned_host
+            continue
+
+        # Check other hosts in case service was migrated but state is stale
+        for host_name in cfg.hosts:
+            if host_name == assigned_host:
+                continue
+            if await check_service_running(cfg, service, host_name):
+                discovered[service] = host_name
+                break
+
+    return discovered
+
+
+def _report_sync_changes(
+    added: list[str],
+    removed: list[str],
+    changed: list[tuple[str, str, str]],
+    discovered: dict[str, str],
+    current_state: dict[str, str],
+) -> None:
+    """Report sync changes to the user."""
+    if added:
+        typer.echo(f"\nNew services found ({len(added)}):")
+        for service in sorted(added):
+            typer.echo(f"  + {service} on {discovered[service]}")
+
+    if changed:
+        typer.echo(f"\nServices on different hosts ({len(changed)}):")
+        for service, old_host, new_host in sorted(changed):
+            typer.echo(f"  ~ {service}: {old_host} -> {new_host}")
+
+    if removed:
+        typer.echo(f"\nServices no longer running ({len(removed)}):")
+        for service in sorted(removed):
+            typer.echo(f"  - {service} (was on {current_state[service]})")
+
+
+@app.command()
+def sync(
+    config: ConfigOption = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", "-n", help="Show what would be synced without writing"),
+    ] = False,
+) -> None:
+    """Discover running services and update state file.
+
+    Queries all hosts to find where services are actually running and
+    updates the state file to match reality. Useful after manual changes
+    or when first setting up compose-farm on an existing deployment.
+    """
+    cfg = load_config(config)
+    current_state = load_state()
+
+    typer.echo("Discovering running services...")
+    discovered = _run_async(_discover_running_services(cfg))
+
+    # Calculate changes
+    added = [s for s in discovered if s not in current_state]
+    removed = [s for s in current_state if s not in discovered]
+    changed = [
+        (s, current_state[s], discovered[s])
+        for s in discovered
+        if s in current_state and current_state[s] != discovered[s]
+    ]
+
+    # Report findings
+    if not (added or removed or changed):
+        typer.echo("State is already in sync.")
+        return
+
+    _report_sync_changes(added, removed, changed, discovered, current_state)
+
+    if dry_run:
+        typer.echo("\n(dry-run: no changes made)")
+        return
+
+    # Apply changes
+    save_state(discovered)
+    typer.echo(f"\nState updated: {len(discovered)} services tracked.")
 
 
 if __name__ == "__main__":
