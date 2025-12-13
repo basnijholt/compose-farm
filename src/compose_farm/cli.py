@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 
+
 def _version_callback(value: bool) -> None:
     """Print version and exit."""
     if value:

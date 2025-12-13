@@ -46,7 +46,12 @@ class Config(BaseModel):
         Tries compose.yaml first, then docker-compose.yml.
         """
         service_dir = self.compose_dir / service
-        for filename in ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"):
+        for filename in (
+            "compose.yaml",
+            "compose.yml",
+            "docker-compose.yml",
+            "docker-compose.yaml",
+        ):
             candidate = service_dir / filename
             if candidate.exists():
                 return candidate
