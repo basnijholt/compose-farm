@@ -14,9 +14,12 @@ from .config import Config, load_config
 from .logs import snapshot_services
 from .ssh import (
     CommandResult,
+    run_compose,
+    run_compose_on_host,
     run_on_services,
     run_sequential_on_services,
 )
+from .state import get_service_host, remove_service, set_service_host
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
@@ -102,15 +105,51 @@ LogPathOption = Annotated[
 ]
 
 
+async def _up_with_migration(
+    cfg: Config,
+    services: list[str],
+) -> list[CommandResult]:
+    """Start services with automatic migration if host changed."""
+    results: list[CommandResult] = []
+
+    for service in services:
+        target_host = cfg.services[service]
+        current_host = get_service_host(service)
+
+        # If service is deployed elsewhere, migrate it
+        if current_host and current_host != target_host:
+            if current_host in cfg.hosts:
+                typer.echo(f"[{service}] Migrating from {current_host} to {target_host}...")
+                down_result = await run_compose_on_host(cfg, service, current_host, "down")
+                if not down_result.success:
+                    results.append(down_result)
+                    continue
+            else:
+                typer.echo(
+                    f"[{service}] Warning: was on {current_host} (not in config), skipping down",
+                    err=True,
+                )
+
+        # Start on target host
+        up_result = await run_compose(cfg, service, "up -d")
+        results.append(up_result)
+
+        # Update state on success
+        if up_result.success:
+            set_service_host(service, target_host)
+
+    return results
+
+
 @app.command()
 def up(
     services: ServicesArg = None,
     all_services: AllOption = False,
     config: ConfigOption = None,
 ) -> None:
-    """Start services (docker compose up -d)."""
+    """Start services (docker compose up -d). Auto-migrates if host changed."""
     svc_list, cfg = _get_services(services or [], all_services, config)
-    results = _run_async(run_on_services(cfg, svc_list, "up -d"))
+    results = _run_async(_up_with_migration(cfg, svc_list))
     _report_results(results)
 
 
@@ -123,6 +162,12 @@ def down(
     """Stop services (docker compose down)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
     results = _run_async(run_on_services(cfg, svc_list, "down"))
+
+    # Remove from state on success
+    for result in results:
+        if result.success:
+            remove_service(result.service)
+
     _report_results(results)
 
 
