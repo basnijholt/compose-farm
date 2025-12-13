@@ -263,128 +263,25 @@ def _resolve_published_port(source: TraefikServiceSource) -> tuple[int | None, s
     )
 
 
-def generate_traefik_config(  # noqa: C901, PLR0912, PLR0915
-    config: Config,
-    services: list[str],
-) -> tuple[dict[str, Any], list[str]]:
-    """Generate Traefik dynamic config from compose labels.
+def _load_stack(config: Config, stack: str) -> tuple[dict[str, Any], dict[str, str], str]:
+    compose_path = config.get_compose_path(stack)
+    if not compose_path.exists():
+        message = f"[{stack}] Compose file not found: {compose_path}"
+        raise FileNotFoundError(message)
 
-    Returns (config_dict, warnings).
-    """
-    dynamic: dict[str, Any] = {}
-    warnings: list[str] = []
-    sources: dict[str, TraefikServiceSource] = {}
+    env = _load_env(compose_path)
+    compose_data = yaml.safe_load(compose_path.read_text()) or {}
+    raw_services = compose_data.get("services", {})
+    if not isinstance(raw_services, dict):
+        return {}, env, config.get_host(stack).address
+    return raw_services, env, config.get_host(stack).address
 
-    for stack in services:
-        compose_path = config.get_compose_path(stack)
-        if not compose_path.exists():
-            message = f"[{stack}] Compose file not found: {compose_path}"
-            raise FileNotFoundError(message)
 
-        env = _load_env(compose_path)
-        compose_data = yaml.safe_load(compose_path.read_text()) or {}
-        raw_services = compose_data.get("services", {})
-        if not isinstance(raw_services, dict):
-            continue
-
-        host_address = config.get_host(stack).address
-
-        for compose_service, definition in raw_services.items():
-            if not isinstance(definition, dict):
-                continue
-            labels = _normalize_labels(definition.get("labels"), env)
-            if not labels:
-                continue
-            enable_raw = labels.get("traefik.enable")
-            if enable_raw is not None and _parse_value("enable", enable_raw) is False:
-                continue
-
-            ports = _parse_ports(definition.get("ports"), env)
-            routers: dict[str, bool] = {}
-            service_names: set[str] = set()
-
-            for label_key, label_value in labels.items():
-                if not label_key.startswith("traefik."):
-                    continue
-                if label_key in {"traefik.enable", "traefik.docker.network"}:
-                    continue
-
-                key_without_prefix = label_key[len("traefik.") :]
-                if not key_without_prefix.startswith(("http.", "tcp.", "udp.")):
-                    continue
-
-                _insert(
-                    dynamic,
-                    key_without_prefix.split("."),
-                    _parse_value(key_without_prefix, label_value),
-                )
-
-                if key_without_prefix.startswith("http.routers."):
-                    router_parts = key_without_prefix.split(".")
-                    if len(router_parts) >= MIN_ROUTER_PARTS:
-                        router_name = router_parts[2]
-                        router_remainder = router_parts[3:]
-                        explicit = routers.get(router_name, False)
-                        if router_remainder == ["service"]:
-                            explicit = True
-                        routers[router_name] = explicit
-
-                if not key_without_prefix.startswith("http.services."):
-                    continue
-                parts = key_without_prefix.split(".")
-                if len(parts) < MIN_SERVICE_LABEL_PARTS:
-                    continue
-                traefik_service = parts[2]
-                service_names.add(traefik_service)
-                remainder = parts[3:]
-
-                source = sources.get(traefik_service)
-                if source is None:
-                    source = TraefikServiceSource(
-                        traefik_service=traefik_service,
-                        stack=stack,
-                        compose_service=compose_service,
-                        host_address=host_address,
-                        ports=ports,
-                    )
-                    sources[traefik_service] = source
-
-                if remainder == ["loadbalancer", "server", "port"]:
-                    parsed = _parse_value(key_without_prefix, label_value)
-                    if isinstance(parsed, int):
-                        source.container_port = parsed
-                elif remainder == ["loadbalancer", "server", "scheme"]:
-                    source.scheme = str(_parse_value(key_without_prefix, label_value))
-
-            if routers:
-                if len(service_names) == 1:
-                    default_service = next(iter(service_names))
-                    for router_name, explicit in routers.items():
-                        if explicit:
-                            continue
-                        _insert(
-                            dynamic,
-                            ["http", "routers", router_name, "service"],
-                            default_service,
-                        )
-                elif len(service_names) == 0:
-                    for router_name, explicit in routers.items():
-                        if explicit:
-                            continue
-                        warnings.append(
-                            f"[{stack}/{compose_service}] Router '{router_name}' has no service "
-                            "and no traefik.http.services labels were found."
-                        )
-                else:
-                    for router_name, explicit in routers.items():
-                        if explicit:
-                            continue
-                        warnings.append(
-                            f"[{stack}/{compose_service}] Router '{router_name}' has no explicit service "
-                            "and multiple Traefik services are defined; add "
-                            f"traefik.http.routers.{router_name}.service."
-                        )
-
+def _finalize_http_services(
+    dynamic: dict[str, Any],
+    sources: dict[str, TraefikServiceSource],
+    warnings: list[str],
+) -> None:
     for traefik_service, source in sources.items():
         published_port, warn = _resolve_published_port(source)
         if warn:
@@ -408,4 +305,175 @@ def generate_traefik_config(  # noqa: C901, PLR0912, PLR0915
             lb_cfg.pop("server", None)
             lb_cfg["servers"] = [{"url": upstream_url}]
 
+
+def _attach_default_services(
+    stack: str,
+    compose_service: str,
+    routers: dict[str, bool],
+    service_names: set[str],
+    warnings: list[str],
+    dynamic: dict[str, Any],
+) -> None:
+    if not routers:
+        return
+    if len(service_names) == 1:
+        default_service = next(iter(service_names))
+        for router_name, explicit in routers.items():
+            if explicit:
+                continue
+            _insert(dynamic, ["http", "routers", router_name, "service"], default_service)
+        return
+
+    if len(service_names) == 0:
+        for router_name, explicit in routers.items():
+            if not explicit:
+                warnings.append(
+                    f"[{stack}/{compose_service}] Router '{router_name}' has no service "
+                    "and no traefik.http.services labels were found."
+                )
+        return
+
+    for router_name, explicit in routers.items():
+        if explicit:
+            continue
+        warnings.append(
+            f"[{stack}/{compose_service}] Router '{router_name}' has no explicit service "
+            "and multiple Traefik services are defined; add "
+            f"traefik.http.routers.{router_name}.service."
+        )
+
+
+def _process_router_label(
+    key_without_prefix: str,
+    routers: dict[str, bool],
+) -> None:
+    if not key_without_prefix.startswith("http.routers."):
+        return
+    router_parts = key_without_prefix.split(".")
+    if len(router_parts) < MIN_ROUTER_PARTS:
+        return
+    router_name = router_parts[2]
+    router_remainder = router_parts[3:]
+    explicit = routers.get(router_name, False)
+    if router_remainder == ["service"]:
+        explicit = True
+    routers[router_name] = explicit
+
+
+def _process_service_label(
+    key_without_prefix: str,
+    label_value: str,
+    stack: str,
+    compose_service: str,
+    host_address: str,
+    ports: list[PortMapping],
+    service_names: set[str],
+    sources: dict[str, TraefikServiceSource],
+) -> None:
+    if not key_without_prefix.startswith("http.services."):
+        return
+    parts = key_without_prefix.split(".")
+    if len(parts) < MIN_SERVICE_LABEL_PARTS:
+        return
+    traefik_service = parts[2]
+    service_names.add(traefik_service)
+    remainder = parts[3:]
+
+    source = sources.get(traefik_service)
+    if source is None:
+        source = TraefikServiceSource(
+            traefik_service=traefik_service,
+            stack=stack,
+            compose_service=compose_service,
+            host_address=host_address,
+            ports=ports,
+        )
+        sources[traefik_service] = source
+
+    if remainder == ["loadbalancer", "server", "port"]:
+        parsed = _parse_value(key_without_prefix, label_value)
+        if isinstance(parsed, int):
+            source.container_port = parsed
+    elif remainder == ["loadbalancer", "server", "scheme"]:
+        source.scheme = str(_parse_value(key_without_prefix, label_value))
+
+
+def _process_service_labels(
+    stack: str,
+    compose_service: str,
+    definition: dict[str, Any],
+    host_address: str,
+    env: dict[str, str],
+    dynamic: dict[str, Any],
+    sources: dict[str, TraefikServiceSource],
+    warnings: list[str],
+) -> None:
+    labels = _normalize_labels(definition.get("labels"), env)
+    if not labels:
+        return
+    enable_raw = labels.get("traefik.enable")
+    if enable_raw is not None and _parse_value("enable", enable_raw) is False:
+        return
+
+    ports = _parse_ports(definition.get("ports"), env)
+    routers: dict[str, bool] = {}
+    service_names: set[str] = set()
+
+    for label_key, label_value in labels.items():
+        if not label_key.startswith("traefik."):
+            continue
+        if label_key in {"traefik.enable", "traefik.docker.network"}:
+            continue
+
+        key_without_prefix = label_key[len("traefik.") :]
+        if not key_without_prefix.startswith(("http.", "tcp.", "udp.")):
+            continue
+
+        _insert(
+            dynamic, key_without_prefix.split("."), _parse_value(key_without_prefix, label_value)
+        )
+        _process_router_label(key_without_prefix, routers)
+        _process_service_label(
+            key_without_prefix,
+            label_value,
+            stack,
+            compose_service,
+            host_address,
+            ports,
+            service_names,
+            sources,
+        )
+
+    _attach_default_services(stack, compose_service, routers, service_names, warnings, dynamic)
+
+
+def generate_traefik_config(
+    config: Config,
+    services: list[str],
+) -> tuple[dict[str, Any], list[str]]:
+    """Generate Traefik dynamic config from compose labels.
+
+    Returns (config_dict, warnings).
+    """
+    dynamic: dict[str, Any] = {}
+    warnings: list[str] = []
+    sources: dict[str, TraefikServiceSource] = {}
+
+    for stack in services:
+        raw_services, env, host_address = _load_stack(config, stack)
+        for compose_service, definition in raw_services.items():
+            if not isinstance(definition, dict):
+                continue
+            _process_service_labels(
+                stack,
+                compose_service,
+                definition,
+                host_address,
+                env,
+                dynamic,
+                sources,
+                warnings,
+            )
+
+    _finalize_http_services(dynamic, sources, warnings)
     return dynamic, warnings

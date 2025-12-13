@@ -92,6 +92,7 @@ async def _run_ssh_command(
     stream: bool = True,
 ) -> CommandResult:
     """Run a command on a remote host via SSH with streaming output."""
+    proc: asyncssh.SSHClientProcess[Any]
     try:
         async with (
             asyncssh.connect(
