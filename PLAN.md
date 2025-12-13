@@ -1,83 +1,35 @@
-# SDC (Simple Distributed Compose) - Implementation Plan
+# Compose Farm – Traefik Multihost Ingress Plan
 
-## Overview
-Minimal CLI tool to run docker compose commands on remote hosts via SSH.
+## Goal
+Generate a Traefik file-provider fragment from existing docker-compose Traefik labels (no config duplication) so a single front-door Traefik on 192.168.1.66 with wildcard `*.lab.mydomain.org` can route to services running on other hosts. Keep the current simplicity (SSH + docker compose); no Swarm/K8s.
 
-## Tech Stack
-- **uv** - project init & dependency management
-- **Hatch** - build backend
-- **Typer** - CLI
-- **Pydantic** - config parsing
-- **asyncssh** - async SSH with streaming
+## Requirements
+- Traefik stays on main host; keep current `dynamic.yml` and Docker provider for local containers.
+- Add a watched directory provider (any path works) and load a generated fragment (e.g., `compose-farm.generated.yml`).
+- No edits to compose files: reuse existing `traefik.*` labels as the single source of truth; Compose Farm only reads them.
+- Generator infers routing from labels and reachability from `ports:` mappings; prefer host-published ports so Traefik can reach services across hosts. Upstreams point to `<host address>:<published host port>`; warn if no published port is found.
+- Only minimal data in `compose-farm.yaml`: hosts map and service→host mapping (already present).
+- No new orchestration/discovery layers; respect KISS/YAGNI/DRY.
 
-## Project Structure
-```
-sdc/
-├── pyproject.toml
-├── src/
-│   └── sdc/
-│       ├── __init__.py
-│       ├── cli.py          # Typer CLI
-│       ├── config.py       # Pydantic models
-│       └── ssh.py          # SSH execution
-└── sdc.yaml                # Example config
-```
+## Non-Goals
+- No Swarm/Kubernetes adoption.
+- No global Docker provider across hosts.
+- No health checks/service discovery layer.
 
-## Config Schema (`~/.config/sdc/sdc.yaml` or `./sdc.yaml`)
-```yaml
-compose_dir: /opt/compose
+## Current State (Dec 2025)
+- Compose Farm: Typer CLI wrapping `docker compose` over SSH; config in `compose-farm.yaml`; parallel by default; snapshot/log tooling present.
+- Traefik: single instance on 192.168.1.66, wildcard `*.lab.mydomain.org`, Docker provider for local services, file provider via `dynamic.yml` already in use.
 
-hosts:
-  nas01:
-    address: 192.168.1.10
-    user: docker        # optional, defaults to current user
-  nas02:
-    address: 192.168.1.11
+## Proposed Implementation Steps
+1) Add generator command: `compose-farm traefik-file --output <path>`.
+2) Resolve per-service host from `compose-farm.yaml`; read compose file at `{compose_dir}/{service}/docker-compose.yml`.
+3) Parse `traefik.*` labels to build routers/services/middlewares as in compose; map container port to published host port (from `ports:`) to form upstream URLs with host address.
+4) Emit file-provider YAML to the watched directory (recommended default: `/mnt/data/traefik/dynamic.d/compose-farm.generated.yml`, but user chooses via `--output`).
+5) Warnings: if no published port is found, warn that cross-host reachability requires L3 reachability to container IPs.
+6) Tests: label parsing, port mapping, YAML render; scenario with published port; scenario without published port.
+7) Docs: update README/CLAUDE to describe directory provider flags and the generator workflow; note that compose files remain unchanged.
 
-services:
-  plex: nas01
-  jellyfin: nas02
-```
-
-## CLI Commands
-```bash
-sdc up <service...>       # docker compose up -d
-sdc down <service...>     # docker compose down
-sdc pull <service...>     # docker compose pull
-sdc restart <service...>  # down + up
-sdc logs <service...>     # stream logs
-sdc ps                    # show all services & status
-sdc update <service...>   # pull + restart (end-to-end update)
-
-# Flags
---all                     # run on all services
-```
-
-## Implementation Steps
-
-### Step 1: Project Setup
-- `uv init sdc`
-- Configure pyproject.toml with Hatch build backend
-- Add dependencies: typer, pydantic, asyncssh, pyyaml
-
-### Step 2: Config Module (`config.py`)
-- Pydantic models: `Host`, `Config`
-- Config loading: check `./sdc.yaml` then `~/.config/sdc/sdc.yaml`
-- Validation: ensure services reference valid hosts
-
-### Step 3: SSH Module (`ssh.py`)
-- `run_command(host, command)` - async SSH with streaming
-- `run_compose(service, compose_cmd)` - build and run compose command
-- `run_on_services(services, compose_cmd)` - parallel execution
-
-### Step 4: CLI Module (`cli.py`)
-- Typer app with commands: up, down, pull, restart, logs, ps, update
-- `--all` flag for operating on all services
-- Streaming output with service name prefix
-
-## Design Decisions
-1. **asyncssh** - native async, built-in streaming stdout/stderr
-2. **SSH key auth** - uses ssh-agent, no password handling
-3. **Parallel by default** - asyncio.gather for multiple services
-4. **Streaming output** - real-time with `[service]` prefix
-5. **Compose path** - `{compose_dir}/{service}/docker-compose.yml`
+## Open Questions
+- How to derive target host address: use `hosts.<name>.address` verbatim, or allow override per service? (Default: use host address.)
+- Should we support multiple hosts/backends per service for LB/HA? (Start with single server.)
+- Where to store generated file by default? (Default to user-specified `--output`; maybe fallback to `./compose-farm-traefik.yml`.)

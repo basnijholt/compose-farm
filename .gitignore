@@ -39,3 +39,4 @@ htmlcov/
 # Local config (don't commit real configs)
 compose-farm.yaml
 !examples/compose-farm.yaml
+coverage.xml

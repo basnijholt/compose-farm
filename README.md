@@ -92,6 +92,60 @@ compose-farm logs -f plex  # follow
 compose-farm ps
 ```
 
+## Traefik Multihost Ingress (File Provider)
+
+If you run a single Traefik instance on one “front‑door” host and want it to route to
+Compose Farm services on other hosts, Compose Farm can generate a Traefik file‑provider
+fragment from your existing compose labels.
+
+**How it works**
+
+- Your `docker-compose.yml` remains the source of truth. Put normal `traefik.*` labels on
+  the container you want exposed.
+- Labels and port specs may use `${VAR}` / `${VAR:-default}`; Compose Farm resolves these
+  using the stack’s `.env` file and your current environment, just like Docker Compose.
+- Publish a host port for that container (via `ports:`). The generator prefers
+  host‑published ports so Traefik can reach the service across hosts; if none are found,
+  it warns and you’d need L3 reachability to container IPs.
+- If a router label doesn’t specify `traefik.http.routers.<name>.service` and there’s only
+  one Traefik service defined on that container, Compose Farm wires the router to it.
+- `compose-farm.yaml` stays unchanged: just `hosts` and `services: service → host`.
+
+Example `docker-compose.yml` pattern:
+
+```yaml
+services:
+  plex:
+    ports: ["32400:32400"]
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.plex.rule=Host(`plex.lab.mydomain.org`)
+      - traefik.http.routers.plex.entrypoints=websecure
+      - traefik.http.routers.plex.tls.certresolver=letsencrypt
+      - traefik.http.services.plex.loadbalancer.server.port=32400
+```
+
+**One‑time Traefik setup**
+
+Enable a file provider watching a directory (any path is fine; a common choice is on your
+shared/NFS mount):
+
+```yaml
+providers:
+  file:
+    directory: /mnt/data/traefik/dynamic.d
+    watch: true
+```
+
+**Generate the fragment**
+
+```bash
+compose-farm traefik-file --output /mnt/data/traefik/dynamic.d/compose-farm.generated.yml
+```
+
+Re‑run this after changing Traefik labels, moving a service to another host, or changing
+published ports.
+
 ## Requirements
 
 - Python 3.11+
