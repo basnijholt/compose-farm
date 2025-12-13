@@ -1,6 +1,6 @@
 [project]
 name = "compose-farm"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Compose Farm - run docker compose commands across multiple hosts"
 readme = "README.md"
 authors = [
@@ -18,8 +18,14 @@ dependencies = [
 compose-farm = "compose_farm.cli:app"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/compose_farm/_version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/compose_farm"]

@@ -126,7 +126,6 @@ wheels = [
 
 [[package]]
 name = "compose-farm"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "asyncssh" },
