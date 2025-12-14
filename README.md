@@ -72,8 +72,7 @@ Compose Farm moves containers between hosts but **does not provide cross-host ne
    # Instead of: DATABASE_URL=postgres://db:5432
    # Use:        DATABASE_URL=postgres://192.168.1.66:5432
    ```
-
-4. **Use Traefik labels for HTTP routing** - Traefik can route to any host via the file-provider, but the container needs a published port
+   This includes Traefik routing—containers need published ports for the file-provider to reach them
 
 ### What Compose Farm doesn't do
 
