@@ -31,7 +31,7 @@ compose_farm/
 ## Git Safety
 
 - Never amend commits.
-- Never merge into a branch; prefer fast-forward or rebase as directed.
+- **NEVER merge anything into main.** Always commit directly or use fast-forward/rebase.
 - Never force push.
 
 ## Commands Quick Reference
