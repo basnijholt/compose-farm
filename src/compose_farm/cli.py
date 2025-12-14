@@ -179,7 +179,7 @@ async def _up_with_migration(
     return results
 
 
-@app.command()
+@app.command(rich_help_panel="Lifecycle")
 def up(
     services: ServicesArg = None,
     all_services: AllOption = False,
@@ -192,7 +192,7 @@ def up(
     _report_results(results)
 
 
-@app.command()
+@app.command(rich_help_panel="Lifecycle")
 def down(
     services: ServicesArg = None,
     all_services: AllOption = False,
@@ -211,7 +211,7 @@ def down(
     _report_results(results)
 
 
-@app.command()
+@app.command(rich_help_panel="Lifecycle")
 def pull(
     services: ServicesArg = None,
     all_services: AllOption = False,
@@ -223,7 +223,7 @@ def pull(
     _report_results(results)
 
 
-@app.command()
+@app.command(rich_help_panel="Lifecycle")
 def restart(
     services: ServicesArg = None,
     all_services: AllOption = False,
@@ -236,7 +236,7 @@ def restart(
     _report_results(results)
 
 
-@app.command()
+@app.command(rich_help_panel="Lifecycle")
 def update(
     services: ServicesArg = None,
     all_services: AllOption = False,
@@ -249,7 +249,7 @@ def update(
     _report_results(results)
 
 
-@app.command()
+@app.command(rich_help_panel="Monitoring")
 def logs(
     services: ServicesArg = None,
     all_services: AllOption = False,
@@ -266,7 +266,7 @@ def logs(
     _report_results(results)
 
 
-@app.command()
+@app.command(rich_help_panel="Monitoring")
 def ps(
     config: ConfigOption = None,
 ) -> None:
@@ -276,7 +276,7 @@ def ps(
     _report_results(results)
 
 
-@app.command("traefik-file")
+@app.command("traefik-file", rich_help_panel="Configuration")
 def traefik_file(
     services: ServicesArg = None,
     all_services: AllOption = False,
@@ -364,7 +364,7 @@ def _report_sync_changes(
             )
 
 
-@app.command()
+@app.command(rich_help_panel="Configuration")
 def sync(
     config: ConfigOption = None,
     log_path: LogPathOption = None,
@@ -420,7 +420,7 @@ def sync(
             err_console.print(f"[yellow]![/] {exc}")
 
 
-@app.command()
+@app.command(rich_help_panel="Configuration")
 def check(
     config: ConfigOption = None,
 ) -> None:
