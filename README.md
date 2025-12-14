@@ -59,10 +59,10 @@ Compose Farm assumes your compose files are accessible at the same path on all h
 - **Shared filesystem** (e.g., GlusterFS, Ceph)
 
 ```
-# Example: NFS mount on all hosts
-nas:/volume1/compose  →  /opt/compose (on nas01)
-nas:/volume1/compose  →  /opt/compose (on nas02)
-nas:/volume1/compose  →  /opt/compose (on nas03)
+# Example: NFS mount on all Docker hosts
+nas:/volume1/compose  →  /opt/compose (on docker-host-1)
+nas:/volume1/compose  →  /opt/compose (on docker-host-2)
+nas:/volume1/compose  →  /opt/compose (on docker-host-3)
 ```
 
 Compose Farm simply runs `docker compose -f /opt/compose/{service}/docker-compose.yml` on the appropriate host—it doesn't copy or sync files.
