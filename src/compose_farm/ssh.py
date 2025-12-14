@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import socket
+import sys
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
@@ -66,9 +67,24 @@ async def _run_local_command(
     service: str,
     *,
     stream: bool = True,
+    raw: bool = False,
 ) -> CommandResult:
     """Run a command locally with streaming output."""
     try:
+        if raw:
+            # Run with inherited stdout/stderr for proper \r handling
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=None,  # Inherit
+                stderr=None,  # Inherit
+            )
+            await proc.wait()
+            return CommandResult(
+                service=service,
+                exit_code=proc.returncode or 0,
+                success=proc.returncode == 0,
+            )
+
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
@@ -122,51 +138,67 @@ async def _run_ssh_command(
     service: str,
     *,
     stream: bool = True,
+    raw: bool = False,
 ) -> CommandResult:
     """Run a command on a remote host via SSH with streaming output."""
     proc: asyncssh.SSHClientProcess[Any]
     try:
-        async with (
-            asyncssh.connect(
-                host.address,
-                port=host.port,
-                username=host.user,
-                known_hosts=None,
-            ) as conn,
-            conn.create_process(command) as proc,
-        ):
-            if stream:
+        async with asyncssh.connect(
+            host.address,
+            port=host.port,
+            username=host.user,
+            known_hosts=None,
+        ) as conn:
+            if raw:
+                # Use PTY for proper terminal handling
+                async with conn.create_process(command, term_type="xterm") as proc:
 
-                async def read_stream(
-                    reader: Any,
-                    prefix: str,
-                    *,
-                    is_stderr: bool = False,
-                ) -> None:
-                    console = _err_console if is_stderr else _console
-                    async for line in reader:
-                        if line.strip():  # Skip empty lines
-                            console.print(f"[cyan]\\[{prefix}][/] {escape(line)}", end="")
+                    async def forward_output(reader: Any) -> None:
+                        async for data in reader:
+                            sys.stdout.write(data)
+                            sys.stdout.flush()
 
-                await asyncio.gather(
-                    read_stream(proc.stdout, service),
-                    read_stream(proc.stderr, service, is_stderr=True),
+                    await forward_output(proc.stdout)
+                    await proc.wait()
+                    return CommandResult(
+                        service=service,
+                        exit_code=proc.exit_status or 0,
+                        success=proc.exit_status == 0,
+                    )
+
+            async with conn.create_process(command) as proc:
+                if stream:
+
+                    async def read_stream(
+                        reader: Any,
+                        prefix: str,
+                        *,
+                        is_stderr: bool = False,
+                    ) -> None:
+                        console = _err_console if is_stderr else _console
+                        async for line in reader:
+                            if line.strip():  # Skip empty lines
+                                console.print(f"[cyan]\\[{prefix}][/] {escape(line)}", end="")
+
+                    await asyncio.gather(
+                        read_stream(proc.stdout, service),
+                        read_stream(proc.stderr, service, is_stderr=True),
+                    )
+
+                stdout_data = ""
+                stderr_data = ""
+                if not stream:
+                    stdout_data = await proc.stdout.read()
+                    stderr_data = await proc.stderr.read()
+
+                await proc.wait()
+                return CommandResult(
+                    service=service,
+                    exit_code=proc.exit_status or 0,
+                    success=proc.exit_status == 0,
+                    stdout=stdout_data,
+                    stderr=stderr_data,
                 )
-
-            stdout_data = ""
-            stderr_data = ""
-            if not stream:
-                stdout_data = await proc.stdout.read()
-                stderr_data = await proc.stderr.read()
-
-            await proc.wait()
-            return CommandResult(
-                service=service,
-                exit_code=proc.exit_status or 0,
-                success=proc.exit_status == 0,
-                stdout=stdout_data,
-                stderr=stderr_data,
-            )
     except (OSError, asyncssh.Error) as e:
         _err_console.print(f"[cyan]\\[{service}][/] [red]SSH error:[/] {e}")
         return CommandResult(service=service, exit_code=1, success=False)
@@ -178,11 +210,12 @@ async def run_command(
     service: str,
     *,
     stream: bool = True,
+    raw: bool = False,
 ) -> CommandResult:
     """Run a command on a host (locally or via SSH)."""
     if _is_local(host):
-        return await _run_local_command(command, service, stream=stream)
-    return await _run_ssh_command(host, command, service, stream=stream)
+        return await _run_local_command(command, service, stream=stream, raw=raw)
+    return await _run_ssh_command(host, command, service, stream=stream, raw=raw)
 
 
 async def run_compose(
@@ -191,13 +224,14 @@ async def run_compose(
     compose_cmd: str,
     *,
     stream: bool = True,
+    raw: bool = False,
 ) -> CommandResult:
     """Run a docker compose command for a service."""
     host = config.get_host(service)
     compose_path = config.get_compose_path(service)
 
     command = f"docker compose -f {compose_path} {compose_cmd}"
-    return await run_command(host, command, service, stream=stream)
+    return await run_command(host, command, service, stream=stream, raw=raw)
 
 
 async def run_compose_on_host(
@@ -207,6 +241,7 @@ async def run_compose_on_host(
     compose_cmd: str,
     *,
     stream: bool = True,
+    raw: bool = False,
 ) -> CommandResult:
     """Run a docker compose command for a service on a specific host.
 
@@ -216,7 +251,7 @@ async def run_compose_on_host(
     compose_path = config.get_compose_path(service)
 
     command = f"docker compose -f {compose_path} {compose_cmd}"
-    return await run_command(host, command, service, stream=stream)
+    return await run_command(host, command, service, stream=stream, raw=raw)
 
 
 async def run_on_services(
@@ -225,9 +260,15 @@ async def run_on_services(
     compose_cmd: str,
     *,
     stream: bool = True,
+    raw: bool = False,
 ) -> list[CommandResult]:
-    """Run a docker compose command on multiple services in parallel."""
-    tasks = [run_compose(config, service, compose_cmd, stream=stream) for service in services]
+    """Run a docker compose command on multiple services in parallel.
+
+    Note: raw=True only makes sense for single-service operations.
+    """
+    tasks = [
+        run_compose(config, service, compose_cmd, stream=stream, raw=raw) for service in services
+    ]
     return await asyncio.gather(*tasks)
 
 
@@ -237,10 +278,11 @@ async def run_sequential_commands(
     commands: list[str],
     *,
     stream: bool = True,
+    raw: bool = False,
 ) -> CommandResult:
     """Run multiple compose commands sequentially for a service."""
     for cmd in commands:
-        result = await run_compose(config, service, cmd, stream=stream)
+        result = await run_compose(config, service, cmd, stream=stream, raw=raw)
         if not result.success:
             return result
     return CommandResult(service=service, exit_code=0, success=True)
@@ -252,10 +294,15 @@ async def run_sequential_on_services(
     commands: list[str],
     *,
     stream: bool = True,
+    raw: bool = False,
 ) -> list[CommandResult]:
-    """Run sequential commands on multiple services in parallel."""
+    """Run sequential commands on multiple services in parallel.
+
+    Note: raw=True only makes sense for single-service operations.
+    """
     tasks = [
-        run_sequential_commands(config, service, commands, stream=stream) for service in services
+        run_sequential_commands(config, service, commands, stream=stream, raw=raw)
+        for service in services
     ]
     return await asyncio.gather(*tasks)
 

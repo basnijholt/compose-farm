@@ -218,6 +218,8 @@ def _report_preflight_failures(
 async def _up_with_migration(
     cfg: Config,
     services: list[str],
+    *,
+    raw: bool = False,
 ) -> list[CommandResult]:
     """Start services with automatic migration if host changed."""
     results: list[CommandResult] = []
@@ -240,7 +242,7 @@ async def _up_with_migration(
                     f"[cyan]\\[{service}][/] Migrating from "
                     f"[magenta]{current_host}[/] → [magenta]{target_host}[/]..."
                 )
-                down_result = await run_compose_on_host(cfg, service, current_host, "down")
+                down_result = await run_compose_on_host(cfg, service, current_host, "down", raw=raw)
                 if not down_result.success:
                     results.append(down_result)
                     continue
@@ -252,7 +254,7 @@ async def _up_with_migration(
 
         # Start on target host
         console.print(f"[cyan]\\[{service}][/] Starting on [magenta]{target_host}[/]...")
-        up_result = await run_compose(cfg, service, "up -d")
+        up_result = await run_compose(cfg, service, "up -d", raw=raw)
         results.append(up_result)
 
         # Update state on success
@@ -270,7 +272,8 @@ def up(
 ) -> None:
     """Start services (docker compose up -d). Auto-migrates if host changed."""
     svc_list, cfg = _get_services(services or [], all_services, config)
-    results = _run_async(_up_with_migration(cfg, svc_list))
+    raw = len(svc_list) == 1
+    results = _run_async(_up_with_migration(cfg, svc_list, raw=raw))
     _maybe_regenerate_traefik(cfg)
     _report_results(results)
 
@@ -283,7 +286,8 @@ def down(
 ) -> None:
     """Stop services (docker compose down)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
-    results = _run_async(run_on_services(cfg, svc_list, "down"))
+    raw = len(svc_list) == 1
+    results = _run_async(run_on_services(cfg, svc_list, "down", raw=raw))
 
     # Remove from state on success
     for result in results:
@@ -302,7 +306,8 @@ def pull(
 ) -> None:
     """Pull latest images (docker compose pull)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
-    results = _run_async(run_on_services(cfg, svc_list, "pull"))
+    raw = len(svc_list) == 1
+    results = _run_async(run_on_services(cfg, svc_list, "pull", raw=raw))
     _report_results(results)
 
 
@@ -314,7 +319,8 @@ def restart(
 ) -> None:
     """Restart services (down + up)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
-    results = _run_async(run_sequential_on_services(cfg, svc_list, ["down", "up -d"]))
+    raw = len(svc_list) == 1
+    results = _run_async(run_sequential_on_services(cfg, svc_list, ["down", "up -d"], raw=raw))
     _maybe_regenerate_traefik(cfg)
     _report_results(results)
 
@@ -327,7 +333,10 @@ def update(
 ) -> None:
     """Update services (pull + down + up)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
-    results = _run_async(run_sequential_on_services(cfg, svc_list, ["pull", "down", "up -d"]))
+    raw = len(svc_list) == 1
+    results = _run_async(
+        run_sequential_on_services(cfg, svc_list, ["pull", "down", "up -d"], raw=raw)
+    )
     _maybe_regenerate_traefik(cfg)
     _report_results(results)
 
