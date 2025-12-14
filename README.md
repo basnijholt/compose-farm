@@ -117,33 +117,38 @@ Compose files are expected at `{compose_dir}/{service}/compose.yaml` (also suppo
 
 ## Usage
 
+The CLI is available as both `compose-farm` and the shorter `cf` alias.
+
 ```bash
 # Start services (auto-migrates if host changed in config)
-compose-farm up plex jellyfin
-compose-farm up --all
+cf up plex jellyfin
+cf up --all
 
 # Stop services
-compose-farm down plex
+cf down plex
 
 # Pull latest images
-compose-farm pull --all
+cf pull --all
 
 # Restart (down + up)
-compose-farm restart plex
+cf restart plex
 
 # Update (pull + down + up) - the end-to-end update command
-compose-farm update --all
+cf update --all
 
 # Sync state with reality (discovers running services + captures image digests)
-compose-farm sync              # updates state.yaml and dockerfarm-log.toml
-compose-farm sync --dry-run    # preview without writing
+cf sync              # updates state.yaml and dockerfarm-log.toml
+cf sync --dry-run    # preview without writing
+
+# Check config vs disk (find missing services, validate traefik labels)
+cf check
 
 # View logs
-compose-farm logs plex
-compose-farm logs -f plex  # follow
+cf logs plex
+cf logs -f plex  # follow
 
 # Show status
-compose-farm ps
+cf ps
 ```
 
 ### Auto-Migration
@@ -158,7 +163,7 @@ When you change a service's host assignment in config and run `up`, Compose Farm
 services:
   plex: nas01
 
-# After: change to nas02, then run `compose-farm up plex`
+# After: change to nas02, then run `cf up plex`
 services:
   plex: nas02  # Compose Farm will migrate automatically
 ```
@@ -211,7 +216,7 @@ providers:
 **Generate the fragment**
 
 ```bash
-compose-farm traefik-file --all --output /mnt/data/traefik/dynamic.d/compose-farm.yml
+cf traefik-file --all --output /mnt/data/traefik/dynamic.d/compose-farm.yml
 ```
 
 Re‑run this after changing Traefik labels, moving a service to another host, or changing
@@ -238,7 +243,7 @@ services:
 The `traefik_service` option specifies which service runs Traefik. Services on the same host
 are skipped in the file-provider config since Traefik's docker provider handles them directly.
 
-Now `compose-farm up plex` will update the Traefik config automatically—no separate
+Now `cf up plex` will update the Traefik config automatically—no separate
 `traefik-file` command needed.
 
 **Combining with existing config**
@@ -249,7 +254,7 @@ directory and Traefik will merge all files:
 ```bash
 mkdir -p /opt/traefik/dynamic.d
 mv /opt/traefik/dynamic.yml /opt/traefik/dynamic.d/manual.yml
-compose-farm traefik-file --all -o /opt/traefik/dynamic.d/compose-farm.yml
+cf traefik-file --all -o /opt/traefik/dynamic.d/compose-farm.yml
 ```
 
 Update your Traefik config to use directory watching instead of a single file:
@@ -272,7 +277,7 @@ Update your Traefik config to use directory watching instead of a single file:
 
 ## How It Works
 
-1. You run `compose-farm up plex`
+1. You run `cf up plex`
 2. Compose Farm looks up which host runs `plex` (e.g., `nas01`)
 3. It SSHs to `nas01` (or runs locally if `localhost`)
 4. It executes `docker compose -f /opt/compose/plex/docker-compose.yml up -d`
