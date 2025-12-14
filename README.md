@@ -7,6 +7,7 @@
   - [Installation](#installation)
   - [Configuration](#configuration)
   - [Usage](#usage)
+    - [Auto-Migration](#auto-migration)
   - [Traefik Multihost Ingress (File Provider)](#traefik-multihost-ingress-file-provider)
   - [Requirements](#requirements)
   - [How It Works](#how-it-works)
@@ -75,12 +76,12 @@ services:
   radarr: local  # Runs on the machine where you invoke compose-farm
 ```
 
-Compose files are expected at `{compose_dir}/{service}/docker-compose.yml`.
+Compose files are expected at `{compose_dir}/{service}/compose.yaml` (also supports `compose.yml`, `docker-compose.yml`, `docker-compose.yaml`).
 
 ## Usage
 
 ```bash
-# Start services
+# Start services (auto-migrates if host changed in config)
 compose-farm up plex jellyfin
 compose-farm up --all
 
@@ -96,9 +97,9 @@ compose-farm restart plex
 # Update (pull + down + up) - the end-to-end update command
 compose-farm update --all
 
-# Capture image digests to a TOML log (per service or all)
-compose-farm snapshot plex
-compose-farm snapshot --all  # writes ~/.config/compose-farm/dockerfarm-log.toml
+# Sync state with reality (discovers running services + captures image digests)
+compose-farm sync              # updates state.yaml and dockerfarm-log.toml
+compose-farm sync --dry-run    # preview without writing
 
 # View logs
 compose-farm logs plex
@@ -106,6 +107,23 @@ compose-farm logs -f plex  # follow
 
 # Show status
 compose-farm ps
+```
+
+### Auto-Migration
+
+When you change a service's host assignment in config and run `up`, Compose Farm automatically:
+1. Runs `down` on the old host
+2. Runs `up -d` on the new host
+3. Updates state tracking
+
+```yaml
+# Before: plex runs on nas01
+services:
+  plex: nas01
+
+# After: change to nas02, then run `compose-farm up plex`
+services:
+  plex: nas02  # Compose Farm will migrate automatically
 ```
 
 ## Traefik Multihost Ingress (File Provider)
