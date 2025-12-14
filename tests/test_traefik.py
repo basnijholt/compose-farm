@@ -193,3 +193,51 @@ def test_generate_skips_services_with_enable_false(tmp_path: Path) -> None:
 
     assert dynamic == {}
     assert warnings == []
+
+
+def test_generate_follows_network_mode_service_for_ports(tmp_path: Path) -> None:
+    """Services using network_mode: service:X should use ports from service X."""
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"nas01": Host(address="192.168.1.10")},
+        services={"vpn-stack": "nas01"},
+    )
+    compose_path = tmp_path / "vpn-stack" / "docker-compose.yml"
+    _write_compose(
+        compose_path,
+        {
+            "services": {
+                "vpn": {
+                    "image": "gluetun",
+                    "ports": ["5080:5080", "9696:9696"],
+                },
+                "qbittorrent": {
+                    "image": "qbittorrent",
+                    "network_mode": "service:vpn",
+                    "labels": [
+                        "traefik.enable=true",
+                        "traefik.http.routers.torrent.rule=Host(`torrent.example.com`)",
+                        "traefik.http.services.torrent.loadbalancer.server.port=5080",
+                    ],
+                },
+                "prowlarr": {
+                    "image": "prowlarr",
+                    "network_mode": "service:vpn",
+                    "labels": [
+                        "traefik.enable=true",
+                        "traefik.http.routers.prowlarr.rule=Host(`prowlarr.example.com`)",
+                        "traefik.http.services.prowlarr.loadbalancer.server.port=9696",
+                    ],
+                },
+            }
+        },
+    )
+
+    dynamic, warnings = generate_traefik_config(cfg, ["vpn-stack"])
+
+    assert warnings == []
+    # Both services should get their ports from the vpn service
+    torrent_servers = dynamic["http"]["services"]["torrent"]["loadbalancer"]["servers"]
+    assert torrent_servers == [{"url": "http://192.168.1.10:5080"}]
+    prowlarr_servers = dynamic["http"]["services"]["prowlarr"]["loadbalancer"]["servers"]
+    assert prowlarr_servers == [{"url": "http://192.168.1.10:9696"}]
