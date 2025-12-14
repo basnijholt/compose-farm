@@ -42,6 +42,7 @@ def _maybe_regenerate_traefik(cfg: Config) -> None:
         dynamic, warnings = generate_traefik_config(cfg, list(cfg.services.keys()))
         cfg.traefik_file.parent.mkdir(parents=True, exist_ok=True)
         cfg.traefik_file.write_text(yaml.safe_dump(dynamic, sort_keys=False))
+        console.print()  # Ensure we're on a new line after streaming output
         console.print(f"[green]✓[/] Traefik config updated: {cfg.traefik_file}")
         for warning in warnings:
             err_console.print(f"[yellow]![/] {warning}")
