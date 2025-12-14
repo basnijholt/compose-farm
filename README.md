@@ -101,7 +101,7 @@ If you need containers on different hosts to communicate seamlessly, you need Do
 ## Installation
 
 ```bash
-uv pip install compose-farm
+uv tool install compose-farm
 # or
 pip install compose-farm
 ```
