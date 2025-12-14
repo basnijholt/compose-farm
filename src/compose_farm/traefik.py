@@ -29,7 +29,6 @@ class PortMapping:
 
     target: int
     published: int | None
-    protocol: str | None = None
 
 
 @dataclass
@@ -121,7 +120,7 @@ def _parse_ports(raw: Any, env: dict[str, str]) -> list[PortMapping]:  # noqa: P
     for item in items:
         if isinstance(item, str):
             interpolated = _interpolate(item, env)
-            port_spec, _, protocol = interpolated.partition("/")
+            port_spec, _, _ = interpolated.partition("/")
             parts = port_spec.split(":")
             published: int | None = None
             target: int | None = None
@@ -136,9 +135,7 @@ def _parse_ports(raw: Any, env: dict[str, str]) -> list[PortMapping]:  # noqa: P
                 target = int(parts[-1])
 
             if target is not None:
-                mappings.append(
-                    PortMapping(target=target, published=published, protocol=protocol or None)
-                )
+                mappings.append(PortMapping(target=target, published=published))
         elif isinstance(item, dict):
             target_raw = item.get("target")
             if isinstance(target_raw, str):
@@ -158,14 +155,7 @@ def _parse_ports(raw: Any, env: dict[str, str]) -> list[PortMapping]:  # noqa: P
                 published_val = int(str(published_raw)) if published_raw is not None else None
             except (TypeError, ValueError):
                 published_val = None
-            protocol_val = item.get("protocol")
-            mappings.append(
-                PortMapping(
-                    target=target_val,
-                    published=published_val,
-                    protocol=str(protocol_val) if protocol_val else None,
-                )
-            )
+            mappings.append(PortMapping(target=target_val, published=published_val))
 
     return mappings
 
