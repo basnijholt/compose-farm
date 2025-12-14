@@ -76,7 +76,7 @@ def test_generate_traefik_config_without_published_port_warns(tmp_path: Path) ->
     dynamic, warnings = generate_traefik_config(cfg, ["app"])
 
     assert dynamic["http"]["routers"]["app"]["rule"] == "Host(`app.lab.mydomain.org`)"
-    assert any("No host-published port found" in warning for warning in warnings)
+    assert any("No published port found" in warning for warning in warnings)
 
 
 def test_generate_interpolates_env_and_infers_router_service(tmp_path: Path) -> None:

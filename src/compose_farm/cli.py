@@ -132,7 +132,7 @@ async def _up_with_migration(
 
     for service in services:
         target_host = cfg.services[service]
-        current_host = get_service_host(service)
+        current_host = get_service_host(cfg, service)
 
         # If service is deployed elsewhere, migrate it
         if current_host and current_host != target_host:
@@ -154,7 +154,7 @@ async def _up_with_migration(
 
         # Update state on success
         if up_result.success:
-            set_service_host(service, target_host)
+            set_service_host(cfg, service, target_host)
 
     return results
 
@@ -185,7 +185,7 @@ def down(
     # Remove from state on success
     for result in results:
         if result.success:
-            remove_service(result.service)
+            remove_service(cfg, result.service)
 
     _maybe_regenerate_traefik(cfg)
     _report_results(results)
@@ -355,7 +355,7 @@ def sync(
     image snapshot into a single command.
     """
     cfg = load_config(config)
-    current_state = load_state()
+    current_state = load_state(cfg)
 
     typer.echo("Discovering running services...")
     discovered = _run_async(_discover_running_services(cfg))
@@ -382,7 +382,7 @@ def sync(
 
     # Update state file
     if state_changed:
-        save_state(discovered)
+        save_state(cfg, discovered)
         typer.echo(f"\nState updated: {len(discovered)} services tracked.")
 
     # Capture image digests for running services

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from compose_farm import state as state_module
+from compose_farm.config import Config, Host
 from compose_farm.state import (
     get_service_host,
     load_state,
@@ -15,52 +15,51 @@ from compose_farm.state import (
 
 
 @pytest.fixture
-def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Create a temporary state directory and patch _get_state_path."""
-    state_path = tmp_path / ".config" / "compose-farm"
-    state_path.mkdir(parents=True)
-
-    def mock_get_state_path() -> Path:
-        return state_path / "state.yaml"
-
-    monkeypatch.setattr(state_module, "_get_state_path", mock_get_state_path)
-    return state_path
+def config(tmp_path: Path) -> Config:
+    """Create a config with a temporary config path for state storage."""
+    config_path = tmp_path / "compose-farm.yaml"
+    config_path.write_text("")  # Create empty file
+    return Config(
+        compose_dir=tmp_path / "compose",
+        hosts={"nas01": Host(address="192.168.1.10")},
+        services={"plex": "nas01"},
+        config_path=config_path,
+    )
 
 
 class TestLoadState:
     """Tests for load_state function."""
 
-    def test_load_state_empty(self, state_dir: Path) -> None:
+    def test_load_state_empty(self, config: Config) -> None:
         """Returns empty dict when state file doesn't exist."""
-        _ = state_dir  # Fixture activates the mock
-        result = load_state()
+        result = load_state(config)
         assert result == {}
 
-    def test_load_state_with_data(self, state_dir: Path) -> None:
+    def test_load_state_with_data(self, config: Config) -> None:
         """Loads existing state from file."""
-        state_file = state_dir / "state.yaml"
+        state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n  jellyfin: nas02\n")
 
-        result = load_state()
+        result = load_state(config)
         assert result == {"plex": "nas01", "jellyfin": "nas02"}
 
-    def test_load_state_empty_file(self, state_dir: Path) -> None:
+    def test_load_state_empty_file(self, config: Config) -> None:
         """Returns empty dict for empty file."""
-        state_file = state_dir / "state.yaml"
+        state_file = config.get_state_path()
         state_file.write_text("")
 
-        result = load_state()
+        result = load_state(config)
         assert result == {}
 
 
 class TestSaveState:
     """Tests for save_state function."""
 
-    def test_save_state(self, state_dir: Path) -> None:
+    def test_save_state(self, config: Config) -> None:
         """Saves state to file."""
-        save_state({"plex": "nas01", "jellyfin": "nas02"})
+        save_state(config, {"plex": "nas01", "jellyfin": "nas02"})
 
-        state_file = state_dir / "state.yaml"
+        state_file = config.get_state_path()
         assert state_file.exists()
         content = state_file.read_text()
         assert "plex: nas01" in content
@@ -70,65 +69,64 @@ class TestSaveState:
 class TestGetServiceHost:
     """Tests for get_service_host function."""
 
-    def test_get_existing_service(self, state_dir: Path) -> None:
+    def test_get_existing_service(self, config: Config) -> None:
         """Returns host for existing service."""
-        state_file = state_dir / "state.yaml"
+        state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n")
 
-        host = get_service_host("plex")
+        host = get_service_host(config, "plex")
         assert host == "nas01"
 
-    def test_get_nonexistent_service(self, state_dir: Path) -> None:
+    def test_get_nonexistent_service(self, config: Config) -> None:
         """Returns None for service not in state."""
-        state_file = state_dir / "state.yaml"
+        state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n")
 
-        host = get_service_host("unknown")
+        host = get_service_host(config, "unknown")
         assert host is None
 
 
 class TestSetServiceHost:
     """Tests for set_service_host function."""
 
-    def test_set_new_service(self, state_dir: Path) -> None:
+    def test_set_new_service(self, config: Config) -> None:
         """Adds new service to state."""
-        _ = state_dir  # Fixture activates the mock
-        set_service_host("plex", "nas01")
+        set_service_host(config, "plex", "nas01")
 
-        result = load_state()
+        result = load_state(config)
         assert result["plex"] == "nas01"
 
-    def test_update_existing_service(self, state_dir: Path) -> None:
+    def test_update_existing_service(self, config: Config) -> None:
         """Updates host for existing service."""
-        state_file = state_dir / "state.yaml"
+        state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n")
 
-        set_service_host("plex", "nas02")
+        set_service_host(config, "plex", "nas02")
 
-        result = load_state()
+        result = load_state(config)
         assert result["plex"] == "nas02"
 
 
 class TestRemoveService:
     """Tests for remove_service function."""
 
-    def test_remove_existing_service(self, state_dir: Path) -> None:
+    def test_remove_existing_service(self, config: Config) -> None:
         """Removes service from state."""
-        state_file = state_dir / "state.yaml"
+        state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n  jellyfin: nas02\n")
 
-        remove_service("plex")
+        remove_service(config, "plex")
 
-        result = load_state()
+        result = load_state(config)
         assert "plex" not in result
         assert result["jellyfin"] == "nas02"
 
-    def test_remove_nonexistent_service(self, state_dir: Path) -> None:
+    def test_remove_nonexistent_service(self, config: Config) -> None:
         """Removing nonexistent service doesn't error."""
-        state_file = state_dir / "state.yaml"
+        state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n")
 
-        remove_service("unknown")  # Should not raise
+        remove_service(config, "unknown")  # Should not raise
 
-        result = load_state()
+        result = load_state(config)
         assert result["plex"] == "nas01"

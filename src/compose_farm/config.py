@@ -25,6 +25,11 @@ class Config(BaseModel):
     services: dict[str, str]  # service_name -> host_name
     traefik_file: Path | None = None  # Auto-regenerate traefik config after up/down
     traefik_host: str | None = None  # Host where Traefik runs (skip in file-provider)
+    config_path: Path = Path()  # Set by load_config()
+
+    def get_state_path(self) -> Path:
+        """Get the state file path (stored alongside config)."""
+        return self.config_path.parent / ".compose-farm-state.yaml"
 
     @model_validator(mode="after")
     def validate_service_hosts(self) -> Config:
@@ -105,5 +110,6 @@ def load_config(path: Path | None = None) -> Config:
 
     # Parse hosts with flexible format support
     raw["hosts"] = _parse_hosts(raw.get("hosts", {}))
+    raw["config_path"] = config_path.resolve()
 
     return Config(**raw)
