@@ -9,6 +9,8 @@ from compose_farm.ssh import (
     CommandResult,
     _is_local,
     _run_local_command,
+    check_networks_exist,
+    check_paths_exist,
     run_command,
     run_compose,
     run_on_services,
@@ -116,3 +118,118 @@ class TestRunOnServices:
         assert len(results) == 2
         assert results[0].service == "svc1"
         assert results[1].service == "svc2"
+
+
+class TestCheckPathsExist:
+    """Tests for check_paths_exist function."""
+
+    async def test_check_existing_paths(self, tmp_path: Path) -> None:
+        """Check paths that exist."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"local": Host(address="localhost")},
+            services={},
+        )
+        # Create test paths
+        (tmp_path / "dir1").mkdir()
+        (tmp_path / "file1").touch()
+
+        result = await check_paths_exist(
+            config, "local", [str(tmp_path / "dir1"), str(tmp_path / "file1")]
+        )
+
+        assert result[str(tmp_path / "dir1")] is True
+        assert result[str(tmp_path / "file1")] is True
+
+    async def test_check_missing_paths(self, tmp_path: Path) -> None:
+        """Check paths that don't exist."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"local": Host(address="localhost")},
+            services={},
+        )
+
+        result = await check_paths_exist(
+            config, "local", [str(tmp_path / "missing1"), str(tmp_path / "missing2")]
+        )
+
+        assert result[str(tmp_path / "missing1")] is False
+        assert result[str(tmp_path / "missing2")] is False
+
+    async def test_check_mixed_paths(self, tmp_path: Path) -> None:
+        """Check mix of existing and missing paths."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"local": Host(address="localhost")},
+            services={},
+        )
+        (tmp_path / "exists").mkdir()
+
+        result = await check_paths_exist(
+            config, "local", [str(tmp_path / "exists"), str(tmp_path / "missing")]
+        )
+
+        assert result[str(tmp_path / "exists")] is True
+        assert result[str(tmp_path / "missing")] is False
+
+    async def test_check_empty_paths(self, tmp_path: Path) -> None:
+        """Empty path list returns empty dict."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"local": Host(address="localhost")},
+            services={},
+        )
+
+        result = await check_paths_exist(config, "local", [])
+        assert result == {}
+
+
+class TestCheckNetworksExist:
+    """Tests for check_networks_exist function."""
+
+    async def test_check_bridge_network_exists(self, tmp_path: Path) -> None:
+        """The 'bridge' network always exists on Docker hosts."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"local": Host(address="localhost")},
+            services={},
+        )
+
+        result = await check_networks_exist(config, "local", ["bridge"])
+        assert result["bridge"] is True
+
+    async def test_check_nonexistent_network(self, tmp_path: Path) -> None:
+        """Check a network that doesn't exist."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"local": Host(address="localhost")},
+            services={},
+        )
+
+        result = await check_networks_exist(config, "local", ["nonexistent_network_xyz_123"])
+        assert result["nonexistent_network_xyz_123"] is False
+
+    async def test_check_mixed_networks(self, tmp_path: Path) -> None:
+        """Check mix of existing and non-existing networks."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"local": Host(address="localhost")},
+            services={},
+        )
+
+        result = await check_networks_exist(
+            config, "local", ["bridge", "nonexistent_network_xyz_123"]
+        )
+        assert result["bridge"] is True
+        assert result["nonexistent_network_xyz_123"] is False
+
+    async def test_check_empty_networks(self, tmp_path: Path) -> None:
+        """Empty network list returns empty dict."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"local": Host(address="localhost")},
+            services={},
+        )
+
+        result = await check_networks_exist(config, "local", [])
+        assert result == {}

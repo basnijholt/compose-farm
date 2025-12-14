@@ -5,7 +5,7 @@ from pathlib import Path
 import yaml
 
 from compose_farm.config import Config, Host
-from compose_farm.traefik import generate_traefik_config
+from compose_farm.traefik import generate_traefik_config, parse_external_networks
 
 
 def _write_compose(path: Path, data: dict[str, object]) -> None:
@@ -241,3 +241,97 @@ def test_generate_follows_network_mode_service_for_ports(tmp_path: Path) -> None
     assert torrent_servers == [{"url": "http://192.168.1.10:5080"}]
     prowlarr_servers = dynamic["http"]["services"]["prowlarr"]["loadbalancer"]["servers"]
     assert prowlarr_servers == [{"url": "http://192.168.1.10:9696"}]
+
+
+def test_parse_external_networks_single(tmp_path: Path) -> None:
+    """Extract a single external network from compose file."""
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"host1": Host(address="192.168.1.10")},
+        services={"app": "host1"},
+    )
+    compose_path = tmp_path / "app" / "compose.yaml"
+    _write_compose(
+        compose_path,
+        {
+            "services": {"app": {"image": "nginx"}},
+            "networks": {"mynetwork": {"external": True}},
+        },
+    )
+
+    networks = parse_external_networks(cfg, "app")
+    assert networks == ["mynetwork"]
+
+
+def test_parse_external_networks_multiple(tmp_path: Path) -> None:
+    """Extract multiple external networks from compose file."""
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"host1": Host(address="192.168.1.10")},
+        services={"app": "host1"},
+    )
+    compose_path = tmp_path / "app" / "compose.yaml"
+    _write_compose(
+        compose_path,
+        {
+            "services": {"app": {"image": "nginx"}},
+            "networks": {
+                "frontend": {"external": True},
+                "backend": {"external": True},
+                "internal": {"driver": "bridge"},  # not external
+            },
+        },
+    )
+
+    networks = parse_external_networks(cfg, "app")
+    assert set(networks) == {"frontend", "backend"}
+
+
+def test_parse_external_networks_none(tmp_path: Path) -> None:
+    """No external networks returns empty list."""
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"host1": Host(address="192.168.1.10")},
+        services={"app": "host1"},
+    )
+    compose_path = tmp_path / "app" / "compose.yaml"
+    _write_compose(
+        compose_path,
+        {
+            "services": {"app": {"image": "nginx"}},
+            "networks": {"internal": {"driver": "bridge"}},
+        },
+    )
+
+    networks = parse_external_networks(cfg, "app")
+    assert networks == []
+
+
+def test_parse_external_networks_no_networks_section(tmp_path: Path) -> None:
+    """No networks section returns empty list."""
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"host1": Host(address="192.168.1.10")},
+        services={"app": "host1"},
+    )
+    compose_path = tmp_path / "app" / "compose.yaml"
+    _write_compose(
+        compose_path,
+        {"services": {"app": {"image": "nginx"}}},
+    )
+
+    networks = parse_external_networks(cfg, "app")
+    assert networks == []
+
+
+def test_parse_external_networks_missing_compose(tmp_path: Path) -> None:
+    """Missing compose file returns empty list."""
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"host1": Host(address="192.168.1.10")},
+        services={"app": "host1"},
+    )
+    # Don't create compose file
+
+    networks = parse_external_networks(cfg, "app")
+    assert networks == []
