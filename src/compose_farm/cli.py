@@ -15,6 +15,7 @@ from .config import Config, load_config
 from .logs import snapshot_services
 from .ssh import (
     CommandResult,
+    check_paths_exist,
     check_service_running,
     run_compose,
     run_compose_on_host,
@@ -22,7 +23,7 @@ from .ssh import (
     run_sequential_on_services,
 )
 from .state import get_service_host, load_state, remove_service, save_state, set_service_host
-from .traefik import generate_traefik_config
+from .traefik import generate_traefik_config, parse_host_volumes
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
@@ -462,6 +463,74 @@ def check(
             console.print("[green]✓[/] All traefik services have published ports.")
     except (FileNotFoundError, ValueError):
         pass  # Skip traefik check if config can't be loaded
+
+
+@app.command("check-mounts", rich_help_panel="Configuration")
+def check_mounts(
+    services: ServicesArg = None,
+    all_services: AllOption = False,
+    config: ConfigOption = None,
+) -> None:
+    """Check if volume mount paths exist on target hosts.
+
+    Verifies that all bind mount paths from compose files exist on the
+    hosts where services are configured to run. Useful before migration
+    to ensure NFS mounts are properly configured.
+    """
+    svc_list, cfg = _get_services(services or [], all_services, config)
+
+    # Group services by target host
+    host_services: dict[str, list[str]] = {}
+    for service in svc_list:
+        host_name = cfg.services[service]
+        host_services.setdefault(host_name, []).append(service)
+
+    # Collect paths per host
+    host_paths: dict[str, dict[str, list[str]]] = {}  # host -> {path -> [services]}
+    for host_name, svcs in host_services.items():
+        path_to_services: dict[str, list[str]] = {}
+
+        # Always check compose_dir
+        compose_dir = str(cfg.compose_dir)
+        path_to_services.setdefault(compose_dir, []).append("(compose_dir)")
+
+        for service in svcs:
+            volumes = parse_host_volumes(cfg, service)
+            for vol_path in volumes:
+                path_to_services.setdefault(vol_path, []).append(service)
+
+        host_paths[host_name] = path_to_services
+
+    # Check paths on each host
+    all_missing: list[tuple[str, str, list[str]]] = []  # (host, path, services)
+
+    async def check_all_hosts() -> None:
+        for host_name, path_to_services in host_paths.items():
+            paths = list(path_to_services.keys())
+            console.print(f"\nChecking [magenta]{host_name}[/] ({len(paths)} paths)...")
+
+            exists = await check_paths_exist(cfg, host_name, paths)
+
+            for path in sorted(paths):
+                svcs = path_to_services[path]
+                if exists.get(path, False):
+                    console.print(f"  [green]✓[/] {path}")
+                else:
+                    svc_str = ", ".join(svcs)
+                    console.print(f"  [red]✗[/] {path} [dim]({svc_str})[/]")
+                    all_missing.append((host_name, path, svcs))
+
+    _run_async(check_all_hosts())
+
+    # Summary
+    if all_missing:
+        console.print(f"\n[red]Missing paths ({len(all_missing)}):[/]")
+        for host_name, path, svcs in all_missing:
+            svc_str = ", ".join(svcs)
+            console.print(f"  [magenta]{host_name}[/]: {path} [dim]({svc_str})[/]")
+        raise typer.Exit(1)
+
+    console.print("\n[green]✓[/] All mount paths exist.")
 
 
 if __name__ == "__main__":

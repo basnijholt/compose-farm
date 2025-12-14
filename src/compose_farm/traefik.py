@@ -457,6 +457,80 @@ def _process_service_labels(
     _attach_default_services(stack, compose_service, routers, service_names, warnings, dynamic)
 
 
+MIN_VOLUME_PARTS = 2
+
+
+def _resolve_host_path(host_path: str, compose_dir: Path) -> str | None:
+    """Resolve a host path from volume mount, returning None for named volumes."""
+    if host_path.startswith("/"):
+        return host_path
+    if host_path.startswith(("./", "../")):
+        return str((compose_dir / host_path).resolve())
+    return None  # Named volume
+
+
+def _parse_volume_item(
+    item: str | dict[str, Any],
+    env: dict[str, str],
+    compose_dir: Path,
+) -> str | None:
+    """Parse a single volume item and return host path if it's a bind mount."""
+    if isinstance(item, str):
+        interpolated = _interpolate(item, env)
+        parts = interpolated.split(":")
+        if len(parts) >= MIN_VOLUME_PARTS:
+            return _resolve_host_path(parts[0], compose_dir)
+    elif isinstance(item, dict) and item.get("type") == "bind":
+        source = item.get("source")
+        if source:
+            interpolated = _interpolate(str(source), env)
+            return _resolve_host_path(interpolated, compose_dir)
+    return None
+
+
+def parse_host_volumes(config: Config, service: str) -> list[str]:
+    """Extract host bind mount paths from a service's compose file.
+
+    Returns a list of absolute host paths used as volume mounts.
+    Skips named volumes and resolves relative paths.
+    """
+    compose_path = config.get_compose_path(service)
+    if not compose_path.exists():
+        return []
+
+    env = _load_env(compose_path)
+    compose_data = yaml.safe_load(compose_path.read_text()) or {}
+    raw_services = compose_data.get("services", {})
+    if not isinstance(raw_services, dict):
+        return []
+
+    paths: list[str] = []
+    compose_dir = compose_path.parent
+
+    for definition in raw_services.values():
+        if not isinstance(definition, dict):
+            continue
+
+        volumes = definition.get("volumes")
+        if not volumes:
+            continue
+
+        items = volumes if isinstance(volumes, list) else [volumes]
+        for item in items:
+            host_path = _parse_volume_item(item, env, compose_dir)
+            if host_path:
+                paths.append(host_path)
+
+    # Return unique paths, preserving order
+    seen: set[str] = set()
+    unique: list[str] = []
+    for p in paths:
+        if p not in seen:
+            seen.add(p)
+            unique.append(p)
+    return unique
+
+
 def generate_traefik_config(
     config: Config,
     services: list[str],

@@ -53,4 +53,5 @@ CLI available as `cf` or `compose-farm`.
 | `ps`    | Show status of all services |
 | `sync`  | Discover running services, update state, capture image digests |
 | `check` | Validate config vs disk, check traefik labels have ports |
+| `check-mounts` | Verify volume mount paths exist on target hosts |
 | `traefik-file` | Generate Traefik file-provider config from compose labels |

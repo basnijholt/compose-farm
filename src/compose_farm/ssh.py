@@ -275,3 +275,39 @@ async def check_service_running(
 
     # If command succeeded and has output, containers are running
     return result.success and bool(result.stdout.strip())
+
+
+async def check_paths_exist(
+    config: Config,
+    host_name: str,
+    paths: list[str],
+) -> dict[str, bool]:
+    """Check if multiple paths exist on a specific host.
+
+    Returns a dict mapping path -> exists.
+    """
+    if not paths:
+        return {}
+
+    host = config.hosts[host_name]
+
+    # Build a command that checks all paths efficiently
+    # Using a subshell to check each path and report Y/N
+    checks = []
+    for p in paths:
+        # Escape single quotes in path
+        escaped = p.replace("'", "'\\''")
+        checks.append(f"test -e '{escaped}' && echo 'Y:{escaped}' || echo 'N:{escaped}'")
+
+    command = "; ".join(checks)
+    result = await run_command(host, command, "mount-check", stream=False)
+
+    exists: dict[str, bool] = dict.fromkeys(paths, False)
+    for raw_line in result.stdout.splitlines():
+        line = raw_line.strip()
+        if line.startswith("Y:"):
+            exists[line[2:]] = True
+        elif line.startswith("N:"):
+            exists[line[2:]] = False
+
+    return exists
