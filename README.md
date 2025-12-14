@@ -47,7 +47,7 @@ That's it. No orchestration, no service discovery, no magic.
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.11+ (we recommend [uv](https://docs.astral.sh/uv/) for installation)
 - SSH key-based authentication to your hosts (uses ssh-agent)
 - Docker and Docker Compose installed on all target hosts
 - **Shared storage**: All compose files must be accessible at the same path on all hosts
@@ -101,9 +101,9 @@ If you need containers on different hosts to communicate seamlessly, you need Do
 ## Installation
 
 ```bash
-pip install compose-farm
-# or
 uv pip install compose-farm
+# or
+pip install compose-farm
 ```
 
 ## Configuration
