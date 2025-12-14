@@ -32,11 +32,51 @@ compose-farm down nginx
 compose-farm update --all
 ```
 
+## Traefik Example
+
+Start Traefik and a sample service with Traefik labels:
+
+```bash
+cd examples
+
+# Start Traefik (reverse proxy with dashboard)
+compose-farm up traefik
+
+# Start whoami (test service with Traefik labels)
+compose-farm up whoami
+
+# Access the services
+curl -H "Host: whoami.localhost" http://localhost    # whoami via Traefik
+curl http://localhost:8081                            # Traefik dashboard
+curl http://localhost:8082                            # whoami direct
+
+# Generate Traefik file-provider config (for multi-host setups)
+compose-farm traefik-file --all
+
+# Stop everything
+compose-farm down --all
+```
+
+The `whoami/docker-compose.yml` shows the standard Traefik label pattern:
+
+```yaml
+labels:
+  - traefik.enable=true
+  - traefik.http.routers.whoami.rule=Host(`whoami.localhost`)
+  - traefik.http.routers.whoami.entrypoints=web
+  - traefik.http.services.whoami.loadbalancer.server.port=80
+```
+
 ## Services
 
-- **hello**: Simple hello-world container (exits immediately)
-- **nginx**: Nginx web server on port 8080
+| Service | Description | Ports |
+|---------|-------------|-------|
+| hello | Hello-world container (exits immediately) | - |
+| nginx | Nginx web server | 8080 |
+| traefik | Traefik reverse proxy with dashboard | 80, 8081 |
+| whoami | Test service with Traefik labels | 8082 |
 
 ## Config
 
-The `compose-farm.yaml` in this directory configures both services to run locally (no SSH).
+The `compose-farm.yaml` in this directory configures all services to run locally (no SSH).
+It also demonstrates the `traefik_file` option for auto-regenerating Traefik file-provider config.

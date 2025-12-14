@@ -1,0 +1,11 @@
+services:
+  whoami:
+    image: traefik/whoami
+    container_name: whoami
+    ports:
+      - "8082:80"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami.rule=Host(`whoami.localhost`)
+      - traefik.http.routers.whoami.entrypoints=web
+      - traefik.http.services.whoami.loadbalancer.server.port=80

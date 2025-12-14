@@ -3,9 +3,15 @@
 
 compose_dir: .
 
+# Auto-regenerate Traefik file-provider config after up/down/restart/update
+traefik_file: ./traefik/dynamic.d/compose-farm.yml
+traefik_service: traefik  # Skip services on same host (docker provider handles them)
+
 hosts:
   local: localhost
 
 services:
   hello: local
   nginx: local
+  traefik: local
+  whoami: local
