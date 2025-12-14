@@ -17,6 +17,7 @@ dependencies = [
 
 [project.scripts]
 compose-farm = "compose_farm.cli:app"
+cf = "compose_farm.cli:app"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
