@@ -33,6 +33,15 @@ console = Console(highlight=False)
 err_console = Console(stderr=True, highlight=False)
 
 
+def _load_config_or_exit(config_path: Path | None) -> Config:
+    """Load config or exit with a friendly error message."""
+    try:
+        return load_config(config_path)
+    except FileNotFoundError as e:
+        err_console.print(f"[red]✗[/] {e}")
+        raise typer.Exit(1) from e
+
+
 def _maybe_regenerate_traefik(cfg: Config) -> None:
     """Regenerate traefik config if traefik_file is configured."""
     if cfg.traefik_file is None:
@@ -87,7 +96,7 @@ def _get_services(
     config_path: Path | None,
 ) -> tuple[list[str], Config]:
     """Resolve service list and load config."""
-    config = load_config(config_path)
+    config = _load_config_or_exit(config_path)
 
     if all_services:
         return list(config.services.keys()), config
@@ -262,7 +271,7 @@ def ps(
     config: ConfigOption = None,
 ) -> None:
     """Show status of all services."""
-    cfg = load_config(config)
+    cfg = _load_config_or_exit(config)
     results = _run_async(run_on_services(cfg, list(cfg.services.keys()), "ps"))
     _report_results(results)
 
@@ -370,7 +379,7 @@ def sync(
     file, and captures image digests. Combines service discovery with
     image snapshot into a single command.
     """
-    cfg = load_config(config)
+    cfg = _load_config_or_exit(config)
     current_state = load_state(cfg)
 
     console.print("Discovering running services...")
@@ -416,7 +425,7 @@ def check(
     config: ConfigOption = None,
 ) -> None:
     """Check for compose directories not in config (and vice versa)."""
-    cfg = load_config(config)
+    cfg = _load_config_or_exit(config)
     configured = set(cfg.services.keys())
     on_disk = cfg.discover_compose_dirs()
 
