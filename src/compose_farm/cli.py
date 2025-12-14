@@ -140,6 +140,15 @@ LogPathOption = Annotated[
     typer.Option("--log-path", "-l", help="Path to Dockerfarm TOML log"),
 ]
 
+MISSING_PATH_PREVIEW_LIMIT = 2
+
+
+def _get_service_paths(cfg: Config, service: str) -> list[str]:
+    """Get all required paths for a service (compose_dir + volumes)."""
+    paths = [str(cfg.compose_dir)]
+    paths.extend(parse_host_volumes(cfg, service))
+    return paths
+
 
 async def _check_mounts_for_migration(
     cfg: Config,
@@ -147,13 +156,8 @@ async def _check_mounts_for_migration(
     target_host: str,
 ) -> list[str]:
     """Check if mount paths exist on target host. Returns list of missing paths."""
-    paths_to_check = [str(cfg.compose_dir)]
-    paths_to_check.extend(parse_host_volumes(cfg, service))
-
-    if not paths_to_check:
-        return []
-
-    exists = await check_paths_exist(cfg, target_host, paths_to_check)
+    paths = _get_service_paths(cfg, service)
+    exists = await check_paths_exist(cfg, target_host, paths)
     return [p for p, found in exists.items() if not found]
 
 
@@ -449,116 +453,174 @@ def sync(
             err_console.print(f"[yellow]![/] {exc}")
 
 
-@app.command(rich_help_panel="Configuration")
-def check(
-    config: ConfigOption = None,
-) -> None:
-    """Check for compose directories not in config (and vice versa)."""
-    cfg = _load_config_or_exit(config)
+async def _check_host_compatibility(
+    cfg: Config,
+    service: str,
+) -> dict[str, tuple[int, int, list[str]]]:
+    """Check which hosts can run a service based on mount paths.
+
+    Returns dict of host_name -> (found_count, total_count, missing_paths).
+    """
+    paths = _get_service_paths(cfg, service)
+    results: dict[str, tuple[int, int, list[str]]] = {}
+
+    for host_name in cfg.hosts:
+        exists = await check_paths_exist(cfg, host_name, paths)
+        found = sum(1 for v in exists.values() if v)
+        missing = [p for p, v in exists.items() if not v]
+        results[host_name] = (found, len(paths), missing)
+
+    return results
+
+
+async def _check_mounts_on_configured_hosts(
+    cfg: Config,
+    services: list[str],
+) -> list[tuple[str, str, str]]:
+    """Check mount paths exist on configured hosts.
+
+    Returns list of (service, host, missing_path) tuples.
+    """
+    missing: list[tuple[str, str, str]] = []
+
+    for service in services:
+        host_name = cfg.services[service]
+        paths = _get_service_paths(cfg, service)
+        exists = await check_paths_exist(cfg, host_name, paths)
+
+        for path, found in exists.items():
+            if not found:
+                missing.append((service, host_name, path))
+
+    return missing
+
+
+def _report_config_status(cfg: Config) -> bool:
+    """Check and report config vs disk status. Returns True if errors found."""
     configured = set(cfg.services.keys())
     on_disk = cfg.discover_compose_dirs()
-
     missing_from_config = sorted(on_disk - configured)
     missing_from_disk = sorted(configured - on_disk)
 
     if missing_from_config:
-        console.print(f"\n[yellow]Not in config[/] ({len(missing_from_config)}):")
+        console.print(f"\n[yellow]On disk but not in config[/] ({len(missing_from_config)}):")
         for name in missing_from_config:
             console.print(f"  [yellow]+[/] [cyan]{name}[/]")
 
     if missing_from_disk:
-        console.print(f"\n[red]No compose file found[/] ({len(missing_from_disk)}):")
+        console.print(f"\n[red]In config but no compose file[/] ({len(missing_from_disk)}):")
         for name in missing_from_disk:
             console.print(f"  [red]-[/] [cyan]{name}[/]")
 
     if not missing_from_config and not missing_from_disk:
-        console.print("[green]✓[/] All compose directories are in config.")
-    elif missing_from_config:
-        console.print(f"\n[dim]To add missing services, append to {cfg.config_path}:[/]")
-        for name in missing_from_config:
-            console.print(f"[dim]  {name}: docker-debian[/]")
+        console.print("[green]✓[/] Config matches disk")
 
-    # Check traefik labels have matching ports
+    return bool(missing_from_disk)
+
+
+def _report_traefik_status(cfg: Config, services: list[str]) -> None:
+    """Check and report traefik label status."""
     try:
-        _, traefik_warnings = generate_traefik_config(
-            cfg, list(cfg.services.keys()), check_all=True
-        )
-        if traefik_warnings:
-            console.print(f"\n[yellow]Traefik issues[/] ({len(traefik_warnings)}):")
-            for warning in traefik_warnings:
-                console.print(f"  [yellow]![/] {warning}")
-        elif not missing_from_config and not missing_from_disk:
-            console.print("[green]✓[/] All traefik services have published ports.")
+        _, warnings = generate_traefik_config(cfg, services, check_all=True)
     except (FileNotFoundError, ValueError):
-        pass  # Skip traefik check if config can't be loaded
+        return
+
+    if warnings:
+        console.print(f"\n[yellow]Traefik issues[/] ({len(warnings)}):")
+        for warning in warnings:
+            console.print(f"  [yellow]![/] {warning}")
+    else:
+        console.print("[green]✓[/] Traefik labels valid")
 
 
-@app.command("check-mounts", rich_help_panel="Configuration")
-def check_mounts(
+def _report_mount_errors(mount_errors: list[tuple[str, str, str]]) -> None:
+    """Report mount errors grouped by service."""
+    by_service: dict[str, list[tuple[str, str]]] = {}
+    for svc, host, path in mount_errors:
+        by_service.setdefault(svc, []).append((host, path))
+
+    console.print(f"\n[red]Missing mounts[/] ({len(mount_errors)}):")
+    for svc, items in sorted(by_service.items()):
+        host = items[0][0]
+        paths = [p for _, p in items]
+        console.print(f"  [cyan]{svc}[/] on [magenta]{host}[/]:")
+        for path in paths:
+            console.print(f"    [red]✗[/] {path}")
+
+
+def _report_host_compatibility(
+    compat: dict[str, tuple[int, int, list[str]]],
+    current_host: str,
+) -> None:
+    """Report host compatibility for a service."""
+    for host_name, (found, total, missing) in sorted(compat.items()):
+        is_current = host_name == current_host
+        marker = " [dim](assigned)[/]" if is_current else ""
+
+        if found == total:
+            console.print(f"  [green]✓[/] [magenta]{host_name}[/] {found}/{total}{marker}")
+        else:
+            preview = ", ".join(missing[:MISSING_PATH_PREVIEW_LIMIT])
+            if len(missing) > MISSING_PATH_PREVIEW_LIMIT:
+                preview += f", +{len(missing) - MISSING_PATH_PREVIEW_LIMIT} more"
+            console.print(
+                f"  [red]✗[/] [magenta]{host_name}[/] {found}/{total} "
+                f"[dim](missing: {preview})[/]{marker}"
+            )
+
+
+@app.command(rich_help_panel="Configuration")
+def check(
     services: ServicesArg = None,
-    all_services: AllOption = False,
+    local: Annotated[
+        bool,
+        typer.Option("--local", help="Skip SSH-based mount checks (faster)"),
+    ] = False,
     config: ConfigOption = None,
 ) -> None:
-    """Check if volume mount paths exist on target hosts.
+    """Validate configuration, traefik labels, and mount paths.
 
-    Verifies that all bind mount paths from compose files exist on the
-    hosts where services are configured to run. Useful before migration
-    to ensure NFS mounts are properly configured.
+    Without arguments: validates all services against configured hosts.
+    With service arguments: validates specific services and shows host compatibility.
+
+    Use --local to skip SSH-based mount checks for faster validation.
     """
-    svc_list, cfg = _get_services(services or [], all_services, config)
+    cfg = _load_config_or_exit(config)
 
-    # Group services by target host
-    host_services: dict[str, list[str]] = {}
-    for service in svc_list:
-        host_name = cfg.services[service]
-        host_services.setdefault(host_name, []).append(service)
+    # Determine which services to check and whether to show host compatibility
+    if services:
+        svc_list = list(services)
+        invalid = [s for s in svc_list if s not in cfg.services]
+        if invalid:
+            for svc in invalid:
+                err_console.print(f"[red]✗[/] Service '{svc}' not found in config")
+            raise typer.Exit(1)
+        show_host_compat = True
+    else:
+        svc_list = list(cfg.services.keys())
+        show_host_compat = False
 
-    # Collect paths per host
-    host_paths: dict[str, dict[str, list[str]]] = {}  # host -> {path -> [services]}
-    for host_name, svcs in host_services.items():
-        path_to_services: dict[str, list[str]] = {}
+    # Run checks
+    has_errors = _report_config_status(cfg)
+    _report_traefik_status(cfg, svc_list)
 
-        # Always check compose_dir
-        compose_dir = str(cfg.compose_dir)
-        path_to_services.setdefault(compose_dir, []).append("(compose_dir)")
+    if not local:
+        console.print("\nChecking mounts...")
+        mount_errors = _run_async(_check_mounts_on_configured_hosts(cfg, svc_list))
+        if mount_errors:
+            _report_mount_errors(mount_errors)
+            has_errors = True
+        else:
+            console.print("[green]✓[/] All mounts exist")
 
-        for service in svcs:
-            volumes = parse_host_volumes(cfg, service)
-            for vol_path in volumes:
-                path_to_services.setdefault(vol_path, []).append(service)
+        if show_host_compat:
+            for service in svc_list:
+                console.print(f"\n[bold]Host compatibility for[/] [cyan]{service}[/]:")
+                compat = _run_async(_check_host_compatibility(cfg, service))
+                _report_host_compatibility(compat, cfg.services[service])
 
-        host_paths[host_name] = path_to_services
-
-    # Check paths on each host
-    all_missing: list[tuple[str, str, list[str]]] = []  # (host, path, services)
-
-    async def check_all_hosts() -> None:
-        for host_name, path_to_services in host_paths.items():
-            paths = list(path_to_services.keys())
-            console.print(f"\nChecking [magenta]{host_name}[/] ({len(paths)} paths)...")
-
-            exists = await check_paths_exist(cfg, host_name, paths)
-
-            for path in sorted(paths):
-                svcs = path_to_services[path]
-                if exists.get(path, False):
-                    console.print(f"  [green]✓[/] {path}")
-                else:
-                    svc_str = ", ".join(svcs)
-                    console.print(f"  [red]✗[/] {path} [dim]({svc_str})[/]")
-                    all_missing.append((host_name, path, svcs))
-
-    _run_async(check_all_hosts())
-
-    # Summary
-    if all_missing:
-        console.print(f"\n[red]Missing paths ({len(all_missing)}):[/]")
-        for host_name, path, svcs in all_missing:
-            svc_str = ", ".join(svcs)
-            console.print(f"  [magenta]{host_name}[/]: {path} [dim]({svc_str})[/]")
+    if has_errors:
         raise typer.Exit(1)
-
-    console.print("\n[green]✓[/] All mount paths exist.")
 
 
 if __name__ == "__main__":
