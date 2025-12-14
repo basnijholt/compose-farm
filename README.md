@@ -190,15 +190,17 @@ add `traefik_file` to your config:
 ```yaml
 compose_dir: /opt/compose
 traefik_file: /opt/traefik/dynamic.d/compose-farm.yml  # auto-regenerate on up/down/restart/update
-traefik_host: nas01  # skip services on this host (docker provider handles them)
+traefik_service: traefik  # skip services on same host (docker provider handles them)
 
 hosts:
   # ...
 services:
+  traefik: nas01  # Traefik runs here
+  plex: nas02     # Services on other hosts get file-provider entries
   # ...
 ```
 
-The `traefik_host` option tells compose-farm which host runs Traefik. Services on that host
+The `traefik_service` option specifies which service runs Traefik. Services on the same host
 are skipped in the file-provider config since Traefik's docker provider handles them directly.
 
 Now `compose-farm up plex` will update the Traefik config automatically—no separate

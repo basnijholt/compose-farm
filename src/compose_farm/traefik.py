@@ -461,6 +461,11 @@ def generate_traefik_config(
     warnings: list[str] = []
     sources: dict[str, TraefikServiceSource] = {}
 
+    # Determine Traefik's host from service assignment
+    traefik_host = None
+    if config.traefik_service:
+        traefik_host = config.services.get(config.traefik_service)
+
     for stack in services:
         raw_services, env, host_address = _load_stack(config, stack)
         stack_host = config.services.get(stack)
@@ -468,7 +473,7 @@ def generate_traefik_config(
         # Skip services on Traefik's host - docker provider handles them directly
         if host_address.lower() in LOCAL_ADDRESSES:
             continue
-        if config.traefik_host and stack_host == config.traefik_host:
+        if traefik_host and stack_host == traefik_host:
             continue
 
         for compose_service, definition in raw_services.items():

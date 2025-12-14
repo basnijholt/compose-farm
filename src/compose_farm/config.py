@@ -24,7 +24,7 @@ class Config(BaseModel):
     hosts: dict[str, Host]
     services: dict[str, str]  # service_name -> host_name
     traefik_file: Path | None = None  # Auto-regenerate traefik config after up/down
-    traefik_host: str | None = None  # Host where Traefik runs (skip in file-provider)
+    traefik_service: str | None = None  # Service name for Traefik (skip its host in file-provider)
     config_path: Path = Path()  # Set by load_config()
 
     def get_state_path(self) -> Path:
