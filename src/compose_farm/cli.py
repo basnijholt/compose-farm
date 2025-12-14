@@ -159,8 +159,8 @@ def up(
 ) -> None:
     """Start services (docker compose up -d). Auto-migrates if host changed."""
     svc_list, cfg = _get_services(services or [], all_services, config)
-    raw = len(svc_list) == 1
-    results = _run_async(up_services(cfg, svc_list, raw=raw))
+    # Always use raw output - migrations are sequential anyway
+    results = _run_async(up_services(cfg, svc_list, raw=True))
     _maybe_regenerate_traefik(cfg)
     _report_results(results)
 

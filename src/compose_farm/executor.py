@@ -72,7 +72,8 @@ async def _run_local_command(
     """Run a command locally with streaming output."""
     try:
         if raw:
-            # Run with inherited stdout/stderr for proper \r handling
+            # Print header, then run with inherited stdout/stderr for proper \r handling
+            _console.print(f"[cyan]\\[{service}][/]")
             proc = await asyncio.create_subprocess_shell(
                 command,
                 stdout=None,  # Inherit
@@ -150,7 +151,8 @@ async def _run_ssh_command(
             known_hosts=None,
         ) as conn:
             if raw:
-                # Use PTY for proper terminal handling
+                # Print header, then use PTY for proper terminal handling
+                _console.print(f"[cyan]\\[{service}][/] [magenta]{host.address}[/]")
                 async with conn.create_process(command, term_type="xterm") as proc:
 
                     async def forward_output(reader: Any) -> None:
