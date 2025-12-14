@@ -440,6 +440,18 @@ def check(
         for name in missing_from_config:
             console.print(f"[dim]  {name}: docker-debian[/]")
 
+    # Check traefik labels have matching ports
+    try:
+        _, traefik_warnings = generate_traefik_config(cfg, list(cfg.services.keys()))
+        if traefik_warnings:
+            console.print(f"\n[yellow]Traefik issues[/] ({len(traefik_warnings)}):")
+            for warning in traefik_warnings:
+                console.print(f"  [yellow]![/] {warning}")
+        elif not missing_from_config and not missing_from_disk:
+            console.print("[green]✓[/] All traefik services have published ports.")
+    except (FileNotFoundError, ValueError):
+        pass  # Skip traefik check if config can't be loaded
+
 
 if __name__ == "__main__":
     app()
