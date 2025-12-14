@@ -251,6 +251,7 @@ async def _up_with_migration(
                 )
 
         # Start on target host
+        console.print(f"[cyan]\\[{service}][/] Starting on [magenta]{target_host}[/]...")
         up_result = await run_compose(cfg, service, "up -d")
         results.append(up_result)
 
