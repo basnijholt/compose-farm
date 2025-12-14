@@ -119,6 +119,8 @@ async def up_services(
                     f"[magenta]{current_host}[/] → [magenta]{target_host}[/]..."
                 )
                 down_result = await run_compose_on_host(cfg, service, current_host, "down", raw=raw)
+                if raw:
+                    print()  # Ensure newline after raw output
                 if not down_result.success:
                     results.append(down_result)
                     continue
@@ -131,6 +133,8 @@ async def up_services(
         # Start on target host
         console.print(f"{prefix} Starting on [magenta]{target_host}[/]...")
         up_result = await run_compose(cfg, service, "up -d", raw=raw)
+        if raw:
+            print()  # Ensure newline after raw output (progress bars end with \r)
         results.append(up_result)
 
         # Update state on success
