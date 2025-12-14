@@ -409,5 +409,35 @@ def sync(
             err_console.print(f"[yellow]![/] {exc}")
 
 
+@app.command()
+def check(
+    config: ConfigOption = None,
+) -> None:
+    """Check for compose directories not in config (and vice versa)."""
+    cfg = load_config(config)
+    configured = set(cfg.services.keys())
+    on_disk = cfg.discover_compose_dirs()
+
+    missing_from_config = sorted(on_disk - configured)
+    missing_from_disk = sorted(configured - on_disk)
+
+    if missing_from_config:
+        console.print(f"\n[yellow]Not in config[/] ({len(missing_from_config)}):")
+        for name in missing_from_config:
+            console.print(f"  [yellow]+[/] [cyan]{name}[/]")
+
+    if missing_from_disk:
+        console.print(f"\n[red]No compose file found[/] ({len(missing_from_disk)}):")
+        for name in missing_from_disk:
+            console.print(f"  [red]-[/] [cyan]{name}[/]")
+
+    if not missing_from_config and not missing_from_disk:
+        console.print("[green]✓[/] All compose directories are in config.")
+    elif missing_from_config:
+        console.print(f"\n[dim]To add missing services, append to {cfg.config_path}:[/]")
+        for name in missing_from_config:
+            console.print(f"[dim]  {name}: docker-debian[/]")
+
+
 if __name__ == "__main__":
     app()

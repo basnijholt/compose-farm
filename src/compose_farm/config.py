@@ -65,6 +65,25 @@ class Config(BaseModel):
         # Default to compose.yaml if none exist (will error later)
         return service_dir / "compose.yaml"
 
+    def discover_compose_dirs(self) -> set[str]:
+        """Find all directories in compose_dir that contain a compose file."""
+        compose_filenames = {
+            "compose.yaml",
+            "compose.yml",
+            "docker-compose.yml",
+            "docker-compose.yaml",
+        }
+        found: set[str] = set()
+        if not self.compose_dir.exists():
+            return found
+        for subdir in self.compose_dir.iterdir():
+            if subdir.is_dir():
+                for filename in compose_filenames:
+                    if (subdir / filename).exists():
+                        found.add(subdir.name)
+                        break
+        return found
+
 
 def _parse_hosts(raw_hosts: dict[str, str | dict[str, str | int]]) -> dict[str, Host]:
     """Parse hosts from config, handling both simple and full forms."""
