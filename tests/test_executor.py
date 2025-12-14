@@ -1,5 +1,6 @@
 """Tests for executor module."""
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,9 @@ from compose_farm.executor import (
     run_compose,
     run_on_services,
 )
+
+# These tests run actual shell commands that only work on Linux
+linux_only = pytest.mark.skipif(sys.platform != "linux", reason="Linux-only shell commands")
 
 
 class TestIsLocal:
@@ -120,8 +124,9 @@ class TestRunOnServices:
         assert results[1].service == "svc2"
 
 
+@linux_only
 class TestCheckPathsExist:
-    """Tests for check_paths_exist function."""
+    """Tests for check_paths_exist function (uses 'test -e' shell command)."""
 
     async def test_check_existing_paths(self, tmp_path: Path) -> None:
         """Check paths that exist."""
@@ -184,8 +189,9 @@ class TestCheckPathsExist:
         assert result == {}
 
 
+@linux_only
 class TestCheckNetworksExist:
-    """Tests for check_networks_exist function."""
+    """Tests for check_networks_exist function (requires Docker)."""
 
     async def test_check_bridge_network_exists(self, tmp_path: Path) -> None:
         """The 'bridge' network always exists on Docker hosts."""
