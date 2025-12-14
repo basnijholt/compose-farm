@@ -29,7 +29,7 @@ class Config(BaseModel):
 
     def get_state_path(self) -> Path:
         """Get the state file path (stored alongside config)."""
-        return self.config_path.parent / ".compose-farm-state.yaml"
+        return self.config_path.parent / "compose-farm-state.yaml"
 
     @model_validator(mode="after")
     def validate_service_hosts(self) -> Config:
