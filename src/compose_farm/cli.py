@@ -21,6 +21,7 @@ from .ssh import (
     run_sequential_on_services,
 )
 from .state import get_service_host, load_state, remove_service, save_state, set_service_host
+from .traefik import generate_traefik_config
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
@@ -250,8 +251,6 @@ def traefik_file(
     config: ConfigOption = None,
 ) -> None:
     """Generate a Traefik file-provider fragment from compose Traefik labels."""
-    from .traefik import generate_traefik_config
-
     svc_list, cfg = _get_services(services or [], all_services, config)
     try:
         dynamic, warnings = generate_traefik_config(cfg, svc_list)
