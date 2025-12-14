@@ -319,6 +319,7 @@ def _get_container_counts_with_progress(cfg: Config) -> dict[str, int]:
         BarColumn(),
         TaskProgressColumn(),
         console=console,
+        transient=True,  # Clear progress bar when done
     ) as progress:
         task_id = progress.add_task("Querying hosts...", total=len(cfg.hosts))
         return asyncio.run(gather_with_progress(progress, task_id))
