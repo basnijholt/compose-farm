@@ -11,7 +11,8 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
 - [Why Compose Farm?](#why-compose-farm)
-- [Key Assumption: Shared Storage](#key-assumption-shared-storage)
+- [How It Works](#how-it-works)
+- [Requirements](#requirements)
 - [Limitations & Best Practices](#limitations--best-practices)
   - [What breaks when you move a service](#what-breaks-when-you-move-a-service)
   - [Best practices](#best-practices)
@@ -21,8 +22,6 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 - [Usage](#usage)
   - [Auto-Migration](#auto-migration)
 - [Traefik Multihost Ingress (File Provider)](#traefik-multihost-ingress-file-provider)
-- [Requirements](#requirements)
-- [How It Works](#how-it-works)
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -36,9 +35,24 @@ I run 100+ Docker Compose stacks on an LXC container that frequently runs out of
 
 **Compose Farm is intentionally simple**: one YAML config mapping services to hosts, and a CLI that runs `docker compose` commands over SSH. That's it.
 
-## Key Assumption: Shared Storage
+## How It Works
 
-Compose Farm assumes **all your compose files are accessible at the same path on all hosts**. This is typically achieved via:
+1. You run `cf up plex`
+2. Compose Farm looks up which host runs `plex` (e.g., `nas01`)
+3. It SSHs to `nas01` (or runs locally if `localhost`)
+4. It executes `docker compose -f /opt/compose/plex/docker-compose.yml up -d`
+5. Output is streamed back with `[plex]` prefix
+
+That's it. No orchestration, no service discovery, no magic.
+
+## Requirements
+
+- Python 3.11+
+- SSH key-based authentication to your hosts (uses ssh-agent)
+- Docker and Docker Compose installed on all target hosts
+- **Shared storage**: All compose files must be accessible at the same path on all hosts
+
+Compose Farm assumes your compose files are accessible at the same path on all hosts. This is typically achieved via:
 
 - **NFS mount** (e.g., `/opt/compose` mounted from a NAS)
 - **Synced folders** (e.g., Syncthing, rsync)
@@ -172,7 +186,7 @@ services:
 
 ## Traefik Multihost Ingress (File Provider)
 
-If you run a single Traefik instance on one “front‑door” host and want it to route to
+If you run a single Traefik instance on one "front‑door" host and want it to route to
 Compose Farm services on other hosts, Compose Farm can generate a Traefik file‑provider
 fragment from your existing compose labels.
 
@@ -181,11 +195,11 @@ fragment from your existing compose labels.
 - Your `docker-compose.yml` remains the source of truth. Put normal `traefik.*` labels on
   the container you want exposed.
 - Labels and port specs may use `${VAR}` / `${VAR:-default}`; Compose Farm resolves these
-  using the stack’s `.env` file and your current environment, just like Docker Compose.
+  using the stack's `.env` file and your current environment, just like Docker Compose.
 - Publish a host port for that container (via `ports:`). The generator prefers
   host‑published ports so Traefik can reach the service across hosts; if none are found,
-  it warns and you’d need L3 reachability to container IPs.
-- If a router label doesn’t specify `traefik.http.routers.<name>.service` and there’s only
+  it warns and you'd need L3 reachability to container IPs.
+- If a router label doesn't specify `traefik.http.routers.<name>.service` and there's only
   one Traefik service defined on that container, Compose Farm wires the router to it.
 - `compose-farm.yaml` stays unchanged: just `hosts` and `services: service → host`.
 
@@ -269,23 +283,6 @@ Update your Traefik config to use directory watching instead of a single file:
 - --providers.file.directory=/dynamic.d
 - --providers.file.watch=true
 ```
-
-## Requirements
-
-- Python 3.11+
-- SSH key-based authentication to your hosts (uses ssh-agent)
-- Docker and Docker Compose installed on all target hosts
-- **Shared storage**: All compose files at the same path on all hosts (NFS, Syncthing, etc.)
-
-## How It Works
-
-1. You run `cf up plex`
-2. Compose Farm looks up which host runs `plex` (e.g., `nas01`)
-3. It SSHs to `nas01` (or runs locally if `localhost`)
-4. It executes `docker compose -f /opt/compose/plex/docker-compose.yml up -d`
-5. Output is streamed back with `[plex]` prefix
-
-That's it. No orchestration, no service discovery, no magic.
 
 ## License
 
