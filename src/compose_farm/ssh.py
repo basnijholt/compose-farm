@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import asyncssh
 from rich.console import Console
+from rich.markup import escape
 
 if TYPE_CHECKING:
     from .config import Config, Host
@@ -87,7 +88,7 @@ async def _run_local_command(
                         break
                     text = line.decode()
                     if text.strip():  # Skip empty lines
-                        console.print(f"[cyan]\\[{prefix}][/] {text}", end="")
+                        console.print(f"[cyan]\\[{prefix}][/] {escape(text)}", end="")
 
             await asyncio.gather(
                 read_stream(proc.stdout, service),
@@ -143,7 +144,7 @@ async def _run_ssh_command(
                     console = _err_console if is_stderr else _console
                     async for line in reader:
                         if line.strip():  # Skip empty lines
-                            console.print(f"[cyan]\\[{prefix}][/] {line}", end="")
+                            console.print(f"[cyan]\\[{prefix}][/] {escape(line)}", end="")
 
                 await asyncio.gather(
                     read_stream(proc.stdout, service),
