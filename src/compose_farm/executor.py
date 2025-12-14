@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import socket
-import sys
+import subprocess
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
@@ -20,6 +20,7 @@ _console = Console(highlight=False)
 _err_console = Console(stderr=True, highlight=False)
 
 LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
+_DEFAULT_SSH_PORT = 22
 
 
 @lru_cache(maxsize=1)
@@ -72,8 +73,7 @@ async def _run_local_command(
     """Run a command locally with streaming output."""
     try:
         if raw:
-            # Print header, then run with inherited stdout/stderr for proper \r handling
-            _console.print(f"[cyan]\\[{service}][/]")
+            # Run with inherited stdout/stderr for proper \r handling
             proc = await asyncio.create_subprocess_shell(
                 command,
                 stdout=None,  # Inherit
@@ -142,32 +142,28 @@ async def _run_ssh_command(
     raw: bool = False,
 ) -> CommandResult:
     """Run a command on a remote host via SSH with streaming output."""
+    if raw:
+        # Use native ssh with TTY for proper progress bar rendering
+        ssh_args = ["ssh", "-t"]
+        if host.port != _DEFAULT_SSH_PORT:
+            ssh_args.extend(["-p", str(host.port)])
+        ssh_args.extend([f"{host.user}@{host.address}", command])
+        # Run in thread to avoid blocking the event loop
+        result = await asyncio.to_thread(subprocess.run, ssh_args, check=False)
+        return CommandResult(
+            service=service,
+            exit_code=result.returncode,
+            success=result.returncode == 0,
+        )
+
     proc: asyncssh.SSHClientProcess[Any]
     try:
-        async with asyncssh.connect(
+        async with asyncssh.connect(  # noqa: SIM117 - conn needed before create_process
             host.address,
             port=host.port,
             username=host.user,
             known_hosts=None,
         ) as conn:
-            if raw:
-                # Print header, then use PTY for proper terminal handling
-                _console.print(f"[cyan]\\[{service}][/] [magenta]{host.address}[/]")
-                async with conn.create_process(command, term_type="xterm") as proc:
-
-                    async def forward_output(reader: Any) -> None:
-                        async for data in reader:
-                            sys.stdout.write(data)
-                            sys.stdout.flush()
-
-                    await forward_output(proc.stdout)
-                    await proc.wait()
-                    return CommandResult(
-                        service=service,
-                        exit_code=proc.exit_status or 0,
-                        success=proc.exit_status == 0,
-                    )
-
             async with conn.create_process(command) as proc:
                 if stream:
 
