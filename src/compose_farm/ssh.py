@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import socket
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 import asyncssh
@@ -16,6 +18,24 @@ _console = Console(highlight=False)
 _err_console = Console(stderr=True, highlight=False)
 
 LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
+
+
+@lru_cache(maxsize=1)
+def _get_local_ips() -> frozenset[str]:
+    """Get all IP addresses of the current machine."""
+    ips: set[str] = set()
+    try:
+        hostname = socket.gethostname()
+        # Get all addresses for hostname
+        for info in socket.getaddrinfo(hostname, None):
+            ips.add(info[4][0])
+        # Also try getting the default outbound IP
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            ips.add(s.getsockname()[0])
+    except OSError:
+        pass
+    return frozenset(ips)
 
 
 @dataclass
@@ -31,7 +51,11 @@ class CommandResult:
 
 def _is_local(host: Host) -> bool:
     """Check if host should run locally (no SSH)."""
-    return host.address.lower() in LOCAL_ADDRESSES
+    addr = host.address.lower()
+    if addr in LOCAL_ADDRESSES:
+        return True
+    # Check if address matches any of this machine's IPs
+    return addr in _get_local_ips()
 
 
 async def _run_local_command(
