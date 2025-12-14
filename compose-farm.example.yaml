@@ -3,6 +3,10 @@
 
 compose_dir: /opt/compose
 
+# Optional: Auto-regenerate Traefik file-provider config after up/down/restart/update
+traefik_file: /opt/traefik/dynamic.d/compose-farm.yml
+traefik_service: traefik  # Skip services on same host (docker provider handles them)
+
 hosts:
   # Full form with all options
   server-1:
@@ -19,7 +23,8 @@ hosts:
 services:
   # Map service names to hosts
   # Compose file expected at: {compose_dir}/{service}/compose.yaml
-  plex: server-1
+  traefik: server-1    # Traefik runs here
+  plex: server-2       # Services on other hosts get file-provider entries
   jellyfin: server-2
   sonarr: server-1
-  radarr: server-2
+  radarr: local
