@@ -470,10 +470,19 @@ def _process_service_labels(
 def generate_traefik_config(
     config: Config,
     services: list[str],
+    *,
+    check_all: bool = False,
 ) -> tuple[dict[str, Any], list[str]]:
     """Generate Traefik dynamic config from compose labels.
 
+    Args:
+        config: The compose-farm config.
+        services: List of service names to process.
+        check_all: If True, check all services for warnings (ignore host filtering).
+                   Used by the check command to validate all traefik labels.
+
     Returns (config_dict, warnings).
+
     """
     dynamic: dict[str, Any] = {}
     warnings: list[str] = []
@@ -481,7 +490,7 @@ def generate_traefik_config(
 
     # Determine Traefik's host from service assignment
     traefik_host = None
-    if config.traefik_service:
+    if config.traefik_service and not check_all:
         traefik_host = config.services.get(config.traefik_service)
 
     for stack in services:
@@ -489,10 +498,12 @@ def generate_traefik_config(
         stack_host = config.services.get(stack)
 
         # Skip services on Traefik's host - docker provider handles them directly
-        if host_address.lower() in LOCAL_ADDRESSES:
-            continue
-        if traefik_host and stack_host == traefik_host:
-            continue
+        # (unless check_all is True, for validation purposes)
+        if not check_all:
+            if host_address.lower() in LOCAL_ADDRESSES:
+                continue
+            if traefik_host and stack_host == traefik_host:
+                continue
 
         for compose_service, definition in raw_services.items():
             if not isinstance(definition, dict):

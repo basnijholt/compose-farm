@@ -442,7 +442,9 @@ def check(
 
     # Check traefik labels have matching ports
     try:
-        _, traefik_warnings = generate_traefik_config(cfg, list(cfg.services.keys()))
+        _, traefik_warnings = generate_traefik_config(
+            cfg, list(cfg.services.keys()), check_all=True
+        )
         if traefik_warnings:
             console.print(f"\n[yellow]Traefik issues[/] ({len(traefik_warnings)}):")
             for warning in traefik_warnings:
