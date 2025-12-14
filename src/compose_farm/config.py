@@ -24,6 +24,7 @@ class Config(BaseModel):
     hosts: dict[str, Host]
     services: dict[str, str]  # service_name -> host_name
     traefik_file: Path | None = None  # Auto-regenerate traefik config after up/down
+    traefik_host: str | None = None  # Host where Traefik runs (skip in file-provider)
 
     @model_validator(mode="after")
     def validate_service_hosts(self) -> Config:
