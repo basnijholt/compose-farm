@@ -61,6 +61,7 @@ app = typer.Typer(
     name="compose-farm",
     help="Compose Farm - run docker compose commands across multiple hosts",
     no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 
 
