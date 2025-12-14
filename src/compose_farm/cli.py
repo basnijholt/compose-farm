@@ -21,7 +21,7 @@ from .operations import (
     discover_running_services,
     up_services,
 )
-from .state import load_state, remove_service, save_state
+from .state import get_services_needing_migration, load_state, remove_service, save_state
 from .traefik import generate_traefik_config
 
 if TYPE_CHECKING:
@@ -155,10 +155,21 @@ MISSING_PATH_PREVIEW_LIMIT = 2
 def up(
     services: ServicesArg = None,
     all_services: AllOption = False,
+    migrate: Annotated[
+        bool, typer.Option("--migrate", "-m", help="Only services needing migration")
+    ] = False,
     config: ConfigOption = None,
 ) -> None:
     """Start services (docker compose up -d). Auto-migrates if host changed."""
-    svc_list, cfg = _get_services(services or [], all_services, config)
+    if migrate:
+        cfg = _load_config_or_exit(config)
+        svc_list = get_services_needing_migration(cfg)
+        if not svc_list:
+            console.print("[green]✓[/] No services need migration")
+            return
+        console.print(f"[cyan]Migrating {len(svc_list)} service(s):[/] {', '.join(svc_list)}")
+    else:
+        svc_list, cfg = _get_services(services or [], all_services, config)
     # Always use raw output - migrations are sequential anyway
     results = _run_async(up_services(cfg, svc_list, raw=True))
     _maybe_regenerate_traefik(cfg)

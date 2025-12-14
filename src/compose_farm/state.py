@@ -51,3 +51,14 @@ def remove_service(config: Config, service: str) -> None:
     state = load_state(config)
     state.pop(service, None)
     save_state(config, state)
+
+
+def get_services_needing_migration(config: Config) -> list[str]:
+    """Get services where current host differs from configured host."""
+    state = load_state(config)
+    needs_migration = []
+    for service, configured_host in config.services.items():
+        current_host = state.get(service)
+        if current_host and current_host != configured_host:
+            needs_migration.append(service)
+    return needs_migration
