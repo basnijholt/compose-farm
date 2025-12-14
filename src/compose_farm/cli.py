@@ -339,7 +339,7 @@ def _build_summary_table(cfg: Config, state: dict[str, str], pending: list[str])
     """Build the summary table."""
     on_disk = cfg.discover_compose_dirs()
 
-    table = Table(title="Summary", show_header=False, box=None)
+    table = Table(title="Summary", show_header=False)
     table.add_column("Label", style="dim")
     table.add_column("Value", style="bold")
 
