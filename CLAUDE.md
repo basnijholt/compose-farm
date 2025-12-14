@@ -10,12 +10,14 @@
 
 ```
 compose_farm/
-├── cli.py      # Typer commands (cf/compose-farm CLI)
-├── config.py   # Pydantic models, YAML loading
-├── ssh.py      # asyncssh execution, streaming, local detection
-├── state.py    # Deployment state tracking (which service on which host)
-├── logs.py     # Image digest snapshots (dockerfarm-log.toml)
-└── traefik.py  # Traefik file-provider config generation from labels
+├── cli.py         # Typer commands (thin layer, delegates to operations)
+├── config.py      # Pydantic models, YAML loading
+├── compose.py     # Compose file parsing (.env, ports, volumes, networks)
+├── executor.py    # SSH/local command execution, streaming output
+├── operations.py  # Business logic (up, migrate, discover, preflight checks)
+├── state.py       # Deployment state tracking (which service on which host)
+├── logs.py        # Image digest snapshots (dockerfarm-log.toml)
+└── traefik.py     # Traefik file-provider config generation from labels
 ```
 
 ## Key Design Decisions

@@ -4,8 +4,9 @@ from pathlib import Path
 
 import yaml
 
+from compose_farm.compose import parse_external_networks
 from compose_farm.config import Config, Host
-from compose_farm.traefik import generate_traefik_config, parse_external_networks
+from compose_farm.traefik import generate_traefik_config
 
 
 def _write_compose(path: Path, data: dict[str, object]) -> None:

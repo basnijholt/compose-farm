@@ -8,27 +8,19 @@ use host-published ports for cross-host reachability.
 
 from __future__ import annotations
 
-import os
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
-from .ssh import LOCAL_ADDRESSES
+from .compose import (
+    PortMapping,
+    get_ports_for_service,
+    load_compose_services,
+    normalize_labels,
+)
+from .executor import LOCAL_ADDRESSES
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from .config import Config
-
-
-@dataclass(frozen=True)
-class PortMapping:
-    """Port mapping for a compose service."""
-
-    target: int
-    published: int | None
 
 
 @dataclass
@@ -45,119 +37,8 @@ class TraefikServiceSource:
 
 
 LIST_VALUE_KEYS = {"entrypoints", "middlewares"}
-SINGLE_PART = 1
-PUBLISHED_TARGET_PARTS = 2
-HOST_PUBLISHED_PARTS = 3
 MIN_ROUTER_PARTS = 3
 MIN_SERVICE_LABEL_PARTS = 6
-_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-(.*?))?\}")
-
-
-def _load_env(compose_path: Path) -> dict[str, str]:
-    """Load environment variables for compose interpolation."""
-    env: dict[str, str] = {}
-    env_path = compose_path.parent / ".env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#") or "=" not in stripped:
-                continue
-            key, value = stripped.split("=", 1)
-            key = key.strip()
-            value = value.strip()
-            if (value.startswith('"') and value.endswith('"')) or (
-                value.startswith("'") and value.endswith("'")
-            ):
-                value = value[1:-1]
-            env[key] = value
-    env.update({k: v for k, v in os.environ.items() if isinstance(v, str)})
-    return env
-
-
-def _interpolate(value: str, env: dict[str, str]) -> str:
-    """Perform a minimal `${VAR}`/`${VAR:-default}` interpolation."""
-
-    def replace(match: re.Match[str]) -> str:
-        var = match.group(1)
-        default = match.group(2)
-        resolved = env.get(var)
-        if resolved:
-            return resolved
-        return default or ""
-
-    return _VAR_PATTERN.sub(replace, value)
-
-
-def _normalize_labels(raw: Any, env: dict[str, str]) -> dict[str, str]:
-    if raw is None:
-        return {}
-    if isinstance(raw, dict):
-        return {
-            _interpolate(str(k), env): _interpolate(str(v), env)
-            for k, v in raw.items()
-            if k is not None
-        }
-    if isinstance(raw, list):
-        labels: dict[str, str] = {}
-        for item in raw:
-            if not isinstance(item, str) or "=" not in item:
-                continue
-            key_raw, value_raw = item.split("=", 1)
-            key = _interpolate(key_raw.strip(), env)
-            value = _interpolate(value_raw.strip(), env)
-            labels[key] = value
-        return labels
-    return {}
-
-
-def _parse_ports(raw: Any, env: dict[str, str]) -> list[PortMapping]:  # noqa: PLR0912
-    if raw is None:
-        return []
-    mappings: list[PortMapping] = []
-
-    items = raw if isinstance(raw, list) else [raw]
-
-    for item in items:
-        if isinstance(item, str):
-            interpolated = _interpolate(item, env)
-            port_spec, _, _ = interpolated.partition("/")
-            parts = port_spec.split(":")
-            published: int | None = None
-            target: int | None = None
-
-            if len(parts) == SINGLE_PART and parts[0].isdigit():
-                target = int(parts[0])
-            elif len(parts) == PUBLISHED_TARGET_PARTS and parts[0].isdigit() and parts[1].isdigit():
-                published = int(parts[0])
-                target = int(parts[1])
-            elif len(parts) == HOST_PUBLISHED_PARTS and parts[-2].isdigit() and parts[-1].isdigit():
-                published = int(parts[-2])
-                target = int(parts[-1])
-
-            if target is not None:
-                mappings.append(PortMapping(target=target, published=published))
-        elif isinstance(item, dict):
-            target_raw = item.get("target")
-            if isinstance(target_raw, str):
-                target_raw = _interpolate(target_raw, env)
-            if target_raw is None:
-                continue
-            try:
-                target_val = int(str(target_raw))
-            except (TypeError, ValueError):
-                continue
-
-            published_raw = item.get("published")
-            if isinstance(published_raw, str):
-                published_raw = _interpolate(published_raw, env)
-            published_val: int | None
-            try:
-                published_val = int(str(published_raw)) if published_raw is not None else None
-            except (TypeError, ValueError):
-                published_val = None
-            mappings.append(PortMapping(target=target_val, published=published_val))
-
-    return mappings
 
 
 def _parse_value(key: str, raw_value: str) -> Any:
@@ -253,20 +134,6 @@ def _resolve_published_port(source: TraefikServiceSource) -> tuple[int | None, s
         f"Multiple published ports found for Traefik service '{source.traefik_service}', "
         "but no loadbalancer.server.port label to disambiguate."
     )
-
-
-def _load_stack(config: Config, stack: str) -> tuple[dict[str, Any], dict[str, str], str]:
-    compose_path = config.get_compose_path(stack)
-    if not compose_path.exists():
-        message = f"[{stack}] Compose file not found: {compose_path}"
-        raise FileNotFoundError(message)
-
-    env = _load_env(compose_path)
-    compose_data = yaml.safe_load(compose_path.read_text()) or {}
-    raw_services = compose_data.get("services", {})
-    if not isinstance(raw_services, dict):
-        return {}, env, config.get_host(stack).address
-    return raw_services, env, config.get_host(stack).address
 
 
 def _finalize_http_services(
@@ -390,23 +257,6 @@ def _process_service_label(
         source.scheme = str(_parse_value(key_without_prefix, label_value))
 
 
-def _get_ports_for_service(
-    definition: dict[str, Any],
-    all_services: dict[str, Any],
-    env: dict[str, str],
-) -> list[PortMapping]:
-    """Get ports for a service, following network_mode: service:X if present."""
-    network_mode = definition.get("network_mode", "")
-    if isinstance(network_mode, str) and network_mode.startswith("service:"):
-        # Service uses another service's network - get ports from that service
-        ref_service = network_mode[len("service:") :]
-        if ref_service in all_services:
-            ref_def = all_services[ref_service]
-            if isinstance(ref_def, dict):
-                return _parse_ports(ref_def.get("ports"), env)
-    return _parse_ports(definition.get("ports"), env)
-
-
 def _process_service_labels(
     stack: str,
     compose_service: str,
@@ -418,14 +268,14 @@ def _process_service_labels(
     sources: dict[str, TraefikServiceSource],
     warnings: list[str],
 ) -> None:
-    labels = _normalize_labels(definition.get("labels"), env)
+    labels = normalize_labels(definition.get("labels"), env)
     if not labels:
         return
     enable_raw = labels.get("traefik.enable")
     if enable_raw is not None and _parse_value("enable", enable_raw) is False:
         return
 
-    ports = _get_ports_for_service(definition, all_services, env)
+    ports = get_ports_for_service(definition, all_services, env)
     routers: dict[str, bool] = {}
     service_names: set[str] = set()
 
@@ -457,102 +307,6 @@ def _process_service_labels(
     _attach_default_services(stack, compose_service, routers, service_names, warnings, dynamic)
 
 
-MIN_VOLUME_PARTS = 2
-
-
-def _resolve_host_path(host_path: str, compose_dir: Path) -> str | None:
-    """Resolve a host path from volume mount, returning None for named volumes."""
-    if host_path.startswith("/"):
-        return host_path
-    if host_path.startswith(("./", "../")):
-        return str((compose_dir / host_path).resolve())
-    return None  # Named volume
-
-
-def _parse_volume_item(
-    item: str | dict[str, Any],
-    env: dict[str, str],
-    compose_dir: Path,
-) -> str | None:
-    """Parse a single volume item and return host path if it's a bind mount."""
-    if isinstance(item, str):
-        interpolated = _interpolate(item, env)
-        parts = interpolated.split(":")
-        if len(parts) >= MIN_VOLUME_PARTS:
-            return _resolve_host_path(parts[0], compose_dir)
-    elif isinstance(item, dict) and item.get("type") == "bind":
-        source = item.get("source")
-        if source:
-            interpolated = _interpolate(str(source), env)
-            return _resolve_host_path(interpolated, compose_dir)
-    return None
-
-
-def parse_host_volumes(config: Config, service: str) -> list[str]:
-    """Extract host bind mount paths from a service's compose file.
-
-    Returns a list of absolute host paths used as volume mounts.
-    Skips named volumes and resolves relative paths.
-    """
-    compose_path = config.get_compose_path(service)
-    if not compose_path.exists():
-        return []
-
-    env = _load_env(compose_path)
-    compose_data = yaml.safe_load(compose_path.read_text()) or {}
-    raw_services = compose_data.get("services", {})
-    if not isinstance(raw_services, dict):
-        return []
-
-    paths: list[str] = []
-    compose_dir = compose_path.parent
-
-    for definition in raw_services.values():
-        if not isinstance(definition, dict):
-            continue
-
-        volumes = definition.get("volumes")
-        if not volumes:
-            continue
-
-        items = volumes if isinstance(volumes, list) else [volumes]
-        for item in items:
-            host_path = _parse_volume_item(item, env, compose_dir)
-            if host_path:
-                paths.append(host_path)
-
-    # Return unique paths, preserving order
-    seen: set[str] = set()
-    unique: list[str] = []
-    for p in paths:
-        if p not in seen:
-            seen.add(p)
-            unique.append(p)
-    return unique
-
-
-def parse_external_networks(config: Config, service: str) -> list[str]:
-    """Extract external network names from a service's compose file.
-
-    Returns a list of network names marked as external: true.
-    """
-    compose_path = config.get_compose_path(service)
-    if not compose_path.exists():
-        return []
-
-    compose_data = yaml.safe_load(compose_path.read_text()) or {}
-    networks = compose_data.get("networks", {})
-    if not isinstance(networks, dict):
-        return []
-
-    external_networks: list[str] = []
-    for name, definition in networks.items():
-        if isinstance(definition, dict) and definition.get("external") is True:
-            external_networks.append(name)
-
-    return external_networks
-
-
 def generate_traefik_config(
     config: Config,
     services: list[str],
@@ -580,7 +334,7 @@ def generate_traefik_config(
         traefik_host = config.services.get(config.traefik_service)
 
     for stack in services:
-        raw_services, env, host_address = _load_stack(config, stack)
+        raw_services, env, host_address = load_compose_services(config, stack)
         stack_host = config.services.get(stack)
 
         # Skip services on Traefik's host - docker provider handles them directly

@@ -1,11 +1,11 @@
-"""Tests for ssh module."""
+"""Tests for executor module."""
 
 from pathlib import Path
 
 import pytest
 
 from compose_farm.config import Config, Host
-from compose_farm.ssh import (
+from compose_farm.executor import (
     CommandResult,
     _is_local,
     _run_local_command,

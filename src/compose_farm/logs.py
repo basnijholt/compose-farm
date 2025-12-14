@@ -9,13 +9,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .ssh import run_compose
+from .executor import run_compose
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterable
 
     from .config import Config
-    from .ssh import CommandResult
+    from .executor import CommandResult
 
 
 DEFAULT_LOG_PATH = Path.home() / ".config" / "compose-farm" / "dockerfarm-log.toml"

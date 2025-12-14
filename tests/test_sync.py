@@ -7,10 +7,11 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from compose_farm import cli as cli_module
-from compose_farm import ssh as ssh_module
+from compose_farm import executor as executor_module
+from compose_farm import operations as operations_module
 from compose_farm import state as state_module
 from compose_farm.config import Config, Host
-from compose_farm.ssh import CommandResult, check_service_running
+from compose_farm.executor import CommandResult, check_service_running
 
 
 @pytest.fixture
@@ -58,7 +59,7 @@ class TestCheckServiceRunning:
     @pytest.mark.asyncio
     async def test_service_running(self, mock_config: Config) -> None:
         """Returns True when service has running containers."""
-        with patch.object(ssh_module, "run_command", new_callable=AsyncMock) as mock_run:
+        with patch.object(executor_module, "run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = CommandResult(
                 service="plex",
                 exit_code=0,
@@ -71,7 +72,7 @@ class TestCheckServiceRunning:
     @pytest.mark.asyncio
     async def test_service_not_running(self, mock_config: Config) -> None:
         """Returns False when service has no running containers."""
-        with patch.object(ssh_module, "run_command", new_callable=AsyncMock) as mock_run:
+        with patch.object(executor_module, "run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = CommandResult(
                 service="plex",
                 exit_code=0,
@@ -84,7 +85,7 @@ class TestCheckServiceRunning:
     @pytest.mark.asyncio
     async def test_command_failed(self, mock_config: Config) -> None:
         """Returns False when command fails."""
-        with patch.object(ssh_module, "run_command", new_callable=AsyncMock) as mock_run:
+        with patch.object(executor_module, "run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = CommandResult(
                 service="plex",
                 exit_code=1,
@@ -95,13 +96,13 @@ class TestCheckServiceRunning:
 
 
 class TestDiscoverRunningServices:
-    """Tests for _discover_running_services function."""
+    """Tests for discover_running_services function."""
 
     @pytest.mark.asyncio
     async def test_discovers_on_assigned_host(self, mock_config: Config) -> None:
         """Discovers service running on its assigned host."""
         with patch.object(
-            cli_module, "check_service_running", new_callable=AsyncMock
+            operations_module, "check_service_running", new_callable=AsyncMock
         ) as mock_check:
             # plex running on nas01, jellyfin not running, sonarr on nas02
             async def check_side_effect(_cfg: Any, service: str, host: str) -> bool:
@@ -111,14 +112,14 @@ class TestDiscoverRunningServices:
 
             mock_check.side_effect = check_side_effect
 
-            result = await cli_module._discover_running_services(mock_config)
+            result = await operations_module.discover_running_services(mock_config)
             assert result == {"plex": "nas01", "sonarr": "nas02"}
 
     @pytest.mark.asyncio
     async def test_discovers_on_different_host(self, mock_config: Config) -> None:
         """Discovers service running on non-assigned host (after migration)."""
         with patch.object(
-            cli_module, "check_service_running", new_callable=AsyncMock
+            operations_module, "check_service_running", new_callable=AsyncMock
         ) as mock_check:
             # plex migrated to nas02
             async def check_side_effect(_cfg: Any, service: str, host: str) -> bool:
@@ -126,7 +127,7 @@ class TestDiscoverRunningServices:
 
             mock_check.side_effect = check_side_effect
 
-            result = await cli_module._discover_running_services(mock_config)
+            result = await operations_module.discover_running_services(mock_config)
             assert result == {"plex": "nas02"}
 
 

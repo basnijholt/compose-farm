@@ -1,0 +1,282 @@
+"""Compose file parsing utilities.
+
+Handles .env loading, variable interpolation, port/volume/network extraction.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+import yaml
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from .config import Config
+
+# Port parsing constants
+SINGLE_PART = 1
+PUBLISHED_TARGET_PARTS = 2
+HOST_PUBLISHED_PARTS = 3
+MIN_VOLUME_PARTS = 2
+
+_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-(.*?))?\}")
+
+
+@dataclass(frozen=True)
+class PortMapping:
+    """Port mapping for a compose service."""
+
+    target: int
+    published: int | None
+
+
+def load_env(compose_path: Path) -> dict[str, str]:
+    """Load environment variables for compose interpolation.
+
+    Reads from .env file in the same directory as compose file,
+    then overlays current environment variables.
+    """
+    env: dict[str, str] = {}
+    env_path = compose_path.parent / ".env"
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if (value.startswith('"') and value.endswith('"')) or (
+                value.startswith("'") and value.endswith("'")
+            ):
+                value = value[1:-1]
+            env[key] = value
+    env.update({k: v for k, v in os.environ.items() if isinstance(v, str)})
+    return env
+
+
+def interpolate(value: str, env: dict[str, str]) -> str:
+    """Perform ${VAR} and ${VAR:-default} interpolation."""
+
+    def replace(match: re.Match[str]) -> str:
+        var = match.group(1)
+        default = match.group(2)
+        resolved = env.get(var)
+        if resolved:
+            return resolved
+        return default or ""
+
+    return _VAR_PATTERN.sub(replace, value)
+
+
+def parse_ports(raw: Any, env: dict[str, str]) -> list[PortMapping]:  # noqa: PLR0912
+    """Parse port specifications from compose file.
+
+    Handles string formats like "8080", "8080:80", "0.0.0.0:8080:80",
+    and dict formats with target/published keys.
+    """
+    if raw is None:
+        return []
+    mappings: list[PortMapping] = []
+
+    items = raw if isinstance(raw, list) else [raw]
+
+    for item in items:
+        if isinstance(item, str):
+            interpolated = interpolate(item, env)
+            port_spec, _, _ = interpolated.partition("/")
+            parts = port_spec.split(":")
+            published: int | None = None
+            target: int | None = None
+
+            if len(parts) == SINGLE_PART and parts[0].isdigit():
+                target = int(parts[0])
+            elif len(parts) == PUBLISHED_TARGET_PARTS and parts[0].isdigit() and parts[1].isdigit():
+                published = int(parts[0])
+                target = int(parts[1])
+            elif len(parts) == HOST_PUBLISHED_PARTS and parts[-2].isdigit() and parts[-1].isdigit():
+                published = int(parts[-2])
+                target = int(parts[-1])
+
+            if target is not None:
+                mappings.append(PortMapping(target=target, published=published))
+        elif isinstance(item, dict):
+            target_raw = item.get("target")
+            if isinstance(target_raw, str):
+                target_raw = interpolate(target_raw, env)
+            if target_raw is None:
+                continue
+            try:
+                target_val = int(str(target_raw))
+            except (TypeError, ValueError):
+                continue
+
+            published_raw = item.get("published")
+            if isinstance(published_raw, str):
+                published_raw = interpolate(published_raw, env)
+            published_val: int | None
+            try:
+                published_val = int(str(published_raw)) if published_raw is not None else None
+            except (TypeError, ValueError):
+                published_val = None
+            mappings.append(PortMapping(target=target_val, published=published_val))
+
+    return mappings
+
+
+def _resolve_host_path(host_path: str, compose_dir: Path) -> str | None:
+    """Resolve a host path from volume mount, returning None for named volumes."""
+    if host_path.startswith("/"):
+        return host_path
+    if host_path.startswith(("./", "../")):
+        return str((compose_dir / host_path).resolve())
+    return None  # Named volume
+
+
+def _parse_volume_item(
+    item: str | dict[str, Any],
+    env: dict[str, str],
+    compose_dir: Path,
+) -> str | None:
+    """Parse a single volume item and return host path if it's a bind mount."""
+    if isinstance(item, str):
+        interpolated = interpolate(item, env)
+        parts = interpolated.split(":")
+        if len(parts) >= MIN_VOLUME_PARTS:
+            return _resolve_host_path(parts[0], compose_dir)
+    elif isinstance(item, dict) and item.get("type") == "bind":
+        source = item.get("source")
+        if source:
+            interpolated = interpolate(str(source), env)
+            return _resolve_host_path(interpolated, compose_dir)
+    return None
+
+
+def parse_host_volumes(config: Config, service: str) -> list[str]:
+    """Extract host bind mount paths from a service's compose file.
+
+    Returns a list of absolute host paths used as volume mounts.
+    Skips named volumes and resolves relative paths.
+    """
+    compose_path = config.get_compose_path(service)
+    if not compose_path.exists():
+        return []
+
+    env = load_env(compose_path)
+    compose_data = yaml.safe_load(compose_path.read_text()) or {}
+    raw_services = compose_data.get("services", {})
+    if not isinstance(raw_services, dict):
+        return []
+
+    paths: list[str] = []
+    compose_dir = compose_path.parent
+
+    for definition in raw_services.values():
+        if not isinstance(definition, dict):
+            continue
+
+        volumes = definition.get("volumes")
+        if not volumes:
+            continue
+
+        items = volumes if isinstance(volumes, list) else [volumes]
+        for item in items:
+            host_path = _parse_volume_item(item, env, compose_dir)
+            if host_path:
+                paths.append(host_path)
+
+    # Return unique paths, preserving order
+    seen: set[str] = set()
+    unique: list[str] = []
+    for p in paths:
+        if p not in seen:
+            seen.add(p)
+            unique.append(p)
+    return unique
+
+
+def parse_external_networks(config: Config, service: str) -> list[str]:
+    """Extract external network names from a service's compose file.
+
+    Returns a list of network names marked as external: true.
+    """
+    compose_path = config.get_compose_path(service)
+    if not compose_path.exists():
+        return []
+
+    compose_data = yaml.safe_load(compose_path.read_text()) or {}
+    networks = compose_data.get("networks", {})
+    if not isinstance(networks, dict):
+        return []
+
+    external_networks: list[str] = []
+    for name, definition in networks.items():
+        if isinstance(definition, dict) and definition.get("external") is True:
+            external_networks.append(name)
+
+    return external_networks
+
+
+def load_compose_services(
+    config: Config,
+    stack: str,
+) -> tuple[dict[str, Any], dict[str, str], str]:
+    """Load services from a compose file with environment interpolation.
+
+    Returns (services_dict, env_dict, host_address).
+    """
+    compose_path = config.get_compose_path(stack)
+    if not compose_path.exists():
+        message = f"[{stack}] Compose file not found: {compose_path}"
+        raise FileNotFoundError(message)
+
+    env = load_env(compose_path)
+    compose_data = yaml.safe_load(compose_path.read_text()) or {}
+    raw_services = compose_data.get("services", {})
+    if not isinstance(raw_services, dict):
+        return {}, env, config.get_host(stack).address
+    return raw_services, env, config.get_host(stack).address
+
+
+def normalize_labels(raw: Any, env: dict[str, str]) -> dict[str, str]:
+    """Normalize labels from list or dict format, with interpolation."""
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return {
+            interpolate(str(k), env): interpolate(str(v), env)
+            for k, v in raw.items()
+            if k is not None
+        }
+    if isinstance(raw, list):
+        labels: dict[str, str] = {}
+        for item in raw:
+            if not isinstance(item, str) or "=" not in item:
+                continue
+            key_raw, value_raw = item.split("=", 1)
+            key = interpolate(key_raw.strip(), env)
+            value = interpolate(value_raw.strip(), env)
+            labels[key] = value
+        return labels
+    return {}
+
+
+def get_ports_for_service(
+    definition: dict[str, Any],
+    all_services: dict[str, Any],
+    env: dict[str, str],
+) -> list[PortMapping]:
+    """Get ports for a service, following network_mode: service:X if present."""
+    network_mode = definition.get("network_mode", "")
+    if isinstance(network_mode, str) and network_mode.startswith("service:"):
+        # Service uses another service's network - get ports from that service
+        ref_service = network_mode[len("service:") :]
+        if ref_service in all_services:
+            ref_def = all_services[ref_service]
+            if isinstance(ref_def, dict):
+                return parse_ports(ref_def.get("ports"), env)
+    return parse_ports(definition.get("ports"), env)

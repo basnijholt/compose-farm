@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 from compose_farm.config import Config, Host
+from compose_farm.executor import CommandResult
 from compose_farm.logs import _parse_images_output, snapshot_services
-from compose_farm.ssh import CommandResult
 
 
 def test_parse_images_output_handles_list_and_lines() -> None:
