@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import asyncssh
+from rich.console import Console
 
 if TYPE_CHECKING:
     from .config import Config, Host
+
+_console = Console(highlight=False)
+_err_console = Console(stderr=True, highlight=False)
 
 LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
 
@@ -53,12 +56,12 @@ async def _run_local_command(
                 *,
                 is_stderr: bool = False,
             ) -> None:
-                output = sys.stderr if is_stderr else sys.stdout
+                console = _err_console if is_stderr else _console
                 while True:
                     line = await reader.readline()
                     if not line:
                         break
-                    print(f"[{prefix}] {line.decode()}", end="", file=output, flush=True)
+                    console.print(f"[cyan]\\[{prefix}][/] {line.decode()}", end="")
 
             await asyncio.gather(
                 read_stream(proc.stdout, service),
@@ -80,7 +83,7 @@ async def _run_local_command(
             stderr=stderr_data.decode() if stderr_data else "",
         )
     except OSError as e:
-        print(f"[{service}] Local error: {e}", file=sys.stderr)
+        _err_console.print(f"[cyan]\\[{service}][/] [red]Local error:[/] {e}")
         return CommandResult(service=service, exit_code=1, success=False)
 
 
@@ -111,9 +114,9 @@ async def _run_ssh_command(
                     *,
                     is_stderr: bool = False,
                 ) -> None:
-                    output = sys.stderr if is_stderr else sys.stdout
+                    console = _err_console if is_stderr else _console
                     async for line in reader:
-                        print(f"[{prefix}] {line}", end="", file=output, flush=True)
+                        console.print(f"[cyan]\\[{prefix}][/] {line}", end="")
 
                 await asyncio.gather(
                     read_stream(proc.stdout, service),
@@ -135,7 +138,7 @@ async def _run_ssh_command(
                 stderr=stderr_data,
             )
     except (OSError, asyncssh.Error) as e:
-        print(f"[{service}] SSH error: {e}", file=sys.stderr)
+        _err_console.print(f"[cyan]\\[{service}][/] [red]SSH error:[/] {e}")
         return CommandResult(service=service, exit_code=1, success=False)
 
 

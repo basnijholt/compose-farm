@@ -171,4 +171,4 @@ class TestReportSyncChanges:
         )
         captured = capsys.readouterr()
         assert "Services on different hosts (1)" in captured.out
-        assert "~ plex: nas01 -> nas02" in captured.out
+        assert "~ plex: nas01 → nas02" in captured.out

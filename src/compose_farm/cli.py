@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Annotated, TypeVar
 
 import typer
 import yaml
+from rich.console import Console
 
 from . import __version__
 from .config import Config, load_config
@@ -28,6 +29,9 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 
+console = Console(highlight=False)
+err_console = Console(stderr=True, highlight=False)
+
 
 def _maybe_regenerate_traefik(cfg: Config) -> None:
     """Regenerate traefik config if traefik_file is configured."""
@@ -38,11 +42,11 @@ def _maybe_regenerate_traefik(cfg: Config) -> None:
         dynamic, warnings = generate_traefik_config(cfg, list(cfg.services.keys()))
         cfg.traefik_file.parent.mkdir(parents=True, exist_ok=True)
         cfg.traefik_file.write_text(yaml.safe_dump(dynamic, sort_keys=False))
-        typer.echo(f"Traefik config updated: {cfg.traefik_file}")
+        console.print(f"[green]✓[/] Traefik config updated: {cfg.traefik_file}")
         for warning in warnings:
-            typer.echo(warning, err=True)
+            err_console.print(f"[yellow]![/] {warning}")
     except (FileNotFoundError, ValueError) as exc:
-        typer.echo(f"Warning: Failed to update traefik config: {exc}", err=True)
+        err_console.print(f"[yellow]![/] Failed to update traefik config: {exc}")
 
 
 def _version_callback(value: bool) -> None:
@@ -86,7 +90,7 @@ def _get_services(
     if all_services:
         return list(config.services.keys()), config
     if not services:
-        typer.echo("Error: Specify services or use --all", err=True)
+        err_console.print("[red]✗[/] Specify services or use --all")
         raise typer.Exit(1)
     return list(services), config
 
@@ -101,7 +105,9 @@ def _report_results(results: list[CommandResult]) -> None:
     failed = [r for r in results if not r.success]
     if failed:
         for r in failed:
-            typer.echo(f"[{r.service}] Failed with exit code {r.exit_code}", err=True)
+            err_console.print(
+                f"[cyan]\\[{r.service}][/] [red]Failed with exit code {r.exit_code}[/]"
+            )
         raise typer.Exit(1)
 
 
@@ -137,15 +143,18 @@ async def _up_with_migration(
         # If service is deployed elsewhere, migrate it
         if current_host and current_host != target_host:
             if current_host in cfg.hosts:
-                typer.echo(f"[{service}] Migrating from {current_host} to {target_host}...")
+                console.print(
+                    f"[cyan]\\[{service}][/] Migrating from "
+                    f"[magenta]{current_host}[/] → [magenta]{target_host}[/]..."
+                )
                 down_result = await run_compose_on_host(cfg, service, current_host, "down")
                 if not down_result.success:
                     results.append(down_result)
                     continue
             else:
-                typer.echo(
-                    f"[{service}] Warning: was on {current_host} (not in config), skipping down",
-                    err=True,
+                err_console.print(
+                    f"[cyan]\\[{service}][/] [yellow]![/] was on "
+                    f"[magenta]{current_host}[/] (not in config), skipping down"
                 )
 
         # Start on target host
@@ -275,7 +284,7 @@ def traefik_file(
     try:
         dynamic, warnings = generate_traefik_config(cfg, svc_list)
     except (FileNotFoundError, ValueError) as exc:
-        typer.echo(str(exc), err=True)
+        err_console.print(f"[red]✗[/] {exc}")
         raise typer.Exit(1) from exc
 
     rendered = yaml.safe_dump(dynamic, sort_keys=False)
@@ -283,12 +292,12 @@ def traefik_file(
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(rendered)
-        typer.echo(f"Traefik config written to {output}")
+        console.print(f"[green]✓[/] Traefik config written to {output}")
     else:
-        typer.echo(rendered)
+        console.print(rendered)
 
     for warning in warnings:
-        typer.echo(warning, err=True)
+        err_console.print(f"[yellow]![/] {warning}")
 
 
 async def _discover_running_services(cfg: Config) -> dict[str, str]:
@@ -324,19 +333,24 @@ def _report_sync_changes(
 ) -> None:
     """Report sync changes to the user."""
     if added:
-        typer.echo(f"\nNew services found ({len(added)}):")
+        console.print(f"\nNew services found ({len(added)}):")
         for service in sorted(added):
-            typer.echo(f"  + {service} on {discovered[service]}")
+            console.print(f"  [green]+[/] [cyan]{service}[/] on [magenta]{discovered[service]}[/]")
 
     if changed:
-        typer.echo(f"\nServices on different hosts ({len(changed)}):")
+        console.print(f"\nServices on different hosts ({len(changed)}):")
         for service, old_host, new_host in sorted(changed):
-            typer.echo(f"  ~ {service}: {old_host} -> {new_host}")
+            console.print(
+                f"  [yellow]~[/] [cyan]{service}[/]: "
+                f"[magenta]{old_host}[/] → [magenta]{new_host}[/]"
+            )
 
     if removed:
-        typer.echo(f"\nServices no longer running ({len(removed)}):")
+        console.print(f"\nServices no longer running ({len(removed)}):")
         for service in sorted(removed):
-            typer.echo(f"  - {service} (was on {current_state[service]})")
+            console.print(
+                f"  [red]-[/] [cyan]{service}[/] (was on [magenta]{current_state[service]}[/])"
+            )
 
 
 @app.command()
@@ -357,7 +371,7 @@ def sync(
     cfg = load_config(config)
     current_state = load_state(cfg)
 
-    typer.echo("Discovering running services...")
+    console.print("Discovering running services...")
     discovered = _run_async(_discover_running_services(cfg))
 
     # Calculate changes
@@ -374,25 +388,25 @@ def sync(
     if state_changed:
         _report_sync_changes(added, removed, changed, discovered, current_state)
     else:
-        typer.echo("State is already in sync.")
+        console.print("[green]✓[/] State is already in sync.")
 
     if dry_run:
-        typer.echo("\n(dry-run: no changes made)")
+        console.print("\n[dim](dry-run: no changes made)[/]")
         return
 
     # Update state file
     if state_changed:
         save_state(cfg, discovered)
-        typer.echo(f"\nState updated: {len(discovered)} services tracked.")
+        console.print(f"\n[green]✓[/] State updated: {len(discovered)} services tracked.")
 
     # Capture image digests for running services
     if discovered:
-        typer.echo("\nCapturing image digests...")
+        console.print("\nCapturing image digests...")
         try:
             path = _run_async(snapshot_services(cfg, list(discovered.keys()), log_path=log_path))
-            typer.echo(f"Digests written to {path}")
+            console.print(f"[green]✓[/] Digests written to {path}")
         except RuntimeError as exc:
-            typer.echo(f"Warning: {exc}", err=True)
+            err_console.print(f"[yellow]![/] {exc}")
 
 
 if __name__ == "__main__":
