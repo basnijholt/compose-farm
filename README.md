@@ -19,6 +19,8 @@
 
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
+> **TL;DR** - I run 100+ Docker Compose stacks and kept running out of memory. Needed to spread services across multiple machines but Kubernetes is overkill and Swarm is dead. So I built a simple CLI that runs `docker compose` commands over SSH. One YAML maps services to hosts, NFS shares the compose files. Change a service's host in config, run `up`, and it auto-migrates. No orchestration, no magic.
+
 ## Why Compose Farm?
 
 I run 100+ Docker Compose stacks on an LXC container that frequently runs out of memory. I needed a way to distribute services across multiple machines without the complexity of:
