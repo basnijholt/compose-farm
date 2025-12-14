@@ -75,7 +75,8 @@ class TestConfig:
             services={"plex": "nas01"},
         )
         path = config.get_compose_path("plex")
-        assert path == Path("/opt/compose/plex/docker-compose.yml")
+        # Defaults to compose.yaml when no file exists
+        assert path == Path("/opt/compose/plex/compose.yaml")
 
 
 class TestLoadConfig:

@@ -235,24 +235,6 @@ def ps(
     _report_results(results)
 
 
-@app.command()
-def snapshot(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
-    log_path: LogPathOption = None,
-    config: ConfigOption = None,
-) -> None:
-    """Record current image digests into the Dockerfarm TOML log."""
-    svc_list, cfg = _get_services(services or [], all_services, config)
-    try:
-        path = _run_async(snapshot_services(cfg, svc_list, log_path=log_path))
-    except RuntimeError as exc:  # pragma: no cover - error path
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from exc
-
-    typer.echo(f"Snapshot written to {path}")
-
-
 @app.command("traefik-file")
 def traefik_file(
     services: ServicesArg = None,
@@ -341,16 +323,17 @@ def _report_sync_changes(
 @app.command()
 def sync(
     config: ConfigOption = None,
+    log_path: LogPathOption = None,
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run", "-n", help="Show what would be synced without writing"),
     ] = False,
 ) -> None:
-    """Discover running services and update state file.
+    """Sync local state with running services.
 
-    Queries all hosts to find where services are actually running and
-    updates the state file to match reality. Useful after manual changes
-    or when first setting up compose-farm on an existing deployment.
+    Discovers which services are running on which hosts, updates the state
+    file, and captures image digests. Combines service discovery with
+    image snapshot into a single command.
     """
     cfg = load_config(config)
     current_state = load_state()
@@ -367,20 +350,30 @@ def sync(
         if s in current_state and current_state[s] != discovered[s]
     ]
 
-    # Report findings
-    if not (added or removed or changed):
+    # Report state changes
+    state_changed = bool(added or removed or changed)
+    if state_changed:
+        _report_sync_changes(added, removed, changed, discovered, current_state)
+    else:
         typer.echo("State is already in sync.")
-        return
-
-    _report_sync_changes(added, removed, changed, discovered, current_state)
 
     if dry_run:
         typer.echo("\n(dry-run: no changes made)")
         return
 
-    # Apply changes
-    save_state(discovered)
-    typer.echo(f"\nState updated: {len(discovered)} services tracked.")
+    # Update state file
+    if state_changed:
+        save_state(discovered)
+        typer.echo(f"\nState updated: {len(discovered)} services tracked.")
+
+    # Capture image digests for running services
+    if discovered:
+        typer.echo("\nCapturing image digests...")
+        try:
+            path = _run_async(snapshot_services(cfg, list(discovered.keys()), log_path=log_path))
+            typer.echo(f"Digests written to {path}")
+        except RuntimeError as exc:
+            typer.echo(f"Warning: {exc}", err=True)
 
 
 if __name__ == "__main__":
