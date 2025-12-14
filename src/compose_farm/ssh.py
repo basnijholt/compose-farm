@@ -29,7 +29,9 @@ def _get_local_ips() -> frozenset[str]:
         hostname = socket.gethostname()
         # Get all addresses for hostname
         for info in socket.getaddrinfo(hostname, None):
-            ips.add(info[4][0])
+            addr = info[4][0]
+            if isinstance(addr, str):
+                ips.add(addr)
         # Also try getting the default outbound IP
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.connect(("8.8.8.8", 80))
