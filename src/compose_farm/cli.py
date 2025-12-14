@@ -29,6 +29,22 @@ if TYPE_CHECKING:
 T = TypeVar("T")
 
 
+def _maybe_regenerate_traefik(cfg: Config) -> None:
+    """Regenerate traefik config if traefik_file is configured."""
+    if cfg.traefik_file is None:
+        return
+
+    try:
+        dynamic, warnings = generate_traefik_config(cfg, list(cfg.services.keys()))
+        cfg.traefik_file.parent.mkdir(parents=True, exist_ok=True)
+        cfg.traefik_file.write_text(yaml.safe_dump(dynamic, sort_keys=False))
+        typer.echo(f"Traefik config updated: {cfg.traefik_file}")
+        for warning in warnings:
+            typer.echo(warning, err=True)
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"Warning: Failed to update traefik config: {exc}", err=True)
+
+
 def _version_callback(value: bool) -> None:
     """Print version and exit."""
     if value:
@@ -152,6 +168,7 @@ def up(
     """Start services (docker compose up -d). Auto-migrates if host changed."""
     svc_list, cfg = _get_services(services or [], all_services, config)
     results = _run_async(_up_with_migration(cfg, svc_list))
+    _maybe_regenerate_traefik(cfg)
     _report_results(results)
 
 
@@ -170,6 +187,7 @@ def down(
         if result.success:
             remove_service(result.service)
 
+    _maybe_regenerate_traefik(cfg)
     _report_results(results)
 
 
@@ -194,6 +212,7 @@ def restart(
     """Restart services (down + up)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
     results = _run_async(run_sequential_on_services(cfg, svc_list, ["down", "up -d"]))
+    _maybe_regenerate_traefik(cfg)
     _report_results(results)
 
 
@@ -206,6 +225,7 @@ def update(
     """Update services (pull + down + up)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
     results = _run_async(run_sequential_on_services(cfg, svc_list, ["pull", "down", "up -d"]))
+    _maybe_regenerate_traefik(cfg)
     _report_results(results)
 
 

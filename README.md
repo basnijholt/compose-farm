@@ -182,6 +182,24 @@ compose-farm traefik-file --all --output /mnt/data/traefik/dynamic.d/compose-far
 Re‑run this after changing Traefik labels, moving a service to another host, or changing
 published ports.
 
+**Auto-regeneration**
+
+To automatically regenerate the Traefik config after `up`, `down`, `restart`, or `update`,
+add `traefik_file` to your config:
+
+```yaml
+compose_dir: /opt/compose
+traefik_file: /opt/traefik/dynamic.d/compose-farm.yml  # auto-regenerate on up/down/restart/update
+
+hosts:
+  # ...
+services:
+  # ...
+```
+
+Now `compose-farm up plex` will update the Traefik config automatically—no separate
+`traefik-file` command needed.
+
 **Combining with existing config**
 
 If you already have a `dynamic.yml` with manual routes, middlewares, etc., move it into the

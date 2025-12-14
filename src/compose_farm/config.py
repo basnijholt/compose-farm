@@ -23,6 +23,7 @@ class Config(BaseModel):
     compose_dir: Path = Path("/opt/compose")
     hosts: dict[str, Host]
     services: dict[str, str]  # service_name -> host_name
+    traefik_file: Path | None = None  # Auto-regenerate traefik config after up/down
 
     @model_validator(mode="after")
     def validate_service_hosts(self) -> Config:
