@@ -85,7 +85,9 @@ async def _run_local_command(
                     line = await reader.readline()
                     if not line:
                         break
-                    console.print(f"[cyan]\\[{prefix}][/] {line.decode()}", end="")
+                    text = line.decode()
+                    if text.strip():  # Skip empty lines
+                        console.print(f"[cyan]\\[{prefix}][/] {text}", end="")
 
             await asyncio.gather(
                 read_stream(proc.stdout, service),
@@ -140,7 +142,8 @@ async def _run_ssh_command(
                 ) -> None:
                     console = _err_console if is_stderr else _console
                     async for line in reader:
-                        console.print(f"[cyan]\\[{prefix}][/] {line}", end="")
+                        if line.strip():  # Skip empty lines
+                            console.print(f"[cyan]\\[{prefix}][/] {line}", end="")
 
                 await asyncio.gather(
                     read_stream(proc.stdout, service),
