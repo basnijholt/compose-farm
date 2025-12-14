@@ -140,6 +140,7 @@ The CLI is available as both `compose-farm` and the shorter `cf` alias.
 # Start services (auto-migrates if host changed in config)
 cf up plex jellyfin
 cf up --all
+cf up --migrate        # only services needing migration (state ≠ config)
 
 # Stop services
 cf down plex
@@ -179,8 +180,10 @@ cf ps
 When you change a service's host assignment in config and run `up`, Compose Farm automatically:
 1. Checks that required mounts and networks exist on the new host (aborts if missing)
 2. Runs `down` on the old host
-3. Runs `up -d` on the new host
+3. Runs `up -d` on the new host (with progress counter `[1/10]` for multiple services)
 4. Updates state tracking
+
+Use `cf up --migrate` (or `-m`) to automatically find and migrate all services where the current state differs from config—no need to list them manually.
 
 ```yaml
 # Before: plex runs on server-1

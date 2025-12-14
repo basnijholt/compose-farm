@@ -22,7 +22,7 @@ compose_farm/
 
 ## Key Design Decisions
 
-1. **asyncssh over Paramiko/Fabric**: Native async support, built-in streaming
+1. **Hybrid SSH approach**: asyncssh for parallel streaming with prefixes; native `ssh -t` for raw mode (progress bars)
 2. **Parallel by default**: Multiple services run concurrently via `asyncio.gather`
 3. **Streaming output**: Real-time stdout/stderr with `[service]` prefix using Rich
 4. **SSH key auth only**: Uses ssh-agent, no password handling (YAGNI)
@@ -47,7 +47,7 @@ CLI available as `cf` or `compose-farm`.
 
 | Command | Description |
 |---------|-------------|
-| `up`    | Start services (`docker compose up -d`), auto-migrates if host changed |
+| `up`    | Start services (`docker compose up -d`), auto-migrates if host changed. Use `--migrate` for auto-detection |
 | `down`  | Stop services (`docker compose down`) |
 | `pull`  | Pull latest images |
 | `restart` | `down` + `up -d` |
