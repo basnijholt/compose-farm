@@ -97,8 +97,10 @@ async def up_services(
 ) -> list[CommandResult]:
     """Start services with automatic migration if host changed."""
     results: list[CommandResult] = []
+    total = len(services)
 
-    for service in services:
+    for idx, service in enumerate(services, 1):
+        prefix = f"[dim][{idx}/{total}][/] [cyan]\\[{service}][/]"
         target_host = cfg.services[service]
         current_host = get_service_host(cfg, service)
 
@@ -113,7 +115,7 @@ async def up_services(
         if current_host and current_host != target_host:
             if current_host in cfg.hosts:
                 console.print(
-                    f"[cyan]\\[{service}][/] Migrating from "
+                    f"{prefix} Migrating from "
                     f"[magenta]{current_host}[/] → [magenta]{target_host}[/]..."
                 )
                 down_result = await run_compose_on_host(cfg, service, current_host, "down", raw=raw)
@@ -122,12 +124,12 @@ async def up_services(
                     continue
             else:
                 err_console.print(
-                    f"[cyan]\\[{service}][/] [yellow]![/] was on "
+                    f"{prefix} [yellow]![/] was on "
                     f"[magenta]{current_host}[/] (not in config), skipping down"
                 )
 
         # Start on target host
-        console.print(f"[cyan]\\[{service}][/] Starting on [magenta]{target_host}[/]...")
+        console.print(f"{prefix} Starting on [magenta]{target_host}[/]...")
         up_result = await run_compose(cfg, service, "up -d", raw=raw)
         results.append(up_result)
 
