@@ -1,11 +1,11 @@
 # Compose Farm
 
+<img src="http://files.nijho.lt/compose-farm.png" align="right" style="width: 300px;" />
+
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 > [!NOTE]
 > Run `docker compose` commands across multiple hosts via SSH. One YAML maps services to hosts. Change the mapping, run `up`, and it auto-migrates. No Kubernetes, no Swarm, no magic.
-
-![Compose Farm Logo](http://files.nijho.lt/compose-farm.png)
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
