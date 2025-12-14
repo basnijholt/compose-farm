@@ -176,11 +176,33 @@ providers:
 **Generate the fragment**
 
 ```bash
-compose-farm traefik-file --output /mnt/data/traefik/dynamic.d/compose-farm.generated.yml
+compose-farm traefik-file --all --output /mnt/data/traefik/dynamic.d/compose-farm.yml
 ```
 
 Re‑run this after changing Traefik labels, moving a service to another host, or changing
 published ports.
+
+**Combining with existing config**
+
+If you already have a `dynamic.yml` with manual routes, middlewares, etc., move it into the
+directory and Traefik will merge all files:
+
+```bash
+mkdir -p /opt/traefik/dynamic.d
+mv /opt/traefik/dynamic.yml /opt/traefik/dynamic.d/manual.yml
+compose-farm traefik-file --all -o /opt/traefik/dynamic.d/compose-farm.yml
+```
+
+Update your Traefik config to use directory watching instead of a single file:
+
+```yaml
+# Before
+- --providers.file.filename=/dynamic.yml
+
+# After
+- --providers.file.directory=/dynamic.d
+- --providers.file.watch=true
+```
 
 ## Requirements
 
