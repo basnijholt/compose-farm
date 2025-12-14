@@ -27,6 +27,7 @@ compose_farm/
 5. **NFS assumption**: Compose files at same path on all hosts
 6. **Local IP auto-detection**: Skips SSH when target host matches local machine's IP
 7. **State tracking**: Tracks where services are deployed for auto-migration
+8. **Pre-flight mount checks**: Verifies NFS mounts exist before migration to prevent failed states
 
 ## Communication Notes
 

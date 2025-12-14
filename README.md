@@ -156,8 +156,10 @@ cf update --all
 cf sync              # updates state.yaml and dockerfarm-log.toml
 cf sync --dry-run    # preview without writing
 
-# Check config vs disk (find missing services, validate traefik labels)
-cf check
+# Validate config, traefik labels, and mounts
+cf check                 # full validation (includes SSH mount checks)
+cf check --local         # fast validation (skip SSH)
+cf check jellyfin        # check service + show which hosts can run it
 
 # View logs
 cf logs plex
@@ -170,9 +172,10 @@ cf ps
 ### Auto-Migration
 
 When you change a service's host assignment in config and run `up`, Compose Farm automatically:
-1. Runs `down` on the old host
-2. Runs `up -d` on the new host
-3. Updates state tracking
+1. Checks that required mounts exist on the new host (aborts if missing)
+2. Runs `down` on the old host
+3. Runs `up -d` on the new host
+4. Updates state tracking
 
 ```yaml
 # Before: plex runs on server-1
