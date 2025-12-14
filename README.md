@@ -2,7 +2,7 @@
 
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
-> **TL;DR** - I run 100+ Docker Compose stacks and kept running out of memory. Needed to spread services across multiple machines but Kubernetes is overkill and Swarm is dead. So I built a simple CLI that runs `docker compose` commands over SSH. One YAML maps services to hosts, NFS shares the compose files. Change a service's host in config, run `up`, and it auto-migrates. No orchestration, no magic.
+> **TL;DR** - Run `docker compose` commands across multiple hosts via SSH. One YAML maps services to hosts. Change the mapping, run `up`, and it auto-migrates. No Kubernetes, no Swarm, no magic.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
