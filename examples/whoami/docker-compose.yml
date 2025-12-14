@@ -3,7 +3,7 @@ services:
     image: traefik/whoami
     container_name: whoami
     ports:
-      - "8082:80"
+      - "18082:80"
     labels:
       - traefik.enable=true
       - traefik.http.routers.whoami.rule=Host(`whoami.localhost`)

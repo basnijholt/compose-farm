@@ -48,7 +48,7 @@ compose-farm up whoami
 # Access the services
 curl -H "Host: whoami.localhost" http://localhost    # whoami via Traefik
 curl http://localhost:8081                            # Traefik dashboard
-curl http://localhost:8082                            # whoami direct
+curl http://localhost:18082                           # whoami direct
 
 # Generate Traefik file-provider config (for multi-host setups)
 compose-farm traefik-file --all
@@ -74,7 +74,7 @@ labels:
 | hello | Hello-world container (exits immediately) | - |
 | nginx | Nginx web server | 8080 |
 | traefik | Traefik reverse proxy with dashboard | 80, 8081 |
-| whoami | Test service with Traefik labels | 8082 |
+| whoami | Test service with Traefik labels | 18082 |
 
 ## Config
 
