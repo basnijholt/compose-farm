@@ -9,6 +9,14 @@ from typing import TYPE_CHECKING, Annotated, TypeVar
 import typer
 import yaml
 from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskID,
+    TaskProgressColumn,
+    TextColumn,
+)
 from rich.table import Table
 
 from . import __version__
@@ -282,8 +290,8 @@ def _group_services_by_host(
     return by_host
 
 
-async def _get_container_counts(cfg: Config) -> dict[str, int]:
-    """Get container counts from all hosts in parallel."""
+def _get_container_counts_with_progress(cfg: Config) -> dict[str, int]:
+    """Get container counts from all hosts with a progress bar."""
     import contextlib
 
     async def get_count(host_name: str) -> tuple[str, int]:
@@ -295,8 +303,25 @@ async def _get_container_counts(cfg: Config) -> dict[str, int]:
                 count = int(result.stdout.strip())
         return host_name, count
 
-    results = await asyncio.gather(*[get_count(h) for h in cfg.hosts])
-    return dict(results)
+    async def gather_with_progress(progress: Progress, task_id: TaskID) -> dict[str, int]:
+        hosts = list(cfg.hosts.keys())
+        tasks = [asyncio.create_task(get_count(h)) for h in hosts]
+        results: dict[str, int] = {}
+        for coro in asyncio.as_completed(tasks):
+            host_name, count = await coro
+            results[host_name] = count
+            progress.update(task_id, advance=1, description=f"[cyan]{host_name}[/]")
+        return results
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console,
+    ) as progress:
+        task_id = progress.add_task("Querying hosts...", total=len(cfg.hosts))
+        return asyncio.run(gather_with_progress(progress, task_id))
 
 
 def _build_host_table(
@@ -380,8 +405,7 @@ def stats(
 
     container_counts: dict[str, int] = {}
     if live:
-        console.print("Querying hosts...")
-        container_counts = _run_async(_get_container_counts(cfg))
+        container_counts = _get_container_counts_with_progress(cfg)
 
     host_table = _build_host_table(
         cfg, services_by_host, running_by_host, container_counts, show_containers=live
