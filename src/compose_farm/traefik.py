@@ -400,10 +400,28 @@ def _process_service_label(
         source.scheme = str(_parse_value(key_without_prefix, label_value))
 
 
+def _get_ports_for_service(
+    definition: dict[str, Any],
+    all_services: dict[str, Any],
+    env: dict[str, str],
+) -> list[PortMapping]:
+    """Get ports for a service, following network_mode: service:X if present."""
+    network_mode = definition.get("network_mode", "")
+    if isinstance(network_mode, str) and network_mode.startswith("service:"):
+        # Service uses another service's network - get ports from that service
+        ref_service = network_mode[len("service:") :]
+        if ref_service in all_services:
+            ref_def = all_services[ref_service]
+            if isinstance(ref_def, dict):
+                return _parse_ports(ref_def.get("ports"), env)
+    return _parse_ports(definition.get("ports"), env)
+
+
 def _process_service_labels(
     stack: str,
     compose_service: str,
     definition: dict[str, Any],
+    all_services: dict[str, Any],
     host_address: str,
     env: dict[str, str],
     dynamic: dict[str, Any],
@@ -417,7 +435,7 @@ def _process_service_labels(
     if enable_raw is not None and _parse_value("enable", enable_raw) is False:
         return
 
-    ports = _parse_ports(definition.get("ports"), env)
+    ports = _get_ports_for_service(definition, all_services, env)
     routers: dict[str, bool] = {}
     service_names: set[str] = set()
 
@@ -483,6 +501,7 @@ def generate_traefik_config(
                 stack,
                 compose_service,
                 definition,
+                raw_services,
                 host_address,
                 env,
                 dynamic,
