@@ -291,8 +291,8 @@ def _finalize_http_services(
         if published_port is None:
             warnings.append(
                 f"[{source.stack}/{source.compose_service}] "
-                f"No host-published port found for Traefik service '{traefik_service}'. "
-                "Traefik will require L3 reachability to container IPs."
+                f"No published port found for Traefik service '{traefik_service}'. "
+                "Add a ports: mapping (e.g., '8080:8080') for cross-host routing."
             )
             continue
 
