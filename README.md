@@ -10,6 +10,7 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 - [Why Compose Farm?](#why-compose-farm)
 - [Key Assumption: Shared Storage](#key-assumption-shared-storage)
+- [Limitations & Best Practices](#limitations--best-practices)
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Usage](#usage)
@@ -46,6 +47,38 @@ nas:/volume1/compose  →  /opt/compose (on nas03)
 ```
 
 Compose Farm simply runs `docker compose -f /opt/compose/{service}/docker-compose.yml` on the appropriate host—it doesn't copy or sync files.
+
+## Limitations & Best Practices
+
+Compose Farm moves containers between hosts but **does not provide cross-host networking**. Docker's internal DNS and networks don't span hosts.
+
+### What breaks when you move a service
+
+- **Docker DNS** - `http://redis:6379` won't resolve from another host
+- **Docker networks** - Containers can't reach each other via network names
+- **Environment variables** - `DATABASE_URL=postgres://db:5432` stops working
+
+### Best practices
+
+1. **Keep dependent services together** - If an app needs a database, redis, or worker, keep them in the same compose file on the same host
+
+2. **Only migrate standalone services** - Services that don't talk to other containers (or only talk to external APIs) are safe to move
+
+3. **Expose ports for cross-host communication** - If services must communicate across hosts, publish ports and use IP addresses instead of container names:
+   ```yaml
+   # Instead of: DATABASE_URL=postgres://db:5432
+   # Use:        DATABASE_URL=postgres://192.168.1.66:5432
+   ```
+
+4. **Use Traefik labels for HTTP routing** - Traefik can route to any host via the file-provider, but the container needs a published port
+
+### What Compose Farm doesn't do
+
+- No overlay networking (use Docker Swarm or Kubernetes for that)
+- No service discovery across hosts
+- No automatic dependency tracking between compose files
+
+If you need containers on different hosts to communicate seamlessly, you need Docker Swarm, Kubernetes, or a service mesh—which adds the complexity Compose Farm is designed to avoid.
 
 ## Installation
 
