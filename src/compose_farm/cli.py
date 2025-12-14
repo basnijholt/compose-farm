@@ -141,6 +141,22 @@ LogPathOption = Annotated[
 ]
 
 
+async def _check_mounts_for_migration(
+    cfg: Config,
+    service: str,
+    target_host: str,
+) -> list[str]:
+    """Check if mount paths exist on target host. Returns list of missing paths."""
+    paths_to_check = [str(cfg.compose_dir)]
+    paths_to_check.extend(parse_host_volumes(cfg, service))
+
+    if not paths_to_check:
+        return []
+
+    exists = await check_paths_exist(cfg, target_host, paths_to_check)
+    return [p for p, found in exists.items() if not found]
+
+
 async def _up_with_migration(
     cfg: Config,
     services: list[str],
@@ -154,6 +170,18 @@ async def _up_with_migration(
 
         # If service is deployed elsewhere, migrate it
         if current_host and current_host != target_host:
+            # Pre-flight check: verify mounts exist on target before stopping old
+            missing = await _check_mounts_for_migration(cfg, service, target_host)
+            if missing:
+                err_console.print(
+                    f"[cyan]\\[{service}][/] [red]✗[/] Cannot migrate to "
+                    f"[magenta]{target_host}[/]: missing paths"
+                )
+                for path in missing:
+                    err_console.print(f"  [red]✗[/] {path}")
+                results.append(CommandResult(service=service, exit_code=1, success=False))
+                continue
+
             if current_host in cfg.hosts:
                 console.print(
                     f"[cyan]\\[{service}][/] Migrating from "
