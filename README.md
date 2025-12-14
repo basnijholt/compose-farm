@@ -38,8 +38,8 @@ I run 100+ Docker Compose stacks on an LXC container that frequently runs out of
 ## How It Works
 
 1. You run `cf up plex`
-2. Compose Farm looks up which host runs `plex` (e.g., `nas01`)
-3. It SSHs to `nas01` (or runs locally if `localhost`)
+2. Compose Farm looks up which host runs `plex` (e.g., `server-1`)
+3. It SSHs to `server-1` (or runs locally if `localhost`)
 4. It executes `docker compose -f /opt/compose/plex/docker-compose.yml up -d`
 5. Output is streamed back with `[plex]` prefix
 
@@ -60,9 +60,9 @@ Compose Farm assumes your compose files are accessible at the same path on all h
 
 ```
 # Example: NFS mount on all Docker hosts
-nas:/volume1/compose  →  /opt/compose (on docker-host-1)
-nas:/volume1/compose  →  /opt/compose (on docker-host-2)
-nas:/volume1/compose  →  /opt/compose (on docker-host-3)
+nas:/volume1/compose  →  /opt/compose (on server-1)
+nas:/volume1/compose  →  /opt/compose (on server-2)
+nas:/volume1/compose  →  /opt/compose (on server-3)
 ```
 
 Compose Farm simply runs `docker compose -f /opt/compose/{service}/docker-compose.yml` on the appropriate host—it doesn't copy or sync files.
@@ -114,18 +114,18 @@ Create `~/.config/compose-farm/compose-farm.yaml` (or `./compose-farm.yaml` in y
 compose_dir: /opt/compose  # Must be the same path on all hosts
 
 hosts:
-  nas01:
+  server-1:
     address: 192.168.1.10
     user: docker
-  nas02:
+  server-2:
     address: 192.168.1.11
     # user defaults to current user
   local: localhost  # Run locally without SSH
 
 services:
-  plex: nas01
-  jellyfin: nas02
-  sonarr: nas01
+  plex: server-1
+  jellyfin: server-2
+  sonarr: server-1
   radarr: local  # Runs on the machine where you invoke compose-farm
 ```
 
@@ -175,13 +175,13 @@ When you change a service's host assignment in config and run `up`, Compose Farm
 3. Updates state tracking
 
 ```yaml
-# Before: plex runs on nas01
+# Before: plex runs on server-1
 services:
-  plex: nas01
+  plex: server-1
 
-# After: change to nas02, then run `cf up plex`
+# After: change to server-2, then run `cf up plex`
 services:
-  plex: nas02  # Compose Farm will migrate automatically
+  plex: server-2  # Compose Farm will migrate automatically
 ```
 
 ## Traefik Multihost Ingress (File Provider)
@@ -251,8 +251,8 @@ traefik_service: traefik  # skip services on same host (docker provider handles 
 hosts:
   # ...
 services:
-  traefik: nas01  # Traefik runs here
-  plex: nas02     # Services on other hosts get file-provider entries
+  traefik: server-1  # Traefik runs here
+  plex: server-2     # Services on other hosts get file-provider entries
   # ...
 ```
 
