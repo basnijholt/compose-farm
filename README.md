@@ -180,7 +180,7 @@ cf ps
 When you change a service's host assignment in config and run `up`, Compose Farm automatically:
 1. Checks that required mounts and networks exist on the new host (aborts if missing)
 2. Runs `down` on the old host
-3. Runs `up -d` on the new host (with progress counter `[1/10]` for multiple services)
+3. Runs `up -d` on the new host
 4. Updates state tracking
 
 Use `cf up --migrate` (or `-m`) to automatically find and migrate all services where the current state differs from config—no need to list them manually.
