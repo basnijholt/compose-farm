@@ -311,3 +311,40 @@ async def check_paths_exist(
             exists[line[2:]] = False
 
     return exists
+
+
+async def check_networks_exist(
+    config: Config,
+    host_name: str,
+    networks: list[str],
+) -> dict[str, bool]:
+    """Check if Docker networks exist on a specific host.
+
+    Returns a dict mapping network_name -> exists.
+    """
+    if not networks:
+        return {}
+
+    host = config.hosts[host_name]
+
+    # Check each network via docker network inspect
+    checks = []
+    for net in networks:
+        escaped = net.replace("'", "'\\''")
+        checks.append(
+            f"docker network inspect '{escaped}' >/dev/null 2>&1 "
+            f"&& echo 'Y:{escaped}' || echo 'N:{escaped}'"
+        )
+
+    command = "; ".join(checks)
+    result = await run_command(host, command, "network-check", stream=False)
+
+    exists: dict[str, bool] = dict.fromkeys(networks, False)
+    for raw_line in result.stdout.splitlines():
+        line = raw_line.strip()
+        if line.startswith("Y:"):
+            exists[line[2:]] = True
+        elif line.startswith("N:"):
+            exists[line[2:]] = False
+
+    return exists

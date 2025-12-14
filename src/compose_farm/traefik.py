@@ -531,6 +531,28 @@ def parse_host_volumes(config: Config, service: str) -> list[str]:
     return unique
 
 
+def parse_external_networks(config: Config, service: str) -> list[str]:
+    """Extract external network names from a service's compose file.
+
+    Returns a list of network names marked as external: true.
+    """
+    compose_path = config.get_compose_path(service)
+    if not compose_path.exists():
+        return []
+
+    compose_data = yaml.safe_load(compose_path.read_text()) or {}
+    networks = compose_data.get("networks", {})
+    if not isinstance(networks, dict):
+        return []
+
+    external_networks: list[str] = []
+    for name, definition in networks.items():
+        if isinstance(definition, dict) and definition.get("external") is True:
+            external_networks.append(name)
+
+    return external_networks
+
+
 def generate_traefik_config(
     config: Config,
     services: list[str],

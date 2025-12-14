@@ -27,7 +27,7 @@ compose_farm/
 5. **NFS assumption**: Compose files at same path on all hosts
 6. **Local IP auto-detection**: Skips SSH when target host matches local machine's IP
 7. **State tracking**: Tracks where services are deployed for auto-migration
-8. **Pre-flight mount checks**: Verifies NFS mounts exist before migration to prevent failed states
+8. **Pre-flight checks**: Verifies NFS mounts and Docker networks exist before starting/migrating
 
 ## Communication Notes
 
@@ -53,5 +53,6 @@ CLI available as `cf` or `compose-farm`.
 | `logs`  | Show service logs |
 | `ps`    | Show status of all services |
 | `sync`  | Discover running services, update state, capture image digests |
-| `check` | Validate config, traefik labels, mounts; show host compatibility |
+| `check` | Validate config, traefik labels, mounts, networks; show host compatibility |
+| `init-network` | Create Docker network on hosts with consistent subnet/gateway |
 | `traefik-file` | Generate Traefik file-provider config from compose labels |

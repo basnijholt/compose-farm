@@ -51,6 +51,7 @@ That's it. No orchestration, no service discovery, no magic.
 - SSH key-based authentication to your hosts (uses ssh-agent)
 - Docker and Docker Compose installed on all target hosts
 - **Shared storage**: All compose files must be accessible at the same path on all hosts
+- **Docker networks**: External networks must exist on all hosts (use `cf init-network` to create)
 
 Compose Farm assumes your compose files are accessible at the same path on all hosts. This is typically achieved via:
 
@@ -156,10 +157,14 @@ cf update --all
 cf sync              # updates state.yaml and dockerfarm-log.toml
 cf sync --dry-run    # preview without writing
 
-# Validate config, traefik labels, and mounts
-cf check                 # full validation (includes SSH mount checks)
+# Validate config, traefik labels, mounts, and networks
+cf check                 # full validation (includes SSH checks)
 cf check --local         # fast validation (skip SSH)
 cf check jellyfin        # check service + show which hosts can run it
+
+# Create Docker network on new hosts (before migrating services)
+cf init-network nuc hp   # create mynetwork on specific hosts
+cf init-network          # create on all hosts
 
 # View logs
 cf logs plex
@@ -172,7 +177,7 @@ cf ps
 ### Auto-Migration
 
 When you change a service's host assignment in config and run `up`, Compose Farm automatically:
-1. Checks that required mounts exist on the new host (aborts if missing)
+1. Checks that required mounts and networks exist on the new host (aborts if missing)
 2. Runs `down` on the old host
 3. Runs `up -d` on the new host
 4. Updates state tracking

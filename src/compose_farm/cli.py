@@ -15,15 +15,17 @@ from .config import Config, load_config
 from .logs import snapshot_services
 from .ssh import (
     CommandResult,
+    check_networks_exist,
     check_paths_exist,
     check_service_running,
+    run_command,
     run_compose,
     run_compose_on_host,
     run_on_services,
     run_sequential_on_services,
 )
 from .state import get_service_host, load_state, remove_service, save_state, set_service_host
-from .traefik import generate_traefik_config, parse_host_volumes
+from .traefik import generate_traefik_config, parse_external_networks, parse_host_volumes
 
 if TYPE_CHECKING:
     from collections.abc import Coroutine
@@ -50,10 +52,19 @@ def _maybe_regenerate_traefik(cfg: Config) -> None:
 
     try:
         dynamic, warnings = generate_traefik_config(cfg, list(cfg.services.keys()))
-        cfg.traefik_file.parent.mkdir(parents=True, exist_ok=True)
-        cfg.traefik_file.write_text(yaml.safe_dump(dynamic, sort_keys=False))
-        console.print()  # Ensure we're on a new line after streaming output
-        console.print(f"[green]✓[/] Traefik config updated: {cfg.traefik_file}")
+        new_content = yaml.safe_dump(dynamic, sort_keys=False)
+
+        # Check if content changed
+        old_content = ""
+        if cfg.traefik_file.exists():
+            old_content = cfg.traefik_file.read_text()
+
+        if new_content != old_content:
+            cfg.traefik_file.parent.mkdir(parents=True, exist_ok=True)
+            cfg.traefik_file.write_text(new_content)
+            console.print()  # Ensure we're on a new line after streaming output
+            console.print(f"[green]✓[/] Traefik config updated: {cfg.traefik_file}")
+
         for warning in warnings:
             err_console.print(f"[yellow]![/] {warning}")
     except (FileNotFoundError, ValueError) as exc:
@@ -161,6 +172,49 @@ async def _check_mounts_for_migration(
     return [p for p, found in exists.items() if not found]
 
 
+async def _check_networks_for_migration(
+    cfg: Config,
+    service: str,
+    target_host: str,
+) -> list[str]:
+    """Check if Docker networks exist on target host. Returns list of missing networks."""
+    networks = parse_external_networks(cfg, service)
+    if not networks:
+        return []
+    exists = await check_networks_exist(cfg, target_host, networks)
+    return [n for n, found in exists.items() if not found]
+
+
+async def _preflight_check(
+    cfg: Config,
+    service: str,
+    target_host: str,
+) -> tuple[list[str], list[str]]:
+    """Run pre-flight checks for a service on target host.
+
+    Returns (missing_paths, missing_networks).
+    """
+    missing_paths = await _check_mounts_for_migration(cfg, service, target_host)
+    missing_networks = await _check_networks_for_migration(cfg, service, target_host)
+    return missing_paths, missing_networks
+
+
+def _report_preflight_failures(
+    service: str,
+    target_host: str,
+    missing_paths: list[str],
+    missing_networks: list[str],
+) -> None:
+    """Report pre-flight check failures."""
+    err_console.print(
+        f"[cyan]\\[{service}][/] [red]✗[/] Cannot start on " f"[magenta]{target_host}[/]:"
+    )
+    for path in missing_paths:
+        err_console.print(f"  [red]✗[/] missing path: {path}")
+    for net in missing_networks:
+        err_console.print(f"  [red]✗[/] missing network: {net}")
+
+
 async def _up_with_migration(
     cfg: Config,
     services: list[str],
@@ -172,20 +226,15 @@ async def _up_with_migration(
         target_host = cfg.services[service]
         current_host = get_service_host(cfg, service)
 
+        # Pre-flight check: verify paths and networks exist on target
+        missing_paths, missing_networks = await _preflight_check(cfg, service, target_host)
+        if missing_paths or missing_networks:
+            _report_preflight_failures(service, target_host, missing_paths, missing_networks)
+            results.append(CommandResult(service=service, exit_code=1, success=False))
+            continue
+
         # If service is deployed elsewhere, migrate it
         if current_host and current_host != target_host:
-            # Pre-flight check: verify mounts exist on target before stopping old
-            missing = await _check_mounts_for_migration(cfg, service, target_host)
-            if missing:
-                err_console.print(
-                    f"[cyan]\\[{service}][/] [red]✗[/] Cannot migrate to "
-                    f"[magenta]{target_host}[/]: missing paths"
-                )
-                for path in missing:
-                    err_console.print(f"  [red]✗[/] {path}")
-                results.append(CommandResult(service=service, exit_code=1, success=False))
-                continue
-
             if current_host in cfg.hosts:
                 console.print(
                     f"[cyan]\\[{service}][/] Migrating from "
@@ -495,6 +544,30 @@ async def _check_mounts_on_configured_hosts(
     return missing
 
 
+async def _check_networks_on_configured_hosts(
+    cfg: Config,
+    services: list[str],
+) -> list[tuple[str, str, str]]:
+    """Check Docker networks exist on configured hosts.
+
+    Returns list of (service, host, missing_network) tuples.
+    """
+    missing: list[tuple[str, str, str]] = []
+
+    for service in services:
+        host_name = cfg.services[service]
+        networks = parse_external_networks(cfg, service)
+        if not networks:
+            continue
+        exists = await check_networks_exist(cfg, host_name, networks)
+
+        for net, found in exists.items():
+            if not found:
+                missing.append((service, host_name, net))
+
+    return missing
+
+
 def _report_config_status(cfg: Config) -> bool:
     """Check and report config vs disk status. Returns True if errors found."""
     configured = set(cfg.services.keys())
@@ -548,6 +621,21 @@ def _report_mount_errors(mount_errors: list[tuple[str, str, str]]) -> None:
             console.print(f"    [red]✗[/] {path}")
 
 
+def _report_network_errors(network_errors: list[tuple[str, str, str]]) -> None:
+    """Report network errors grouped by service."""
+    by_service: dict[str, list[tuple[str, str]]] = {}
+    for svc, host, net in network_errors:
+        by_service.setdefault(svc, []).append((host, net))
+
+    console.print(f"\n[red]Missing networks[/] ({len(network_errors)}):")
+    for svc, items in sorted(by_service.items()):
+        host = items[0][0]
+        networks = [n for _, n in items]
+        console.print(f"  [cyan]{svc}[/] on [magenta]{host}[/]:")
+        for net in networks:
+            console.print(f"    [red]✗[/] {net}")
+
+
 def _report_host_compatibility(
     compat: dict[str, tuple[int, int, list[str]]],
     current_host: str,
@@ -574,16 +662,16 @@ def check(
     services: ServicesArg = None,
     local: Annotated[
         bool,
-        typer.Option("--local", help="Skip SSH-based mount checks (faster)"),
+        typer.Option("--local", help="Skip SSH-based checks (faster)"),
     ] = False,
     config: ConfigOption = None,
 ) -> None:
-    """Validate configuration, traefik labels, and mount paths.
+    """Validate configuration, traefik labels, mounts, and networks.
 
     Without arguments: validates all services against configured hosts.
     With service arguments: validates specific services and shows host compatibility.
 
-    Use --local to skip SSH-based mount checks for faster validation.
+    Use --local to skip SSH-based checks for faster validation.
     """
     cfg = _load_config_or_exit(config)
 
@@ -605,13 +693,18 @@ def check(
     _report_traefik_status(cfg, svc_list)
 
     if not local:
-        console.print("\nChecking mounts...")
+        console.print("\nChecking mounts and networks...")
         mount_errors = _run_async(_check_mounts_on_configured_hosts(cfg, svc_list))
+        network_errors = _run_async(_check_networks_on_configured_hosts(cfg, svc_list))
+
         if mount_errors:
             _report_mount_errors(mount_errors)
             has_errors = True
-        else:
-            console.print("[green]✓[/] All mounts exist")
+        if network_errors:
+            _report_network_errors(network_errors)
+            has_errors = True
+        if not mount_errors and not network_errors:
+            console.print("[green]✓[/] All mounts and networks exist")
 
         if show_host_compat:
             for service in svc_list:
@@ -620,6 +713,86 @@ def check(
                 _report_host_compatibility(compat, cfg.services[service])
 
     if has_errors:
+        raise typer.Exit(1)
+
+
+# Default network settings for cross-host Docker networking
+DEFAULT_NETWORK_NAME = "mynetwork"
+DEFAULT_NETWORK_SUBNET = "172.20.0.0/16"
+DEFAULT_NETWORK_GATEWAY = "172.20.0.1"
+
+
+@app.command("init-network", rich_help_panel="Configuration")
+def init_network(
+    hosts: Annotated[
+        list[str] | None,
+        typer.Argument(help="Hosts to create network on (default: all)"),
+    ] = None,
+    network: Annotated[
+        str,
+        typer.Option("--network", "-n", help="Network name"),
+    ] = DEFAULT_NETWORK_NAME,
+    subnet: Annotated[
+        str,
+        typer.Option("--subnet", "-s", help="Network subnet"),
+    ] = DEFAULT_NETWORK_SUBNET,
+    gateway: Annotated[
+        str,
+        typer.Option("--gateway", "-g", help="Network gateway"),
+    ] = DEFAULT_NETWORK_GATEWAY,
+    config: ConfigOption = None,
+) -> None:
+    """Create Docker network on hosts with consistent settings.
+
+    Creates an external Docker network that services can use for cross-host
+    communication. Uses the same subnet/gateway on all hosts to ensure
+    consistent networking.
+    """
+    cfg = _load_config_or_exit(config)
+
+    target_hosts = list(hosts) if hosts else list(cfg.hosts.keys())
+    invalid = [h for h in target_hosts if h not in cfg.hosts]
+    if invalid:
+        for h in invalid:
+            err_console.print(f"[red]✗[/] Host '{h}' not found in config")
+        raise typer.Exit(1)
+
+    async def create_network_on_host(host_name: str) -> CommandResult:
+        host = cfg.hosts[host_name]
+        # Check if network already exists
+        check_cmd = f"docker network inspect '{network}' >/dev/null 2>&1"
+        check_result = await run_command(host, check_cmd, host_name, stream=False)
+
+        if check_result.success:
+            console.print(f"[cyan]\\[{host_name}][/] Network '{network}' already exists")
+            return CommandResult(service=host_name, exit_code=0, success=True)
+
+        # Create the network
+        create_cmd = (
+            f"docker network create "
+            f"--driver bridge "
+            f"--subnet '{subnet}' "
+            f"--gateway '{gateway}' "
+            f"'{network}'"
+        )
+        result = await run_command(host, create_cmd, host_name, stream=False)
+
+        if result.success:
+            console.print(f"[cyan]\\[{host_name}][/] [green]✓[/] Created network '{network}'")
+        else:
+            err_console.print(
+                f"[cyan]\\[{host_name}][/] [red]✗[/] Failed to create network: "
+                f"{result.stderr.strip()}"
+            )
+
+        return result
+
+    async def run_all() -> list[CommandResult]:
+        return await asyncio.gather(*[create_network_on_host(h) for h in target_hosts])
+
+    results = _run_async(run_all())
+    failed = [r for r in results if not r.success]
+    if failed:
         raise typer.Exit(1)
 
 
