@@ -54,6 +54,7 @@ CLI available as `cf` or `compose-farm`.
 | `update` | `pull` + `down` + `up -d` |
 | `logs`  | Show service logs |
 | `ps`    | Show status of all services |
+| `stats` | Show overview (hosts, services, pending migrations; `--live` for container counts) |
 | `sync`  | Discover running services, update state, capture image digests |
 | `check` | Validate config, traefik labels, mounts, networks; show host compatibility |
 | `init-network` | Create Docker network on hosts with consistent subnet/gateway |

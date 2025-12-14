@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Annotated, TypeVar
 import typer
 import yaml
 from rich.console import Console
+from rich.table import Table
 
 from . import __version__
 from .config import Config, load_config
@@ -25,7 +26,7 @@ from .state import get_services_needing_migration, load_state, remove_service, s
 from .traefik import generate_traefik_config
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine
+    from collections.abc import Coroutine, Mapping
 
 T = TypeVar("T")
 
@@ -264,6 +265,131 @@ def ps(
     cfg = _load_config_or_exit(config)
     results = _run_async(run_on_services(cfg, list(cfg.services.keys()), "ps"))
     _report_results(results)
+
+
+_STATS_PREVIEW_LIMIT = 3  # Max number of pending migrations to show by name
+
+
+def _group_services_by_host(
+    services: dict[str, str],
+    hosts: Mapping[str, object],
+) -> dict[str, list[str]]:
+    """Group services by their assigned host."""
+    by_host: dict[str, list[str]] = {h: [] for h in hosts}
+    for service, host_name in services.items():
+        if host_name in by_host:
+            by_host[host_name].append(service)
+    return by_host
+
+
+async def _get_container_counts(cfg: Config) -> dict[str, int]:
+    """Get container counts from all hosts in parallel."""
+    import contextlib
+
+    async def get_count(host_name: str) -> tuple[str, int]:
+        host = cfg.hosts[host_name]
+        result = await run_command(host, "docker ps -q | wc -l", host_name, stream=False)
+        count = 0
+        if result.success:
+            with contextlib.suppress(ValueError):
+                count = int(result.stdout.strip())
+        return host_name, count
+
+    results = await asyncio.gather(*[get_count(h) for h in cfg.hosts])
+    return dict(results)
+
+
+def _build_host_table(
+    cfg: Config,
+    services_by_host: dict[str, list[str]],
+    running_by_host: dict[str, list[str]],
+    container_counts: dict[str, int],
+    *,
+    show_containers: bool,
+) -> Table:
+    """Build the hosts table."""
+    table = Table(title="Hosts", show_header=True, header_style="bold cyan")
+    table.add_column("Host", style="magenta")
+    table.add_column("Address")
+    table.add_column("Configured", justify="right")
+    table.add_column("Running", justify="right")
+    if show_containers:
+        table.add_column("Containers", justify="right")
+
+    for host_name in sorted(cfg.hosts.keys()):
+        host = cfg.hosts[host_name]
+        configured = len(services_by_host[host_name])
+        running = len(running_by_host[host_name])
+
+        row = [
+            host_name,
+            host.address,
+            str(configured),
+            str(running) if running > 0 else "[dim]0[/]",
+        ]
+        if show_containers:
+            count = container_counts.get(host_name, 0)
+            row.append(str(count) if count > 0 else "[dim]0[/]")
+
+        table.add_row(*row)
+    return table
+
+
+def _build_summary_table(cfg: Config, state: dict[str, str], pending: list[str]) -> Table:
+    """Build the summary table."""
+    on_disk = cfg.discover_compose_dirs()
+
+    table = Table(title="Summary", show_header=False, box=None)
+    table.add_column("Label", style="dim")
+    table.add_column("Value", style="bold")
+
+    table.add_row("Total hosts", str(len(cfg.hosts)))
+    table.add_row("Services (configured)", str(len(cfg.services)))
+    table.add_row("Services (tracked)", str(len(state)))
+    table.add_row("Compose files on disk", str(len(on_disk)))
+
+    if pending:
+        preview = ", ".join(pending[:_STATS_PREVIEW_LIMIT])
+        suffix = "..." if len(pending) > _STATS_PREVIEW_LIMIT else ""
+        table.add_row("Pending migrations", f"[yellow]{len(pending)}[/] ({preview}{suffix})")
+    else:
+        table.add_row("Pending migrations", "[green]0[/]")
+
+    return table
+
+
+@app.command(rich_help_panel="Monitoring")
+def stats(
+    live: Annotated[
+        bool,
+        typer.Option("--live", "-l", help="Query Docker for live container stats"),
+    ] = False,
+    config: ConfigOption = None,
+) -> None:
+    """Show overview statistics for hosts and services.
+
+    Without --live: Shows config/state info (hosts, services, pending migrations).
+    With --live: Also queries Docker on each host for container counts.
+    """
+    cfg = _load_config_or_exit(config)
+    state = load_state(cfg)
+    pending = get_services_needing_migration(cfg)
+
+    services_by_host = _group_services_by_host(cfg.services, cfg.hosts)
+    running_by_host = _group_services_by_host(state, cfg.hosts)
+
+    container_counts: dict[str, int] = {}
+    if live:
+        console.print("Querying hosts...")
+        container_counts = _run_async(_get_container_counts(cfg))
+
+    host_table = _build_host_table(
+        cfg, services_by_host, running_by_host, container_counts, show_containers=live
+    )
+    console.print(host_table)
+
+    console.print()
+    console.print(_build_summary_table(cfg, state, pending))
 
 
 @app.command("traefik-file", rich_help_panel="Configuration")
