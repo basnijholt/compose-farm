@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING, Any
 
 import yaml
 
+from .ssh import LOCAL_ADDRESSES
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -461,6 +463,11 @@ def generate_traefik_config(
 
     for stack in services:
         raw_services, env, host_address = _load_stack(config, stack)
+
+        # Skip local services - Traefik's docker provider handles them directly
+        if host_address.lower() in LOCAL_ADDRESSES:
+            continue
+
         for compose_service, definition in raw_services.items():
             if not isinstance(definition, dict):
                 continue
