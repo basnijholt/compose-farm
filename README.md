@@ -42,7 +42,7 @@ Both require changes to your compose files. **Compose Farm requires zero changes
 </a>
 </p>
 
-Before you say it—no, this is not a new standard. If you're already using NFS (or any shared storage) and mounting the same paths on all hosts, you can do everything manually: SSH into a host and run `docker compose up`. That works today, without any tool.
+Before you say it—no, this is not a new standard. I changed nothing about my existing setup. When I added more hosts, I just mounted my drives at the same paths, and everything worked. You can do all of this manually today—SSH into a host and run `docker compose up`.
 
 Compose Farm just automates what you'd do by hand:
 - Runs `docker compose` commands over SSH
