@@ -139,7 +139,17 @@ Compose files are expected at `{compose_dir}/{service}/compose.yaml` (also suppo
 
 ### Multi-Host Services
 
-Some services need to run on every host (e.g., log aggregators, monitoring agents, or AutoKuma for local Docker socket access). Use the `all` keyword or an explicit list:
+Some services need to run on every host. This is typically required for tools that access **host-local resources** like the Docker socket (`/var/run/docker.sock`), which cannot be accessed remotely without security risks.
+
+Common use cases:
+- **AutoKuma** - auto-creates Uptime Kuma monitors from container labels (needs local Docker socket)
+- **Dozzle** - real-time log viewer (needs local Docker socket)
+- **Promtail/Alloy** - log shipping agents (needs local Docker socket and log files)
+- **node-exporter** - Prometheus host metrics (needs access to host /proc, /sys)
+
+This is the same pattern as Docker Swarm's `deploy.mode: global`.
+
+Use the `all` keyword or an explicit list:
 
 ```yaml
 services:
