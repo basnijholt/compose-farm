@@ -10,7 +10,7 @@ Real-world examples demonstrating compose-farm patterns for multi-host Docker de
 | [mealie](mealie/) | Single container | Traefik labels, resource limits, environment vars |
 | [uptime-kuma](uptime-kuma/) | Single container | Docker socket, user mapping, custom DNS |
 | [paperless-ngx](paperless-ngx/) | Multi-container | Redis + App stack (SQLite) |
-| [autokuma](autokuma/) | Multi-host | Runs on ALL hosts (`all` keyword) |
+| [autokuma](autokuma/) | Multi-host | Demonstrates `all` keyword (runs on every host) |
 
 ## Key Patterns
 
@@ -105,7 +105,9 @@ services:
 > fsync and file locking issues. Use SQLite (safe for single-writer on NFS) or
 > keep PostgreSQL data on local volumes (non-migratable).
 
-### AutoKuma Labels
+### AutoKuma Labels (Optional)
+
+The autokuma example demonstrates compose-farm's **multi-host feature** - running the same service on all hosts using the `all` keyword. AutoKuma itself is not part of compose-farm; it's just a good example because it needs to run on every host to monitor local Docker containers.
 
 [AutoKuma](https://github.com/BigBoot/AutoKuma) automatically creates Uptime Kuma monitors from Docker labels:
 
@@ -114,8 +116,6 @@ labels:
   - kuma.myapp.http.name=My App
   - kuma.myapp.http.url=https://myapp.${DOMAIN}
 ```
-
-When autokuma runs on a host, it scans containers for `kuma.*` labels and creates monitors in Uptime Kuma.
 
 ## Quick Start
 
