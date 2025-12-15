@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, TypeVar
 
 import typer
-import yaml
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -58,7 +57,7 @@ from .state import (
     remove_service_from_host,
     save_state,
 )
-from .traefik import generate_traefik_config
+from .traefik import generate_traefik_config, render_traefik_config
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Generator, Mapping
@@ -105,7 +104,7 @@ def _maybe_regenerate_traefik(cfg: Config) -> None:
 
     try:
         dynamic, warnings = generate_traefik_config(cfg, list(cfg.services.keys()))
-        new_content = yaml.safe_dump(dynamic, sort_keys=False)
+        new_content = render_traefik_config(dynamic)
 
         # Check if content changed
         old_content = ""
@@ -603,7 +602,7 @@ def traefik_file(
         err_console.print(f"[red]✗[/] {exc}")
         raise typer.Exit(1) from exc
 
-    rendered = yaml.safe_dump(dynamic, sort_keys=False)
+    rendered = render_traefik_config(dynamic)
 
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
