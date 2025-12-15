@@ -59,6 +59,28 @@ Compose Farm just automates what you'd do by hand:
 
 **It's a convenience wrapper, not a new paradigm.**
 
+## Comparison with Alternatives
+
+There are many ways to run containers on multiple hosts. Here is where Compose Farm sits:
+
+### 1. The "Native" Way (Docker Contexts)
+You can use `docker context create remote ssh://...` and `docker compose --context remote up`.
+*   **Gap:** It's manual. You must remember which host runs which service. There is no global view, no parallel execution, and no auto-migration when you want to move a service.
+
+### 2. The "Heavy" Way (Kubernetes / Docker Swarm)
+Full orchestration platforms that abstract away the hardware.
+*   **Gap:** Requires cluster initialization, managing separate control planes, and often rewriting compose files to be compatible. They introduce complexity (consensus, overlay networks) unnecessary for static "pet" servers.
+
+### 3. The "DevOps" Way (Ansible / Terraform)
+Infrastructure-as-Code tools that can SSH in and deploy containers.
+*   **Gap:** These are "push-based" configuration management tools, not interactive CLIs. They are great for setting up state but clumsy for day-to-day operations like tailing logs (`cf logs -f`) or quickly restarting a specific service.
+
+### 4. The "PaaS" Way (Portainer / Coolify)
+Web-based management UIs.
+*   **Gap:** These are UI-first tools that often require installing agents on your servers. Compose Farm is CLI-first and agentless.
+
+**Compose Farm is the "Middle Ground":** It productizes the manual SSH pattern into a robust CLI. It gives you the "cluster feel" (unified commands, state tracking) without the "cluster cost" (complexity, agents, control planes).
+
 ## How It Works
 
 1. You run `cf up plex`
