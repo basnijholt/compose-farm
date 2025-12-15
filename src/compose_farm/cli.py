@@ -265,17 +265,23 @@ def logs(
     config: ConfigOption = None,
 ) -> None:
     """Show service logs."""
-    svc_list, cfg = _get_services(services or [], all_services or host is not None, config)
+    if all_services and host is not None:
+        err_console.print("[red]✗[/] Cannot use --all and --host together")
+        raise typer.Exit(1)
 
-    # Filter by host if specified
+    cfg = _load_config_or_exit(config)
+
+    # Determine service list based on options
     if host is not None:
         if host not in cfg.hosts:
             err_console.print(f"[red]✗[/] Host '{host}' not found in config")
             raise typer.Exit(1)
-        svc_list = [s for s in svc_list if cfg.services.get(s) == host]
+        svc_list = [s for s, h in cfg.services.items() if h == host]
         if not svc_list:
             err_console.print(f"[yellow]![/] No services configured for host '{host}'")
             return
+    else:
+        svc_list, cfg = _get_services(services or [], all_services, config)
 
     # Default to fewer lines when showing multiple services
     many_services = all_services or host is not None or len(svc_list) > 1

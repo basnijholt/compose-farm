@@ -58,7 +58,7 @@ class TestLogsContextualDefault:
         ):
             mock_run.return_value = None
 
-            logs(services=None, all_services=True, follow=False, tail=None, config=None)
+            logs(services=None, all_services=True, host=None, follow=False, tail=None, config=None)
 
             mock_run.assert_called_once()
             call_args = mock_run.call_args
@@ -74,7 +74,14 @@ class TestLogsContextualDefault:
             patch("compose_farm.cli._run_async", side_effect=mock_run_async),
             patch("compose_farm.cli.run_on_services") as mock_run,
         ):
-            logs(services=["svc1"], all_services=False, follow=False, tail=None, config=None)
+            logs(
+                services=["svc1"],
+                all_services=False,
+                host=None,
+                follow=False,
+                tail=None,
+                config=None,
+            )
 
             mock_run.assert_called_once()
             call_args = mock_run.call_args
@@ -90,7 +97,14 @@ class TestLogsContextualDefault:
             patch("compose_farm.cli._run_async", side_effect=mock_run_async),
             patch("compose_farm.cli.run_on_services") as mock_run,
         ):
-            logs(services=None, all_services=True, follow=False, tail=50, config=None)
+            logs(
+                services=None,
+                all_services=True,
+                host=None,
+                follow=False,
+                tail=50,
+                config=None,
+            )
 
             mock_run.assert_called_once()
             call_args = mock_run.call_args
@@ -106,7 +120,14 @@ class TestLogsContextualDefault:
             patch("compose_farm.cli._run_async", side_effect=mock_run_async),
             patch("compose_farm.cli.run_on_services") as mock_run,
         ):
-            logs(services=["svc1"], all_services=False, follow=True, tail=None, config=None)
+            logs(
+                services=["svc1"],
+                all_services=False,
+                host=None,
+                follow=True,
+                tail=None,
+                config=None,
+            )
 
             mock_run.assert_called_once()
             call_args = mock_run.call_args
@@ -162,3 +183,25 @@ class TestLogsHostFilter:
             mock_run.assert_called_once()
             call_args = mock_run.call_args
             assert call_args[0][2] == "logs --tail 20"
+
+    def test_logs_all_and_host_mutually_exclusive(self, tmp_path: Path) -> None:
+        """Using --all and --host together should error."""
+        import pytest
+        import typer
+
+        cfg = _make_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli._load_config_or_exit", return_value=cfg),
+            pytest.raises(typer.Exit) as exc_info,
+        ):
+            logs(
+                services=None,
+                all_services=True,
+                host="local",
+                follow=False,
+                tail=None,
+                config=None,
+            )
+
+        assert exc_info.value.exit_code == 1
