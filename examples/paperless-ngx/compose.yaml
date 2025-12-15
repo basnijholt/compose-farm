@@ -51,6 +51,9 @@ services:
       # HTTP route: paperless.local (for LAN access, no TLS)
       - traefik.http.routers.paperless-local.rule=Host(`paperless.local`)
       - traefik.http.routers.paperless-local.entrypoints=web
+      # AutoKuma: automatically create Uptime Kuma monitor
+      - kuma.paperless.http.name=Paperless
+      - kuma.paperless.http.url=https://paperless.${DOMAIN}
 
 networks:
   mynetwork:

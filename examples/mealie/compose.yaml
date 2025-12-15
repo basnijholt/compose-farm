@@ -38,6 +38,9 @@ services:
       # HTTP route: mealie.local (for LAN access, no TLS)
       - traefik.http.routers.mealie-local.rule=Host(`mealie.local`)
       - traefik.http.routers.mealie-local.entrypoints=web
+      # AutoKuma: automatically create Uptime Kuma monitor
+      - kuma.mealie.http.name=Mealie
+      - kuma.mealie.http.url=https://mealie.${DOMAIN}
 
 networks:
   mynetwork:

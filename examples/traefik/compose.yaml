@@ -49,6 +49,9 @@ services:
       - traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN}`)
       - traefik.http.routers.traefik.entrypoints=websecure
       - traefik.http.routers.traefik.service=api@internal
+      # AutoKuma: automatically create Uptime Kuma monitor
+      - kuma.traefik.http.name=Traefik
+      - kuma.traefik.http.url=https://traefik.${DOMAIN}
 
 networks:
   mynetwork:

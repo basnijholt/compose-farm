@@ -105,6 +105,18 @@ services:
 > fsync and file locking issues. Use SQLite (safe for single-writer on NFS) or
 > keep PostgreSQL data on local volumes (non-migratable).
 
+### AutoKuma Labels
+
+[AutoKuma](https://github.com/BigBoot/AutoKuma) automatically creates Uptime Kuma monitors from Docker labels:
+
+```yaml
+labels:
+  - kuma.myapp.http.name=My App
+  - kuma.myapp.http.url=https://myapp.${DOMAIN}
+```
+
+When autokuma runs on a host, it scans containers for `kuma.*` labels and creates monitors in Uptime Kuma.
+
 ## Quick Start
 
 ```bash

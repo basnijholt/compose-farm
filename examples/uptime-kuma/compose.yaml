@@ -34,6 +34,9 @@ services:
       # HTTP route: uptime.local (for LAN access, no TLS)
       - traefik.http.routers.uptime-local.rule=Host(`uptime.local`)
       - traefik.http.routers.uptime-local.entrypoints=web
+      # AutoKuma: automatically create Uptime Kuma monitor
+      - kuma.uptime.http.name=Uptime Kuma
+      - kuma.uptime.http.url=https://uptime.${DOMAIN}
 
 networks:
   mynetwork:
