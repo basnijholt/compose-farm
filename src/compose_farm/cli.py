@@ -28,6 +28,7 @@ from .compose import parse_external_networks
 from .config import Config, load_config
 from .executor import (
     CommandResult,
+    _is_local,
     check_networks_exist,
     check_paths_exist,
     check_service_running,
@@ -602,6 +603,45 @@ def _snapshot_services_with_progress(
     return effective_log_path
 
 
+def _check_ssh_connectivity(cfg: Config) -> list[str]:
+    """Check SSH connectivity to all hosts. Returns list of unreachable hosts."""
+    # Filter out local hosts - no SSH needed
+    remote_hosts = [h for h in cfg.hosts if not _is_local(cfg.hosts[h])]
+
+    if not remote_hosts:
+        return []
+
+    async def check_host(host_name: str) -> tuple[str, bool]:
+        host = cfg.hosts[host_name]
+        result = await run_command(host, "echo ok", host_name, stream=False)
+        return host_name, result.success
+
+    async def gather_with_progress(progress: Progress, task_id: TaskID) -> list[str]:
+        tasks = [asyncio.create_task(check_host(h)) for h in remote_hosts]
+        unreachable: list[str] = []
+        for coro in asyncio.as_completed(tasks):
+            host_name, success = await coro
+            if not success:
+                unreachable.append(host_name)
+            progress.update(task_id, advance=1, description=f"[cyan]{host_name}[/]")
+        return unreachable
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]Checking SSH connectivity[/]"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("•"),
+        TimeElapsedColumn(),
+        TextColumn("•"),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        task_id = progress.add_task("", total=len(remote_hosts))
+        return asyncio.run(gather_with_progress(progress, task_id))
+
+
 def _check_mounts_and_networks_with_progress(
     cfg: Config,
     services: list[str],
@@ -819,6 +859,17 @@ def _report_network_errors(network_errors: list[tuple[str, str, str]]) -> None:
             console.print(f"    [red]✗[/] {net}")
 
 
+def _report_ssh_status(unreachable_hosts: list[str]) -> bool:
+    """Report SSH connectivity status. Returns True if there are errors."""
+    if unreachable_hosts:
+        console.print(f"[red]Unreachable hosts[/] ({len(unreachable_hosts)}):")
+        for host in sorted(unreachable_hosts):
+            console.print(f"  [red]✗[/] [magenta]{host}[/]")
+        return True
+    console.print("[green]✓[/] All hosts reachable")
+    return False
+
+
 def _report_host_compatibility(
     compat: dict[str, tuple[int, int, list[str]]],
     current_host: str,
@@ -876,6 +927,13 @@ def check(
     _report_traefik_status(cfg, svc_list)
 
     if not local:
+        console.print()  # Newline before remote checks
+
+        # Check SSH connectivity first
+        if _report_ssh_status(_check_ssh_connectivity(cfg)):
+            has_errors = True
+
+        # Check mounts and networks
         mount_errors, network_errors = _check_mounts_and_networks_with_progress(cfg, svc_list)
 
         if mount_errors:
