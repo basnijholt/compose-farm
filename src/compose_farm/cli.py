@@ -949,6 +949,25 @@ def _report_config_status(cfg: Config) -> bool:
     return bool(missing_from_disk)
 
 
+def _report_orphaned_services(cfg: Config) -> bool:
+    """Check for services in state but not in config. Returns True if orphans found."""
+    state = load_state(cfg)
+    configured = set(cfg.services.keys())
+    tracked = set(state.keys())
+    orphaned = sorted(tracked - configured)
+
+    if orphaned:
+        console.print("\n[yellow]Orphaned services[/] (in state but not in config):")
+        console.print("[dim]These may still be running. Use 'docker compose down' to stop them.[/]")
+        for name in orphaned:
+            host = state[name]
+            host_str = ", ".join(host) if isinstance(host, list) else host
+            console.print(f"  [yellow]![/] [cyan]{name}[/] on [magenta]{host_str}[/]")
+        return True
+
+    return False
+
+
 def _report_traefik_status(cfg: Config, services: list[str]) -> None:
     """Check and report traefik label status."""
     try:
@@ -1026,6 +1045,41 @@ def _report_host_compatibility(
             )
 
 
+def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bool) -> bool:
+    """Run SSH-based checks for mounts, networks, and host compatibility.
+
+    Returns True if any errors were found.
+    """
+    has_errors = False
+
+    # Check SSH connectivity first
+    if _report_ssh_status(_check_ssh_connectivity(cfg)):
+        has_errors = True
+
+    console.print()  # Spacing before mounts/networks check
+
+    # Check mounts and networks
+    mount_errors, network_errors = _check_mounts_and_networks_with_progress(cfg, svc_list)
+
+    if mount_errors:
+        _report_mount_errors(mount_errors)
+        has_errors = True
+    if network_errors:
+        _report_network_errors(network_errors)
+        has_errors = True
+    if not mount_errors and not network_errors:
+        console.print("[green]✓[/] All mounts and networks exist")
+
+    if show_host_compat:
+        for service in svc_list:
+            console.print(f"\n[bold]Host compatibility for[/] [cyan]{service}[/]:")
+            compat = _run_async(check_host_compatibility(cfg, service))
+            assigned_hosts = cfg.get_hosts(service)
+            _report_host_compatibility(compat, assigned_hosts)
+
+    return has_errors
+
+
 @app.command(rich_help_panel="Configuration")
 def check(
     services: ServicesArg = None,
@@ -1061,31 +1115,12 @@ def check(
     has_errors = _report_config_status(cfg)
     _report_traefik_status(cfg, svc_list)
 
-    if not local:
-        # Check SSH connectivity first
-        if _report_ssh_status(_check_ssh_connectivity(cfg)):
-            has_errors = True
+    if not local and _run_remote_checks(cfg, svc_list, show_host_compat=show_host_compat):
+        has_errors = True
 
-        console.print()  # Spacing before mounts/networks check
-
-        # Check mounts and networks
-        mount_errors, network_errors = _check_mounts_and_networks_with_progress(cfg, svc_list)
-
-        if mount_errors:
-            _report_mount_errors(mount_errors)
-            has_errors = True
-        if network_errors:
-            _report_network_errors(network_errors)
-            has_errors = True
-        if not mount_errors and not network_errors:
-            console.print("[green]✓[/] All mounts and networks exist")
-
-        if show_host_compat:
-            for service in svc_list:
-                console.print(f"\n[bold]Host compatibility for[/] [cyan]{service}[/]:")
-                compat = _run_async(check_host_compatibility(cfg, service))
-                assigned_hosts = cfg.get_hosts(service)
-                _report_host_compatibility(compat, assigned_hosts)
+    # Check for orphaned services (in state but removed from config)
+    if _report_orphaned_services(cfg):
+        has_errors = True
 
     if has_errors:
         raise typer.Exit(1)
