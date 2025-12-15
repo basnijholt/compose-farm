@@ -1,5 +1,10 @@
 # Compose Farm
 
+[![PyPI](https://img.shields.io/pypi/v/compose-farm)](https://pypi.org/project/compose-farm/)
+[![Python](https://img.shields.io/pypi/pyversions/compose-farm)](https://pypi.org/project/compose-farm/)
+[![License](https://img.shields.io/github/license/basnijholt/compose-farm)](LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/basnijholt/compose-farm)](https://github.com/basnijholt/compose-farm/stargazers)
+
 <img src="http://files.nijho.lt/compose-farm.png" align="right" style="width: 300px;" />
 
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
