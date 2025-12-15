@@ -653,6 +653,7 @@ def _check_mounts_and_networks_with_progress(
     Returns (mount_errors, network_errors) where each is a list of
     (service, host, missing_item) tuples.
     """
+    console.print()  # Spacing before progress bar
 
     async def check_service(
         service: str,
