@@ -1,0 +1,57 @@
+# Paperless-ngx - Document management system
+#
+# Demonstrates:
+# - HTTPS route: paperless.${DOMAIN} (e.g., paperless.example.com) with Let's Encrypt
+# - HTTP route: paperless.local for LAN access without TLS
+# - Multi-container stack (Redis + App with SQLite)
+#
+# NOTE: This example uses SQLite (the default) instead of PostgreSQL.
+# PostgreSQL should NOT be used with NFS storage due to fsync/locking issues.
+# If you need PostgreSQL, use local volumes for the database.
+name: paperless-ngx
+services:
+  redis:
+    image: redis:7
+    container_name: paperless-redis
+    restart: unless-stopped
+    networks:
+      - mynetwork
+    volumes:
+      - /mnt/data/paperless/redis:/data
+
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:latest
+    container_name: paperless
+    restart: unless-stopped
+    depends_on:
+      - redis
+    networks:
+      - mynetwork
+    ports:
+      - "8000:8000"
+    volumes:
+      # SQLite database stored here (safe on NFS for single-writer)
+      - /mnt/data/paperless/data:/usr/src/paperless/data
+      - /mnt/data/paperless/media:/usr/src/paperless/media
+      - /mnt/data/paperless/export:/usr/src/paperless/export
+      - /mnt/data/paperless/consume:/usr/src/paperless/consume
+    environment:
+      PAPERLESS_REDIS: redis://redis:6379
+      PAPERLESS_URL: https://paperless.${DOMAIN}
+      PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
+      USERMAP_UID: 1000
+      USERMAP_GID: 1000
+    labels:
+      # HTTPS route: paperless.example.com (requires DOMAIN in .env)
+      - traefik.enable=true
+      - traefik.http.routers.paperless.rule=Host(`paperless.${DOMAIN}`)
+      - traefik.http.routers.paperless.entrypoints=websecure
+      - traefik.http.services.paperless.loadbalancer.server.port=8000
+      - traefik.docker.network=mynetwork
+      # HTTP route: paperless.local (for LAN access, no TLS)
+      - traefik.http.routers.paperless-local.rule=Host(`paperless.local`)
+      - traefik.http.routers.paperless-local.entrypoints=web
+
+networks:
+  mynetwork:
+    external: true

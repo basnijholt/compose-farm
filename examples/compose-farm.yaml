@@ -1,17 +1,48 @@
-# Example Compose Farm config for local testing
-# Run from the examples directory: cd examples && compose-farm ps
+# Example Compose Farm configuration
+# Demonstrates a multi-host setup with NFS shared storage
+#
+# To test locally: Update the host addresses and run from the examples directory
 
-compose_dir: .
+compose_dir: /opt/stacks/compose-farm/examples
 
 # Auto-regenerate Traefik file-provider config after up/down/restart/update
-traefik_file: ./traefik/dynamic.d/compose-farm.yml
-traefik_service: traefik  # Skip services on same host (docker provider handles them)
+traefik_file: /opt/stacks/compose-farm/examples/traefik/dynamic.d/compose-farm.yml
+traefik_service: traefik  # Skip Traefik's host in file-provider (docker provider handles it)
 
 hosts:
+  # Primary server - runs Traefik and most services
+  # Full form with all options
+  primary:
+    address: 192.168.1.10
+    user: deploy
+    port: 22
+
+  # Secondary server - runs some services for load distribution
+  # Short form (user defaults to current user, port defaults to 22)
+  secondary: 192.168.1.11
+
+  # Local execution (no SSH) - for testing or when running on the host itself
   local: localhost
 
 services:
-  hello: local
-  nginx: local
-  traefik: local
-  whoami: local
+  # =============================================================
+  # Infrastructure (runs on primary where Traefik is)
+  # =============================================================
+  traefik: primary
+
+  # =============================================================
+  # Multi-host services (runs on ALL hosts)
+  # =============================================================
+  # AutoKuma monitors Docker containers on each host
+  autokuma: all
+
+  # =============================================================
+  # Primary server services
+  # =============================================================
+  paperless-ngx: primary
+
+  # =============================================================
+  # Secondary server services (distributed for performance)
+  # =============================================================
+  mealie: secondary
+  uptime-kuma: secondary

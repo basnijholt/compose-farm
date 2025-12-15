@@ -1,0 +1,44 @@
+# Mealie - Recipe manager
+# Simple single-container service with Traefik labels
+#
+# Demonstrates:
+# - HTTPS route: mealie.${DOMAIN} (e.g., mealie.example.com) with Let's Encrypt
+# - HTTP route: mealie.local for LAN access without TLS
+# - External network, resource limits, environment variables
+name: mealie
+services:
+  mealie:
+    image: ghcr.io/mealie-recipes/mealie:latest
+    container_name: mealie
+    restart: unless-stopped
+    networks:
+      - mynetwork
+    ports:
+      - "9925:9000"
+    deploy:
+      resources:
+        limits:
+          memory: 1000M
+    volumes:
+      - /mnt/data/mealie:/app/data
+    environment:
+      ALLOW_SIGNUP: "false"
+      PUID: 1000
+      PGID: 1000
+      TZ: America/Los_Angeles
+      MAX_WORKERS: 1
+      WEB_CONCURRENCY: 1
+      BASE_URL: https://mealie.${DOMAIN}
+    labels:
+      # HTTPS route: mealie.example.com (requires DOMAIN in .env)
+      - traefik.enable=true
+      - traefik.http.routers.mealie.rule=Host(`mealie.${DOMAIN}`)
+      - traefik.http.routers.mealie.entrypoints=websecure
+      - traefik.http.services.mealie.loadbalancer.server.port=9000
+      # HTTP route: mealie.local (for LAN access, no TLS)
+      - traefik.http.routers.mealie-local.rule=Host(`mealie.local`)
+      - traefik.http.routers.mealie-local.entrypoints=web
+
+networks:
+  mynetwork:
+    external: true

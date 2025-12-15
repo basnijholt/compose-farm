@@ -1,82 +1,158 @@
 # Compose Farm Examples
 
-This folder contains example Docker Compose services for testing Compose Farm locally.
+Real-world examples demonstrating compose-farm patterns for multi-host Docker deployments.
+
+## Services
+
+| Service | Type | Demonstrates |
+|---------|------|--------------|
+| [traefik](traefik/) | Infrastructure | Reverse proxy, Let's Encrypt, file-provider |
+| [mealie](mealie/) | Single container | Traefik labels, resource limits, environment vars |
+| [uptime-kuma](uptime-kuma/) | Single container | Docker socket, user mapping, custom DNS |
+| [paperless-ngx](paperless-ngx/) | Multi-container | Redis + App stack (SQLite) |
+| [autokuma](autokuma/) | Multi-host | Runs on ALL hosts (`all` keyword) |
+
+## Key Patterns
+
+### External Network
+
+All services connect to a shared external network for inter-service communication:
+
+```yaml
+networks:
+  mynetwork:
+    external: true
+```
+
+Create it on each host with consistent settings:
+
+```bash
+compose-farm init-network --network mynetwork --subnet 172.20.0.0/16
+```
+
+### Traefik Labels (Dual Routes)
+
+Services expose two routes for different access patterns:
+
+1. **HTTPS route** (`websecure` entrypoint): For your custom domain with Let's Encrypt TLS
+2. **HTTP route** (`web` entrypoint): For `.local` domains on your LAN (no TLS needed)
+
+This pattern allows accessing services via:
+- `https://mealie.example.com` - from anywhere, with TLS
+- `http://mealie.local` - from your local network, no TLS overhead
+
+```yaml
+labels:
+  # HTTPS route for custom domain (e.g., mealie.example.com)
+  - traefik.enable=true
+  - traefik.http.routers.myapp.rule=Host(`myapp.${DOMAIN}`)
+  - traefik.http.routers.myapp.entrypoints=websecure
+  - traefik.http.services.myapp.loadbalancer.server.port=8080
+  # HTTP route for .local domain (e.g., myapp.local)
+  - traefik.http.routers.myapp-local.rule=Host(`myapp.local`)
+  - traefik.http.routers.myapp-local.entrypoints=web
+```
+
+> **Note:** `.local` domains require local DNS (e.g., Pi-hole, Technitium) to resolve to your Traefik host.
+
+### Environment Variables
+
+Use `.env` files for secrets and domain configuration:
+
+```bash
+# Copy example and customize
+cp mealie/.env.example mealie/.env
+```
+
+Variables like `${DOMAIN}` are substituted at runtime.
+
+### NFS Volume Mounts
+
+All data is stored on shared NFS storage at `/mnt/data/`:
+
+```yaml
+volumes:
+  - /mnt/data/myapp:/app/data
+```
+
+This allows services to migrate between hosts without data loss.
+
+### Multi-Host Services
+
+Services that need to run on every host (e.g., monitoring agents):
+
+```yaml
+# In compose-farm.yaml
+services:
+  autokuma: all  # Runs on every configured host
+```
+
+### Multi-Container Stacks
+
+Database-backed apps with multiple services:
+
+```yaml
+services:
+  redis:
+    image: redis:7
+  app:
+    depends_on:
+      - redis
+```
+
+> **NFS + PostgreSQL Warning:** PostgreSQL should NOT run on NFS storage due to
+> fsync and file locking issues. Use SQLite (safe for single-writer on NFS) or
+> keep PostgreSQL data on local volumes (non-migratable).
 
 ## Quick Start
 
 ```bash
 cd examples
 
-# Check status of all services
-compose-farm ps
+# 1. Create the shared network on all hosts
+compose-farm init-network
 
-# Pull images
-compose-farm pull --all
-
-# Start hello-world (runs and exits)
-compose-farm up hello
-
-# Start nginx (stays running)
-compose-farm up nginx
-
-# Check nginx is running
-curl localhost:8080
-
-# View logs
-compose-farm logs nginx
-
-# Stop nginx
-compose-farm down nginx
-
-# Update all (pull + restart)
-compose-farm update --all
-```
-
-## Traefik Example
-
-Start Traefik and a sample service with Traefik labels:
-
-```bash
-cd examples
-
-# Start Traefik (reverse proxy with dashboard)
+# 2. Start Traefik first (the reverse proxy)
 compose-farm up traefik
 
-# Start whoami (test service with Traefik labels)
-compose-farm up whoami
+# 3. Start other services
+compose-farm up mealie uptime-kuma
 
-# Access the services
-curl -H "Host: whoami.localhost" http://localhost    # whoami via Traefik
-curl http://localhost:8081                            # Traefik dashboard
-curl http://localhost:18082                           # whoami direct
+# 4. Check status
+compose-farm ps
 
-# Generate Traefik file-provider config (for multi-host setups)
+# 5. Generate Traefik file-provider config for cross-host routing
 compose-farm traefik-file --all
 
-# Stop everything
+# 6. View logs
+compose-farm logs mealie
+
+# 7. Stop everything
 compose-farm down --all
 ```
 
-The `whoami/docker-compose.yml` shows the standard Traefik label pattern:
+## Configuration
 
-```yaml
-labels:
-  - traefik.enable=true
-  - traefik.http.routers.whoami.rule=Host(`whoami.localhost`)
-  - traefik.http.routers.whoami.entrypoints=web
-  - traefik.http.services.whoami.loadbalancer.server.port=80
+The `compose-farm.yaml` shows a multi-host setup:
+
+- **primary** (192.168.1.10): Runs Traefik and heavy services
+- **secondary** (192.168.1.11): Runs lighter services
+- **autokuma**: Runs on ALL hosts to monitor local containers
+
+When Traefik runs on `primary` and a service runs on `secondary`, compose-farm
+automatically generates file-provider config so Traefik can route to it.
+
+## Traefik File-Provider
+
+When services run on different hosts than Traefik, use `traefik-file` to generate routing config:
+
+```bash
+# Generate config for all services
+compose-farm traefik-file --all -o traefik/dynamic.d/compose-farm.yml
+
+# Or configure auto-generation in compose-farm.yaml:
+traefik_file: /opt/stacks/traefik/dynamic.d/compose-farm.yml
+traefik_service: traefik
 ```
 
-## Services
-
-| Service | Description | Ports |
-|---------|-------------|-------|
-| hello | Hello-world container (exits immediately) | - |
-| nginx | Nginx web server | 8080 |
-| traefik | Traefik reverse proxy with dashboard | 80, 8081 |
-| whoami | Test service with Traefik labels | 18082 |
-
-## Config
-
-The `compose-farm.yaml` in this directory configures all services to run locally (no SSH).
-It also demonstrates the `traefik_file` option for auto-regenerating Traefik file-provider config.
+With `traefik_file` configured, compose-farm automatically regenerates the config after `up`, `down`, `restart`, and `update` commands.

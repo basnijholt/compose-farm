@@ -1,0 +1,31 @@
+# AutoKuma - Automatic Uptime Kuma monitor creation from Docker labels
+# Demonstrates: Multi-host service (runs on ALL hosts)
+#
+# This service monitors Docker containers on each host and automatically
+# creates Uptime Kuma monitors based on container labels.
+#
+# In compose-farm.yaml, configure as:
+#   autokuma: all
+#
+# This runs the same container on every host, so each host's local
+# Docker socket is monitored.
+name: autokuma
+services:
+  autokuma:
+    image: ghcr.io/bigboot/autokuma:latest
+    container_name: autokuma
+    restart: unless-stopped
+    environment:
+      # Connect to your Uptime Kuma instance
+      AUTOKUMA__KUMA__URL: https://uptime.${DOMAIN}
+      AUTOKUMA__KUMA__USERNAME: ${UPTIME_KUMA_USERNAME}
+      AUTOKUMA__KUMA__PASSWORD: ${UPTIME_KUMA_PASSWORD}
+      # Tag for auto-created monitors
+      AUTOKUMA__TAG__NAME: autokuma
+      AUTOKUMA__TAG__COLOR: "#10B981"
+    volumes:
+      # Access local Docker socket to discover containers
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Custom DNS for resolving internal domains
+    dns:
+      - 192.168.1.1  # Your local DNS server

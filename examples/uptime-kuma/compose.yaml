@@ -1,0 +1,40 @@
+# Uptime Kuma - Monitoring dashboard
+#
+# Demonstrates:
+# - HTTPS route: uptime.${DOMAIN} (e.g., uptime.example.com) with Let's Encrypt
+# - HTTP route: uptime.local for LAN access without TLS
+# - Docker socket access, user mapping for NFS, custom DNS
+name: uptime-kuma
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:2
+    container_name: uptime-kuma
+    restart: unless-stopped
+    # Run as non-root user (important for NFS volumes)
+    user: "1000:1000"
+    networks:
+      - mynetwork
+    ports:
+      - "3001:3001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /mnt/data/uptime-kuma:/app/data
+    environment:
+      PUID: 1000
+      PGID: 1000
+    # Custom DNS for internal domain resolution
+    dns:
+      - 192.168.1.1  # Your local DNS server
+    labels:
+      # HTTPS route: uptime.example.com (requires DOMAIN in .env)
+      - traefik.enable=true
+      - traefik.http.routers.uptime.rule=Host(`uptime.${DOMAIN}`)
+      - traefik.http.routers.uptime.entrypoints=websecure
+      - traefik.http.services.uptime.loadbalancer.server.port=3001
+      # HTTP route: uptime.local (for LAN access, no TLS)
+      - traefik.http.routers.uptime-local.rule=Host(`uptime.local`)
+      - traefik.http.routers.uptime-local.entrypoints=web
+
+networks:
+  mynetwork:
+    external: true

@@ -1,0 +1,55 @@
+# Traefik reverse proxy with Let's Encrypt and file-provider support
+# This is the foundation service - other services route through it
+#
+# Entrypoints:
+# - web (port 80): HTTP for .local domains (no TLS needed on LAN)
+# - websecure (port 443): HTTPS with Let's Encrypt for custom domains
+name: traefik
+services:
+  traefik:
+    image: traefik:v3.2
+    container_name: traefik
+    command:
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=mynetwork
+      # File provider for routing to services on other hosts
+      - --providers.file.directory=/dynamic.d
+      - --providers.file.watch=true
+      # HTTP entrypoint for .local domains (LAN access, no TLS)
+      - --entrypoints.web.address=:80
+      # HTTPS entrypoint for custom domains (with Let's Encrypt TLS)
+      - --entrypoints.websecure.address=:443
+      - --entrypoints.websecure.asDefault=true
+      - --entrypoints.websecure.http.tls.certresolver=letsencrypt
+      # Let's Encrypt DNS challenge (using Cloudflare as example)
+      - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.resolvers=1.1.1.1:53
+    environment:
+      # Cloudflare API token for DNS challenge
+      CF_API_EMAIL: ${CF_API_EMAIL}
+      CF_API_KEY: ${CF_API_KEY}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /mnt/data/traefik/letsencrypt:/letsencrypt
+      - ./dynamic.d:/dynamic.d:ro
+    networks:
+      - mynetwork
+    labels:
+      - traefik.enable=true
+      # Dashboard accessible at traefik.yourdomain.com
+      - traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN}`)
+      - traefik.http.routers.traefik.entrypoints=websecure
+      - traefik.http.routers.traefik.service=api@internal
+
+networks:
+  mynetwork:
+    external: true
