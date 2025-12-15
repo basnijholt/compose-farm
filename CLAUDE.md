@@ -13,6 +13,7 @@ compose_farm/
 ├── cli.py         # Typer commands (thin layer, delegates to operations)
 ├── config.py      # Pydantic models, YAML loading
 ├── compose.py     # Compose file parsing (.env, ports, volumes, networks)
+├── console.py     # Shared Rich console instances
 ├── executor.py    # SSH/local command execution, streaming output
 ├── operations.py  # Business logic (up, migrate, discover, preflight checks)
 ├── state.py       # Deployment state tracking (which service on which host)
