@@ -861,8 +861,7 @@ def _report_sync_changes(
             old_str = _format_host(old_host)
             new_str = _format_host(new_host)
             console.print(
-                f"  [yellow]~[/] [cyan]{service}[/]: "
-                f"[magenta]{old_str}[/] → [magenta]{new_str}[/]"
+                f"  [yellow]~[/] [cyan]{service}[/]: [magenta]{old_str}[/] → [magenta]{new_str}[/]"
             )
 
     if removed:
