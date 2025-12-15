@@ -159,12 +159,31 @@ def _run_async(coro: Coroutine[None, None, T]) -> T:
 
 def _report_results(results: list[CommandResult]) -> None:
     """Report command results and exit with appropriate code."""
+    succeeded = [r for r in results if r.success]
     failed = [r for r in results if not r.success]
-    if failed:
-        for r in failed:
-            err_console.print(
-                f"[cyan]\\[{r.service}][/] [red]Failed with exit code {r.exit_code}[/]"
+
+    # Always print summary when there are multiple results
+    if len(results) > 1:
+        console.print()  # Blank line before summary
+        if failed:
+            for r in failed:
+                err_console.print(
+                    f"[red]✗[/] [cyan]{r.service}[/] failed with exit code {r.exit_code}"
+                )
+            console.print()
+            console.print(
+                f"[green]✓[/] {len(succeeded)}/{len(results)} services succeeded, "
+                f"[red]✗[/] {len(failed)} failed"
             )
+        else:
+            console.print(f"[green]✓[/] All {len(results)} services succeeded")
+
+    elif failed:
+        # Single service failed
+        r = failed[0]
+        err_console.print(f"[red]✗[/] [cyan]{r.service}[/] failed with exit code {r.exit_code}")
+
+    if failed:
         raise typer.Exit(1)
 
 
