@@ -156,6 +156,10 @@ LogPathOption = Annotated[
     Path | None,
     typer.Option("--log-path", "-l", help="Path to Dockerfarm TOML log"),
 ]
+HostOption = Annotated[
+    str | None,
+    typer.Option("--host", "-H", help="Filter to services on this host"),
+]
 
 MISSING_PATH_PREVIEW_LIMIT = 2
 
@@ -252,6 +256,7 @@ def update(
 def logs(
     services: ServicesArg = None,
     all_services: AllOption = False,
+    host: HostOption = None,
     follow: Annotated[bool, typer.Option("--follow", "-f", help="Follow logs")] = False,
     tail: Annotated[
         int | None,
@@ -260,9 +265,21 @@ def logs(
     config: ConfigOption = None,
 ) -> None:
     """Show service logs."""
-    svc_list, cfg = _get_services(services or [], all_services, config)
-    # Default to fewer lines when showing all services
-    effective_tail = tail if tail is not None else (20 if all_services else 100)
+    svc_list, cfg = _get_services(services or [], all_services or host is not None, config)
+
+    # Filter by host if specified
+    if host is not None:
+        if host not in cfg.hosts:
+            err_console.print(f"[red]✗[/] Host '{host}' not found in config")
+            raise typer.Exit(1)
+        svc_list = [s for s in svc_list if cfg.services.get(s) == host]
+        if not svc_list:
+            err_console.print(f"[yellow]![/] No services configured for host '{host}'")
+            return
+
+    # Default to fewer lines when showing multiple services
+    many_services = all_services or host is not None or len(svc_list) > 1
+    effective_tail = tail if tail is not None else (20 if many_services else 100)
     cmd = f"logs --tail {effective_tail}"
     if follow:
         cmd += " -f"
