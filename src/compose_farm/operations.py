@@ -9,9 +9,8 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from rich.console import Console
-
 from .compose import parse_external_networks, parse_host_volumes
+from .console import console, err_console
 from .executor import (
     CommandResult,
     check_networks_exist,
@@ -27,9 +26,6 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
     from .config import Config
-
-console = Console(highlight=False)
-err_console = Console(stderr=True, highlight=False)
 
 
 def get_service_paths(cfg: Config, service: str) -> list[str]:

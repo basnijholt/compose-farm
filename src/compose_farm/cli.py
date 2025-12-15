@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Annotated, TypeVar
 
 import typer
 import yaml
-from rich.console import Console
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -26,6 +25,7 @@ from rich.table import Table
 from . import __version__
 from .compose import parse_external_networks
 from .config import Config, load_config
+from .console import console, err_console
 from .executor import (
     CommandResult,
     _is_local,
@@ -62,12 +62,32 @@ from .state import (
 from .traefik import generate_traefik_config
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Coroutine, Mapping
+    from collections.abc import Callable, Coroutine, Generator, Mapping
 
 T = TypeVar("T")
 
-console = Console(highlight=False)
-err_console = Console(stderr=True, highlight=False)
+
+@contextlib.contextmanager
+def _progress_bar(label: str, total: int) -> Generator[tuple[Progress, TaskID], None, None]:
+    """Create a standardized progress bar with consistent styling.
+
+    Yields (progress, task_id). Use progress.update(task_id, advance=1, description=...)
+    to advance.
+    """
+    with Progress(
+        SpinnerColumn(),
+        TextColumn(f"[bold blue]{label}[/]"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("•"),
+        TimeElapsedColumn(),
+        TextColumn("•"),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        task_id = progress.add_task("", total=total)
+        yield progress, task_id
 
 
 def _load_config_or_exit(config_path: Path | None) -> Config:
@@ -651,19 +671,7 @@ def _discover_services_with_progress(cfg: Config) -> dict[str, str | list[str]]:
             progress.update(task_id, advance=1, description=f"[cyan]{service}[/]")
         return discovered
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold blue]Discovering[/]"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TextColumn("•"),
-        TimeElapsedColumn(),
-        TextColumn("•"),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-        transient=True,
-    ) as progress:
-        task_id = progress.add_task("", total=len(cfg.services))
+    with _progress_bar("Discovering", len(cfg.services)) as (progress, task_id):
         return asyncio.run(gather_with_progress(progress, task_id))
 
 
@@ -701,19 +709,7 @@ def _snapshot_services_with_progress(
     now_dt = datetime.now(UTC)
     now_iso = _isoformat(now_dt)
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold blue]Capturing[/]"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TextColumn("•"),
-        TimeElapsedColumn(),
-        TextColumn("•"),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-        transient=True,
-    ) as progress:
-        task_id = progress.add_task("", total=len(services))
+    with _progress_bar("Capturing", len(services)) as (progress, task_id):
         snapshot_entries = asyncio.run(gather_with_progress(progress, task_id, now_dt, services))
 
     if not snapshot_entries:
@@ -752,19 +748,7 @@ def _check_ssh_connectivity(cfg: Config) -> list[str]:
             progress.update(task_id, advance=1, description=f"[cyan]{host_name}[/]")
         return unreachable
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold blue]Checking SSH connectivity[/]"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TextColumn("•"),
-        TimeElapsedColumn(),
-        TextColumn("•"),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-        transient=True,
-    ) as progress:
-        task_id = progress.add_task("", total=len(remote_hosts))
+    with _progress_bar("Checking SSH connectivity", len(remote_hosts)) as (progress, task_id):
         return asyncio.run(gather_with_progress(progress, task_id))
 
 
@@ -820,19 +804,7 @@ def _check_mounts_and_networks_with_progress(
 
         return all_mount_errors, all_network_errors
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[bold blue]Checking mounts/networks[/]"),
-        BarColumn(),
-        MofNCompleteColumn(),
-        TextColumn("•"),
-        TimeElapsedColumn(),
-        TextColumn("•"),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-        transient=True,
-    ) as progress:
-        task_id = progress.add_task("", total=len(services))
+    with _progress_bar("Checking mounts/networks", len(services)) as (progress, task_id):
         return asyncio.run(gather_with_progress(progress, task_id))
 
 

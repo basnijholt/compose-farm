@@ -10,16 +10,15 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 import asyncssh
-from rich.console import Console
 from rich.markup import escape
+
+from .console import console as _console
+from .console import err_console as _err_console
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from .config import Config, Host
-
-_console = Console(highlight=False)
-_err_console = Console(stderr=True, highlight=False)
 
 LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
 _DEFAULT_SSH_PORT = 22
