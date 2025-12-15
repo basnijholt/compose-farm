@@ -33,6 +33,7 @@ from .executor import (
     check_paths_exist,
     check_service_running,
     run_command,
+    run_compose_on_host,
     run_on_services,
     run_sequential_on_services,
 )
@@ -50,7 +51,14 @@ from .operations import (
     get_service_paths,
     up_services,
 )
-from .state import get_services_needing_migration, load_state, remove_service, save_state
+from .state import (
+    add_service_to_host,
+    get_services_needing_migration,
+    load_state,
+    remove_service,
+    remove_service_from_host,
+    save_state,
+)
 from .traefik import generate_traefik_config
 
 if TYPE_CHECKING:
@@ -184,6 +192,20 @@ HostOption = Annotated[
 MISSING_PATH_PREVIEW_LIMIT = 2
 
 
+def _validate_host_for_service(cfg: Config, service: str, host: str) -> None:
+    """Validate that a host is valid for a service."""
+    if host not in cfg.hosts:
+        err_console.print(f"[red]✗[/] Host '{host}' not found in config")
+        raise typer.Exit(1)
+    allowed_hosts = cfg.get_hosts(service)
+    if host not in allowed_hosts:
+        err_console.print(
+            f"[red]✗[/] Service '{service}' is not configured for host '{host}' "
+            f"(configured: {', '.join(allowed_hosts)})"
+        )
+        raise typer.Exit(1)
+
+
 @app.command(rich_help_panel="Lifecycle")
 def up(
     services: ServicesArg = None,
@@ -191,9 +213,14 @@ def up(
     migrate: Annotated[
         bool, typer.Option("--migrate", "-m", help="Only services needing migration")
     ] = False,
+    host: HostOption = None,
     config: ConfigOption = None,
 ) -> None:
     """Start services (docker compose up -d). Auto-migrates if host changed."""
+    if migrate and host:
+        err_console.print("[red]✗[/] Cannot use --migrate and --host together")
+        raise typer.Exit(1)
+
     if migrate:
         cfg = _load_config_or_exit(config)
         svc_list = get_services_needing_migration(cfg)
@@ -203,7 +230,23 @@ def up(
         console.print(f"[cyan]Migrating {len(svc_list)} service(s):[/] {', '.join(svc_list)}")
     else:
         svc_list, cfg = _get_services(services or [], all_services, config)
-    # Always use raw output - migrations are sequential anyway
+
+    # Per-host operation: run on specific host only
+    if host:
+        results: list[CommandResult] = []
+        for service in svc_list:
+            _validate_host_for_service(cfg, service, host)
+            console.print(f"[cyan]\\[{service}][/] Starting on [magenta]{host}[/]...")
+            result = _run_async(run_compose_on_host(cfg, service, host, "up -d", raw=True))
+            print()  # Newline after raw output
+            results.append(result)
+            if result.success:
+                add_service_to_host(cfg, service, host)
+        _maybe_regenerate_traefik(cfg)
+        _report_results(results)
+        return
+
+    # Normal operation: use up_services with migration logic
     results = _run_async(up_services(cfg, svc_list, raw=True))
     _maybe_regenerate_traefik(cfg)
     _report_results(results)
@@ -213,10 +256,28 @@ def up(
 def down(
     services: ServicesArg = None,
     all_services: AllOption = False,
+    host: HostOption = None,
     config: ConfigOption = None,
 ) -> None:
     """Stop services (docker compose down)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
+
+    # Per-host operation: run on specific host only
+    if host:
+        results: list[CommandResult] = []
+        for service in svc_list:
+            _validate_host_for_service(cfg, service, host)
+            console.print(f"[cyan]\\[{service}][/] Stopping on [magenta]{host}[/]...")
+            result = _run_async(run_compose_on_host(cfg, service, host, "down", raw=True))
+            print()  # Newline after raw output
+            results.append(result)
+            if result.success:
+                remove_service_from_host(cfg, service, host)
+        _maybe_regenerate_traefik(cfg)
+        _report_results(results)
+        return
+
+    # Normal operation
     raw = len(svc_list) == 1
     results = _run_async(run_on_services(cfg, svc_list, "down", raw=raw))
 

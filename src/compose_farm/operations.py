@@ -118,6 +118,7 @@ async def _up_multi_host_service(
     hosts_str = ", ".join(f"[magenta]{h}[/]" for h in host_names)
     console.print(f"{prefix} Starting on {hosts_str}...")
 
+    succeeded_hosts: list[str] = []
     for host_name in host_names:
         host = cfg.hosts[host_name]
         label = f"{service}@{host_name}"
@@ -125,11 +126,12 @@ async def _up_multi_host_service(
         if raw:
             print()  # Ensure newline after raw output
         results.append(result)
+        if result.success:
+            succeeded_hosts.append(host_name)
 
-    # Update state on success (track all hosts)
-    all_success = all(r.success for r in results)
-    if all_success:
-        set_multi_host_service(cfg, service, host_names)
+    # Update state with hosts that succeeded (partial success is tracked)
+    if succeeded_hosts:
+        set_multi_host_service(cfg, service, succeeded_hosts)
 
     return results
 
