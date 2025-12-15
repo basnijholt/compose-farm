@@ -36,9 +36,11 @@ I used to run 100+ Docker Compose stacks on a single machine that kept running o
 
 Both require changes to your compose files. **Compose Farm requires zero changes**—your existing `docker-compose.yml` files work as-is.
 
+<p align="center">
 <a href="https://xkcd.com/927/">
 <img src="https://imgs.xkcd.com/comics/standards.png" alt="xkcd: Standards" width="400" />
 </a>
+</p>
 
 Before you say it—no, this is not a new standard. If you're already using NFS (or any shared storage) and mounting the same paths on all hosts, you can do everything manually: SSH into a host and run `docker compose up`. That works today, without any tool.
 
