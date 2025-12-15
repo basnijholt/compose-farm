@@ -549,7 +549,6 @@ def _snapshot_services_with_progress(
     log_path: Path | None,
 ) -> Path:
     """Capture image digests with a progress bar."""
-    console.print()  # Spacing before progress bar
 
     async def collect_service(service: str, now: datetime) -> list[SnapshotEntry]:
         try:
