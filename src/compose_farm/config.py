@@ -32,9 +32,24 @@ class Config(BaseModel):
         return self.config_path.parent / "compose-farm-state.yaml"
 
     @model_validator(mode="after")
-    def validate_service_hosts(self) -> Config:
-        """Ensure all services reference valid hosts."""
-        for service in self.services:
+    def validate_hosts_and_services(self) -> Config:
+        """Validate host names and service configurations."""
+        # "all" is reserved keyword, cannot be used as host name
+        if "all" in self.hosts:
+            msg = "'all' is a reserved keyword and cannot be used as a host name"
+            raise ValueError(msg)
+
+        for service, host_value in self.services.items():
+            # Validate list configurations
+            if isinstance(host_value, list):
+                if not host_value:
+                    msg = f"Service '{service}' has empty host list"
+                    raise ValueError(msg)
+                if len(host_value) != len(set(host_value)):
+                    msg = f"Service '{service}' has duplicate hosts in list"
+                    raise ValueError(msg)
+
+            # Validate all referenced hosts exist
             host_names = self.get_hosts(service)
             for host_name in host_names:
                 if host_name not in self.hosts:
