@@ -57,14 +57,15 @@ labels:
 
 ### Environment Variables
 
-Use `.env` files for secrets and domain configuration:
+Each service has a `.env` file for secrets and domain configuration.
+Edit these files to set your domain and credentials:
 
 ```bash
-# Copy example and customize
-cp mealie/.env.example mealie/.env
+# Example: set your domain
+echo "DOMAIN=example.com" > mealie/.env
 ```
 
-Variables like `${DOMAIN}` are substituted at runtime.
+Variables like `${DOMAIN}` are substituted at runtime by Docker Compose.
 
 ### NFS Volume Mounts
 
