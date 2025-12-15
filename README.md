@@ -40,6 +40,8 @@ I used to run 100+ Docker Compose stacks on a single machine that kept running o
 - **Kubernetes**: Overkill for my use case. I don't need pods, services, ingress controllers, or YAML manifests 10x the size of my compose files.
 - **Docker Swarm**: Effectively in maintenance mode—no longer being invested in by Docker.
 
+See [Comparison with Alternatives](#comparison-with-alternatives) for a full breakdown.
+
 Both require changes to your compose files. **Compose Farm requires zero changes**—your existing `docker-compose.yml` files work as-is.
 
 I also wanted a declarative setup—one config file that defines where everything runs. Change the config, run `up`, and services migrate automatically.
