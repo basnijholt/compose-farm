@@ -6,6 +6,7 @@ CLI commands are thin wrappers around these functions.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING
 
 from rich.console import Console
@@ -16,10 +17,11 @@ from .executor import (
     check_networks_exist,
     check_paths_exist,
     check_service_running,
+    run_command,
     run_compose,
     run_compose_on_host,
 )
-from .state import get_service_host, set_service_host
+from .state import get_service_host, set_multi_host_service, set_service_host
 
 if TYPE_CHECKING:
     from .config import Config
@@ -89,6 +91,49 @@ def report_preflight_failures(
         err_console.print(f"  [red]✗[/] missing network: {net}")
 
 
+async def _up_multi_host_service(
+    cfg: Config,
+    service: str,
+    prefix: str,
+    *,
+    raw: bool = False,
+) -> list[CommandResult]:
+    """Start a multi-host service on all configured hosts."""
+    host_names = cfg.get_hosts(service)
+    results: list[CommandResult] = []
+    compose_path = cfg.get_compose_path(service)
+    command = f"docker compose -f {compose_path} up -d"
+
+    # Pre-flight checks on all hosts
+    for host_name in host_names:
+        missing_paths, missing_networks = await preflight_check(cfg, service, host_name)
+        if missing_paths or missing_networks:
+            report_preflight_failures(service, host_name, missing_paths, missing_networks)
+            results.append(
+                CommandResult(service=f"{service}@{host_name}", exit_code=1, success=False)
+            )
+            return results
+
+    # Start on all hosts
+    hosts_str = ", ".join(f"[magenta]{h}[/]" for h in host_names)
+    console.print(f"{prefix} Starting on {hosts_str}...")
+
+    for host_name in host_names:
+        host = cfg.hosts[host_name]
+        label = f"{service}@{host_name}"
+        result = await run_command(host, command, label, stream=not raw, raw=raw)
+        if raw:
+            print()  # Ensure newline after raw output
+        results.append(result)
+
+    # Update state on success (track all hosts)
+    all_success = all(r.success for r in results)
+    if all_success:
+        set_multi_host_service(cfg, service, host_names)
+
+    return results
+
+
 async def up_services(
     cfg: Config,
     services: list[str],
@@ -101,7 +146,14 @@ async def up_services(
 
     for idx, service in enumerate(services, 1):
         prefix = f"[dim][{idx}/{total}][/] [cyan]\\[{service}][/]"
-        target_host = cfg.services[service]
+
+        # Handle multi-host services separately (no migration)
+        if cfg.is_multi_host(service):
+            multi_results = await _up_multi_host_service(cfg, service, prefix, raw=raw)
+            results.extend(multi_results)
+            continue
+
+        target_host = cfg.get_hosts(service)[0]
         current_host = get_service_host(cfg, service)
 
         # Pre-flight check: verify paths and networks exist on target
@@ -144,26 +196,41 @@ async def up_services(
     return results
 
 
-async def discover_running_services(cfg: Config) -> dict[str, str]:
+async def discover_running_services(cfg: Config) -> dict[str, str | list[str]]:
     """Discover which services are running on which hosts.
 
-    Returns a dict mapping service names to host names for running services.
+    Returns a dict mapping service names to host name(s).
+    Multi-host services return a list of hosts where they're running.
     """
-    discovered: dict[str, str] = {}
+    discovered: dict[str, str | list[str]] = {}
 
-    for service, assigned_host in cfg.services.items():
-        # Check assigned host first (most common case)
-        if await check_service_running(cfg, service, assigned_host):
-            discovered[service] = assigned_host
-            continue
+    for service in cfg.services:
+        assigned_hosts = cfg.get_hosts(service)
 
-        # Check other hosts in case service was migrated but state is stale
-        for host_name in cfg.hosts:
-            if host_name == assigned_host:
+        if cfg.is_multi_host(service):
+            # For multi-host services, find all hosts where it's running (check in parallel)
+            checks = await asyncio.gather(
+                *[check_service_running(cfg, service, h) for h in assigned_hosts]
+            )
+            running_hosts = [
+                h for h, running in zip(assigned_hosts, checks, strict=False) if running
+            ]
+            if running_hosts:
+                discovered[service] = running_hosts
+        else:
+            # Single-host service - check assigned host first
+            assigned_host = assigned_hosts[0]
+            if await check_service_running(cfg, service, assigned_host):
+                discovered[service] = assigned_host
                 continue
-            if await check_service_running(cfg, service, host_name):
-                discovered[service] = host_name
-                break
+
+            # Check other hosts in case service was migrated but state is stale
+            for host_name in cfg.hosts:
+                if host_name == assigned_host:
+                    continue
+                if await check_service_running(cfg, service, host_name):
+                    discovered[service] = host_name
+                    break
 
     return discovered
 
@@ -199,13 +266,15 @@ async def check_mounts_on_configured_hosts(
     missing: list[tuple[str, str, str]] = []
 
     for service in services:
-        host_name = cfg.services[service]
+        host_names = cfg.get_hosts(service)
         paths = get_service_paths(cfg, service)
-        exists = await check_paths_exist(cfg, host_name, paths)
 
-        for path, found in exists.items():
-            if not found:
-                missing.append((service, host_name, path))
+        for host_name in host_names:
+            exists = await check_paths_exist(cfg, host_name, paths)
+
+            for path, found in exists.items():
+                if not found:
+                    missing.append((service, host_name, path))
 
     return missing
 
@@ -221,14 +290,16 @@ async def check_networks_on_configured_hosts(
     missing: list[tuple[str, str, str]] = []
 
     for service in services:
-        host_name = cfg.services[service]
+        host_names = cfg.get_hosts(service)
         networks = parse_external_networks(cfg, service)
         if not networks:
             continue
-        exists = await check_networks_exist(cfg, host_name, networks)
 
-        for net, found in exists.items():
-            if not found:
-                missing.append((service, host_name, net))
+        for host_name in host_names:
+            exists = await check_networks_exist(cfg, host_name, networks)
+
+            for net, found in exists.items():
+                if not found:
+                    missing.append((service, host_name, net))
 
     return missing

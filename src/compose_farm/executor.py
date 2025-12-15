@@ -252,6 +252,32 @@ async def run_compose_on_host(
     return await run_command(host, command, service, stream=stream, raw=raw)
 
 
+async def run_compose_multi_host(
+    config: Config,
+    service: str,
+    compose_cmd: str,
+    *,
+    stream: bool = True,
+    raw: bool = False,
+) -> list[CommandResult]:
+    """Run a docker compose command on all hosts for a multi-host service.
+
+    Returns a list of results, one per host.
+    """
+    host_names = config.get_hosts(service)
+    compose_path = config.get_compose_path(service)
+    command = f"docker compose -f {compose_path} {compose_cmd}"
+
+    tasks = []
+    for host_name in host_names:
+        host = config.hosts[host_name]
+        # Use service@host as the label for multi-host services
+        label = f"{service}@{host_name}" if len(host_names) > 1 else service
+        tasks.append(run_command(host, command, label, stream=stream, raw=raw))
+
+    return await asyncio.gather(*tasks)
+
+
 async def run_on_services(
     config: Config,
     services: list[str],
@@ -262,12 +288,40 @@ async def run_on_services(
 ) -> list[CommandResult]:
     """Run a docker compose command on multiple services in parallel.
 
+    For multi-host services, runs on all configured hosts.
     Note: raw=True only makes sense for single-service operations.
     """
-    tasks = [
-        run_compose(config, service, compose_cmd, stream=stream, raw=raw) for service in services
-    ]
-    return await asyncio.gather(*tasks)
+    # Separate multi-host and single-host services for type-safe gathering
+    multi_host_tasks = []
+    single_host_tasks = []
+    multi_host_services = []
+    single_host_services = []
+
+    for service in services:
+        if config.is_multi_host(service):
+            multi_host_services.append(service)
+            multi_host_tasks.append(
+                run_compose_multi_host(config, service, compose_cmd, stream=stream, raw=raw)
+            )
+        else:
+            single_host_services.append(service)
+            single_host_tasks.append(
+                run_compose(config, service, compose_cmd, stream=stream, raw=raw)
+            )
+
+    # Gather results separately to maintain type safety
+    flat_results: list[CommandResult] = []
+
+    if multi_host_tasks:
+        multi_results = await asyncio.gather(*multi_host_tasks)
+        for result_list in multi_results:
+            flat_results.extend(result_list)
+
+    if single_host_tasks:
+        single_results = await asyncio.gather(*single_host_tasks)
+        flat_results.extend(single_results)
+
+    return flat_results
 
 
 async def run_sequential_commands(
@@ -286,6 +340,40 @@ async def run_sequential_commands(
     return CommandResult(service=service, exit_code=0, success=True)
 
 
+async def run_sequential_commands_multi_host(
+    config: Config,
+    service: str,
+    commands: list[str],
+    *,
+    stream: bool = True,
+    raw: bool = False,
+) -> list[CommandResult]:
+    """Run multiple compose commands sequentially for a multi-host service.
+
+    Commands are run sequentially, but each command runs on all hosts in parallel.
+    """
+    host_names = config.get_hosts(service)
+    compose_path = config.get_compose_path(service)
+    final_results: list[CommandResult] = []
+
+    for cmd in commands:
+        command = f"docker compose -f {compose_path} {cmd}"
+        tasks = []
+        for host_name in host_names:
+            host = config.hosts[host_name]
+            label = f"{service}@{host_name}" if len(host_names) > 1 else service
+            tasks.append(run_command(host, command, label, stream=stream, raw=raw))
+
+        results = await asyncio.gather(*tasks)
+        final_results = list(results)
+
+        # Check if any failed
+        if any(not r.success for r in results):
+            return final_results
+
+    return final_results
+
+
 async def run_sequential_on_services(
     config: Config,
     services: list[str],
@@ -296,13 +384,38 @@ async def run_sequential_on_services(
 ) -> list[CommandResult]:
     """Run sequential commands on multiple services in parallel.
 
+    For multi-host services, runs on all configured hosts.
     Note: raw=True only makes sense for single-service operations.
     """
-    tasks = [
-        run_sequential_commands(config, service, commands, stream=stream, raw=raw)
-        for service in services
-    ]
-    return await asyncio.gather(*tasks)
+    # Separate multi-host and single-host services for type-safe gathering
+    multi_host_tasks = []
+    single_host_tasks = []
+
+    for service in services:
+        if config.is_multi_host(service):
+            multi_host_tasks.append(
+                run_sequential_commands_multi_host(
+                    config, service, commands, stream=stream, raw=raw
+                )
+            )
+        else:
+            single_host_tasks.append(
+                run_sequential_commands(config, service, commands, stream=stream, raw=raw)
+            )
+
+    # Gather results separately to maintain type safety
+    flat_results: list[CommandResult] = []
+
+    if multi_host_tasks:
+        multi_results = await asyncio.gather(*multi_host_tasks)
+        for result_list in multi_results:
+            flat_results.extend(result_list)
+
+    if single_host_tasks:
+        single_results = await asyncio.gather(*single_host_tasks)
+        flat_results.extend(single_results)
+
+    return flat_results
 
 
 async def check_service_running(

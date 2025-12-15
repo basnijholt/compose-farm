@@ -22,7 +22,7 @@ class Config(BaseModel):
 
     compose_dir: Path = Path("/opt/compose")
     hosts: dict[str, Host]
-    services: dict[str, str]  # service_name -> host_name
+    services: dict[str, str | list[str]]  # service_name -> host_name or list of hosts
     traefik_file: Path | None = None  # Auto-regenerate traefik config after up/down
     traefik_service: str | None = None  # Service name for Traefik (skip its host in file-provider)
     config_path: Path = Path()  # Set by load_config()
@@ -34,18 +34,43 @@ class Config(BaseModel):
     @model_validator(mode="after")
     def validate_service_hosts(self) -> Config:
         """Ensure all services reference valid hosts."""
-        for service, host_name in self.services.items():
-            if host_name not in self.hosts:
-                msg = f"Service '{service}' references unknown host '{host_name}'"
-                raise ValueError(msg)
+        for service in self.services:
+            host_names = self.get_hosts(service)
+            for host_name in host_names:
+                if host_name not in self.hosts:
+                    msg = f"Service '{service}' references unknown host '{host_name}'"
+                    raise ValueError(msg)
         return self
 
-    def get_host(self, service: str) -> Host:
-        """Get host config for a service."""
+    def get_hosts(self, service: str) -> list[str]:
+        """Get list of host names for a service.
+
+        Supports:
+        - Single host: "truenas-debian" -> ["truenas-debian"]
+        - All hosts: "all" -> list of all configured hosts
+        - Explicit list: ["host1", "host2"] -> ["host1", "host2"]
+        """
         if service not in self.services:
             msg = f"Unknown service: {service}"
             raise ValueError(msg)
-        return self.hosts[self.services[service]]
+        host_value = self.services[service]
+        if isinstance(host_value, list):
+            return host_value
+        if host_value == "all":
+            return list(self.hosts.keys())
+        return [host_value]
+
+    def is_multi_host(self, service: str) -> bool:
+        """Check if a service runs on multiple hosts."""
+        return len(self.get_hosts(service)) > 1
+
+    def get_host(self, service: str) -> Host:
+        """Get host config for a service (first host if multi-host)."""
+        if service not in self.services:
+            msg = f"Unknown service: {service}"
+            raise ValueError(msg)
+        host_names = self.get_hosts(service)
+        return self.hosts[host_names[0]]
 
     def get_compose_path(self, service: str) -> Path:
         """Get compose file path for a service.

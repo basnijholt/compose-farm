@@ -116,7 +116,8 @@ async def _collect_service_entries(
         raise RuntimeError(error)
 
     records = _parse_images_output(result.stdout)
-    host_name = config.services[service]
+    # Use first host for snapshots (multi-host services use same images on all hosts)
+    host_name = config.get_hosts(service)[0]
     compose_path = config.get_compose_path(service)
 
     entries: list[SnapshotEntry] = []

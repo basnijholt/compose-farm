@@ -296,7 +296,8 @@ def logs(
         if host not in cfg.hosts:
             err_console.print(f"[red]✗[/] Host '{host}' not found in config")
             raise typer.Exit(1)
-        svc_list = [s for s, h in cfg.services.items() if h == host]
+        # Include services where host is in the list of configured hosts
+        svc_list = [s for s in cfg.services if host in cfg.get_hosts(s)]
         if not svc_list:
             err_console.print(f"[yellow]![/] No services configured for host '{host}'")
             return
@@ -327,14 +328,29 @@ _STATS_PREVIEW_LIMIT = 3  # Max number of pending migrations to show by name
 
 
 def _group_services_by_host(
-    services: dict[str, str],
+    services: dict[str, str | list[str]],
     hosts: Mapping[str, object],
+    all_hosts: list[str] | None = None,
 ) -> dict[str, list[str]]:
-    """Group services by their assigned host."""
+    """Group services by their assigned host(s).
+
+    For multi-host services (list or "all"), the service appears in multiple host lists.
+    """
     by_host: dict[str, list[str]] = {h: [] for h in hosts}
-    for service, host_name in services.items():
-        if host_name in by_host:
-            by_host[host_name].append(service)
+    for service, host_value in services.items():
+        if isinstance(host_value, list):
+            # Explicit list of hosts
+            for host_name in host_value:
+                if host_name in by_host:
+                    by_host[host_name].append(service)
+        elif host_value == "all" and all_hosts:
+            # "all" keyword - add to all hosts
+            for host_name in all_hosts:
+                if host_name in by_host:
+                    by_host[host_name].append(service)
+        elif host_value in by_host:
+            # Single host
+            by_host[host_value].append(service)
     return by_host
 
 
@@ -408,7 +424,9 @@ def _build_host_table(
     return table
 
 
-def _build_summary_table(cfg: Config, state: dict[str, str], pending: list[str]) -> Table:
+def _build_summary_table(
+    cfg: Config, state: dict[str, str | list[str]], pending: list[str]
+) -> Table:
     """Build the summary table."""
     on_disk = cfg.discover_compose_dirs()
 
@@ -448,8 +466,9 @@ def stats(
     state = load_state(cfg)
     pending = get_services_needing_migration(cfg)
 
-    services_by_host = _group_services_by_host(cfg.services, cfg.hosts)
-    running_by_host = _group_services_by_host(state, cfg.hosts)
+    all_hosts = list(cfg.hosts.keys())
+    services_by_host = _group_services_by_host(cfg.services, cfg.hosts, all_hosts)
+    running_by_host = _group_services_by_host(state, cfg.hosts, all_hosts)
 
     container_counts: dict[str, int] = {}
     if live:
@@ -499,13 +518,29 @@ def traefik_file(
         err_console.print(f"[yellow]![/] {warning}")
 
 
-def _discover_services_with_progress(cfg: Config) -> dict[str, str]:
+def _discover_services_with_progress(cfg: Config) -> dict[str, str | list[str]]:
     """Discover running services with a progress bar."""
 
-    async def check_service(service: str) -> tuple[str, str | None]:
-        """Check where a service is running. Returns (service, host_name) or (service, None)."""
-        assigned_host = cfg.services[service]
-        # Check assigned host first (most common case)
+    async def check_service(service: str) -> tuple[str, str | list[str] | None]:
+        """Check where a service is running.
+
+        For multi-host services, returns list of hosts where running.
+        For single-host, returns single host name or None.
+        """
+        assigned_hosts = cfg.get_hosts(service)
+
+        if cfg.is_multi_host(service):
+            # Multi-host: find all hosts where running (check in parallel)
+            checks = await asyncio.gather(
+                *[check_service_running(cfg, service, h) for h in assigned_hosts]
+            )
+            running_hosts = [
+                h for h, running in zip(assigned_hosts, checks, strict=False) if running
+            ]
+            return service, running_hosts if running_hosts else None
+
+        # Single-host: check assigned host first
+        assigned_host = assigned_hosts[0]
         if await check_service_running(cfg, service, assigned_host):
             return service, assigned_host
         # Check other hosts
@@ -516,10 +551,12 @@ def _discover_services_with_progress(cfg: Config) -> dict[str, str]:
                 return service, host_name
         return service, None
 
-    async def gather_with_progress(progress: Progress, task_id: TaskID) -> dict[str, str]:
+    async def gather_with_progress(
+        progress: Progress, task_id: TaskID
+    ) -> dict[str, str | list[str]]:
         services = list(cfg.services.keys())
         tasks = [asyncio.create_task(check_service(s)) for s in services]
-        discovered: dict[str, str] = {}
+        discovered: dict[str, str | list[str]] = {}
         for coro in asyncio.as_completed(tasks):
             service, host = await coro
             if host is not None:
@@ -658,24 +695,26 @@ def _check_mounts_and_networks_with_progress(
         service: str,
     ) -> tuple[str, list[tuple[str, str, str]], list[tuple[str, str, str]]]:
         """Check mounts and networks for a single service."""
-        host_name = cfg.services[service]
+        host_names = cfg.get_hosts(service)
         mount_errors: list[tuple[str, str, str]] = []
         network_errors: list[tuple[str, str, str]] = []
 
-        # Check mounts
+        # Check mounts on all hosts
         paths = get_service_paths(cfg, service)
-        path_exists = await check_paths_exist(cfg, host_name, paths)
-        for path, found in path_exists.items():
-            if not found:
-                mount_errors.append((service, host_name, path))
+        for host_name in host_names:
+            path_exists = await check_paths_exist(cfg, host_name, paths)
+            for path, found in path_exists.items():
+                if not found:
+                    mount_errors.append((service, host_name, path))
 
-        # Check networks
+        # Check networks on all hosts
         networks = parse_external_networks(cfg, service)
         if networks:
-            net_exists = await check_networks_exist(cfg, host_name, networks)
-            for net, found in net_exists.items():
-                if not found:
-                    network_errors.append((service, host_name, net))
+            for host_name in host_names:
+                net_exists = await check_networks_exist(cfg, host_name, networks)
+                for net, found in net_exists.items():
+                    if not found:
+                        network_errors.append((service, host_name, net))
 
         return service, mount_errors, network_errors
 
@@ -710,33 +749,42 @@ def _check_mounts_and_networks_with_progress(
         return asyncio.run(gather_with_progress(progress, task_id))
 
 
+def _format_host(host: str | list[str]) -> str:
+    """Format a host value for display."""
+    if isinstance(host, list):
+        return ", ".join(host)
+    return host
+
+
 def _report_sync_changes(
     added: list[str],
     removed: list[str],
-    changed: list[tuple[str, str, str]],
-    discovered: dict[str, str],
-    current_state: dict[str, str],
+    changed: list[tuple[str, str | list[str], str | list[str]]],
+    discovered: dict[str, str | list[str]],
+    current_state: dict[str, str | list[str]],
 ) -> None:
     """Report sync changes to the user."""
     if added:
         console.print(f"\nNew services found ({len(added)}):")
         for service in sorted(added):
-            console.print(f"  [green]+[/] [cyan]{service}[/] on [magenta]{discovered[service]}[/]")
+            host_str = _format_host(discovered[service])
+            console.print(f"  [green]+[/] [cyan]{service}[/] on [magenta]{host_str}[/]")
 
     if changed:
         console.print(f"\nServices on different hosts ({len(changed)}):")
         for service, old_host, new_host in sorted(changed):
+            old_str = _format_host(old_host)
+            new_str = _format_host(new_host)
             console.print(
                 f"  [yellow]~[/] [cyan]{service}[/]: "
-                f"[magenta]{old_host}[/] → [magenta]{new_host}[/]"
+                f"[magenta]{old_str}[/] → [magenta]{new_str}[/]"
             )
 
     if removed:
         console.print(f"\nServices no longer running ({len(removed)}):")
         for service in sorted(removed):
-            console.print(
-                f"  [red]-[/] [cyan]{service}[/] (was on [magenta]{current_state[service]}[/])"
-            )
+            host_str = _format_host(current_state[service])
+            console.print(f"  [red]-[/] [cyan]{service}[/] (was on [magenta]{host_str}[/])")
 
 
 @app.command(rich_help_panel="Configuration")
@@ -874,12 +922,12 @@ def _report_ssh_status(unreachable_hosts: list[str]) -> bool:
 
 def _report_host_compatibility(
     compat: dict[str, tuple[int, int, list[str]]],
-    current_host: str,
+    assigned_hosts: list[str],
 ) -> None:
     """Report host compatibility for a service."""
     for host_name, (found, total, missing) in sorted(compat.items()):
-        is_current = host_name == current_host
-        marker = " [dim](assigned)[/]" if is_current else ""
+        is_assigned = host_name in assigned_hosts
+        marker = " [dim](assigned)[/]" if is_assigned else ""
 
         if found == total:
             console.print(f"  [green]✓[/] [magenta]{host_name}[/] {found}/{total}{marker}")
@@ -951,7 +999,8 @@ def check(
             for service in svc_list:
                 console.print(f"\n[bold]Host compatibility for[/] [cyan]{service}[/]:")
                 compat = _run_async(check_host_compatibility(cfg, service))
-                _report_host_compatibility(compat, cfg.services[service])
+                assigned_hosts = cfg.get_hosts(service)
+                _report_host_compatibility(compat, assigned_hosts)
 
     if has_errors:
         raise typer.Exit(1)
