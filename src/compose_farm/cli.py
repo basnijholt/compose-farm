@@ -862,11 +862,11 @@ def _report_network_errors(network_errors: list[tuple[str, str, str]]) -> None:
 def _report_ssh_status(unreachable_hosts: list[str]) -> bool:
     """Report SSH connectivity status. Returns True if there are errors."""
     if unreachable_hosts:
-        console.print(f"[red]Unreachable hosts[/] ({len(unreachable_hosts)}):")
+        console.print(f"\n[red]Unreachable hosts[/] ({len(unreachable_hosts)}):")
         for host in sorted(unreachable_hosts):
             console.print(f"  [red]✗[/] [magenta]{host}[/]")
         return True
-    console.print("[green]✓[/] All hosts reachable")
+    console.print("\n[green]✓[/] All hosts reachable")
     return False
 
 
@@ -927,8 +927,6 @@ def check(
     _report_traefik_status(cfg, svc_list)
 
     if not local:
-        console.print()  # Newline before remote checks
-
         # Check SSH connectivity first
         if _report_ssh_status(_check_ssh_connectivity(cfg)):
             has_errors = True
