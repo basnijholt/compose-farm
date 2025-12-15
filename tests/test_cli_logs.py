@@ -5,6 +5,9 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+import typer
+
 from compose_farm.cli import logs
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
@@ -186,9 +189,6 @@ class TestLogsHostFilter:
 
     def test_logs_all_and_host_mutually_exclusive(self, tmp_path: Path) -> None:
         """Using --all and --host together should error."""
-        import pytest
-        import typer
-
         cfg = _make_config(tmp_path)
 
         with (
