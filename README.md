@@ -34,9 +34,21 @@ I used to run 100+ Docker Compose stacks on a single machine that kept running o
 - **Kubernetes**: Overkill for my use case. I don't need pods, services, ingress controllers, or YAML manifests 10x the size of my compose files.
 - **Docker Swarm**: Effectively in maintenance mode—no longer being invested in by Docker.
 
-Both Kubernetes and Docker Swarm require changes to your compose files. **Compose Farm requires zero changes**—your existing `docker-compose.yml` files work as-is.
+Both require changes to your compose files. **Compose Farm requires zero changes**—your existing `docker-compose.yml` files work as-is.
 
-**Compose Farm is intentionally simple**: one YAML config mapping services to hosts, and a CLI that runs `docker compose` commands over SSH. That's it.
+<a href="https://xkcd.com/927/">
+<img src="https://imgs.xkcd.com/comics/standards.png" alt="xkcd: Standards" width="400" />
+</a>
+
+Before you say it—no, this is not a new standard. If you're already using NFS (or any shared storage) and mounting the same paths on all hosts, you can do everything manually: SSH into a host and run `docker compose up`. That works today, without any tool.
+
+Compose Farm just automates what you'd do by hand:
+- Runs `docker compose` commands over SSH
+- Tracks which service runs on which host
+- Auto-migrates services when you change the host assignment
+- Generates Traefik file-provider config for cross-host routing
+
+**It's a convenience wrapper, not a new paradigm.**
 
 ## How It Works
 
