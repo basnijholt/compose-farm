@@ -24,6 +24,8 @@ from .executor import (
 from .state import get_service_host, set_multi_host_service, set_service_host
 
 if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+
     from .config import Config
 
 console = Console(highlight=False)
@@ -257,6 +259,31 @@ async def check_host_compatibility(
     return results
 
 
+async def _check_resources(
+    cfg: Config,
+    services: list[str],
+    get_resources: Callable[[Config, str], list[str]],
+    check_exists: Callable[[Config, str, list[str]], Awaitable[dict[str, bool]]],
+) -> list[tuple[str, str, str]]:
+    """Generic check for resources (mounts, networks) on configured hosts."""
+    missing: list[tuple[str, str, str]] = []
+
+    for service in services:
+        host_names = cfg.get_hosts(service)
+        resources = get_resources(cfg, service)
+        if not resources:
+            continue
+
+        for host_name in host_names:
+            exists = await check_exists(cfg, host_name, resources)
+
+            for item, found in exists.items():
+                if not found:
+                    missing.append((service, host_name, item))
+
+    return missing
+
+
 async def check_mounts_on_configured_hosts(
     cfg: Config,
     services: list[str],
@@ -265,20 +292,7 @@ async def check_mounts_on_configured_hosts(
 
     Returns list of (service, host, missing_path) tuples.
     """
-    missing: list[tuple[str, str, str]] = []
-
-    for service in services:
-        host_names = cfg.get_hosts(service)
-        paths = get_service_paths(cfg, service)
-
-        for host_name in host_names:
-            exists = await check_paths_exist(cfg, host_name, paths)
-
-            for path, found in exists.items():
-                if not found:
-                    missing.append((service, host_name, path))
-
-    return missing
+    return await _check_resources(cfg, services, get_service_paths, check_paths_exist)
 
 
 async def check_networks_on_configured_hosts(
@@ -289,19 +303,4 @@ async def check_networks_on_configured_hosts(
 
     Returns list of (service, host, missing_network) tuples.
     """
-    missing: list[tuple[str, str, str]] = []
-
-    for service in services:
-        host_names = cfg.get_hosts(service)
-        networks = parse_external_networks(cfg, service)
-        if not networks:
-            continue
-
-        for host_name in host_names:
-            exists = await check_networks_exist(cfg, host_name, networks)
-
-            for net, found in exists.items():
-                if not found:
-                    missing.append((service, host_name, net))
-
-    return missing
+    return await _check_resources(cfg, services, parse_external_networks, check_networks_exist)

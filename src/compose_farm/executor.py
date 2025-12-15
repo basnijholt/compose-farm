@@ -14,6 +14,8 @@ from rich.console import Console
 from rich.markup import escape
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from .config import Config, Host
 
 _console = Console(highlight=False)
@@ -264,18 +266,9 @@ async def run_compose_multi_host(
 
     Returns a list of results, one per host.
     """
-    host_names = config.get_hosts(service)
-    compose_path = config.get_compose_path(service)
-    command = f"docker compose -f {compose_path} {compose_cmd}"
-
-    tasks = []
-    for host_name in host_names:
-        host = config.hosts[host_name]
-        # Use service@host as the label for multi-host services
-        label = f"{service}@{host_name}" if len(host_names) > 1 else service
-        tasks.append(run_command(host, command, label, stream=stream, raw=raw))
-
-    return await asyncio.gather(*tasks)
+    return await run_sequential_commands_multi_host(
+        config, service, [compose_cmd], stream=stream, raw=raw
+    )
 
 
 async def run_on_services(
@@ -291,37 +284,7 @@ async def run_on_services(
     For multi-host services, runs on all configured hosts.
     Note: raw=True only makes sense for single-service operations.
     """
-    # Separate multi-host and single-host services for type-safe gathering
-    multi_host_tasks = []
-    single_host_tasks = []
-    multi_host_services = []
-    single_host_services = []
-
-    for service in services:
-        if config.is_multi_host(service):
-            multi_host_services.append(service)
-            multi_host_tasks.append(
-                run_compose_multi_host(config, service, compose_cmd, stream=stream, raw=raw)
-            )
-        else:
-            single_host_services.append(service)
-            single_host_tasks.append(
-                run_compose(config, service, compose_cmd, stream=stream, raw=raw)
-            )
-
-    # Gather results separately to maintain type safety
-    flat_results: list[CommandResult] = []
-
-    if multi_host_tasks:
-        multi_results = await asyncio.gather(*multi_host_tasks)
-        for result_list in multi_results:
-            flat_results.extend(result_list)
-
-    if single_host_tasks:
-        single_results = await asyncio.gather(*single_host_tasks)
-        flat_results.extend(single_results)
-
-    return flat_results
+    return await run_sequential_on_services(config, services, [compose_cmd], stream=stream, raw=raw)
 
 
 async def run_sequential_commands(
@@ -435,6 +398,37 @@ async def check_service_running(
     return result.success and bool(result.stdout.strip())
 
 
+async def _batch_check_existence(
+    config: Config,
+    host_name: str,
+    items: list[str],
+    cmd_template: Callable[[str], str],
+    context: str,
+) -> dict[str, bool]:
+    """Check existence of multiple items on a host using a command template."""
+    if not items:
+        return {}
+
+    host = config.hosts[host_name]
+    checks = []
+    for item in items:
+        escaped = item.replace("'", "'\\''")
+        checks.append(cmd_template(escaped))
+
+    command = "; ".join(checks)
+    result = await run_command(host, command, context, stream=False)
+
+    exists: dict[str, bool] = dict.fromkeys(items, False)
+    for raw_line in result.stdout.splitlines():
+        line = raw_line.strip()
+        if line.startswith("Y:"):
+            exists[line[2:]] = True
+        elif line.startswith("N:"):
+            exists[line[2:]] = False
+
+    return exists
+
+
 async def check_paths_exist(
     config: Config,
     host_name: str,
@@ -444,31 +438,13 @@ async def check_paths_exist(
 
     Returns a dict mapping path -> exists.
     """
-    if not paths:
-        return {}
-
-    host = config.hosts[host_name]
-
-    # Build a command that checks all paths efficiently
-    # Using a subshell to check each path and report Y/N
-    checks = []
-    for p in paths:
-        # Escape single quotes in path
-        escaped = p.replace("'", "'\\''")
-        checks.append(f"test -e '{escaped}' && echo 'Y:{escaped}' || echo 'N:{escaped}'")
-
-    command = "; ".join(checks)
-    result = await run_command(host, command, "mount-check", stream=False)
-
-    exists: dict[str, bool] = dict.fromkeys(paths, False)
-    for raw_line in result.stdout.splitlines():
-        line = raw_line.strip()
-        if line.startswith("Y:"):
-            exists[line[2:]] = True
-        elif line.startswith("N:"):
-            exists[line[2:]] = False
-
-    return exists
+    return await _batch_check_existence(
+        config,
+        host_name,
+        paths,
+        lambda esc: f"test -e '{esc}' && echo 'Y:{esc}' || echo 'N:{esc}'",
+        "mount-check",
+    )
 
 
 async def check_networks_exist(
@@ -480,29 +456,12 @@ async def check_networks_exist(
 
     Returns a dict mapping network_name -> exists.
     """
-    if not networks:
-        return {}
-
-    host = config.hosts[host_name]
-
-    # Check each network via docker network inspect
-    checks = []
-    for net in networks:
-        escaped = net.replace("'", "'\\''")
-        checks.append(
-            f"docker network inspect '{escaped}' >/dev/null 2>&1 "
-            f"&& echo 'Y:{escaped}' || echo 'N:{escaped}'"
-        )
-
-    command = "; ".join(checks)
-    result = await run_command(host, command, "network-check", stream=False)
-
-    exists: dict[str, bool] = dict.fromkeys(networks, False)
-    for raw_line in result.stdout.splitlines():
-        line = raw_line.strip()
-        if line.startswith("Y:"):
-            exists[line[2:]] = True
-        elif line.startswith("N:"):
-            exists[line[2:]] = False
-
-    return exists
+    return await _batch_check_existence(
+        config,
+        host_name,
+        networks,
+        lambda esc: (
+            f"docker network inspect '{esc}' >/dev/null 2>&1 && echo 'Y:{esc}' || echo 'N:{esc}'"
+        ),
+        "network-check",
+    )
