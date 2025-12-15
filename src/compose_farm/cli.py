@@ -11,11 +11,13 @@ import yaml
 from rich.console import Console
 from rich.progress import (
     BarColumn,
+    MofNCompleteColumn,
     Progress,
     SpinnerColumn,
     TaskID,
     TaskProgressColumn,
     TextColumn,
+    TimeElapsedColumn,
 )
 from rich.table import Table
 
@@ -515,13 +517,17 @@ def _discover_services_with_progress(cfg: Config) -> dict[str, str]:
 
     with Progress(
         SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
+        TextColumn("[bold blue]Discovering[/]"),
         BarColumn(),
-        TaskProgressColumn(),
+        MofNCompleteColumn(),
+        TextColumn("•"),
+        TimeElapsedColumn(),
+        TextColumn("•"),
+        TextColumn("[progress.description]{task.description}"),
         console=console,
         transient=True,
     ) as progress:
-        task_id = progress.add_task("Discovering...", total=len(cfg.services))
+        task_id = progress.add_task("", total=len(cfg.services))
         return asyncio.run(gather_with_progress(progress, task_id))
 
 
@@ -549,14 +555,20 @@ def _snapshot_services_with_progress(
             return []
 
     async def gather_with_progress(
-        progress: Progress, task_id: TaskID, now: datetime
+        progress: Progress, task_id: TaskID, now: datetime, svc_list: list[str]
     ) -> list[SnapshotEntry]:
-        tasks = [asyncio.create_task(collect_service(s, now)) for s in services]
+        # Map tasks to service names so we can update description
+        task_to_service = {asyncio.create_task(collect_service(s, now)): s for s in svc_list}
         all_entries: list[SnapshotEntry] = []
-        for coro in asyncio.as_completed(tasks):
+        for coro in asyncio.as_completed(list(task_to_service.keys())):
             entries = await coro
             all_entries.extend(entries)
-            progress.update(task_id, advance=1)
+            # Find which service just completed (by checking done tasks)
+            for t, svc in task_to_service.items():
+                if t.done() and not hasattr(t, "_reported"):
+                    t._reported = True  # type: ignore[attr-defined]
+                    progress.update(task_id, advance=1, description=f"[cyan]{svc}[/]")
+                    break
         return all_entries
 
     effective_log_path = log_path or DEFAULT_LOG_PATH
@@ -565,14 +577,18 @@ def _snapshot_services_with_progress(
 
     with Progress(
         SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
+        TextColumn("[bold blue]Capturing[/]"),
         BarColumn(),
-        TaskProgressColumn(),
+        MofNCompleteColumn(),
+        TextColumn("•"),
+        TimeElapsedColumn(),
+        TextColumn("•"),
+        TextColumn("[progress.description]{task.description}"),
         console=console,
         transient=True,
     ) as progress:
-        task_id = progress.add_task("Capturing digests...", total=len(services))
-        snapshot_entries = asyncio.run(gather_with_progress(progress, task_id, now_dt))
+        task_id = progress.add_task("", total=len(services))
+        snapshot_entries = asyncio.run(gather_with_progress(progress, task_id, now_dt, services))
 
     if not snapshot_entries:
         msg = "No image digests were captured"
