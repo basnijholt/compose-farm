@@ -25,24 +25,16 @@ hosts:
   local: localhost
 
 services:
-  # =============================================================
   # Infrastructure (runs on primary where Traefik is)
-  # =============================================================
   traefik: primary
 
-  # =============================================================
   # Multi-host services (runs on ALL hosts)
-  # =============================================================
   # AutoKuma monitors Docker containers on each host
   autokuma: all
 
-  # =============================================================
   # Primary server services
-  # =============================================================
   paperless-ngx: primary
 
-  # =============================================================
   # Secondary server services (distributed for performance)
-  # =============================================================
   mealie: secondary
   uptime-kuma: secondary
