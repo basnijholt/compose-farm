@@ -215,7 +215,7 @@ async def discover_running_services(cfg: Config) -> dict[str, str | list[str]]:
                 *[check_service_running(cfg, service, h) for h in assigned_hosts]
             )
             running_hosts = [
-                h for h, running in zip(assigned_hosts, checks, strict=False) if running
+                h for h, running in zip(assigned_hosts, checks, strict=True) if running
             ]
             if running_hosts:
                 discovered[service] = running_hosts
