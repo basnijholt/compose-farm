@@ -357,6 +357,16 @@ Update your Traefik config to use directory watching instead of a single file:
 
 There are many ways to run containers on multiple hosts. Here is where Compose Farm sits:
 
+| | Docker Contexts | K8s / Swarm | Ansible / Terraform | Portainer / Coolify | Compose Farm |
+|---|:---:|:---:|:---:|:---:|:---:|
+| No compose rewrites | ✅ | ❌ | ✅ | ✅ | ✅ |
+| Version controlled | ✅ | ✅ | ✅ | ❌ | ✅ |
+| State tracking | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Auto-migration | ❌ | ✅ | ❌ | ❌ | ✅ |
+| Interactive CLI | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Parallel execution | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Agentless | ✅ | ❌ | ✅ | ❌ | ✅ |
+
 **Docker Contexts** — You can use `docker context create remote ssh://...` and `docker compose --context remote up`. But it's manual: you must remember which host runs which service, there's no global view, no parallel execution, and no auto-migration.
 
 **Kubernetes / Docker Swarm** — Full orchestration that abstracts away the hardware. But they require cluster initialization, separate control planes, and often rewriting compose files. They introduce complexity (consensus, overlay networks) unnecessary for static "pet" servers.
