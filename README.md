@@ -36,6 +36,8 @@ I used to run 100+ Docker Compose stacks on a single machine that kept running o
 
 Both require changes to your compose files. **Compose Farm requires zero changes**—your existing `docker-compose.yml` files work as-is.
 
+I also wanted a declarative setup—one config file that defines where everything runs. Change the config, run `up`, and services migrate automatically.
+
 <p align="center">
 <a href="https://xkcd.com/927/">
 <img src="https://imgs.xkcd.com/comics/standards.png" alt="xkcd: Standards" width="400" />
