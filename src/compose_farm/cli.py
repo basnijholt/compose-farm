@@ -653,7 +653,6 @@ def _check_mounts_and_networks_with_progress(
     Returns (mount_errors, network_errors) where each is a list of
     (service, host, missing_item) tuples.
     """
-    console.print()  # Spacing before progress bar
 
     async def check_service(
         service: str,
@@ -838,7 +837,7 @@ def _report_mount_errors(mount_errors: list[tuple[str, str, str]]) -> None:
     for svc, host, path in mount_errors:
         by_service.setdefault(svc, []).append((host, path))
 
-    console.print(f"\n[red]Missing mounts[/] ({len(mount_errors)}):")
+    console.print(f"[red]Missing mounts[/] ({len(mount_errors)}):")
     for svc, items in sorted(by_service.items()):
         host = items[0][0]
         paths = [p for _, p in items]
@@ -853,7 +852,7 @@ def _report_network_errors(network_errors: list[tuple[str, str, str]]) -> None:
     for svc, host, net in network_errors:
         by_service.setdefault(svc, []).append((host, net))
 
-    console.print(f"\n[red]Missing networks[/] ({len(network_errors)}):")
+    console.print(f"[red]Missing networks[/] ({len(network_errors)}):")
     for svc, items in sorted(by_service.items()):
         host = items[0][0]
         networks = [n for _, n in items]
@@ -933,6 +932,8 @@ def check(
         # Check SSH connectivity first
         if _report_ssh_status(_check_ssh_connectivity(cfg)):
             has_errors = True
+
+        console.print()  # Spacing before mounts/networks check
 
         # Check mounts and networks
         mount_errors, network_errors = _check_mounts_and_networks_with_progress(cfg, svc_list)
