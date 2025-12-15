@@ -282,9 +282,14 @@ def down(
     results = _run_async(run_on_services(cfg, svc_list, "down", raw=raw))
 
     # Remove from state on success
+    # For multi-host services, result.service is "svc@host", extract base name
+    removed_services: set[str] = set()
     for result in results:
         if result.success:
-            remove_service(cfg, result.service)
+            base_service = result.service.split("@")[0]
+            if base_service not in removed_services:
+                remove_service(cfg, base_service)
+                removed_services.add(base_service)
 
     _maybe_regenerate_traefik(cfg)
     _report_results(results)
