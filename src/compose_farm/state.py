@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 from typing import TYPE_CHECKING, Any
 
 import yaml
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from .config import Config
 
 
@@ -39,6 +42,14 @@ def save_state(config: Config, deployed: dict[str, str | list[str]]) -> None:
         yaml.safe_dump({"deployed": _sorted_dict(deployed)}, f, sort_keys=False)
 
 
+@contextlib.contextmanager
+def _modify_state(config: Config) -> Generator[dict[str, str | list[str]], None, None]:
+    """Context manager to load, modify, and save state."""
+    state = load_state(config)
+    yield state
+    save_state(config, state)
+
+
 def get_service_host(config: Config, service: str) -> str | None:
     """Get the host where a service is currently deployed.
 
@@ -66,23 +77,20 @@ def get_service_hosts(config: Config, service: str) -> list[str]:
 
 def set_service_host(config: Config, service: str, host: str) -> None:
     """Record that a service is deployed on a host."""
-    state = load_state(config)
-    state[service] = host
-    save_state(config, state)
+    with _modify_state(config) as state:
+        state[service] = host
 
 
 def set_multi_host_service(config: Config, service: str, hosts: list[str]) -> None:
     """Record that a multi-host service is deployed on multiple hosts."""
-    state = load_state(config)
-    state[service] = hosts
-    save_state(config, state)
+    with _modify_state(config) as state:
+        state[service] = hosts
 
 
 def remove_service(config: Config, service: str) -> None:
     """Remove a service from the state (after down)."""
-    state = load_state(config)
-    state.pop(service, None)
-    save_state(config, state)
+    with _modify_state(config) as state:
+        state.pop(service, None)
 
 
 def add_service_to_host(config: Config, service: str, host: str) -> None:
@@ -91,21 +99,19 @@ def add_service_to_host(config: Config, service: str, host: str) -> None:
     For multi-host services, adds the host to the list if not present.
     For single-host services, sets the host.
     """
-    state = load_state(config)
-    current = state.get(service)
+    with _modify_state(config) as state:
+        current = state.get(service)
 
-    if config.is_multi_host(service):
-        # Multi-host: add to list if not present
-        if isinstance(current, list):
-            if host not in current:
-                state[service] = [*current, host]
+        if config.is_multi_host(service):
+            # Multi-host: add to list if not present
+            if isinstance(current, list):
+                if host not in current:
+                    state[service] = [*current, host]
+            else:
+                state[service] = [host]
         else:
-            state[service] = [host]
-    else:
-        # Single-host: just set it
-        state[service] = host
-
-    save_state(config, state)
+            # Single-host: just set it
+            state[service] = host
 
 
 def remove_service_from_host(config: Config, service: str, host: str) -> None:
@@ -114,23 +120,21 @@ def remove_service_from_host(config: Config, service: str, host: str) -> None:
     For multi-host services, removes just that host from the list.
     For single-host services, removes the service entirely if host matches.
     """
-    state = load_state(config)
-    current = state.get(service)
-    if current is None:
-        return
+    with _modify_state(config) as state:
+        current = state.get(service)
+        if current is None:
+            return
 
-    if isinstance(current, list):
-        # Multi-host: remove this host from list
-        remaining = [h for h in current if h != host]
-        if remaining:
-            state[service] = remaining
-        else:
+        if isinstance(current, list):
+            # Multi-host: remove this host from list
+            remaining = [h for h in current if h != host]
+            if remaining:
+                state[service] = remaining
+            else:
+                state.pop(service, None)
+        elif current == host:
+            # Single-host: remove if matches
             state.pop(service, None)
-    elif current == host:
-        # Single-host: remove if matches
-        state.pop(service, None)
-
-    save_state(config, state)
 
 
 def get_services_needing_migration(config: Config) -> list[str]:

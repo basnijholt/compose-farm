@@ -62,7 +62,7 @@ from .state import (
 from .traefik import generate_traefik_config
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine, Mapping
+    from collections.abc import Callable, Coroutine, Mapping
 
 T = TypeVar("T")
 
@@ -187,6 +187,28 @@ def _report_results(results: list[CommandResult]) -> None:
         raise typer.Exit(1)
 
 
+def _run_host_operation(
+    cfg: Config,
+    svc_list: list[str],
+    host: str,
+    command: str,
+    action_verb: str,
+    state_callback: Callable[[Config, str, str], None],
+) -> None:
+    """Run an operation on a specific host for multiple services."""
+    results: list[CommandResult] = []
+    for service in svc_list:
+        _validate_host_for_service(cfg, service, host)
+        console.print(f"[cyan]\\[{service}][/] {action_verb} on [magenta]{host}[/]...")
+        result = _run_async(run_compose_on_host(cfg, service, host, command, raw=True))
+        print()  # Newline after raw output
+        results.append(result)
+        if result.success:
+            state_callback(cfg, service, host)
+    _maybe_regenerate_traefik(cfg)
+    _report_results(results)
+
+
 ServicesArg = Annotated[
     list[str] | None,
     typer.Argument(help="Services to operate on"),
@@ -252,17 +274,7 @@ def up(
 
     # Per-host operation: run on specific host only
     if host:
-        results: list[CommandResult] = []
-        for service in svc_list:
-            _validate_host_for_service(cfg, service, host)
-            console.print(f"[cyan]\\[{service}][/] Starting on [magenta]{host}[/]...")
-            result = _run_async(run_compose_on_host(cfg, service, host, "up -d", raw=True))
-            print()  # Newline after raw output
-            results.append(result)
-            if result.success:
-                add_service_to_host(cfg, service, host)
-        _maybe_regenerate_traefik(cfg)
-        _report_results(results)
+        _run_host_operation(cfg, svc_list, host, "up -d", "Starting", add_service_to_host)
         return
 
     # Normal operation: use up_services with migration logic
@@ -283,17 +295,7 @@ def down(
 
     # Per-host operation: run on specific host only
     if host:
-        results: list[CommandResult] = []
-        for service in svc_list:
-            _validate_host_for_service(cfg, service, host)
-            console.print(f"[cyan]\\[{service}][/] Stopping on [magenta]{host}[/]...")
-            result = _run_async(run_compose_on_host(cfg, service, host, "down", raw=True))
-            print()  # Newline after raw output
-            results.append(result)
-            if result.success:
-                remove_service_from_host(cfg, service, host)
-        _maybe_regenerate_traefik(cfg)
-        _report_results(results)
+        _run_host_operation(cfg, svc_list, host, "down", "Stopping", remove_service_from_host)
         return
 
     # Normal operation
