@@ -253,12 +253,17 @@ def logs(
     services: ServicesArg = None,
     all_services: AllOption = False,
     follow: Annotated[bool, typer.Option("--follow", "-f", help="Follow logs")] = False,
-    tail: Annotated[int, typer.Option("--tail", "-n", help="Number of lines")] = 100,
+    tail: Annotated[
+        int | None,
+        typer.Option("--tail", "-n", help="Number of lines (default: 20 for --all, 100 otherwise)"),
+    ] = None,
     config: ConfigOption = None,
 ) -> None:
     """Show service logs."""
     svc_list, cfg = _get_services(services or [], all_services, config)
-    cmd = f"logs --tail {tail}"
+    # Default to fewer lines when showing all services
+    effective_tail = tail if tail is not None else (20 if all_services else 100)
+    cmd = f"logs --tail {effective_tail}"
     if follow:
         cmd += " -f"
     results = _run_async(run_on_services(cfg, svc_list, cmd))
