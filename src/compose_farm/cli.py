@@ -21,13 +21,18 @@ from rich.table import Table
 
 from . import __version__
 from .config import Config, load_config
-from .executor import CommandResult, run_command, run_on_services, run_sequential_on_services
-from .logs import snapshot_services
+from .executor import (
+    CommandResult,
+    check_service_running,
+    run_command,
+    run_on_services,
+    run_sequential_on_services,
+)
+from .logs import _collect_service_entries
 from .operations import (
     check_host_compatibility,
     check_mounts_on_configured_hosts,
     check_networks_on_configured_hosts,
-    discover_running_services,
     up_services,
 )
 from .state import get_services_needing_migration, load_state, remove_service, save_state
@@ -480,6 +485,106 @@ def traefik_file(
         err_console.print(f"[yellow]![/] {warning}")
 
 
+def _discover_services_with_progress(cfg: Config) -> dict[str, str]:
+    """Discover running services with a progress bar."""
+
+    async def check_service(service: str) -> tuple[str, str | None]:
+        """Check where a service is running. Returns (service, host_name) or (service, None)."""
+        assigned_host = cfg.services[service]
+        # Check assigned host first (most common case)
+        if await check_service_running(cfg, service, assigned_host):
+            return service, assigned_host
+        # Check other hosts
+        for host_name in cfg.hosts:
+            if host_name == assigned_host:
+                continue
+            if await check_service_running(cfg, service, host_name):
+                return service, host_name
+        return service, None
+
+    async def gather_with_progress(progress: Progress, task_id: TaskID) -> dict[str, str]:
+        services = list(cfg.services.keys())
+        tasks = [asyncio.create_task(check_service(s)) for s in services]
+        discovered: dict[str, str] = {}
+        for coro in asyncio.as_completed(tasks):
+            service, host = await coro
+            if host is not None:
+                discovered[service] = host
+            progress.update(task_id, advance=1, description=f"[cyan]{service}[/]")
+        return discovered
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console,
+        transient=True,
+    ) as progress:
+        task_id = progress.add_task("Discovering...", total=len(cfg.services))
+        return asyncio.run(gather_with_progress(progress, task_id))
+
+
+def _snapshot_services_with_progress(
+    cfg: Config,
+    services: list[str],
+    log_path: Path | None,
+) -> Path:
+    """Capture image digests with a progress bar."""
+    from datetime import UTC, datetime
+
+    from .logs import (
+        DEFAULT_LOG_PATH,
+        SnapshotEntry,
+        _isoformat,
+        _load_existing_entries,
+        _merge_entries,
+        _write_toml,
+    )
+
+    async def collect_service(service: str, now: datetime) -> list[SnapshotEntry]:
+        try:
+            return await _collect_service_entries(cfg, service, now=now)
+        except RuntimeError:
+            return []
+
+    async def gather_with_progress(
+        progress: Progress, task_id: TaskID, now: datetime
+    ) -> list[SnapshotEntry]:
+        tasks = [asyncio.create_task(collect_service(s, now)) for s in services]
+        all_entries: list[SnapshotEntry] = []
+        for coro in asyncio.as_completed(tasks):
+            entries = await coro
+            all_entries.extend(entries)
+            progress.update(task_id, advance=1)
+        return all_entries
+
+    effective_log_path = log_path or DEFAULT_LOG_PATH
+    now_dt = datetime.now(UTC)
+    now_iso = _isoformat(now_dt)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        console=console,
+        transient=True,
+    ) as progress:
+        task_id = progress.add_task("Capturing digests...", total=len(services))
+        snapshot_entries = asyncio.run(gather_with_progress(progress, task_id, now_dt))
+
+    if not snapshot_entries:
+        msg = "No image digests were captured"
+        raise RuntimeError(msg)
+
+    existing_entries = _load_existing_entries(effective_log_path)
+    merged_entries = _merge_entries(existing_entries, snapshot_entries, now_iso=now_iso)
+    meta = {"generated_at": now_iso, "compose_dir": str(cfg.compose_dir)}
+    _write_toml(effective_log_path, meta=meta, entries=merged_entries)
+    return effective_log_path
+
+
 def _report_sync_changes(
     added: list[str],
     removed: list[str],
@@ -527,8 +632,7 @@ def sync(
     cfg = _load_config_or_exit(config)
     current_state = load_state(cfg)
 
-    console.print("Discovering running services...")
-    discovered = _run_async(discover_running_services(cfg))
+    discovered = _discover_services_with_progress(cfg)
 
     # Calculate changes
     added = [s for s in discovered if s not in current_state]
@@ -557,9 +661,8 @@ def sync(
 
     # Capture image digests for running services
     if discovered:
-        console.print("\nCapturing image digests...")
         try:
-            path = _run_async(snapshot_services(cfg, list(discovered.keys()), log_path=log_path))
+            path = _snapshot_services_with_progress(cfg, list(discovered.keys()), log_path)
             console.print(f"[green]✓[/] Digests written to {path}")
         except RuntimeError as exc:
             err_console.print(f"[yellow]![/] {exc}")
