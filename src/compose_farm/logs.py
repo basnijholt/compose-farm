@@ -6,19 +6,20 @@ import json
 import tomllib
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from .config import xdg_config_home
 from .executor import run_compose
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterable
+    from pathlib import Path
 
     from .config import Config
     from .executor import CommandResult
 
 
-DEFAULT_LOG_PATH = Path.home() / ".config" / "compose-farm" / "dockerfarm-log.toml"
+DEFAULT_LOG_PATH = xdg_config_home() / "compose-farm" / "dockerfarm-log.toml"
 DIGEST_HEX_LENGTH = 64
 
 

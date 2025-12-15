@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import getpass
+import os
 from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
+
+
+def xdg_config_home() -> Path:
+    """Get XDG config directory, respecting XDG_CONFIG_HOME env var."""
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
 
 
 class Host(BaseModel):
@@ -144,11 +150,11 @@ def load_config(path: Path | None = None) -> Config:
     Search order:
     1. Explicit path if provided
     2. ./compose-farm.yaml
-    3. ~/.config/compose-farm/compose-farm.yaml
+    3. $XDG_CONFIG_HOME/compose-farm/compose-farm.yaml (defaults to ~/.config)
     """
     search_paths = [
         Path("compose-farm.yaml"),
-        Path.home() / ".config" / "compose-farm" / "compose-farm.yaml",
+        xdg_config_home() / "compose-farm" / "compose-farm.yaml",
     ]
 
     if path:
