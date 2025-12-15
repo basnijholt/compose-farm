@@ -28,6 +28,7 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 - [Usage](#usage)
   - [Auto-Migration](#auto-migration)
 - [Traefik Multihost Ingress (File Provider)](#traefik-multihost-ingress-file-provider)
+- [Comparison with Alternatives](#comparison-with-alternatives)
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -58,28 +59,6 @@ Compose Farm just automates what you'd do by hand:
 - Generates Traefik file-provider config for cross-host routing
 
 **It's a convenience wrapper, not a new paradigm.**
-
-## Comparison with Alternatives
-
-There are many ways to run containers on multiple hosts. Here is where Compose Farm sits:
-
-### 1. The "Native" Way (Docker Contexts)
-You can use `docker context create remote ssh://...` and `docker compose --context remote up`.
-*   **Gap:** It's manual. You must remember which host runs which service. There is no global view, no parallel execution, and no auto-migration when you want to move a service.
-
-### 2. The "Heavy" Way (Kubernetes / Docker Swarm)
-Full orchestration platforms that abstract away the hardware.
-*   **Gap:** Requires cluster initialization, managing separate control planes, and often rewriting compose files to be compatible. They introduce complexity (consensus, overlay networks) unnecessary for static "pet" servers.
-
-### 3. The "DevOps" Way (Ansible / Terraform)
-Infrastructure-as-Code tools that can SSH in and deploy containers.
-*   **Gap:** These are "push-based" configuration management tools, not interactive CLIs. They are great for setting up state but clumsy for day-to-day operations like tailing logs (`cf logs -f`) or quickly restarting a specific service.
-
-### 4. The "PaaS" Way (Portainer / Coolify)
-Web-based management UIs.
-*   **Gap:** These are UI-first tools that often require installing agents on your servers. Compose Farm is CLI-first and agentless.
-
-**Compose Farm is the "Middle Ground":** It productizes the manual SSH pattern into a robust CLI. It gives you the "cluster feel" (unified commands, state tracking) without the "cluster cost" (complexity, agents, control planes).
 
 ## How It Works
 
@@ -373,6 +352,20 @@ Update your Traefik config to use directory watching instead of a single file:
 - --providers.file.directory=/dynamic.d
 - --providers.file.watch=true
 ```
+
+## Comparison with Alternatives
+
+There are many ways to run containers on multiple hosts. Here is where Compose Farm sits:
+
+**Docker Contexts** — You can use `docker context create remote ssh://...` and `docker compose --context remote up`. But it's manual: you must remember which host runs which service, there's no global view, no parallel execution, and no auto-migration.
+
+**Kubernetes / Docker Swarm** — Full orchestration that abstracts away the hardware. But they require cluster initialization, separate control planes, and often rewriting compose files. They introduce complexity (consensus, overlay networks) unnecessary for static "pet" servers.
+
+**Ansible / Terraform** — Infrastructure-as-Code tools that can SSH in and deploy containers. But they're push-based configuration management, not interactive CLIs. Great for setting up state, clumsy for day-to-day operations like `cf logs -f` or quickly restarting a service.
+
+**Portainer / Coolify** — Web-based management UIs. But they're UI-first and often require agents on your servers. Compose Farm is CLI-first and agentless.
+
+**Compose Farm is the middle ground:** a robust CLI that productizes the manual SSH pattern. You get the "cluster feel" (unified commands, state tracking) without the "cluster cost" (complexity, agents, control planes).
 
 ## License
 
