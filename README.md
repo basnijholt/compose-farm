@@ -29,10 +29,12 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 ## Why Compose Farm?
 
-I run 100+ Docker Compose stacks on an LXC container that frequently runs out of memory. I needed a way to distribute services across multiple machines without the complexity of:
+I used to run 100+ Docker Compose stacks on a single machine that kept running out of memory. I needed a way to distribute services across multiple machines without the complexity of:
 
 - **Kubernetes**: Overkill for my use case. I don't need pods, services, ingress controllers, or YAML manifests 10x the size of my compose files.
 - **Docker Swarm**: Effectively in maintenance mode—no longer being invested in by Docker.
+
+Both Kubernetes and Docker Swarm require changes to your compose files. **Compose Farm requires zero changes**—your existing `docker-compose.yml` files work as-is.
 
 **Compose Farm is intentionally simple**: one YAML config mapping services to hosts, and a CLI that runs `docker compose` commands over SSH. That's it.
 
