@@ -611,6 +611,8 @@ def _check_ssh_connectivity(cfg: Config) -> list[str]:
     if not remote_hosts:
         return []
 
+    console.print()  # Spacing before progress bar
+
     async def check_host(host_name: str) -> tuple[str, bool]:
         host = cfg.hosts[host_name]
         result = await run_command(host, "echo ok", host_name, stream=False)
@@ -862,11 +864,11 @@ def _report_network_errors(network_errors: list[tuple[str, str, str]]) -> None:
 def _report_ssh_status(unreachable_hosts: list[str]) -> bool:
     """Report SSH connectivity status. Returns True if there are errors."""
     if unreachable_hosts:
-        console.print(f"\n[red]Unreachable hosts[/] ({len(unreachable_hosts)}):")
+        console.print(f"[red]Unreachable hosts[/] ({len(unreachable_hosts)}):")
         for host in sorted(unreachable_hosts):
             console.print(f"  [red]✗[/] [magenta]{host}[/]")
         return True
-    console.print("\n[green]✓[/] All hosts reachable")
+    console.print("[green]✓[/] All hosts reachable")
     return False
 
 
