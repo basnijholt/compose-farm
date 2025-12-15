@@ -16,7 +16,6 @@ from rich.progress import (
     Progress,
     SpinnerColumn,
     TaskID,
-    TaskProgressColumn,
     TextColumn,
     TimeElapsedColumn,
 )
@@ -483,15 +482,7 @@ def _get_container_counts_with_progress(cfg: Config) -> dict[str, int]:
             progress.update(task_id, advance=1, description=f"[cyan]{host_name}[/]")
         return results
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TaskProgressColumn(),
-        console=console,
-        transient=True,  # Clear progress bar when done
-    ) as progress:
-        task_id = progress.add_task("Querying hosts...", total=len(cfg.hosts))
+    with _progress_bar("Querying hosts", len(cfg.hosts)) as (progress, task_id):
         return asyncio.run(gather_with_progress(progress, task_id))
 
 
