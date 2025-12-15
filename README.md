@@ -19,6 +19,7 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
   - [What Compose Farm doesn't do](#what-compose-farm-doesnt-do)
 - [Installation](#installation)
 - [Configuration](#configuration)
+  - [Multi-Host Services](#multi-host-services)
 - [Usage](#usage)
   - [Auto-Migration](#auto-migration)
 - [Traefik Multihost Ingress (File Provider)](#traefik-multihost-ingress-file-provider)
@@ -128,9 +129,42 @@ services:
   jellyfin: server-2
   sonarr: server-1
   radarr: local  # Runs on the machine where you invoke compose-farm
+
+  # Multi-host services (run on multiple/all hosts)
+  autokuma: all              # Runs on ALL configured hosts
+  dozzle: [server-1, server-2]  # Explicit list of hosts
 ```
 
 Compose files are expected at `{compose_dir}/{service}/compose.yaml` (also supports `compose.yml`, `docker-compose.yml`, `docker-compose.yaml`).
+
+### Multi-Host Services
+
+Some services need to run on every host. This is typically required for tools that access **host-local resources** like the Docker socket (`/var/run/docker.sock`), which cannot be accessed remotely without security risks.
+
+Common use cases:
+- **AutoKuma** - auto-creates Uptime Kuma monitors from container labels (needs local Docker socket)
+- **Dozzle** - real-time log viewer (needs local Docker socket)
+- **Promtail/Alloy** - log shipping agents (needs local Docker socket and log files)
+- **node-exporter** - Prometheus host metrics (needs access to host /proc, /sys)
+
+This is the same pattern as Docker Swarm's `deploy.mode: global`.
+
+Use the `all` keyword or an explicit list:
+
+```yaml
+services:
+  # Run on all configured hosts
+  autokuma: all
+  dozzle: all
+
+  # Run on specific hosts
+  node-exporter: [server-1, server-2, server-3]
+```
+
+When you run `cf up autokuma`, it starts the service on all hosts in parallel. Multi-host services:
+- Are excluded from migration logic (they always run everywhere)
+- Show output with `[service@host]` prefix for each host
+- Track all running hosts in state
 
 ## Usage
 
