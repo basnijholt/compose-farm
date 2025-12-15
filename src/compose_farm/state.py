@@ -26,11 +26,16 @@ def load_state(config: Config) -> dict[str, str]:
     return deployed
 
 
+def _sorted_dict(d: dict[str, str]) -> dict[str, str]:
+    """Return a dictionary sorted by keys."""
+    return dict(sorted(d.items(), key=lambda item: item[0]))
+
+
 def save_state(config: Config, deployed: dict[str, str]) -> None:
     """Save the deployment state."""
     state_path = config.get_state_path()
     with state_path.open("w") as f:
-        yaml.safe_dump({"deployed": deployed}, f, sort_keys=False)
+        yaml.safe_dump({"deployed": _sorted_dict(deployed)}, f, sort_keys=False)
 
 
 def get_service_host(config: Config, service: str) -> str | None:

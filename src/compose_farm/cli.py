@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, TypeVar
 
@@ -22,19 +24,29 @@ from rich.progress import (
 from rich.table import Table
 
 from . import __version__
+from .compose import parse_external_networks
 from .config import Config, load_config
 from .executor import (
     CommandResult,
+    check_networks_exist,
+    check_paths_exist,
     check_service_running,
     run_command,
     run_on_services,
     run_sequential_on_services,
 )
-from .logs import _collect_service_entries
+from .logs import (
+    DEFAULT_LOG_PATH,
+    SnapshotEntry,
+    _collect_service_entries,
+    _isoformat,
+    _load_existing_entries,
+    _merge_entries,
+    _write_toml,
+)
 from .operations import (
     check_host_compatibility,
-    check_mounts_on_configured_hosts,
-    check_networks_on_configured_hosts,
+    get_service_paths,
     up_services,
 )
 from .state import get_services_needing_migration, load_state, remove_service, save_state
@@ -327,7 +339,6 @@ def _group_services_by_host(
 
 def _get_container_counts_with_progress(cfg: Config) -> dict[str, int]:
     """Get container counts from all hosts with a progress bar."""
-    import contextlib
 
     async def get_count(host_name: str) -> tuple[str, int]:
         host = cfg.hosts[host_name]
@@ -537,16 +548,6 @@ def _snapshot_services_with_progress(
     log_path: Path | None,
 ) -> Path:
     """Capture image digests with a progress bar."""
-    from datetime import UTC, datetime
-
-    from .logs import (
-        DEFAULT_LOG_PATH,
-        SnapshotEntry,
-        _isoformat,
-        _load_existing_entries,
-        _merge_entries,
-        _write_toml,
-    )
 
     async def collect_service(service: str, now: datetime) -> list[SnapshotEntry]:
         try:
@@ -599,6 +600,72 @@ def _snapshot_services_with_progress(
     meta = {"generated_at": now_iso, "compose_dir": str(cfg.compose_dir)}
     _write_toml(effective_log_path, meta=meta, entries=merged_entries)
     return effective_log_path
+
+
+def _check_mounts_and_networks_with_progress(
+    cfg: Config,
+    services: list[str],
+) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
+    """Check mounts and networks for all services with a progress bar.
+
+    Returns (mount_errors, network_errors) where each is a list of
+    (service, host, missing_item) tuples.
+    """
+
+    async def check_service(
+        service: str,
+    ) -> tuple[str, list[tuple[str, str, str]], list[tuple[str, str, str]]]:
+        """Check mounts and networks for a single service."""
+        host_name = cfg.services[service]
+        mount_errors: list[tuple[str, str, str]] = []
+        network_errors: list[tuple[str, str, str]] = []
+
+        # Check mounts
+        paths = get_service_paths(cfg, service)
+        path_exists = await check_paths_exist(cfg, host_name, paths)
+        for path, found in path_exists.items():
+            if not found:
+                mount_errors.append((service, host_name, path))
+
+        # Check networks
+        networks = parse_external_networks(cfg, service)
+        if networks:
+            net_exists = await check_networks_exist(cfg, host_name, networks)
+            for net, found in net_exists.items():
+                if not found:
+                    network_errors.append((service, host_name, net))
+
+        return service, mount_errors, network_errors
+
+    async def gather_with_progress(
+        progress: Progress, task_id: TaskID
+    ) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
+        tasks = [asyncio.create_task(check_service(s)) for s in services]
+        all_mount_errors: list[tuple[str, str, str]] = []
+        all_network_errors: list[tuple[str, str, str]] = []
+
+        for coro in asyncio.as_completed(tasks):
+            service, mount_errs, net_errs = await coro
+            all_mount_errors.extend(mount_errs)
+            all_network_errors.extend(net_errs)
+            progress.update(task_id, advance=1, description=f"[cyan]{service}[/]")
+
+        return all_mount_errors, all_network_errors
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[bold blue]Checking mounts/networks[/]"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("•"),
+        TimeElapsedColumn(),
+        TextColumn("•"),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+        transient=True,
+    ) as progress:
+        task_id = progress.add_task("", total=len(services))
+        return asyncio.run(gather_with_progress(progress, task_id))
 
 
 def _report_sync_changes(
@@ -809,9 +876,7 @@ def check(
     _report_traefik_status(cfg, svc_list)
 
     if not local:
-        console.print("\nChecking mounts and networks...")
-        mount_errors = _run_async(check_mounts_on_configured_hosts(cfg, svc_list))
-        network_errors = _run_async(check_networks_on_configured_hosts(cfg, svc_list))
+        mount_errors, network_errors = _check_mounts_and_networks_with_progress(cfg, svc_list)
 
         if mount_errors:
             _report_mount_errors(mount_errors)
