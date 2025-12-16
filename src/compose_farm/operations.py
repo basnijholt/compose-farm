@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .compose import parse_external_networks, parse_host_volumes
+from .compose import parse_devices, parse_external_networks, parse_host_volumes
 from .console import console, err_console
 from .executor import (
     CommandResult,
@@ -65,18 +65,32 @@ async def _check_networks_for_migration(
     return [n for n, found in exists.items() if not found]
 
 
+async def _check_devices_for_migration(
+    cfg: Config,
+    service: str,
+    target_host: str,
+) -> list[str]:
+    """Check if device paths exist on target host. Returns list of missing devices."""
+    devices = parse_devices(cfg, service)
+    if not devices:
+        return []
+    exists = await check_paths_exist(cfg, target_host, devices)
+    return [d for d, found in exists.items() if not found]
+
+
 async def _preflight_check(
     cfg: Config,
     service: str,
     target_host: str,
-) -> tuple[list[str], list[str]]:
+) -> tuple[list[str], list[str], list[str]]:
     """Run pre-flight checks for a service on target host.
 
-    Returns (missing_paths, missing_networks).
+    Returns (missing_paths, missing_networks, missing_devices).
     """
     missing_paths = await _check_mounts_for_migration(cfg, service, target_host)
     missing_networks = await _check_networks_for_migration(cfg, service, target_host)
-    return missing_paths, missing_networks
+    missing_devices = await _check_devices_for_migration(cfg, service, target_host)
+    return missing_paths, missing_networks, missing_devices
 
 
 def _report_preflight_failures(
@@ -84,6 +98,7 @@ def _report_preflight_failures(
     target_host: str,
     missing_paths: list[str],
     missing_networks: list[str],
+    missing_devices: list[str],
 ) -> None:
     """Report pre-flight check failures."""
     err_console.print(
@@ -93,6 +108,8 @@ def _report_preflight_failures(
         err_console.print(f"  [red]✗[/] missing path: {path}")
     for net in missing_networks:
         err_console.print(f"  [red]✗[/] missing network: {net}")
+    for dev in missing_devices:
+        err_console.print(f"  [red]✗[/] missing device: {dev}")
 
 
 async def _up_multi_host_service(
@@ -110,9 +127,13 @@ async def _up_multi_host_service(
 
     # Pre-flight checks on all hosts
     for host_name in host_names:
-        missing_paths, missing_networks = await _preflight_check(cfg, service, host_name)
-        if missing_paths or missing_networks:
-            _report_preflight_failures(service, host_name, missing_paths, missing_networks)
+        missing_paths, missing_networks, missing_devices = await _preflight_check(
+            cfg, service, host_name
+        )
+        if missing_paths or missing_networks or missing_devices:
+            _report_preflight_failures(
+                service, host_name, missing_paths, missing_networks, missing_devices
+            )
             results.append(
                 CommandResult(service=f"{service}@{host_name}", exit_code=1, success=False)
             )
@@ -212,10 +233,14 @@ async def up_services(
             target_host = cfg.get_hosts(service)[0]
             current_host = get_service_host(cfg, service)
 
-            # Pre-flight check: verify paths and networks exist on target
-            missing_paths, missing_networks = await _preflight_check(cfg, service, target_host)
-            if missing_paths or missing_networks:
-                _report_preflight_failures(service, target_host, missing_paths, missing_networks)
+            # Pre-flight check: verify paths, networks, and devices exist on target
+            missing_paths, missing_networks, missing_devices = await _preflight_check(
+                cfg, service, target_host
+            )
+            if missing_paths or missing_networks or missing_devices:
+                _report_preflight_failures(
+                    service, target_host, missing_paths, missing_networks, missing_devices
+                )
                 results.append(CommandResult(service=service, exit_code=1, success=False))
                 continue
 

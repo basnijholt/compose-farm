@@ -203,6 +203,51 @@ def parse_host_volumes(config: Config, service: str) -> list[str]:
     return unique
 
 
+def parse_devices(config: Config, service: str) -> list[str]:
+    """Extract host device paths from a service's compose file.
+
+    Returns a list of host device paths (e.g., /dev/dri, /dev/dri/renderD128).
+    """
+    compose_path = config.get_compose_path(service)
+    if not compose_path.exists():
+        return []
+
+    env = _load_env(compose_path)
+    compose_data = yaml.safe_load(compose_path.read_text()) or {}
+    raw_services = compose_data.get("services", {})
+    if not isinstance(raw_services, dict):
+        return []
+
+    devices: list[str] = []
+    for definition in raw_services.values():
+        if not isinstance(definition, dict):
+            continue
+
+        device_list = definition.get("devices")
+        if not device_list or not isinstance(device_list, list):
+            continue
+
+        for item in device_list:
+            if not isinstance(item, str):
+                continue
+            interpolated = _interpolate(item, env)
+            # Format: host_path:container_path[:options]
+            parts = interpolated.split(":")
+            if parts:
+                host_path = parts[0]
+                if host_path.startswith("/dev/"):
+                    devices.append(host_path)
+
+    # Return unique devices, preserving order
+    seen: set[str] = set()
+    unique: list[str] = []
+    for d in devices:
+        if d not in seen:
+            seen.add(d)
+            unique.append(d)
+    return unique
+
+
 def parse_external_networks(config: Config, service: str) -> list[str]:
     """Extract external network names from a service's compose file.
 
