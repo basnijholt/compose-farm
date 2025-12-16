@@ -167,9 +167,16 @@ async def up_services(
                     f"[magenta]{current_host}[/] → [magenta]{target_host}[/]..."
                 )
                 # Pre-pull images on target host to minimize downtime
-                await run_compose(cfg, service, "pull", raw=raw)
+                pull_result = await run_compose(cfg, service, "pull", raw=raw)
                 if raw:
                     print()  # Ensure newline after raw output
+                if not pull_result.success:
+                    err_console.print(
+                        f"{prefix} [red]✗[/] Pull failed on [magenta]{target_host}[/], "
+                        "leaving service on current host"
+                    )
+                    results.append(pull_result)
+                    continue
                 down_result = await run_compose_on_host(cfg, service, current_host, "down", raw=raw)
                 if raw:
                     print()  # Ensure newline after raw output
