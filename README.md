@@ -285,31 +285,33 @@ cf ps
 
  Compose Farm - run docker compose commands across multiple hosts
 
-╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --version             -v        Show version and exit                                  │
-│ --install-completion            Install completion for the current shell.              │
-│ --show-completion               Show completion for the current shell, to copy it or   │
-│                                 customize the installation.                            │
-│ --help                -h        Show this message and exit.                            │
-╰────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Lifecycle ────────────────────────────────────────────────────────────────────────────╮
-│ up             Start services (docker compose up -d). Auto-migrates if host changed.   │
-│ down           Stop services (docker compose down).                                    │
-│ pull           Pull latest images (docker compose pull).                               │
-│ restart        Restart services (down + up).                                           │
-│ update         Update services (pull + down + up).                                     │
-╰────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Monitoring ───────────────────────────────────────────────────────────────────────────╮
-│ logs           Show service logs.                                                      │
-│ ps             Show status of all services.                                            │
-│ stats          Show overview statistics for hosts and services.                        │
-╰────────────────────────────────────────────────────────────────────────────────────────╯
-╭─ Configuration ────────────────────────────────────────────────────────────────────────╮
-│ traefik-file   Generate a Traefik file-provider fragment from compose Traefik labels.  │
-│ sync           Sync local state with running services.                                 │
-│ check          Validate configuration, traefik labels, mounts, and networks.           │
-│ init-network   Create Docker network on hosts with consistent settings.                │
-╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ --version             -v        Show version and exit                        │
+│ --install-completion            Install completion for the current shell.    │
+│ --show-completion               Show completion for the current shell, to    │
+│                                 copy it or customize the installation.       │
+│ --help                -h        Show this message and exit.                  │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Lifecycle ──────────────────────────────────────────────────────────────────╮
+│ up             Start services (docker compose up -d). Auto-migrates if host  │
+│                changed.                                                      │
+│ down           Stop services (docker compose down).                          │
+│ pull           Pull latest images (docker compose pull).                     │
+│ restart        Restart services (down + up).                                 │
+│ update         Update services (pull + down + up).                           │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Monitoring ─────────────────────────────────────────────────────────────────╮
+│ logs           Show service logs.                                            │
+│ ps             Show status of all services.                                  │
+│ stats          Show overview statistics for hosts and services.              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Configuration ──────────────────────────────────────────────────────────────╮
+│ traefik-file   Generate a Traefik file-provider fragment from compose        │
+│                Traefik labels.                                               │
+│ sync           Sync local state with running services.                       │
+│ check          Validate configuration, traefik labels, mounts, and networks. │
+│ init-network   Create Docker network on hosts with consistent settings.      │
+╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
