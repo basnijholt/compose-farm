@@ -329,6 +329,7 @@ cf ps
 │ sync           Sync local state with running services.                       │
 │ check          Validate configuration, traefik labels, mounts, and networks. │
 │ init-network   Create Docker network on hosts with consistent settings.      │
+│ config         Manage compose-farm configuration files.                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
