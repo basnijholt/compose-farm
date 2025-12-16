@@ -363,9 +363,10 @@ There are many ways to run containers on multiple hosts. Here is where Compose F
 | Version controlled | ✅ | ✅ | ✅ | ❌ | ✅ |
 | State tracking | ❌ | ✅ | ✅ | ✅ | ✅ |
 | Auto-migration | ❌ | ✅ | ❌ | ❌ | ✅ |
-| Unified Multi-host CLI | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Interactive CLI | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Parallel execution | ❌ | ✅ | ✅ | ✅ | ✅ |
 | Agentless | ✅ | ❌ | ✅ | ❌ | ✅ |
+| High availability | ❌ | ✅ | ❌ | ❌ | ❌ |
 
 **Docker Contexts** — You can use `docker context create remote ssh://...` and `docker compose --context remote up`. But it's manual: you must remember which host runs which service, there's no global view, no parallel execution, and no auto-migration.
 
