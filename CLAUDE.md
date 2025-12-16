@@ -11,7 +11,8 @@
 ```
 compose_farm/
 ├── cli/               # CLI subpackage
-│   ├── __init__.py    # Main Typer app, version callback
+│   ├── __init__.py    # Imports modules to trigger command registration
+│   ├── app.py         # Shared Typer app instance, version callback
 │   ├── common.py      # Shared helpers, options, progress bar utilities
 │   ├── config.py      # Config subcommand (init, show, path, validate, edit)
 │   ├── lifecycle.py   # up, down, pull, restart, update commands
