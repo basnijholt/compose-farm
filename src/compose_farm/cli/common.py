@@ -106,7 +106,11 @@ def get_services(
 
 def run_async(coro: Coroutine[None, None, _T]) -> _T:
     """Run async coroutine."""
-    return asyncio.run(coro)
+    try:
+        return asyncio.run(coro)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Interrupted[/]")
+        raise typer.Exit(130) from None  # Standard exit code for SIGINT
 
 
 def report_results(results: list[CommandResult]) -> None:

@@ -24,6 +24,16 @@ if TYPE_CHECKING:
     from .config import Config
 
 
+class OperationInterruptedError(Exception):
+    """Raised when a command is interrupted by Ctrl+C."""
+
+
+def _check_interrupted(result: CommandResult) -> None:
+    """Raise if command was interrupted."""
+    if result.interrupted:
+        raise OperationInterruptedError
+
+
 def get_service_paths(cfg: Config, service: str) -> list[str]:
     """Get all required paths for a service (compose_dir + volumes)."""
     paths = [str(cfg.compose_dir)]
@@ -153,6 +163,7 @@ async def _migrate_service(
     pull_result = await run_compose(cfg, service, "pull", raw=raw)
     if raw:
         print()  # Ensure newline after raw output
+    _check_interrupted(pull_result)
     if not pull_result.success:
         err_console.print(
             f"{prefix} [red]✗[/] Pull failed on [magenta]{target_host}[/], "
@@ -162,6 +173,7 @@ async def _migrate_service(
     build_result = await run_compose(cfg, service, "build", raw=raw)
     if raw:
         print()  # Ensure newline after raw output
+    _check_interrupted(build_result)
     if not build_result.success:
         err_console.print(
             f"{prefix} [red]✗[/] Build failed on [magenta]{target_host}[/], "
@@ -171,6 +183,7 @@ async def _migrate_service(
     down_result = await run_compose_on_host(cfg, service, current_host, "down", raw=raw)
     if raw:
         print()  # Ensure newline after raw output
+    _check_interrupted(down_result)
     if not down_result.success:
         return down_result
     return None
@@ -186,50 +199,55 @@ async def up_services(
     results: list[CommandResult] = []
     total = len(services)
 
-    for idx, service in enumerate(services, 1):
-        prefix = f"[dim][{idx}/{total}][/] [cyan]\\[{service}][/]"
+    try:
+        for idx, service in enumerate(services, 1):
+            prefix = f"[dim][{idx}/{total}][/] [cyan]\\[{service}][/]"
 
-        # Handle multi-host services separately (no migration)
-        if cfg.is_multi_host(service):
-            multi_results = await _up_multi_host_service(cfg, service, prefix, raw=raw)
-            results.extend(multi_results)
-            continue
+            # Handle multi-host services separately (no migration)
+            if cfg.is_multi_host(service):
+                multi_results = await _up_multi_host_service(cfg, service, prefix, raw=raw)
+                results.extend(multi_results)
+                continue
 
-        target_host = cfg.get_hosts(service)[0]
-        current_host = get_service_host(cfg, service)
+            target_host = cfg.get_hosts(service)[0]
+            current_host = get_service_host(cfg, service)
 
-        # Pre-flight check: verify paths and networks exist on target
-        missing_paths, missing_networks = await _preflight_check(cfg, service, target_host)
-        if missing_paths or missing_networks:
-            _report_preflight_failures(service, target_host, missing_paths, missing_networks)
-            results.append(CommandResult(service=service, exit_code=1, success=False))
-            continue
+            # Pre-flight check: verify paths and networks exist on target
+            missing_paths, missing_networks = await _preflight_check(cfg, service, target_host)
+            if missing_paths or missing_networks:
+                _report_preflight_failures(service, target_host, missing_paths, missing_networks)
+                results.append(CommandResult(service=service, exit_code=1, success=False))
+                continue
 
-        # If service is deployed elsewhere, migrate it
-        if current_host and current_host != target_host:
-            if current_host in cfg.hosts:
-                failure = await _migrate_service(
-                    cfg, service, current_host, target_host, prefix, raw=raw
-                )
-                if failure:
-                    results.append(failure)
-                    continue
-            else:
-                err_console.print(
-                    f"{prefix} [yellow]![/] was on "
-                    f"[magenta]{current_host}[/] (not in config), skipping down"
-                )
+            # If service is deployed elsewhere, migrate it
+            if current_host and current_host != target_host:
+                if current_host in cfg.hosts:
+                    failure = await _migrate_service(
+                        cfg, service, current_host, target_host, prefix, raw=raw
+                    )
+                    if failure:
+                        results.append(failure)
+                        continue
+                else:
+                    err_console.print(
+                        f"{prefix} [yellow]![/] was on "
+                        f"[magenta]{current_host}[/] (not in config), skipping down"
+                    )
 
-        # Start on target host
-        console.print(f"{prefix} Starting on [magenta]{target_host}[/]...")
-        up_result = await run_compose(cfg, service, "up -d", raw=raw)
-        if raw:
-            print()  # Ensure newline after raw output (progress bars end with \r)
-        results.append(up_result)
+            # Start on target host
+            console.print(f"{prefix} Starting on [magenta]{target_host}[/]...")
+            up_result = await run_compose(cfg, service, "up -d", raw=raw)
+            if raw:
+                print()  # Ensure newline after raw output (progress bars end with \r)
+            _check_interrupted(up_result)
+            results.append(up_result)
 
-        # Update state on success
-        if up_result.success:
-            set_service_host(cfg, service, target_host)
+            # Update state on success
+            if up_result.success:
+                set_service_host(cfg, service, target_host)
+    except OperationInterruptedError:
+        # Convert to KeyboardInterrupt to propagate up to CLI
+        raise KeyboardInterrupt from None
 
     return results
 

@@ -53,6 +53,15 @@ class CommandResult:
     stdout: str = ""
     stderr: str = ""
 
+    # SSH returns 255 when connection is closed unexpectedly (e.g., Ctrl+C)
+    _SSH_CONNECTION_CLOSED = 255
+
+    @property
+    def interrupted(self) -> bool:
+        """Check if command was killed by SIGINT (Ctrl+C)."""
+        # Negative exit codes indicate signal termination; -2 = SIGINT
+        return self.exit_code < 0 or self.exit_code == self._SSH_CONNECTION_CLOSED
+
 
 def is_local(host: Host) -> bool:
     """Check if host should run locally (no SSH)."""
