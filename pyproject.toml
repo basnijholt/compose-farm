@@ -4,6 +4,7 @@ dynamic = ["version"]
 description = "Compose Farm - run docker compose commands across multiple hosts"
 readme = "README.md"
 license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "Bas Nijholt", email = "bas@nijho.lt" }
 ]
