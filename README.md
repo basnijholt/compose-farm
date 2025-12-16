@@ -227,6 +227,8 @@ The CLI is available as both `compose-farm` and the shorter `cf` alias.
 
 All commands support `--all` to operate on all services.
 
+Each command replaces: look up host → SSH → find compose file → run `ssh host "cd /opt/compose/plex && docker compose up -d"`.
+
 ```bash
 # Start services (auto-migrates if host changed in config)
 cf up plex jellyfin
