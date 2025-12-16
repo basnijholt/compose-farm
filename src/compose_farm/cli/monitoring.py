@@ -11,6 +11,7 @@ import typer
 from rich.progress import Progress, TaskID  # noqa: TC002
 from rich.table import Table
 
+from compose_farm.cli.app import app
 from compose_farm.cli.common import (
     STATS_PREVIEW_LIMIT,
     get_services,
@@ -26,6 +27,24 @@ from compose_farm.state import get_services_needing_migration, load_state
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+# --- Shared CLI Options ---
+ServicesArg = Annotated[
+    list[str] | None,
+    typer.Argument(help="Services to operate on"),
+]
+AllOption = Annotated[
+    bool,
+    typer.Option("--all", "-a", help="Run on all services"),
+]
+ConfigOption = Annotated[
+    Path | None,
+    typer.Option("--config", "-c", help="Path to config file"),
+]
+HostOption = Annotated[
+    str | None,
+    typer.Option("--host", "-H", help="Filter to services on this host"),
+]
 
 
 def _group_services_by_host(
@@ -142,16 +161,20 @@ def _build_summary_table(
     return table
 
 
-# --- Command functions (module-level for testability) ---
+# --- Command functions ---
 
 
+@app.command(rich_help_panel="Monitoring")
 def logs(
-    services: list[str] | None = None,
-    all_services: bool = False,
-    host: str | None = None,
-    follow: bool = False,
-    tail: int | None = None,
-    config: Path | None = None,
+    services: ServicesArg = None,
+    all_services: AllOption = False,
+    host: HostOption = None,
+    follow: Annotated[bool, typer.Option("--follow", "-f", help="Follow logs")] = False,
+    tail: Annotated[
+        int | None,
+        typer.Option("--tail", "-n", help="Number of lines (default: 20 for --all, 100 otherwise)"),
+    ] = None,
+    config: ConfigOption = None,
 ) -> None:
     """Show service logs."""
     if all_services and host is not None:
@@ -183,8 +206,9 @@ def logs(
     report_results(results)
 
 
+@app.command(rich_help_panel="Monitoring")
 def ps(
-    config: Path | None = None,
+    config: ConfigOption = None,
 ) -> None:
     """Show status of all services."""
     cfg = load_config_or_exit(config)
@@ -192,9 +216,13 @@ def ps(
     report_results(results)
 
 
+@app.command(rich_help_panel="Monitoring")
 def stats(
-    live: bool = False,
-    config: Path | None = None,
+    live: Annotated[
+        bool,
+        typer.Option("--live", "-l", help="Query Docker for live container stats"),
+    ] = False,
+    config: ConfigOption = None,
 ) -> None:
     """Show overview statistics for hosts and services.
 
@@ -220,71 +248,3 @@ def stats(
 
     console.print()
     console.print(_build_summary_table(cfg, state, pending))
-
-
-# --- CLI Option Types for Typer ---
-
-_ServicesArg = Annotated[
-    list[str] | None,
-    typer.Argument(help="Services to operate on"),
-]
-_AllOption = Annotated[
-    bool,
-    typer.Option("--all", "-a", help="Run on all services"),
-]
-_ConfigOption = Annotated[
-    Path | None,
-    typer.Option("--config", "-c", help="Path to config file"),
-]
-_HostOption = Annotated[
-    str | None,
-    typer.Option("--host", "-H", help="Filter to services on this host"),
-]
-
-
-def register_commands(app: typer.Typer) -> None:
-    """Register monitoring commands on the app."""
-
-    @app.command(rich_help_panel="Monitoring")
-    def _logs(
-        services: _ServicesArg = None,
-        all_services: _AllOption = False,
-        host: _HostOption = None,
-        follow: Annotated[bool, typer.Option("--follow", "-f", help="Follow logs")] = False,
-        tail: Annotated[
-            int | None,
-            typer.Option(
-                "--tail", "-n", help="Number of lines (default: 20 for --all, 100 otherwise)"
-            ),
-        ] = None,
-        config: _ConfigOption = None,
-    ) -> None:
-        """Show service logs."""
-        logs(services, all_services, host, follow, tail, config)
-
-    @app.command(rich_help_panel="Monitoring")
-    def _ps(
-        config: _ConfigOption = None,
-    ) -> None:
-        """Show status of all services."""
-        ps(config)
-
-    @app.command(rich_help_panel="Monitoring")
-    def _stats(
-        live: Annotated[
-            bool,
-            typer.Option("--live", "-l", help="Query Docker for live container stats"),
-        ] = False,
-        config: _ConfigOption = None,
-    ) -> None:
-        """Show overview statistics for hosts and services.
-
-        Without --live: Shows config/state info (hosts, services, pending migrations).
-        With --live: Also queries Docker on each host for container counts.
-        """
-        stats(live, config)
-
-    # Rename for CLI exposure
-    _logs.__name__ = "logs"
-    _ps.__name__ = "ps"
-    _stats.__name__ = "stats"

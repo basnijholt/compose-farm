@@ -13,6 +13,7 @@ from typing import Annotated
 
 import typer
 
+from compose_farm.cli.app import app
 from compose_farm.config import load_config, xdg_config_home
 from compose_farm.console import console, err_console
 
@@ -258,3 +259,7 @@ def config_validate(
     console.print(f"[green]✓[/] Valid config: {config_file}")
     console.print(f"  Hosts: {len(cfg.hosts)}")
     console.print(f"  Services: {len(cfg.services)}")
+
+
+# Register config subcommand on the shared app
+app.add_typer(config_app, name="config", rich_help_panel="Configuration")

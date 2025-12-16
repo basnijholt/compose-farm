@@ -10,6 +10,7 @@ from typing import Annotated
 import typer
 from rich.progress import Progress, TaskID  # noqa: TC002
 
+from compose_farm.cli.app import app
 from compose_farm.cli.common import (
     MISSING_PATH_PREVIEW_LIMIT,
     AllOption,
@@ -431,210 +432,210 @@ _DEFAULT_NETWORK_SUBNET = "172.20.0.0/16"
 _DEFAULT_NETWORK_GATEWAY = "172.20.0.1"
 
 
-def register_commands(app: typer.Typer) -> None:  # noqa: C901, PLR0915
-    """Register management commands on the app."""
+@app.command("traefik-file", rich_help_panel="Configuration")
+def traefik_file(
+    services: ServicesArg = None,
+    all_services: AllOption = False,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help="Write Traefik file-provider YAML to this path (stdout if omitted)",
+        ),
+    ] = None,
+    config: ConfigOption = None,
+) -> None:
+    """Generate a Traefik file-provider fragment from compose Traefik labels."""
+    svc_list, cfg = get_services(services or [], all_services, config)
+    try:
+        dynamic, warnings = generate_traefik_config(cfg, svc_list)
+    except (FileNotFoundError, ValueError) as exc:
+        err_console.print(f"[red]✗[/] {exc}")
+        raise typer.Exit(1) from exc
 
-    @app.command("traefik-file", rich_help_panel="Configuration")
-    def traefik_file(
-        services: ServicesArg = None,
-        all_services: AllOption = False,
-        output: Annotated[
-            Path | None,
-            typer.Option(
-                "--output",
-                "-o",
-                help="Write Traefik file-provider YAML to this path (stdout if omitted)",
-            ),
-        ] = None,
-        config: ConfigOption = None,
-    ) -> None:
-        """Generate a Traefik file-provider fragment from compose Traefik labels."""
-        svc_list, cfg = get_services(services or [], all_services, config)
+    rendered = render_traefik_config(dynamic)
+
+    if output:
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(rendered)
+        console.print(f"[green]✓[/] Traefik config written to {output}")
+    else:
+        console.print(rendered)
+
+    for warning in warnings:
+        err_console.print(f"[yellow]![/] {warning}")
+
+
+@app.command(rich_help_panel="Configuration")
+def sync(
+    config: ConfigOption = None,
+    log_path: LogPathOption = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", "-n", help="Show what would be synced without writing"),
+    ] = False,
+) -> None:
+    """Sync local state with running services.
+
+    Discovers which services are running on which hosts, updates the state
+    file, and captures image digests. Combines service discovery with
+    image snapshot into a single command.
+    """
+    cfg = load_config_or_exit(config)
+    current_state = load_state(cfg)
+
+    discovered = _discover_services(cfg)
+
+    # Calculate changes
+    added = [s for s in discovered if s not in current_state]
+    removed = [s for s in current_state if s not in discovered]
+    changed = [
+        (s, current_state[s], discovered[s])
+        for s in discovered
+        if s in current_state and current_state[s] != discovered[s]
+    ]
+
+    # Report state changes
+    state_changed = bool(added or removed or changed)
+    if state_changed:
+        _report_sync_changes(added, removed, changed, discovered, current_state)
+    else:
+        console.print("[green]✓[/] State is already in sync.")
+
+    if dry_run:
+        console.print("\n[dim](dry-run: no changes made)[/]")
+        return
+
+    # Update state file
+    if state_changed:
+        save_state(cfg, discovered)
+        console.print(f"\n[green]✓[/] State updated: {len(discovered)} services tracked.")
+
+    # Capture image digests for running services
+    if discovered:
         try:
-            dynamic, warnings = generate_traefik_config(cfg, svc_list)
-        except (FileNotFoundError, ValueError) as exc:
-            err_console.print(f"[red]✗[/] {exc}")
-            raise typer.Exit(1) from exc
+            path = _snapshot_services(cfg, list(discovered.keys()), log_path)
+            console.print(f"[green]✓[/] Digests written to {path}")
+        except RuntimeError as exc:
+            err_console.print(f"[yellow]![/] {exc}")
 
-        rendered = render_traefik_config(dynamic)
 
-        if output:
-            output.parent.mkdir(parents=True, exist_ok=True)
-            output.write_text(rendered)
-            console.print(f"[green]✓[/] Traefik config written to {output}")
-        else:
-            console.print(rendered)
+@app.command(rich_help_panel="Configuration")
+def check(
+    services: ServicesArg = None,
+    local: Annotated[
+        bool,
+        typer.Option("--local", help="Skip SSH-based checks (faster)"),
+    ] = False,
+    config: ConfigOption = None,
+) -> None:
+    """Validate configuration, traefik labels, mounts, and networks.
 
-        for warning in warnings:
-            err_console.print(f"[yellow]![/] {warning}")
+    Without arguments: validates all services against configured hosts.
+    With service arguments: validates specific services and shows host compatibility.
 
-    @app.command(rich_help_panel="Configuration")
-    def sync(
-        config: ConfigOption = None,
-        log_path: LogPathOption = None,
-        dry_run: Annotated[
-            bool,
-            typer.Option("--dry-run", "-n", help="Show what would be synced without writing"),
-        ] = False,
-    ) -> None:
-        """Sync local state with running services.
+    Use --local to skip SSH-based checks for faster validation.
+    """
+    cfg = load_config_or_exit(config)
 
-        Discovers which services are running on which hosts, updates the state
-        file, and captures image digests. Combines service discovery with
-        image snapshot into a single command.
-        """
-        cfg = load_config_or_exit(config)
-        current_state = load_state(cfg)
-
-        discovered = _discover_services(cfg)
-
-        # Calculate changes
-        added = [s for s in discovered if s not in current_state]
-        removed = [s for s in current_state if s not in discovered]
-        changed = [
-            (s, current_state[s], discovered[s])
-            for s in discovered
-            if s in current_state and current_state[s] != discovered[s]
-        ]
-
-        # Report state changes
-        state_changed = bool(added or removed or changed)
-        if state_changed:
-            _report_sync_changes(added, removed, changed, discovered, current_state)
-        else:
-            console.print("[green]✓[/] State is already in sync.")
-
-        if dry_run:
-            console.print("\n[dim](dry-run: no changes made)[/]")
-            return
-
-        # Update state file
-        if state_changed:
-            save_state(cfg, discovered)
-            console.print(f"\n[green]✓[/] State updated: {len(discovered)} services tracked.")
-
-        # Capture image digests for running services
-        if discovered:
-            try:
-                path = _snapshot_services(cfg, list(discovered.keys()), log_path)
-                console.print(f"[green]✓[/] Digests written to {path}")
-            except RuntimeError as exc:
-                err_console.print(f"[yellow]![/] {exc}")
-
-    @app.command(rich_help_panel="Configuration")
-    def check(
-        services: ServicesArg = None,
-        local: Annotated[
-            bool,
-            typer.Option("--local", help="Skip SSH-based checks (faster)"),
-        ] = False,
-        config: ConfigOption = None,
-    ) -> None:
-        """Validate configuration, traefik labels, mounts, and networks.
-
-        Without arguments: validates all services against configured hosts.
-        With service arguments: validates specific services and shows host compatibility.
-
-        Use --local to skip SSH-based checks for faster validation.
-        """
-        cfg = load_config_or_exit(config)
-
-        # Determine which services to check and whether to show host compatibility
-        if services:
-            svc_list = list(services)
-            invalid = [s for s in svc_list if s not in cfg.services]
-            if invalid:
-                for svc in invalid:
-                    err_console.print(f"[red]✗[/] Service '{svc}' not found in config")
-                raise typer.Exit(1)
-            show_host_compat = True
-        else:
-            svc_list = list(cfg.services.keys())
-            show_host_compat = False
-
-        # Run checks
-        has_errors = _report_config_status(cfg)
-        _report_traefik_status(cfg, svc_list)
-
-        if not local and _run_remote_checks(cfg, svc_list, show_host_compat=show_host_compat):
-            has_errors = True
-
-        # Check for orphaned services (in state but removed from config)
-        if _report_orphaned_services(cfg):
-            has_errors = True
-
-        if has_errors:
-            raise typer.Exit(1)
-
-    @app.command("init-network", rich_help_panel="Configuration")
-    def init_network(
-        hosts: Annotated[
-            list[str] | None,
-            typer.Argument(help="Hosts to create network on (default: all)"),
-        ] = None,
-        network: Annotated[
-            str,
-            typer.Option("--network", "-n", help="Network name"),
-        ] = _DEFAULT_NETWORK_NAME,
-        subnet: Annotated[
-            str,
-            typer.Option("--subnet", "-s", help="Network subnet"),
-        ] = _DEFAULT_NETWORK_SUBNET,
-        gateway: Annotated[
-            str,
-            typer.Option("--gateway", "-g", help="Network gateway"),
-        ] = _DEFAULT_NETWORK_GATEWAY,
-        config: ConfigOption = None,
-    ) -> None:
-        """Create Docker network on hosts with consistent settings.
-
-        Creates an external Docker network that services can use for cross-host
-        communication. Uses the same subnet/gateway on all hosts to ensure
-        consistent networking.
-        """
-        cfg = load_config_or_exit(config)
-
-        target_hosts = list(hosts) if hosts else list(cfg.hosts.keys())
-        invalid = [h for h in target_hosts if h not in cfg.hosts]
+    # Determine which services to check and whether to show host compatibility
+    if services:
+        svc_list = list(services)
+        invalid = [s for s in svc_list if s not in cfg.services]
         if invalid:
-            for h in invalid:
-                err_console.print(f"[red]✗[/] Host '{h}' not found in config")
+            for svc in invalid:
+                err_console.print(f"[red]✗[/] Service '{svc}' not found in config")
             raise typer.Exit(1)
+        show_host_compat = True
+    else:
+        svc_list = list(cfg.services.keys())
+        show_host_compat = False
 
-        async def create_network_on_host(host_name: str) -> CommandResult:
-            host = cfg.hosts[host_name]
-            # Check if network already exists
-            check_cmd = f"docker network inspect '{network}' >/dev/null 2>&1"
-            check_result = await run_command(host, check_cmd, host_name, stream=False)
+    # Run checks
+    has_errors = _report_config_status(cfg)
+    _report_traefik_status(cfg, svc_list)
 
-            if check_result.success:
-                console.print(f"[cyan]\\[{host_name}][/] Network '{network}' already exists")
-                return CommandResult(service=host_name, exit_code=0, success=True)
+    if not local and _run_remote_checks(cfg, svc_list, show_host_compat=show_host_compat):
+        has_errors = True
 
-            # Create the network
-            create_cmd = (
-                f"docker network create "
-                f"--driver bridge "
-                f"--subnet '{subnet}' "
-                f"--gateway '{gateway}' "
-                f"'{network}'"
+    # Check for orphaned services (in state but removed from config)
+    if _report_orphaned_services(cfg):
+        has_errors = True
+
+    if has_errors:
+        raise typer.Exit(1)
+
+
+@app.command("init-network", rich_help_panel="Configuration")
+def init_network(
+    hosts: Annotated[
+        list[str] | None,
+        typer.Argument(help="Hosts to create network on (default: all)"),
+    ] = None,
+    network: Annotated[
+        str,
+        typer.Option("--network", "-n", help="Network name"),
+    ] = _DEFAULT_NETWORK_NAME,
+    subnet: Annotated[
+        str,
+        typer.Option("--subnet", "-s", help="Network subnet"),
+    ] = _DEFAULT_NETWORK_SUBNET,
+    gateway: Annotated[
+        str,
+        typer.Option("--gateway", "-g", help="Network gateway"),
+    ] = _DEFAULT_NETWORK_GATEWAY,
+    config: ConfigOption = None,
+) -> None:
+    """Create Docker network on hosts with consistent settings.
+
+    Creates an external Docker network that services can use for cross-host
+    communication. Uses the same subnet/gateway on all hosts to ensure
+    consistent networking.
+    """
+    cfg = load_config_or_exit(config)
+
+    target_hosts = list(hosts) if hosts else list(cfg.hosts.keys())
+    invalid = [h for h in target_hosts if h not in cfg.hosts]
+    if invalid:
+        for h in invalid:
+            err_console.print(f"[red]✗[/] Host '{h}' not found in config")
+        raise typer.Exit(1)
+
+    async def create_network_on_host(host_name: str) -> CommandResult:
+        host = cfg.hosts[host_name]
+        # Check if network already exists
+        check_cmd = f"docker network inspect '{network}' >/dev/null 2>&1"
+        check_result = await run_command(host, check_cmd, host_name, stream=False)
+
+        if check_result.success:
+            console.print(f"[cyan]\\[{host_name}][/] Network '{network}' already exists")
+            return CommandResult(service=host_name, exit_code=0, success=True)
+
+        # Create the network
+        create_cmd = (
+            f"docker network create "
+            f"--driver bridge "
+            f"--subnet '{subnet}' "
+            f"--gateway '{gateway}' "
+            f"'{network}'"
+        )
+        result = await run_command(host, create_cmd, host_name, stream=False)
+
+        if result.success:
+            console.print(f"[cyan]\\[{host_name}][/] [green]✓[/] Created network '{network}'")
+        else:
+            err_console.print(
+                f"[cyan]\\[{host_name}][/] [red]✗[/] Failed to create network: "
+                f"{result.stderr.strip()}"
             )
-            result = await run_command(host, create_cmd, host_name, stream=False)
 
-            if result.success:
-                console.print(f"[cyan]\\[{host_name}][/] [green]✓[/] Created network '{network}'")
-            else:
-                err_console.print(
-                    f"[cyan]\\[{host_name}][/] [red]✗[/] Failed to create network: "
-                    f"{result.stderr.strip()}"
-                )
+        return result
 
-            return result
+    async def run_all() -> list[CommandResult]:
+        return await asyncio.gather(*[create_network_on_host(h) for h in target_hosts])
 
-        async def run_all() -> list[CommandResult]:
-            return await asyncio.gather(*[create_network_on_host(h) for h in target_hosts])
-
-        results = run_async(run_all())
-        failed = [r for r in results if not r.success]
-        if failed:
-            raise typer.Exit(1)
+    results = run_async(run_all())
+    failed = [r for r in results if not r.success]
+    if failed:
+        raise typer.Exit(1)
