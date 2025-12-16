@@ -147,7 +147,9 @@ async def _migrate_service(
     console.print(
         f"{prefix} Migrating from [magenta]{current_host}[/] → [magenta]{target_host}[/]..."
     )
-    # Pre-pull/build images on target host to minimize downtime
+    # Prepare images on target host before stopping old service to minimize downtime.
+    # Pull handles image-based services; build handles Dockerfile-based services.
+    # Each command is a no-op for the other type (exit 0, no work done).
     pull_result = await run_compose(cfg, service, "pull", raw=raw)
     if raw:
         print()  # Ensure newline after raw output
@@ -157,7 +159,6 @@ async def _migrate_service(
             "leaving service on current host"
         )
         return pull_result
-    # Also build any services with Dockerfile (pull skips these)
     build_result = await run_compose(cfg, service, "build", raw=raw)
     if raw:
         print()  # Ensure newline after raw output
