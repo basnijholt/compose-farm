@@ -56,6 +56,7 @@ class TestLogsContextualDefault:
 
         with (
             patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
             patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
@@ -74,6 +75,7 @@ class TestLogsContextualDefault:
 
         with (
             patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
             patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
@@ -97,6 +99,7 @@ class TestLogsContextualDefault:
 
         with (
             patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
             patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
@@ -120,6 +123,7 @@ class TestLogsContextualDefault:
 
         with (
             patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
             patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
@@ -187,14 +191,10 @@ class TestLogsHostFilter:
             call_args = mock_run.call_args
             assert call_args[0][2] == "logs --tail 20"
 
-    def test_logs_all_and_host_mutually_exclusive(self, tmp_path: Path) -> None:
+    def test_logs_all_and_host_mutually_exclusive(self) -> None:
         """Using --all and --host together should error."""
-        cfg = _make_config(tmp_path)
-
-        with (
-            patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
-            pytest.raises(typer.Exit) as exc_info,
-        ):
+        # No config mock needed - error is raised before config is loaded
+        with pytest.raises(typer.Exit) as exc_info:
             logs(
                 services=None,
                 all_services=True,
