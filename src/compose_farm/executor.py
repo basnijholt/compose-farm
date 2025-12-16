@@ -12,8 +12,7 @@ from typing import TYPE_CHECKING, Any
 import asyncssh
 from rich.markup import escape
 
-from .console import console as _console
-from .console import err_console as _err_console
+from .console import console, err_console
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -101,14 +100,14 @@ async def _run_local_command(
                 *,
                 is_stderr: bool = False,
             ) -> None:
-                console = _err_console if is_stderr else _console
+                out = err_console if is_stderr else console
                 while True:
                     line = await reader.readline()
                     if not line:
                         break
                     text = line.decode()
                     if text.strip():  # Skip empty lines
-                        console.print(f"[cyan]\\[{prefix}][/] {escape(text)}", end="")
+                        out.print(f"[cyan]\\[{prefix}][/] {escape(text)}", end="")
 
             await asyncio.gather(
                 read_stream(proc.stdout, service),
@@ -130,7 +129,7 @@ async def _run_local_command(
             stderr=stderr_data.decode() if stderr_data else "",
         )
     except OSError as e:
-        _err_console.print(f"[cyan]\\[{service}][/] [red]Local error:[/] {e}")
+        err_console.print(f"[cyan]\\[{service}][/] [red]Local error:[/] {e}")
         return CommandResult(service=service, exit_code=1, success=False)
 
 
@@ -174,10 +173,10 @@ async def _run_ssh_command(
                         *,
                         is_stderr: bool = False,
                     ) -> None:
-                        console = _err_console if is_stderr else _console
+                        out = err_console if is_stderr else console
                         async for line in reader:
                             if line.strip():  # Skip empty lines
-                                console.print(f"[cyan]\\[{prefix}][/] {escape(line)}", end="")
+                                out.print(f"[cyan]\\[{prefix}][/] {escape(line)}", end="")
 
                     await asyncio.gather(
                         read_stream(proc.stdout, service),
@@ -199,7 +198,7 @@ async def _run_ssh_command(
                     stderr=stderr_data,
                 )
     except (OSError, asyncssh.Error) as e:
-        _err_console.print(f"[cyan]\\[{service}][/] [red]SSH error:[/] {e}")
+        err_console.print(f"[cyan]\\[{service}][/] [red]SSH error:[/] {e}")
         return CommandResult(service=service, exit_code=1, success=False)
 
 
