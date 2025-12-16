@@ -69,7 +69,7 @@ async def _preflight_check(
     return missing_paths, missing_networks
 
 
-def report_preflight_failures(
+def _report_preflight_failures(
     service: str,
     target_host: str,
     missing_paths: list[str],
@@ -102,7 +102,7 @@ async def _up_multi_host_service(
     for host_name in host_names:
         missing_paths, missing_networks = await _preflight_check(cfg, service, host_name)
         if missing_paths or missing_networks:
-            report_preflight_failures(service, host_name, missing_paths, missing_networks)
+            _report_preflight_failures(service, host_name, missing_paths, missing_networks)
             results.append(
                 CommandResult(service=f"{service}@{host_name}", exit_code=1, success=False)
             )
@@ -155,7 +155,7 @@ async def up_services(
         # Pre-flight check: verify paths and networks exist on target
         missing_paths, missing_networks = await _preflight_check(cfg, service, target_host)
         if missing_paths or missing_networks:
-            report_preflight_failures(service, target_host, missing_paths, missing_networks)
+            _report_preflight_failures(service, target_host, missing_paths, missing_networks)
             results.append(CommandResult(service=service, exit_code=1, success=False))
             continue
 

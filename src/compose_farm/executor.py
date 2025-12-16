@@ -253,23 +253,6 @@ async def run_compose_on_host(
     return await run_command(host, command, service, stream=stream, raw=raw)
 
 
-async def run_compose_multi_host(
-    config: Config,
-    service: str,
-    compose_cmd: str,
-    *,
-    stream: bool = True,
-    raw: bool = False,
-) -> list[CommandResult]:
-    """Run a docker compose command on all hosts for a multi-host service.
-
-    Returns a list of results, one per host.
-    """
-    return await _run_sequential_commands_multi_host(
-        config, service, [compose_cmd], stream=stream, raw=raw
-    )
-
-
 async def run_on_services(
     config: Config,
     services: list[str],
