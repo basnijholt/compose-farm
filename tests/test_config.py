@@ -128,6 +128,8 @@ class TestLoadConfig:
 
     def test_load_config_not_found(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "empty_config"))
         with pytest.raises(FileNotFoundError, match="Config file not found"):
             load_config()
 
