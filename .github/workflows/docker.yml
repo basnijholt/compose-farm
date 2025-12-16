@@ -52,6 +52,22 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Wait for PyPI
+        if: steps.version.outputs.version != ''
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          echo "Waiting for compose-farm==$VERSION on PyPI..."
+          for i in {1..30}; do
+            if curl -sf "https://pypi.org/pypi/compose-farm/$VERSION/json" > /dev/null; then
+              echo "✓ Version $VERSION available on PyPI"
+              exit 0
+            fi
+            echo "Attempt $i: not yet available, waiting 10s..."
+            sleep 10
+          done
+          echo "✗ Timeout waiting for PyPI"
+          exit 1
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
