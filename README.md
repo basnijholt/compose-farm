@@ -194,6 +194,22 @@ When you run `cf up autokuma`, it starts the service on all hosts in parallel. M
 
 The CLI is available as both `compose-farm` and the shorter `cf` alias.
 
+| Command | Description |
+|---------|-------------|
+| `cf up <svc>` | Start service (auto-migrates if host changed) |
+| `cf down <svc>` | Stop service |
+| `cf restart <svc>` | down + up |
+| `cf update <svc>` | pull + down + up |
+| `cf pull <svc>` | Pull latest images |
+| `cf logs -f <svc>` | Follow logs |
+| `cf ps` | Show status of all services |
+| `cf sync` | Discover running services + capture image digests |
+| `cf check` | Validate config, mounts, networks |
+| `cf init-network` | Create Docker network on hosts |
+| `cf traefik-file` | Generate Traefik file-provider config |
+
+All commands support `--all` to operate on all services.
+
 ```bash
 # Start services (auto-migrates if host changed in config)
 cf up plex jellyfin
