@@ -462,16 +462,16 @@ Update your Traefik config to use directory watching instead of a single file:
 
 There are many ways to run containers on multiple hosts. Here is where Compose Farm sits:
 
-| | Docker Contexts | K8s / Swarm | Ansible / Terraform | Portainer / Coolify | Compose Farm |
+| | Compose Farm | Docker Contexts | K8s / Swarm | Ansible / Terraform | Portainer / Coolify |
 |---|:---:|:---:|:---:|:---:|:---:|
-| No compose rewrites | ✅ | ❌ | ✅ | ✅ | ✅ |
-| Version controlled | ✅ | ✅ | ✅ | ❌ | ✅ |
-| State tracking | ❌ | ✅ | ✅ | ✅ | ✅ |
-| Auto-migration | ❌ | ✅ | ❌ | ❌ | ✅ |
-| Interactive CLI | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Parallel execution | ❌ | ✅ | ✅ | ✅ | ✅ |
-| Agentless | ✅ | ❌ | ✅ | ❌ | ✅ |
-| High availability | ❌ | ✅ | ❌ | ❌ | ❌ |
+| No compose rewrites | ✅ | ✅ | ❌ | ✅ | ✅ |
+| Version controlled | ✅ | ✅ | ✅ | ✅ | ❌ |
+| State tracking | ✅ | ❌ | ✅ | ✅ | ✅ |
+| Auto-migration | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Interactive CLI | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Parallel execution | ✅ | ❌ | ✅ | ✅ | ✅ |
+| Agentless | ✅ | ✅ | ❌ | ✅ | ❌ |
+| High availability | ❌ | ❌ | ✅ | ❌ | ❌ |
 
 **Docker Contexts** — You can use `docker context create remote ssh://...` and `docker compose --context remote up`. But it's manual: you must remember which host runs which service, there's no global view, no parallel execution, and no auto-migration.
 
