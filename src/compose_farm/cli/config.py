@@ -13,8 +13,8 @@ from typing import Annotated
 
 import typer
 
-from .config import load_config, xdg_config_home
-from .console import console, err_console
+from compose_farm.config import load_config, xdg_config_home
+from compose_farm.console import console, err_console
 
 config_app = typer.Typer(
     name="config",
@@ -70,7 +70,7 @@ def _get_editor() -> str:
 def _generate_template() -> str:
     """Generate a config template with documented schema."""
     try:
-        template_file = resources.files(__package__) / "example-config.yaml"
+        template_file = resources.files("compose_farm") / "example-config.yaml"
         return template_file.read_text(encoding="utf-8")
     except FileNotFoundError as e:
         err_console.print("[red]Example config template is missing from the package.[/red]")

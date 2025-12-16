@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from compose_farm import cli as cli_module
 from compose_farm import executor as executor_module
 from compose_farm import state as state_module
+from compose_farm.cli import management as cli_management_module
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult, check_service_running
 
@@ -98,7 +98,7 @@ class TestReportSyncChanges:
 
     def test_reports_added(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Reports newly discovered services."""
-        cli_module._report_sync_changes(
+        cli_management_module._report_sync_changes(
             added=["plex", "jellyfin"],
             removed=[],
             changed=[],
@@ -112,7 +112,7 @@ class TestReportSyncChanges:
 
     def test_reports_removed(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Reports services that are no longer running."""
-        cli_module._report_sync_changes(
+        cli_management_module._report_sync_changes(
             added=[],
             removed=["sonarr"],
             changed=[],
@@ -125,7 +125,7 @@ class TestReportSyncChanges:
 
     def test_reports_changed(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Reports services that moved to a different host."""
-        cli_module._report_sync_changes(
+        cli_management_module._report_sync_changes(
             added=[],
             removed=[],
             changed=[("plex", "nas01", "nas02")],

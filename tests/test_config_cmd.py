@@ -7,9 +7,9 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-import compose_farm.config_cmd as config_cmd_module
+import compose_farm.cli.config as config_cmd_module
 from compose_farm.cli import app
-from compose_farm.config_cmd import (
+from compose_farm.cli.config import (
     _generate_template,
     _get_config_file,
     _get_editor,
