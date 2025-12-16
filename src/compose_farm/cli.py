@@ -62,7 +62,7 @@ from .traefik import generate_traefik_config, render_traefik_config
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Generator, Mapping
 
-T = TypeVar("T")
+_T = TypeVar("_T")
 
 
 @contextlib.contextmanager
@@ -170,7 +170,7 @@ def _get_services(
     return list(services), config
 
 
-def _run_async(coro: Coroutine[None, None, T]) -> T:
+def _run_async(coro: Coroutine[None, None, _T]) -> _T:
     """Run async coroutine."""
     return asyncio.run(coro)
 
@@ -227,28 +227,28 @@ def _run_host_operation(
     _report_results(results)
 
 
-ServicesArg = Annotated[
+_ServicesArg = Annotated[
     list[str] | None,
     typer.Argument(help="Services to operate on"),
 ]
-AllOption = Annotated[
+_AllOption = Annotated[
     bool,
     typer.Option("--all", "-a", help="Run on all services"),
 ]
-ConfigOption = Annotated[
+_ConfigOption = Annotated[
     Path | None,
     typer.Option("--config", "-c", help="Path to config file"),
 ]
-LogPathOption = Annotated[
+_LogPathOption = Annotated[
     Path | None,
     typer.Option("--log-path", "-l", help="Path to Dockerfarm TOML log"),
 ]
-HostOption = Annotated[
+_HostOption = Annotated[
     str | None,
     typer.Option("--host", "-H", help="Filter to services on this host"),
 ]
 
-MISSING_PATH_PREVIEW_LIMIT = 2
+_MISSING_PATH_PREVIEW_LIMIT = 2
 
 
 def _validate_host_for_service(cfg: Config, service: str, host: str) -> None:
@@ -267,13 +267,13 @@ def _validate_host_for_service(cfg: Config, service: str, host: str) -> None:
 
 @app.command(rich_help_panel="Lifecycle")
 def up(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
+    services: _ServicesArg = None,
+    all_services: _AllOption = False,
     migrate: Annotated[
         bool, typer.Option("--migrate", "-m", help="Only services needing migration")
     ] = False,
-    host: HostOption = None,
-    config: ConfigOption = None,
+    host: _HostOption = None,
+    config: _ConfigOption = None,
 ) -> None:
     """Start services (docker compose up -d). Auto-migrates if host changed."""
     if migrate and host:
@@ -303,10 +303,10 @@ def up(
 
 @app.command(rich_help_panel="Lifecycle")
 def down(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
-    host: HostOption = None,
-    config: ConfigOption = None,
+    services: _ServicesArg = None,
+    all_services: _AllOption = False,
+    host: _HostOption = None,
+    config: _ConfigOption = None,
 ) -> None:
     """Stop services (docker compose down)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
@@ -336,9 +336,9 @@ def down(
 
 @app.command(rich_help_panel="Lifecycle")
 def pull(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
-    config: ConfigOption = None,
+    services: _ServicesArg = None,
+    all_services: _AllOption = False,
+    config: _ConfigOption = None,
 ) -> None:
     """Pull latest images (docker compose pull)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
@@ -349,9 +349,9 @@ def pull(
 
 @app.command(rich_help_panel="Lifecycle")
 def restart(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
-    config: ConfigOption = None,
+    services: _ServicesArg = None,
+    all_services: _AllOption = False,
+    config: _ConfigOption = None,
 ) -> None:
     """Restart services (down + up)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
@@ -363,9 +363,9 @@ def restart(
 
 @app.command(rich_help_panel="Lifecycle")
 def update(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
-    config: ConfigOption = None,
+    services: _ServicesArg = None,
+    all_services: _AllOption = False,
+    config: _ConfigOption = None,
 ) -> None:
     """Update services (pull + down + up)."""
     svc_list, cfg = _get_services(services or [], all_services, config)
@@ -379,15 +379,15 @@ def update(
 
 @app.command(rich_help_panel="Monitoring")
 def logs(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
-    host: HostOption = None,
+    services: _ServicesArg = None,
+    all_services: _AllOption = False,
+    host: _HostOption = None,
     follow: Annotated[bool, typer.Option("--follow", "-f", help="Follow logs")] = False,
     tail: Annotated[
         int | None,
         typer.Option("--tail", "-n", help="Number of lines (default: 20 for --all, 100 otherwise)"),
     ] = None,
-    config: ConfigOption = None,
+    config: _ConfigOption = None,
 ) -> None:
     """Show service logs."""
     if all_services and host is not None:
@@ -421,7 +421,7 @@ def logs(
 
 @app.command(rich_help_panel="Monitoring")
 def ps(
-    config: ConfigOption = None,
+    config: _ConfigOption = None,
 ) -> None:
     """Show status of all services."""
     cfg = _load_config_or_exit(config)
@@ -552,7 +552,7 @@ def stats(
         bool,
         typer.Option("--live", "-l", help="Query Docker for live container stats"),
     ] = False,
-    config: ConfigOption = None,
+    config: _ConfigOption = None,
 ) -> None:
     """Show overview statistics for hosts and services.
 
@@ -582,8 +582,8 @@ def stats(
 
 @app.command("traefik-file", rich_help_panel="Configuration")
 def traefik_file(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
+    services: _ServicesArg = None,
+    all_services: _AllOption = False,
     output: Annotated[
         Path | None,
         typer.Option(
@@ -592,7 +592,7 @@ def traefik_file(
             help="Write Traefik file-provider YAML to this path (stdout if omitted)",
         ),
     ] = None,
-    config: ConfigOption = None,
+    config: _ConfigOption = None,
 ) -> None:
     """Generate a Traefik file-provider fragment from compose Traefik labels."""
     svc_list, cfg = _get_services(services or [], all_services, config)
@@ -837,8 +837,8 @@ def _report_sync_changes(
 
 @app.command(rich_help_panel="Configuration")
 def sync(
-    config: ConfigOption = None,
-    log_path: LogPathOption = None,
+    config: _ConfigOption = None,
+    log_path: _LogPathOption = None,
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run", "-n", help="Show what would be synced without writing"),
@@ -999,9 +999,9 @@ def _report_host_compatibility(
         if found == total:
             console.print(f"  [green]✓[/] [magenta]{host_name}[/] {found}/{total}{marker}")
         else:
-            preview = ", ".join(missing[:MISSING_PATH_PREVIEW_LIMIT])
-            if len(missing) > MISSING_PATH_PREVIEW_LIMIT:
-                preview += f", +{len(missing) - MISSING_PATH_PREVIEW_LIMIT} more"
+            preview = ", ".join(missing[:_MISSING_PATH_PREVIEW_LIMIT])
+            if len(missing) > _MISSING_PATH_PREVIEW_LIMIT:
+                preview += f", +{len(missing) - _MISSING_PATH_PREVIEW_LIMIT} more"
             console.print(
                 f"  [red]✗[/] [magenta]{host_name}[/] {found}/{total} "
                 f"[dim](missing: {preview})[/]{marker}"
@@ -1045,12 +1045,12 @@ def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bo
 
 @app.command(rich_help_panel="Configuration")
 def check(
-    services: ServicesArg = None,
+    services: _ServicesArg = None,
     local: Annotated[
         bool,
         typer.Option("--local", help="Skip SSH-based checks (faster)"),
     ] = False,
-    config: ConfigOption = None,
+    config: _ConfigOption = None,
 ) -> None:
     """Validate configuration, traefik labels, mounts, and networks.
 
@@ -1090,9 +1090,9 @@ def check(
 
 
 # Default network settings for cross-host Docker networking
-DEFAULT_NETWORK_NAME = "mynetwork"
-DEFAULT_NETWORK_SUBNET = "172.20.0.0/16"
-DEFAULT_NETWORK_GATEWAY = "172.20.0.1"
+_DEFAULT_NETWORK_NAME = "mynetwork"
+_DEFAULT_NETWORK_SUBNET = "172.20.0.0/16"
+_DEFAULT_NETWORK_GATEWAY = "172.20.0.1"
 
 
 @app.command("init-network", rich_help_panel="Configuration")
@@ -1104,16 +1104,16 @@ def init_network(
     network: Annotated[
         str,
         typer.Option("--network", "-n", help="Network name"),
-    ] = DEFAULT_NETWORK_NAME,
+    ] = _DEFAULT_NETWORK_NAME,
     subnet: Annotated[
         str,
         typer.Option("--subnet", "-s", help="Network subnet"),
-    ] = DEFAULT_NETWORK_SUBNET,
+    ] = _DEFAULT_NETWORK_SUBNET,
     gateway: Annotated[
         str,
         typer.Option("--gateway", "-g", help="Network gateway"),
-    ] = DEFAULT_NETWORK_GATEWAY,
-    config: ConfigOption = None,
+    ] = _DEFAULT_NETWORK_GATEWAY,
+    config: _ConfigOption = None,
 ) -> None:
     """Create Docker network on hosts with consistent settings.
 
