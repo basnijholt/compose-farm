@@ -41,55 +41,36 @@ def get_service_paths(cfg: Config, service: str) -> list[str]:
     return paths
 
 
-async def _check_mounts_for_migration(
+async def check_service_requirements(
     cfg: Config,
     service: str,
-    target_host: str,
-) -> list[str]:
-    """Check if mount paths exist on target host. Returns list of missing paths."""
-    paths = get_service_paths(cfg, service)
-    exists = await check_paths_exist(cfg, target_host, paths)
-    return [p for p, found in exists.items() if not found]
-
-
-async def _check_networks_for_migration(
-    cfg: Config,
-    service: str,
-    target_host: str,
-) -> list[str]:
-    """Check if Docker networks exist on target host. Returns list of missing networks."""
-    networks = parse_external_networks(cfg, service)
-    if not networks:
-        return []
-    exists = await check_networks_exist(cfg, target_host, networks)
-    return [n for n, found in exists.items() if not found]
-
-
-async def _check_devices_for_migration(
-    cfg: Config,
-    service: str,
-    target_host: str,
-) -> list[str]:
-    """Check if device paths exist on target host. Returns list of missing devices."""
-    devices = parse_devices(cfg, service)
-    if not devices:
-        return []
-    exists = await check_paths_exist(cfg, target_host, devices)
-    return [d for d, found in exists.items() if not found]
-
-
-async def _preflight_check(
-    cfg: Config,
-    service: str,
-    target_host: str,
+    host_name: str,
 ) -> tuple[list[str], list[str], list[str]]:
-    """Run pre-flight checks for a service on target host.
+    """Check if a service can run on a specific host.
+
+    Verifies that all required paths (volumes), networks, and devices exist.
 
     Returns (missing_paths, missing_networks, missing_devices).
     """
-    missing_paths = await _check_mounts_for_migration(cfg, service, target_host)
-    missing_networks = await _check_networks_for_migration(cfg, service, target_host)
-    missing_devices = await _check_devices_for_migration(cfg, service, target_host)
+    # Check mount paths
+    paths = get_service_paths(cfg, service)
+    path_exists = await check_paths_exist(cfg, host_name, paths)
+    missing_paths = [p for p, found in path_exists.items() if not found]
+
+    # Check external networks
+    networks = parse_external_networks(cfg, service)
+    missing_networks: list[str] = []
+    if networks:
+        net_exists = await check_networks_exist(cfg, host_name, networks)
+        missing_networks = [n for n, found in net_exists.items() if not found]
+
+    # Check devices
+    devices = parse_devices(cfg, service)
+    missing_devices: list[str] = []
+    if devices:
+        dev_exists = await check_paths_exist(cfg, host_name, devices)
+        missing_devices = [d for d, found in dev_exists.items() if not found]
+
     return missing_paths, missing_networks, missing_devices
 
 
@@ -127,7 +108,7 @@ async def _up_multi_host_service(
 
     # Pre-flight checks on all hosts
     for host_name in host_names:
-        missing_paths, missing_networks, missing_devices = await _preflight_check(
+        missing_paths, missing_networks, missing_devices = await check_service_requirements(
             cfg, service, host_name
         )
         if missing_paths or missing_networks or missing_devices:
@@ -234,7 +215,7 @@ async def up_services(
             current_host = get_service_host(cfg, service)
 
             # Pre-flight check: verify paths, networks, and devices exist on target
-            missing_paths, missing_networks, missing_devices = await _preflight_check(
+            missing_paths, missing_networks, missing_devices = await check_service_requirements(
                 cfg, service, target_host
             )
             if missing_paths or missing_networks or missing_devices:
@@ -281,17 +262,24 @@ async def check_host_compatibility(
     cfg: Config,
     service: str,
 ) -> dict[str, tuple[int, int, list[str]]]:
-    """Check which hosts can run a service based on mount paths.
+    """Check which hosts can run a service based on paths, networks, and devices.
 
-    Returns dict of host_name -> (found_count, total_count, missing_paths).
+    Returns dict of host_name -> (found_count, total_count, missing_items).
     """
+    # Get total requirements count
     paths = get_service_paths(cfg, service)
+    networks = parse_external_networks(cfg, service)
+    devices = parse_devices(cfg, service)
+    total = len(paths) + len(networks) + len(devices)
+
     results: dict[str, tuple[int, int, list[str]]] = {}
 
     for host_name in cfg.hosts:
-        exists = await check_paths_exist(cfg, host_name, paths)
-        found = sum(1 for v in exists.values() if v)
-        missing = [p for p, v in exists.items() if not v]
-        results[host_name] = (found, len(paths), missing)
+        missing_paths, missing_networks, missing_devices = await check_service_requirements(
+            cfg, service, host_name
+        )
+        all_missing = missing_paths + missing_networks + missing_devices
+        found = total - len(all_missing)
+        results[host_name] = (found, total, all_missing)
 
     return results

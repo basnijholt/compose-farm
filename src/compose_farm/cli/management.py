@@ -22,13 +22,10 @@ from compose_farm.cli.common import (
     progress_bar,
     run_async,
 )
-from compose_farm.compose import parse_external_networks
 from compose_farm.config import Config  # noqa: TC001
 from compose_farm.console import console, err_console
 from compose_farm.executor import (
     CommandResult,
-    check_networks_exist,
-    check_paths_exist,
     check_service_running,
     is_local,
     run_command,
@@ -42,7 +39,7 @@ from compose_farm.logs import (
     merge_entries,
     write_toml,
 )
-from compose_farm.operations import check_host_compatibility, get_service_paths
+from compose_farm.operations import check_host_compatibility, check_service_requirements
 from compose_farm.state import load_state, save_state
 from compose_farm.traefik import generate_traefik_config, render_traefik_config
 
@@ -216,59 +213,58 @@ def _check_ssh_connectivity(cfg: Config) -> list[str]:
         return asyncio.run(gather_with_progress(progress, task_id))
 
 
-def _check_mounts_and_networks(
+def _check_service_requirements(
     cfg: Config,
     services: list[str],
-) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
-    """Check mounts and networks for all services with a progress bar.
+) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]], list[tuple[str, str, str]]]:
+    """Check mounts, networks, and devices for all services with a progress bar.
 
-    Returns (mount_errors, network_errors) where each is a list of
+    Returns (mount_errors, network_errors, device_errors) where each is a list of
     (service, host, missing_item) tuples.
     """
 
     async def check_service(
         service: str,
-    ) -> tuple[str, list[tuple[str, str, str]], list[tuple[str, str, str]]]:
-        """Check mounts and networks for a single service."""
+    ) -> tuple[
+        str,
+        list[tuple[str, str, str]],
+        list[tuple[str, str, str]],
+        list[tuple[str, str, str]],
+    ]:
+        """Check requirements for a single service on all its hosts."""
         host_names = cfg.get_hosts(service)
         mount_errors: list[tuple[str, str, str]] = []
         network_errors: list[tuple[str, str, str]] = []
+        device_errors: list[tuple[str, str, str]] = []
 
-        # Check mounts on all hosts
-        paths = get_service_paths(cfg, service)
         for host_name in host_names:
-            path_exists = await check_paths_exist(cfg, host_name, paths)
-            for path, found in path_exists.items():
-                if not found:
-                    mount_errors.append((service, host_name, path))
+            missing_paths, missing_nets, missing_devs = await check_service_requirements(
+                cfg, service, host_name
+            )
+            mount_errors.extend((service, host_name, p) for p in missing_paths)
+            network_errors.extend((service, host_name, n) for n in missing_nets)
+            device_errors.extend((service, host_name, d) for d in missing_devs)
 
-        # Check networks on all hosts
-        networks = parse_external_networks(cfg, service)
-        if networks:
-            for host_name in host_names:
-                net_exists = await check_networks_exist(cfg, host_name, networks)
-                for net, found in net_exists.items():
-                    if not found:
-                        network_errors.append((service, host_name, net))
-
-        return service, mount_errors, network_errors
+        return service, mount_errors, network_errors, device_errors
 
     async def gather_with_progress(
         progress: Progress, task_id: TaskID
-    ) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
+    ) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]], list[tuple[str, str, str]]]:
         tasks = [asyncio.create_task(check_service(s)) for s in services]
         all_mount_errors: list[tuple[str, str, str]] = []
         all_network_errors: list[tuple[str, str, str]] = []
+        all_device_errors: list[tuple[str, str, str]] = []
 
         for coro in asyncio.as_completed(tasks):
-            service, mount_errs, net_errs = await coro
+            service, mount_errs, net_errs, dev_errs = await coro
             all_mount_errors.extend(mount_errs)
             all_network_errors.extend(net_errs)
+            all_device_errors.extend(dev_errs)
             progress.update(task_id, advance=1, description=f"[cyan]{service}[/]")
 
-        return all_mount_errors, all_network_errors
+        return all_mount_errors, all_network_errors, all_device_errors
 
-    with progress_bar("Checking mounts/networks", len(services)) as (progress, task_id):
+    with progress_bar("Checking requirements", len(services)) as (progress, task_id):
         return asyncio.run(gather_with_progress(progress, task_id))
 
 
@@ -359,6 +355,21 @@ def _report_network_errors(network_errors: list[tuple[str, str, str]]) -> None:
             console.print(f"    [red]✗[/] {net}")
 
 
+def _report_device_errors(device_errors: list[tuple[str, str, str]]) -> None:
+    """Report device errors grouped by service."""
+    by_service: dict[str, list[tuple[str, str]]] = {}
+    for svc, host, dev in device_errors:
+        by_service.setdefault(svc, []).append((host, dev))
+
+    console.print(f"[red]Missing devices[/] ({len(device_errors)}):")
+    for svc, items in sorted(by_service.items()):
+        host = items[0][0]
+        devices = [d for _, d in items]
+        console.print(f"  [cyan]{svc}[/] on [magenta]{host}[/]:")
+        for dev in devices:
+            console.print(f"    [red]✗[/] {dev}")
+
+
 def _report_ssh_status(unreachable_hosts: list[str]) -> bool:
     """Report SSH connectivity status. Returns True if there are errors."""
     if unreachable_hosts:
@@ -404,8 +415,8 @@ def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bo
 
     console.print()  # Spacing before mounts/networks check
 
-    # Check mounts and networks
-    mount_errors, network_errors = _check_mounts_and_networks(cfg, svc_list)
+    # Check mounts, networks, and devices
+    mount_errors, network_errors, device_errors = _check_service_requirements(cfg, svc_list)
 
     if mount_errors:
         _report_mount_errors(mount_errors)
@@ -413,8 +424,11 @@ def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bo
     if network_errors:
         _report_network_errors(network_errors)
         has_errors = True
-    if not mount_errors and not network_errors:
-        console.print("[green]✓[/] All mounts and networks exist")
+    if device_errors:
+        _report_device_errors(device_errors)
+        has_errors = True
+    if not mount_errors and not network_errors and not device_errors:
+        console.print("[green]✓[/] All mounts, networks, and devices exist")
 
     if show_host_compat:
         for service in svc_list:
