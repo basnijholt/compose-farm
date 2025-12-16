@@ -13,8 +13,9 @@ from typing import Annotated
 
 import typer
 
-from .config import load_config, xdg_config_home
-from .console import console, err_console
+from compose_farm.cli.app import app
+from compose_farm.config import load_config, xdg_config_home
+from compose_farm.console import console, err_console
 
 config_app = typer.Typer(
     name="config",
@@ -22,13 +23,13 @@ config_app = typer.Typer(
     no_args_is_help=True,
 )
 
-# Default config location
-USER_CONFIG_PATH = xdg_config_home() / "compose-farm" / "compose-farm.yaml"
+# Default config location (internal)
+_USER_CONFIG_PATH = xdg_config_home() / "compose-farm" / "compose-farm.yaml"
 
-# Search paths for existing config
-CONFIG_PATHS = [
+# Search paths for existing config (internal)
+_CONFIG_PATHS = [
     Path("compose-farm.yaml"),
-    USER_CONFIG_PATH,
+    _USER_CONFIG_PATH,
 ]
 
 # --- CLI Options (same pattern as cli.py) ---
@@ -70,7 +71,7 @@ def _get_editor() -> str:
 def _generate_template() -> str:
     """Generate a config template with documented schema."""
     try:
-        template_file = resources.files(__package__) / "example-config.yaml"
+        template_file = resources.files("compose_farm") / "example-config.yaml"
         return template_file.read_text(encoding="utf-8")
     except FileNotFoundError as e:
         err_console.print("[red]Example config template is missing from the package.[/red]")
@@ -90,7 +91,7 @@ def _get_config_file(path: Path | None) -> Path | None:
             return p.resolve()
 
     # Check standard locations
-    for p in CONFIG_PATHS:
+    for p in _CONFIG_PATHS:
         if p.exists():
             return p.resolve()
 
@@ -107,7 +108,7 @@ def config_init(
     The generated config file serves as a template showing all available
     options with explanatory comments.
     """
-    target_path = (path.expanduser().resolve() if path else None) or USER_CONFIG_PATH
+    target_path = (path.expanduser().resolve() if path else None) or _USER_CONFIG_PATH
 
     if target_path.exists() and not force:
         console.print(
@@ -143,7 +144,7 @@ def config_edit(
         console.print("[yellow]No config file found.[/yellow]")
         console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
         console.print("\nSearched locations:")
-        for p in CONFIG_PATHS:
+        for p in _CONFIG_PATHS:
             console.print(f"  - {p}")
         raise typer.Exit(1)
 
@@ -188,7 +189,7 @@ def config_show(
     if config_file is None:
         console.print("[yellow]No config file found.[/yellow]")
         console.print("\nSearched locations:")
-        for p in CONFIG_PATHS:
+        for p in _CONFIG_PATHS:
             status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
             console.print(f"  - {p} ({status})")
         console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
@@ -226,7 +227,7 @@ def config_path(
     if config_file is None:
         console.print("[yellow]No config file found.[/yellow]")
         console.print("\nSearched locations:")
-        for p in CONFIG_PATHS:
+        for p in _CONFIG_PATHS:
             status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
             console.print(f"  - {p} ({status})")
         raise typer.Exit(1)
@@ -258,3 +259,7 @@ def config_validate(
     console.print(f"[green]✓[/] Valid config: {config_file}")
     console.print(f"  Hosts: {len(cfg.hosts)}")
     console.print(f"  Services: {len(cfg.services)}")
+
+
+# Register config subcommand on the shared app
+app.add_typer(config_app, name="config", rich_help_panel="Configuration")

@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 import typer
 
-from compose_farm.cli import logs
+from compose_farm.cli.monitoring import logs
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
 
@@ -37,7 +37,7 @@ def _make_result(service: str) -> CommandResult:
 def _mock_run_async_factory(
     services: list[str],
 ) -> tuple[Any, list[CommandResult]]:
-    """Create a mock _run_async that returns results for given services."""
+    """Create a mock run_async that returns results for given services."""
     results = [_make_result(s) for s in services]
 
     def mock_run_async(_coro: Coroutine[Any, Any, Any]) -> list[CommandResult]:
@@ -55,9 +55,10 @@ class TestLogsContextualDefault:
         mock_run_async, _ = _mock_run_async_factory(["svc1", "svc2", "svc3"])
 
         with (
-            patch("compose_farm.cli._load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli._run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
+            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
             mock_run.return_value = None
 
@@ -73,9 +74,10 @@ class TestLogsContextualDefault:
         mock_run_async, _ = _mock_run_async_factory(["svc1"])
 
         with (
-            patch("compose_farm.cli._load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli._run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
+            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
             logs(
                 services=["svc1"],
@@ -96,9 +98,10 @@ class TestLogsContextualDefault:
         mock_run_async, _ = _mock_run_async_factory(["svc1", "svc2", "svc3"])
 
         with (
-            patch("compose_farm.cli._load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli._run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
+            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
             logs(
                 services=None,
@@ -119,9 +122,10 @@ class TestLogsContextualDefault:
         mock_run_async, _ = _mock_run_async_factory(["svc1"])
 
         with (
-            patch("compose_farm.cli._load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli._run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
+            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
             logs(
                 services=["svc1"],
@@ -146,9 +150,9 @@ class TestLogsHostFilter:
         mock_run_async, _ = _mock_run_async_factory(["svc1", "svc2"])
 
         with (
-            patch("compose_farm.cli._load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli._run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
+            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
             logs(
                 services=None,
@@ -170,9 +174,9 @@ class TestLogsHostFilter:
         mock_run_async, _ = _mock_run_async_factory(["svc1", "svc2"])
 
         with (
-            patch("compose_farm.cli._load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli._run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
+            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
             logs(
                 services=None,
@@ -187,14 +191,10 @@ class TestLogsHostFilter:
             call_args = mock_run.call_args
             assert call_args[0][2] == "logs --tail 20"
 
-    def test_logs_all_and_host_mutually_exclusive(self, tmp_path: Path) -> None:
+    def test_logs_all_and_host_mutually_exclusive(self) -> None:
         """Using --all and --host together should error."""
-        cfg = _make_config(tmp_path)
-
-        with (
-            patch("compose_farm.cli._load_config_or_exit", return_value=cfg),
-            pytest.raises(typer.Exit) as exc_info,
-        ):
+        # No config mock needed - error is raised before config is loaded
+        with pytest.raises(typer.Exit) as exc_info:
             logs(
                 services=None,
                 all_services=True,

@@ -318,11 +318,6 @@ cf ps
 │ restart        Restart services (down + up).                                 │
 │ update         Update services (pull + down + up).                           │
 ╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Monitoring ─────────────────────────────────────────────────────────────────╮
-│ logs           Show service logs.                                            │
-│ ps             Show status of all services.                                  │
-│ stats          Show overview statistics for hosts and services.              │
-╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Configuration ──────────────────────────────────────────────────────────────╮
 │ traefik-file   Generate a Traefik file-provider fragment from compose        │
 │                Traefik labels.                                               │
@@ -330,6 +325,11 @@ cf ps
 │ check          Validate configuration, traefik labels, mounts, and networks. │
 │ init-network   Create Docker network on hosts with consistent settings.      │
 │ config         Manage compose-farm configuration files.                      │
+╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Monitoring ─────────────────────────────────────────────────────────────────╮
+│ logs           Show service logs.                                            │
+│ ps             Show status of all services.                                  │
+│ stats          Show overview statistics for hosts and services.              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
