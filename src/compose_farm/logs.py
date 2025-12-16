@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 DEFAULT_LOG_PATH = xdg_config_home() / "compose-farm" / "dockerfarm-log.toml"
-DIGEST_HEX_LENGTH = 64
+_DIGEST_HEX_LENGTH = 64
 
 
 @dataclass(frozen=True)
@@ -97,7 +97,7 @@ def _extract_image_fields(record: dict[str, Any]) -> tuple[str, str]:
         or ""
     )
 
-    if digest and not digest.startswith("sha256:") and len(digest) == DIGEST_HEX_LENGTH:
+    if digest and not digest.startswith("sha256:") and len(digest) == _DIGEST_HEX_LENGTH:
         digest = f"sha256:{digest}"
 
     return image, digest

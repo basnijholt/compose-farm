@@ -18,10 +18,10 @@ if TYPE_CHECKING:
     from .config import Config
 
 # Port parsing constants
-SINGLE_PART = 1
-PUBLISHED_TARGET_PARTS = 2
-HOST_PUBLISHED_PARTS = 3
-MIN_VOLUME_PARTS = 2
+_SINGLE_PART = 1
+_PUBLISHED_TARGET_PARTS = 2
+_HOST_PUBLISHED_PARTS = 3
+_MIN_VOLUME_PARTS = 2
 
 _VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-(.*?))?\}")
 
@@ -93,12 +93,16 @@ def _parse_ports(raw: Any, env: dict[str, str]) -> list[PortMapping]:  # noqa: P
             published: int | None = None
             target: int | None = None
 
-            if len(parts) == SINGLE_PART and parts[0].isdigit():
+            if len(parts) == _SINGLE_PART and parts[0].isdigit():
                 target = int(parts[0])
-            elif len(parts) == PUBLISHED_TARGET_PARTS and parts[0].isdigit() and parts[1].isdigit():
+            elif (
+                len(parts) == _PUBLISHED_TARGET_PARTS and parts[0].isdigit() and parts[1].isdigit()
+            ):
                 published = int(parts[0])
                 target = int(parts[1])
-            elif len(parts) == HOST_PUBLISHED_PARTS and parts[-2].isdigit() and parts[-1].isdigit():
+            elif (
+                len(parts) == _HOST_PUBLISHED_PARTS and parts[-2].isdigit() and parts[-1].isdigit()
+            ):
                 published = int(parts[-2])
                 target = int(parts[-1])
 
@@ -146,7 +150,7 @@ def _parse_volume_item(
     if isinstance(item, str):
         interpolated = _interpolate(item, env)
         parts = interpolated.split(":")
-        if len(parts) >= MIN_VOLUME_PARTS:
+        if len(parts) >= _MIN_VOLUME_PARTS:
             return _resolve_host_path(parts[0], compose_dir)
     elif isinstance(item, dict) and item.get("type") == "bind":
         source = item.get("source")
