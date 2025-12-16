@@ -13,8 +13,9 @@ from typing import Annotated
 
 import typer
 
-from .config import load_config, xdg_config_home
-from .console import console, err_console
+from compose_farm.cli.app import app
+from compose_farm.config import load_config, xdg_config_home
+from compose_farm.console import console, err_console
 
 config_app = typer.Typer(
     name="config",
@@ -70,7 +71,7 @@ def _get_editor() -> str:
 def _generate_template() -> str:
     """Generate a config template with documented schema."""
     try:
-        template_file = resources.files(__package__) / "example-config.yaml"
+        template_file = resources.files("compose_farm") / "example-config.yaml"
         return template_file.read_text(encoding="utf-8")
     except FileNotFoundError as e:
         err_console.print("[red]Example config template is missing from the package.[/red]")
@@ -258,3 +259,7 @@ def config_validate(
     console.print(f"[green]✓[/] Valid config: {config_file}")
     console.print(f"  Hosts: {len(cfg.hosts)}")
     console.print(f"  Services: {len(cfg.services)}")
+
+
+# Register config subcommand on the shared app
+app.add_typer(config_app, name="config", rich_help_panel="Configuration")

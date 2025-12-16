@@ -10,16 +10,21 @@
 
 ```
 compose_farm/
-├── cli.py         # Typer commands (thin layer, delegates to operations)
-├── config.py      # Pydantic models, YAML loading
-├── config_cmd.py  # Config subcommand (init, show, path, validate, edit)
-├── compose.py     # Compose file parsing (.env, ports, volumes, networks)
-├── console.py     # Shared Rich console instances
-├── executor.py    # SSH/local command execution, streaming output
-├── operations.py  # Business logic (up, migrate, discover, preflight checks)
-├── state.py       # Deployment state tracking (which service on which host)
-├── logs.py        # Image digest snapshots (dockerfarm-log.toml)
-└── traefik.py     # Traefik file-provider config generation from labels
+├── cli/               # CLI subpackage
+│   ├── __init__.py    # Main Typer app, version callback
+│   ├── common.py      # Shared helpers, options, progress bar utilities
+│   ├── config.py      # Config subcommand (init, show, path, validate, edit)
+│   ├── lifecycle.py   # up, down, pull, restart, update commands
+│   ├── management.py  # sync, check, init-network, traefik-file commands
+│   └── monitoring.py  # logs, ps, stats commands
+├── config.py          # Pydantic models, YAML loading
+├── compose.py         # Compose file parsing (.env, ports, volumes, networks)
+├── console.py         # Shared Rich console instances
+├── executor.py        # SSH/local command execution, streaming output
+├── operations.py      # Business logic (up, migrate, discover, preflight checks)
+├── state.py           # Deployment state tracking (which service on which host)
+├── logs.py            # Image digest snapshots (dockerfarm-log.toml)
+└── traefik.py         # Traefik file-provider config generation from labels
 ```
 
 ## Key Design Decisions
