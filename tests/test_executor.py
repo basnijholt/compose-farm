@@ -8,10 +8,10 @@ import pytest
 from compose_farm.config import Config, Host
 from compose_farm.executor import (
     CommandResult,
-    _is_local,
     _run_local_command,
     check_networks_exist,
     check_paths_exist,
+    is_local,
     run_command,
     run_compose,
     run_on_services,
@@ -22,7 +22,7 @@ linux_only = pytest.mark.skipif(sys.platform != "linux", reason="Linux-only shel
 
 
 class TestIsLocal:
-    """Tests for _is_local function."""
+    """Tests for is_local function."""
 
     @pytest.mark.parametrize(
         "address",
@@ -30,7 +30,7 @@ class TestIsLocal:
     )
     def test_local_addresses(self, address: str) -> None:
         host = Host(address=address)
-        assert _is_local(host) is True
+        assert is_local(host) is True
 
     @pytest.mark.parametrize(
         "address",
@@ -38,7 +38,7 @@ class TestIsLocal:
     )
     def test_remote_addresses(self, address: str) -> None:
         host = Host(address=address)
-        assert _is_local(host) is False
+        assert is_local(host) is False
 
 
 class TestRunLocalCommand:

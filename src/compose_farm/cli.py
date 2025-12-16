@@ -26,10 +26,10 @@ from .config import Config, load_config
 from .console import console, err_console
 from .executor import (
     CommandResult,
-    _is_local,
     check_networks_exist,
     check_paths_exist,
     check_service_running,
+    is_local,
     run_command,
     run_compose_on_host,
     run_on_services,
@@ -38,11 +38,11 @@ from .executor import (
 from .logs import (
     DEFAULT_LOG_PATH,
     SnapshotEntry,
-    _collect_service_entries,
-    _isoformat,
-    _load_existing_entries,
-    _merge_entries,
-    _write_toml,
+    collect_service_entries,
+    isoformat,
+    load_existing_entries,
+    merge_entries,
+    write_toml,
 )
 from .operations import (
     check_host_compatibility,
@@ -459,7 +459,7 @@ def _group_services_by_host(
     return by_host
 
 
-def _get_container_counts_with_progress(cfg: Config) -> dict[str, int]:
+def _get_container_counts(cfg: Config) -> dict[str, int]:
     """Get container counts from all hosts with a progress bar."""
 
     async def get_count(host_name: str) -> tuple[str, int]:
@@ -569,7 +569,7 @@ def stats(
 
     container_counts: dict[str, int] = {}
     if live:
-        container_counts = _get_container_counts_with_progress(cfg)
+        container_counts = _get_container_counts(cfg)
 
     host_table = _build_host_table(
         cfg, services_by_host, running_by_host, container_counts, show_containers=live
@@ -615,7 +615,7 @@ def traefik_file(
         err_console.print(f"[yellow]![/] {warning}")
 
 
-def _discover_services_with_progress(cfg: Config) -> dict[str, str | list[str]]:
+def _discover_services(cfg: Config) -> dict[str, str | list[str]]:
     """Discover running services with a progress bar."""
 
     async def check_service(service: str) -> tuple[str, str | list[str] | None]:
@@ -665,7 +665,7 @@ def _discover_services_with_progress(cfg: Config) -> dict[str, str | list[str]]:
         return asyncio.run(gather_with_progress(progress, task_id))
 
 
-def _snapshot_services_with_progress(
+def _snapshot_services(
     cfg: Config,
     services: list[str],
     log_path: Path | None,
@@ -674,7 +674,7 @@ def _snapshot_services_with_progress(
 
     async def collect_service(service: str, now: datetime) -> list[SnapshotEntry]:
         try:
-            return await _collect_service_entries(cfg, service, now=now)
+            return await collect_service_entries(cfg, service, now=now)
         except RuntimeError:
             return []
 
@@ -697,7 +697,7 @@ def _snapshot_services_with_progress(
 
     effective_log_path = log_path or DEFAULT_LOG_PATH
     now_dt = datetime.now(UTC)
-    now_iso = _isoformat(now_dt)
+    now_iso = isoformat(now_dt)
 
     with _progress_bar("Capturing", len(services)) as (progress, task_id):
         snapshot_entries = asyncio.run(gather_with_progress(progress, task_id, now_dt, services))
@@ -706,17 +706,17 @@ def _snapshot_services_with_progress(
         msg = "No image digests were captured"
         raise RuntimeError(msg)
 
-    existing_entries = _load_existing_entries(effective_log_path)
-    merged_entries = _merge_entries(existing_entries, snapshot_entries, now_iso=now_iso)
+    existing_entries = load_existing_entries(effective_log_path)
+    merged_entries = merge_entries(existing_entries, snapshot_entries, now_iso=now_iso)
     meta = {"generated_at": now_iso, "compose_dir": str(cfg.compose_dir)}
-    _write_toml(effective_log_path, meta=meta, entries=merged_entries)
+    write_toml(effective_log_path, meta=meta, entries=merged_entries)
     return effective_log_path
 
 
 def _check_ssh_connectivity(cfg: Config) -> list[str]:
     """Check SSH connectivity to all hosts. Returns list of unreachable hosts."""
     # Filter out local hosts - no SSH needed
-    remote_hosts = [h for h in cfg.hosts if not _is_local(cfg.hosts[h])]
+    remote_hosts = [h for h in cfg.hosts if not is_local(cfg.hosts[h])]
 
     if not remote_hosts:
         return []
@@ -742,7 +742,7 @@ def _check_ssh_connectivity(cfg: Config) -> list[str]:
         return asyncio.run(gather_with_progress(progress, task_id))
 
 
-def _check_mounts_and_networks_with_progress(
+def _check_mounts_and_networks(
     cfg: Config,
     services: list[str],
 ) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]]]:
@@ -853,7 +853,7 @@ def sync(
     cfg = _load_config_or_exit(config)
     current_state = load_state(cfg)
 
-    discovered = _discover_services_with_progress(cfg)
+    discovered = _discover_services(cfg)
 
     # Calculate changes
     added = [s for s in discovered if s not in current_state]
@@ -883,7 +883,7 @@ def sync(
     # Capture image digests for running services
     if discovered:
         try:
-            path = _snapshot_services_with_progress(cfg, list(discovered.keys()), log_path)
+            path = _snapshot_services(cfg, list(discovered.keys()), log_path)
             console.print(f"[green]✓[/] Digests written to {path}")
         except RuntimeError as exc:
             err_console.print(f"[yellow]![/] {exc}")
@@ -1022,7 +1022,7 @@ def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bo
     console.print()  # Spacing before mounts/networks check
 
     # Check mounts and networks
-    mount_errors, network_errors = _check_mounts_and_networks_with_progress(cfg, svc_list)
+    mount_errors, network_errors = _check_mounts_and_networks(cfg, svc_list)
 
     if mount_errors:
         _report_mount_errors(mount_errors)

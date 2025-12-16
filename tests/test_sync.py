@@ -1,14 +1,12 @@
 """Tests for sync command and related functions."""
 
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from compose_farm import cli as cli_module
 from compose_farm import executor as executor_module
-from compose_farm import operations as operations_module
 from compose_farm import state as state_module
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult, check_service_running
@@ -93,42 +91,6 @@ class TestCheckServiceRunning:
             )
             result = await check_service_running(mock_config, "plex", "nas01")
             assert result is False
-
-
-class TestDiscoverRunningServices:
-    """Tests for discover_running_services function."""
-
-    @pytest.mark.asyncio
-    async def test_discovers_on_assigned_host(self, mock_config: Config) -> None:
-        """Discovers service running on its assigned host."""
-        with patch.object(
-            operations_module, "check_service_running", new_callable=AsyncMock
-        ) as mock_check:
-            # plex running on nas01, jellyfin not running, sonarr on nas02
-            async def check_side_effect(_cfg: Any, service: str, host: str) -> bool:
-                return (service == "plex" and host == "nas01") or (
-                    service == "sonarr" and host == "nas02"
-                )
-
-            mock_check.side_effect = check_side_effect
-
-            result = await operations_module.discover_running_services(mock_config)
-            assert result == {"plex": "nas01", "sonarr": "nas02"}
-
-    @pytest.mark.asyncio
-    async def test_discovers_on_different_host(self, mock_config: Config) -> None:
-        """Discovers service running on non-assigned host (after migration)."""
-        with patch.object(
-            operations_module, "check_service_running", new_callable=AsyncMock
-        ) as mock_check:
-            # plex migrated to nas02
-            async def check_side_effect(_cfg: Any, service: str, host: str) -> bool:
-                return service == "plex" and host == "nas02"
-
-            mock_check.side_effect = check_side_effect
-
-            result = await operations_module.discover_running_services(mock_config)
-            assert result == {"plex": "nas02"}
 
 
 class TestReportSyncChanges:

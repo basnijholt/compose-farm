@@ -34,7 +34,7 @@ class PortMapping:
     published: int | None
 
 
-def load_env(compose_path: Path) -> dict[str, str]:
+def _load_env(compose_path: Path) -> dict[str, str]:
     """Load environment variables for compose interpolation.
 
     Reads from .env file in the same directory as compose file,
@@ -59,7 +59,7 @@ def load_env(compose_path: Path) -> dict[str, str]:
     return env
 
 
-def interpolate(value: str, env: dict[str, str]) -> str:
+def _interpolate(value: str, env: dict[str, str]) -> str:
     """Perform ${VAR} and ${VAR:-default} interpolation."""
 
     def replace(match: re.Match[str]) -> str:
@@ -73,7 +73,7 @@ def interpolate(value: str, env: dict[str, str]) -> str:
     return _VAR_PATTERN.sub(replace, value)
 
 
-def parse_ports(raw: Any, env: dict[str, str]) -> list[PortMapping]:  # noqa: PLR0912
+def _parse_ports(raw: Any, env: dict[str, str]) -> list[PortMapping]:  # noqa: PLR0912
     """Parse port specifications from compose file.
 
     Handles string formats like "8080", "8080:80", "0.0.0.0:8080:80",
@@ -87,7 +87,7 @@ def parse_ports(raw: Any, env: dict[str, str]) -> list[PortMapping]:  # noqa: PL
 
     for item in items:
         if isinstance(item, str):
-            interpolated = interpolate(item, env)
+            interpolated = _interpolate(item, env)
             port_spec, _, _ = interpolated.partition("/")
             parts = port_spec.split(":")
             published: int | None = None
@@ -107,7 +107,7 @@ def parse_ports(raw: Any, env: dict[str, str]) -> list[PortMapping]:  # noqa: PL
         elif isinstance(item, dict):
             target_raw = item.get("target")
             if isinstance(target_raw, str):
-                target_raw = interpolate(target_raw, env)
+                target_raw = _interpolate(target_raw, env)
             if target_raw is None:
                 continue
             try:
@@ -117,7 +117,7 @@ def parse_ports(raw: Any, env: dict[str, str]) -> list[PortMapping]:  # noqa: PL
 
             published_raw = item.get("published")
             if isinstance(published_raw, str):
-                published_raw = interpolate(published_raw, env)
+                published_raw = _interpolate(published_raw, env)
             published_val: int | None
             try:
                 published_val = int(str(published_raw)) if published_raw is not None else None
@@ -144,14 +144,14 @@ def _parse_volume_item(
 ) -> str | None:
     """Parse a single volume item and return host path if it's a bind mount."""
     if isinstance(item, str):
-        interpolated = interpolate(item, env)
+        interpolated = _interpolate(item, env)
         parts = interpolated.split(":")
         if len(parts) >= MIN_VOLUME_PARTS:
             return _resolve_host_path(parts[0], compose_dir)
     elif isinstance(item, dict) and item.get("type") == "bind":
         source = item.get("source")
         if source:
-            interpolated = interpolate(str(source), env)
+            interpolated = _interpolate(str(source), env)
             return _resolve_host_path(interpolated, compose_dir)
     return None
 
@@ -166,7 +166,7 @@ def parse_host_volumes(config: Config, service: str) -> list[str]:
     if not compose_path.exists():
         return []
 
-    env = load_env(compose_path)
+    env = _load_env(compose_path)
     compose_data = yaml.safe_load(compose_path.read_text()) or {}
     raw_services = compose_data.get("services", {})
     if not isinstance(raw_services, dict):
@@ -234,7 +234,7 @@ def load_compose_services(
         message = f"[{stack}] Compose file not found: {compose_path}"
         raise FileNotFoundError(message)
 
-    env = load_env(compose_path)
+    env = _load_env(compose_path)
     compose_data = yaml.safe_load(compose_path.read_text()) or {}
     raw_services = compose_data.get("services", {})
     if not isinstance(raw_services, dict):
@@ -248,7 +248,7 @@ def normalize_labels(raw: Any, env: dict[str, str]) -> dict[str, str]:
         return {}
     if isinstance(raw, dict):
         return {
-            interpolate(str(k), env): interpolate(str(v), env)
+            _interpolate(str(k), env): _interpolate(str(v), env)
             for k, v in raw.items()
             if k is not None
         }
@@ -258,8 +258,8 @@ def normalize_labels(raw: Any, env: dict[str, str]) -> dict[str, str]:
             if not isinstance(item, str) or "=" not in item:
                 continue
             key_raw, value_raw = item.split("=", 1)
-            key = interpolate(key_raw.strip(), env)
-            value = interpolate(value_raw.strip(), env)
+            key = _interpolate(key_raw.strip(), env)
+            value = _interpolate(value_raw.strip(), env)
             labels[key] = value
         return labels
     return {}
@@ -278,5 +278,5 @@ def get_ports_for_service(
         if ref_service in all_services:
             ref_def = all_services[ref_service]
             if isinstance(ref_def, dict):
-                return parse_ports(ref_def.get("ports"), env)
-    return parse_ports(definition.get("ports"), env)
+                return _parse_ports(ref_def.get("ports"), env)
+    return _parse_ports(definition.get("ports"), env)

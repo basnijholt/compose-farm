@@ -47,7 +47,8 @@ class SnapshotEntry:
         }
 
 
-def _isoformat(dt: datetime) -> str:
+def isoformat(dt: datetime) -> str:
+    """Format a datetime as an ISO 8601 string with Z suffix for UTC."""
     return dt.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
@@ -102,7 +103,7 @@ def _extract_image_fields(record: dict[str, Any]) -> tuple[str, str]:
     return image, digest
 
 
-async def _collect_service_entries(
+async def collect_service_entries(
     config: Config,
     service: str,
     *,
@@ -139,19 +140,21 @@ async def _collect_service_entries(
     return entries
 
 
-def _load_existing_entries(log_path: Path) -> list[dict[str, str]]:
+def load_existing_entries(log_path: Path) -> list[dict[str, str]]:
+    """Load existing snapshot entries from a TOML log file."""
     if not log_path.exists():
         return []
     data = tomllib.loads(log_path.read_text())
     return list(data.get("entries", []))
 
 
-def _merge_entries(
+def merge_entries(
     existing: Iterable[dict[str, str]],
     new_entries: Iterable[SnapshotEntry],
     *,
     now_iso: str,
 ) -> list[dict[str, str]]:
+    """Merge new snapshot entries with existing ones, preserving first_seen timestamps."""
     merged: dict[tuple[str, str, str], dict[str, str]] = {
         (e["service"], e["host"], e["digest"]): dict(e) for e in existing
     }
@@ -164,7 +167,8 @@ def _merge_entries(
     return list(merged.values())
 
 
-def _write_toml(log_path: Path, *, meta: dict[str, str], entries: list[dict[str, str]]) -> None:
+def write_toml(log_path: Path, *, meta: dict[str, str], entries: list[dict[str, str]]) -> None:
+    """Write snapshot entries to a TOML log file."""
     lines: list[str] = ["[meta]"]
     lines.extend(f'{key} = "{_escape(meta[key])}"' for key in sorted(meta))
 
@@ -189,45 +193,3 @@ def _write_toml(log_path: Path, *, meta: dict[str, str], entries: list[dict[str,
     content = "\n".join(lines).rstrip() + "\n"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.write_text(content)
-
-
-async def snapshot_services(
-    config: Config,
-    services: list[str],
-    *,
-    log_path: Path | None = None,
-    now: datetime | None = None,
-    run_compose_fn: Callable[..., Awaitable[CommandResult]] = run_compose,
-) -> Path:
-    """Capture current image digests for services and write them to a TOML log.
-
-    - Preserves the earliest `first_seen` per (service, host, digest)
-    - Updates `last_seen` for digests observed in this snapshot
-    - Leaves untouched digests that were not part of this run (history is kept)
-    """
-    if not services:
-        error = "No services specified for snapshot"
-        raise RuntimeError(error)
-
-    log_path = log_path or DEFAULT_LOG_PATH
-    now_dt = now or datetime.now(UTC)
-    now_iso = _isoformat(now_dt)
-
-    existing_entries = _load_existing_entries(log_path)
-
-    snapshot_entries: list[SnapshotEntry] = []
-    for service in services:
-        snapshot_entries.extend(
-            await _collect_service_entries(
-                config, service, now=now_dt, run_compose_fn=run_compose_fn
-            )
-        )
-
-    if not snapshot_entries:
-        error = "No image digests were captured"
-        raise RuntimeError(error)
-
-    merged_entries = _merge_entries(existing_entries, snapshot_entries, now_iso=now_iso)
-    meta = {"generated_at": now_iso, "compose_dir": str(config.compose_dir)}
-    _write_toml(log_path, meta=meta, entries=merged_entries)
-    return log_path

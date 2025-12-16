@@ -6,7 +6,6 @@ CLI commands are thin wrappers around these functions.
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING
 
 from .compose import parse_external_networks, parse_host_volumes
@@ -15,7 +14,6 @@ from .executor import (
     CommandResult,
     check_networks_exist,
     check_paths_exist,
-    check_service_running,
     run_command,
     run_compose,
     run_compose_on_host,
@@ -23,8 +21,6 @@ from .executor import (
 from .state import get_service_host, set_multi_host_service, set_service_host
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable
-
     from .config import Config
 
 
@@ -35,7 +31,7 @@ def get_service_paths(cfg: Config, service: str) -> list[str]:
     return paths
 
 
-async def check_mounts_for_migration(
+async def _check_mounts_for_migration(
     cfg: Config,
     service: str,
     target_host: str,
@@ -46,7 +42,7 @@ async def check_mounts_for_migration(
     return [p for p, found in exists.items() if not found]
 
 
-async def check_networks_for_migration(
+async def _check_networks_for_migration(
     cfg: Config,
     service: str,
     target_host: str,
@@ -59,7 +55,7 @@ async def check_networks_for_migration(
     return [n for n, found in exists.items() if not found]
 
 
-async def preflight_check(
+async def _preflight_check(
     cfg: Config,
     service: str,
     target_host: str,
@@ -68,8 +64,8 @@ async def preflight_check(
 
     Returns (missing_paths, missing_networks).
     """
-    missing_paths = await check_mounts_for_migration(cfg, service, target_host)
-    missing_networks = await check_networks_for_migration(cfg, service, target_host)
+    missing_paths = await _check_mounts_for_migration(cfg, service, target_host)
+    missing_networks = await _check_networks_for_migration(cfg, service, target_host)
     return missing_paths, missing_networks
 
 
@@ -104,7 +100,7 @@ async def _up_multi_host_service(
 
     # Pre-flight checks on all hosts
     for host_name in host_names:
-        missing_paths, missing_networks = await preflight_check(cfg, service, host_name)
+        missing_paths, missing_networks = await _preflight_check(cfg, service, host_name)
         if missing_paths or missing_networks:
             report_preflight_failures(service, host_name, missing_paths, missing_networks)
             results.append(
@@ -157,7 +153,7 @@ async def up_services(
         current_host = get_service_host(cfg, service)
 
         # Pre-flight check: verify paths and networks exist on target
-        missing_paths, missing_networks = await preflight_check(cfg, service, target_host)
+        missing_paths, missing_networks = await _preflight_check(cfg, service, target_host)
         if missing_paths or missing_networks:
             report_preflight_failures(service, target_host, missing_paths, missing_networks)
             results.append(CommandResult(service=service, exit_code=1, success=False))
@@ -196,45 +192,6 @@ async def up_services(
     return results
 
 
-async def discover_running_services(cfg: Config) -> dict[str, str | list[str]]:
-    """Discover which services are running on which hosts.
-
-    Returns a dict mapping service names to host name(s).
-    Multi-host services return a list of hosts where they're running.
-    """
-    discovered: dict[str, str | list[str]] = {}
-
-    for service in cfg.services:
-        assigned_hosts = cfg.get_hosts(service)
-
-        if cfg.is_multi_host(service):
-            # For multi-host services, find all hosts where it's running (check in parallel)
-            checks = await asyncio.gather(
-                *[check_service_running(cfg, service, h) for h in assigned_hosts]
-            )
-            running_hosts = [
-                h for h, running in zip(assigned_hosts, checks, strict=True) if running
-            ]
-            if running_hosts:
-                discovered[service] = running_hosts
-        else:
-            # Single-host service - check assigned host first
-            assigned_host = assigned_hosts[0]
-            if await check_service_running(cfg, service, assigned_host):
-                discovered[service] = assigned_host
-                continue
-
-            # Check other hosts in case service was migrated but state is stale
-            for host_name in cfg.hosts:
-                if host_name == assigned_host:
-                    continue
-                if await check_service_running(cfg, service, host_name):
-                    discovered[service] = host_name
-                    break
-
-    return discovered
-
-
 async def check_host_compatibility(
     cfg: Config,
     service: str,
@@ -253,50 +210,3 @@ async def check_host_compatibility(
         results[host_name] = (found, len(paths), missing)
 
     return results
-
-
-async def _check_resources(
-    cfg: Config,
-    services: list[str],
-    get_resources: Callable[[Config, str], list[str]],
-    check_exists: Callable[[Config, str, list[str]], Awaitable[dict[str, bool]]],
-) -> list[tuple[str, str, str]]:
-    """Generic check for resources (mounts, networks) on configured hosts."""
-    missing: list[tuple[str, str, str]] = []
-
-    for service in services:
-        host_names = cfg.get_hosts(service)
-        resources = get_resources(cfg, service)
-        if not resources:
-            continue
-
-        for host_name in host_names:
-            exists = await check_exists(cfg, host_name, resources)
-
-            for item, found in exists.items():
-                if not found:
-                    missing.append((service, host_name, item))
-
-    return missing
-
-
-async def check_mounts_on_configured_hosts(
-    cfg: Config,
-    services: list[str],
-) -> list[tuple[str, str, str]]:
-    """Check mount paths exist on configured hosts.
-
-    Returns list of (service, host, missing_path) tuples.
-    """
-    return await _check_resources(cfg, services, get_service_paths, check_paths_exist)
-
-
-async def check_networks_on_configured_hosts(
-    cfg: Config,
-    services: list[str],
-) -> list[tuple[str, str, str]]:
-    """Check Docker networks exist on configured hosts.
-
-    Returns list of (service, host, missing_network) tuples.
-    """
-    return await _check_resources(cfg, services, parse_external_networks, check_networks_exist)

@@ -9,7 +9,14 @@ import pytest
 
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
-from compose_farm.logs import _parse_images_output, snapshot_services
+from compose_farm.logs import (
+    _parse_images_output,
+    collect_service_entries,
+    isoformat,
+    load_existing_entries,
+    merge_entries,
+    write_toml,
+)
 
 
 def test_parse_images_output_handles_list_and_lines() -> None:
@@ -55,26 +62,29 @@ async def test_snapshot_preserves_first_seen(tmp_path: Path) -> None:
 
     log_path = tmp_path / "dockerfarm-log.toml"
 
+    # First snapshot
     first_time = datetime(2025, 1, 1, tzinfo=UTC)
-    await snapshot_services(
-        config,
-        ["svc"],
-        log_path=log_path,
-        now=first_time,
-        run_compose_fn=fake_run_compose,
+    first_entries = await collect_service_entries(
+        config, "svc", now=first_time, run_compose_fn=fake_run_compose
     )
+    first_iso = isoformat(first_time)
+    merged = merge_entries([], first_entries, now_iso=first_iso)
+    meta = {"generated_at": first_iso, "compose_dir": str(config.compose_dir)}
+    write_toml(log_path, meta=meta, entries=merged)
 
     after_first = tomllib.loads(log_path.read_text())
     first_seen = after_first["entries"][0]["first_seen"]
 
+    # Second snapshot
     second_time = datetime(2025, 2, 1, tzinfo=UTC)
-    await snapshot_services(
-        config,
-        ["svc"],
-        log_path=log_path,
-        now=second_time,
-        run_compose_fn=fake_run_compose,
+    second_entries = await collect_service_entries(
+        config, "svc", now=second_time, run_compose_fn=fake_run_compose
     )
+    second_iso = isoformat(second_time)
+    existing = load_existing_entries(log_path)
+    merged = merge_entries(existing, second_entries, now_iso=second_iso)
+    meta = {"generated_at": second_iso, "compose_dir": str(config.compose_dir)}
+    write_toml(log_path, meta=meta, entries=merged)
 
     after_second = tomllib.loads(log_path.read_text())
     entry = after_second["entries"][0]

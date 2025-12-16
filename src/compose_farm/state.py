@@ -64,17 +64,6 @@ def get_service_host(config: Config, service: str) -> str | None:
     return value
 
 
-def get_service_hosts(config: Config, service: str) -> list[str]:
-    """Get all hosts where a service is currently deployed."""
-    state = load_state(config)
-    value = state.get(service)
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return value
-    return [value]
-
-
 def set_service_host(config: Config, service: str, host: str) -> None:
     """Record that a service is deployed on a host."""
     with _modify_state(config) as state:

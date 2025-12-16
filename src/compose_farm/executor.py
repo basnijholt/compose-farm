@@ -55,7 +55,7 @@ class CommandResult:
     stderr: str = ""
 
 
-def _is_local(host: Host) -> bool:
+def is_local(host: Host) -> bool:
     """Check if host should run locally (no SSH)."""
     addr = host.address.lower()
     if addr in LOCAL_ADDRESSES:
@@ -212,7 +212,7 @@ async def run_command(
     raw: bool = False,
 ) -> CommandResult:
     """Run a command on a host (locally or via SSH)."""
-    if _is_local(host):
+    if is_local(host):
         return await _run_local_command(command, service, stream=stream, raw=raw)
     return await _run_ssh_command(host, command, service, stream=stream, raw=raw)
 
@@ -265,7 +265,7 @@ async def run_compose_multi_host(
 
     Returns a list of results, one per host.
     """
-    return await run_sequential_commands_multi_host(
+    return await _run_sequential_commands_multi_host(
         config, service, [compose_cmd], stream=stream, raw=raw
     )
 
@@ -286,7 +286,7 @@ async def run_on_services(
     return await run_sequential_on_services(config, services, [compose_cmd], stream=stream, raw=raw)
 
 
-async def run_sequential_commands(
+async def _run_sequential_commands(
     config: Config,
     service: str,
     commands: list[str],
@@ -302,7 +302,7 @@ async def run_sequential_commands(
     return CommandResult(service=service, exit_code=0, success=True)
 
 
-async def run_sequential_commands_multi_host(
+async def _run_sequential_commands_multi_host(
     config: Config,
     service: str,
     commands: list[str],
@@ -356,13 +356,13 @@ async def run_sequential_on_services(
     for service in services:
         if config.is_multi_host(service):
             multi_host_tasks.append(
-                run_sequential_commands_multi_host(
+                _run_sequential_commands_multi_host(
                     config, service, commands, stream=stream, raw=raw
                 )
             )
         else:
             single_host_tasks.append(
-                run_sequential_commands(config, service, commands, stream=stream, raw=raw)
+                _run_sequential_commands(config, service, commands, stream=stream, raw=raw)
             )
 
     # Gather results separately to maintain type safety
