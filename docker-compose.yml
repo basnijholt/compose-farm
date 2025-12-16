@@ -1,0 +1,12 @@
+services:
+  cf:
+    image: ghcr.io/basnijholt/compose-farm:latest
+    volumes:
+      - ${SSH_AUTH_SOCK}:/ssh-agent:ro
+      - ~/.config/compose-farm:/root/.config/compose-farm
+      # If your config is a symlink, mount the actual file too:
+      - /opt/stacks/compose-farm.yaml:/opt/stacks/compose-farm.yaml:ro
+      # Mount your compose directory (must match compose_dir in config)
+      # - /opt/compose:/opt/compose:ro
+    environment:
+      - SSH_AUTH_SOCK=/ssh-agent

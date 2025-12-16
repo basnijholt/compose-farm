@@ -134,16 +134,17 @@ pip install compose-farm
 
 <details><summary>🐳 Docker</summary>
 
+Using the provided `docker-compose.yml`:
+```bash
+docker compose run --rm cf up --all
+```
+
+Or directly:
 ```bash
 docker run --rm \
   -v $SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent \
   -v ./compose-farm.yaml:/root/.config/compose-farm/compose-farm.yaml:ro \
   ghcr.io/basnijholt/compose-farm up --all
-```
-
-Or create an alias:
-```bash
-alias cf='docker run --rm -v $SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent -v ./compose-farm.yaml:/root/.config/compose-farm/compose-farm.yaml:ro ghcr.io/basnijholt/compose-farm'
 ```
 
 </details>
