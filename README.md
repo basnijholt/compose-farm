@@ -132,6 +132,22 @@ uv tool install compose-farm
 pip install compose-farm
 ```
 
+<details><summary>🐳 Docker</summary>
+
+```bash
+docker run --rm \
+  -v $SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent \
+  -v ./compose-farm.yaml:/root/.config/compose-farm/compose-farm.yaml:ro \
+  ghcr.io/basnijholt/compose-farm up --all
+```
+
+Or create an alias:
+```bash
+alias cf='docker run --rm -v $SSH_AUTH_SOCK:/ssh-agent -e SSH_AUTH_SOCK=/ssh-agent -v ./compose-farm.yaml:/root/.config/compose-farm/compose-farm.yaml:ro ghcr.io/basnijholt/compose-farm'
+```
+
+</details>
+
 ## Configuration
 
 Create `~/.config/compose-farm/compose-farm.yaml` (or `./compose-farm.yaml` in your working directory):
