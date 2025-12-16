@@ -363,7 +363,7 @@ There are many ways to run containers on multiple hosts. Here is where Compose F
 | Version controlled | ✅ | ✅ | ✅ | ❌ | ✅ |
 | State tracking | ❌ | ✅ | ✅ | ✅ | ✅ |
 | Auto-migration | ❌ | ✅ | ❌ | ❌ | ✅ |
-| Interactive CLI | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Unified Multi-host CLI | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Parallel execution | ❌ | ✅ | ✅ | ✅ | ✅ |
 | Agentless | ✅ | ❌ | ✅ | ❌ | ✅ |
 
