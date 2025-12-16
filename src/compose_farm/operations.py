@@ -130,6 +130,51 @@ async def _up_multi_host_service(
     return results
 
 
+async def _migrate_service(
+    cfg: Config,
+    service: str,
+    current_host: str,
+    target_host: str,
+    prefix: str,
+    *,
+    raw: bool = False,
+) -> CommandResult | None:
+    """Migrate a service from current_host to target_host.
+
+    Pre-pulls/builds images on target, then stops service on current host.
+    Returns failure result if migration prep fails, None on success.
+    """
+    console.print(
+        f"{prefix} Migrating from [magenta]{current_host}[/] → [magenta]{target_host}[/]..."
+    )
+    # Pre-pull/build images on target host to minimize downtime
+    pull_result = await run_compose(cfg, service, "pull", raw=raw)
+    if raw:
+        print()  # Ensure newline after raw output
+    if not pull_result.success:
+        err_console.print(
+            f"{prefix} [red]✗[/] Pull failed on [magenta]{target_host}[/], "
+            "leaving service on current host"
+        )
+        return pull_result
+    # Also build any services with Dockerfile (pull skips these)
+    build_result = await run_compose(cfg, service, "build", raw=raw)
+    if raw:
+        print()  # Ensure newline after raw output
+    if not build_result.success:
+        err_console.print(
+            f"{prefix} [red]✗[/] Build failed on [magenta]{target_host}[/], "
+            "leaving service on current host"
+        )
+        return build_result
+    down_result = await run_compose_on_host(cfg, service, current_host, "down", raw=raw)
+    if raw:
+        print()  # Ensure newline after raw output
+    if not down_result.success:
+        return down_result
+    return None
+
+
 async def up_services(
     cfg: Config,
     services: list[str],
@@ -162,26 +207,11 @@ async def up_services(
         # If service is deployed elsewhere, migrate it
         if current_host and current_host != target_host:
             if current_host in cfg.hosts:
-                console.print(
-                    f"{prefix} Migrating from "
-                    f"[magenta]{current_host}[/] → [magenta]{target_host}[/]..."
+                failure = await _migrate_service(
+                    cfg, service, current_host, target_host, prefix, raw=raw
                 )
-                # Pre-pull images on target host to minimize downtime
-                pull_result = await run_compose(cfg, service, "pull", raw=raw)
-                if raw:
-                    print()  # Ensure newline after raw output
-                if not pull_result.success:
-                    err_console.print(
-                        f"{prefix} [red]✗[/] Pull failed on [magenta]{target_host}[/], "
-                        "leaving service on current host"
-                    )
-                    results.append(pull_result)
-                    continue
-                down_result = await run_compose_on_host(cfg, service, current_host, "down", raw=raw)
-                if raw:
-                    print()  # Ensure newline after raw output
-                if not down_result.success:
-                    results.append(down_result)
+                if failure:
+                    results.append(failure)
                     continue
             else:
                 err_console.print(
