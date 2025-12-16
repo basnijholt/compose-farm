@@ -148,9 +148,10 @@ def load_config(path: Path | None = None) -> Config:
     """Load configuration from YAML file.
 
     Search order:
-    1. Explicit path if provided
-    2. ./compose-farm.yaml
-    3. $XDG_CONFIG_HOME/compose-farm/compose-farm.yaml (defaults to ~/.config)
+    1. Explicit path if provided via --config
+    2. CF_CONFIG environment variable
+    3. ./compose-farm.yaml
+    4. $XDG_CONFIG_HOME/compose-farm/compose-farm.yaml (defaults to ~/.config)
     """
     search_paths = [
         Path("compose-farm.yaml"),
@@ -159,6 +160,8 @@ def load_config(path: Path | None = None) -> Config:
 
     if path:
         config_path = path
+    elif env_path := os.environ.get("CF_CONFIG"):
+        config_path = Path(env_path)
     else:
         config_path = None
         for p in search_paths:
