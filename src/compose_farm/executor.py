@@ -427,12 +427,15 @@ async def check_paths_exist(
     """Check if multiple paths exist on a specific host.
 
     Returns a dict mapping path -> exists.
+    Handles permission denied as "exists" (path is there, just not accessible).
     """
+    # Only report missing if stat says "No such file", otherwise assume exists
+    # (handles permission denied correctly - path exists, just not accessible)
     return await _batch_check_existence(
         config,
         host_name,
         paths,
-        lambda esc: f"test -e '{esc}' && echo 'Y:{esc}' || echo 'N:{esc}'",
+        lambda esc: f"stat '{esc}' 2>&1 | grep -q 'No such file' && echo 'N:{esc}' || echo 'Y:{esc}'",
         "mount-check",
     )
 
