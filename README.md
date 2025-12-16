@@ -25,6 +25,7 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 - [Installation](#installation)
 - [Configuration](#configuration)
   - [Multi-Host Services](#multi-host-services)
+  - [Config Command](#config-command)
 - [Usage](#usage)
   - [Auto-Migration](#auto-migration)
 - [Traefik Multihost Ingress (File Provider)](#traefik-multihost-ingress-file-provider)
@@ -207,6 +208,20 @@ When you run `cf up autokuma`, it starts the service on all hosts in parallel. M
 - Show output with `[service@host]` prefix for each host
 - Track all running hosts in state
 
+### Config Command
+
+Compose Farm includes a `config` subcommand to help manage configuration files:
+
+```bash
+cf config init      # Create a new config file with documented example
+cf config show      # Display current config with syntax highlighting
+cf config path      # Print the config file path (useful for scripting)
+cf config validate  # Validate config syntax and schema
+cf config edit      # Open config in $EDITOR
+```
+
+Use `cf config init` to get started with a fully documented template.
+
 ## Usage
 
 The CLI is available as both `compose-farm` and the shorter `cf` alias.
@@ -224,6 +239,7 @@ The CLI is available as both `compose-farm` and the shorter `cf` alias.
 | `cf check` | Validate config, mounts, networks |
 | `cf init-network` | Create Docker network on hosts |
 | `cf traefik-file` | Generate Traefik file-provider config |
+| `cf config <cmd>` | Manage config files (init, show, path, validate, edit) |
 
 All commands support `--all` to operate on all services.
 

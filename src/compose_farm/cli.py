@@ -23,6 +23,7 @@ from rich.table import Table
 from . import __version__
 from .compose import parse_external_networks
 from .config import Config, load_config
+from .config_cmd import config_app
 from .console import console, err_console
 from .executor import (
     CommandResult,
@@ -136,6 +137,7 @@ app = typer.Typer(
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
+app.add_typer(config_app, name="config", rich_help_panel="Configuration")
 
 
 @app.callback()

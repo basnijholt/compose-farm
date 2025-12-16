@@ -1,0 +1,89 @@
+# Compose Farm configuration
+# Documentation: https://github.com/basnijholt/compose-farm
+#
+# This file configures compose-farm to manage Docker Compose services
+# across multiple hosts via SSH.
+#
+# Place this file at:
+#   - ./compose-farm.yaml (current directory)
+#   - ~/.config/compose-farm/compose-farm.yaml
+#   - Or specify with: cf --config /path/to/config.yaml
+#   - Or set CF_CONFIG environment variable
+
+# ------------------------------------------------------------------------------
+# compose_dir: Directory containing service subdirectories with compose files
+# ------------------------------------------------------------------------------
+# Each subdirectory should contain a compose.yaml (or docker-compose.yml).
+# This path must be the same on all hosts (NFS mount recommended).
+#
+compose_dir: /opt/compose
+
+# ------------------------------------------------------------------------------
+# hosts: SSH connection details for each host
+# ------------------------------------------------------------------------------
+# Simple form:
+#   hostname: ip-or-fqdn
+#
+# Full form:
+#   hostname:
+#     address: ip-or-fqdn
+#     user: ssh-username      # default: current user
+#     port: 22                # default: 22
+#
+# Note: "all" is a reserved keyword and cannot be used as a host name.
+#
+hosts:
+  # Example: simple form (uses current user, port 22)
+  server1: 192.168.1.10
+
+  # Example: full form with explicit user
+  server2:
+    address: 192.168.1.20
+    user: admin
+
+  # Example: full form with custom port
+  server3:
+    address: 192.168.1.30
+    user: root
+    port: 2222
+
+# ------------------------------------------------------------------------------
+# services: Map service names to their target host(s)
+# ------------------------------------------------------------------------------
+# Each service name must match a subdirectory in compose_dir.
+#
+# Single host:
+#   service-name: hostname
+#
+# Multiple hosts (explicit list):
+#   service-name: [host1, host2]
+#
+# All hosts:
+#   service-name: all
+#
+services:
+  # Example: service runs on a single host
+  nginx: server1
+  postgres: server2
+
+  # Example: service runs on multiple specific hosts
+  # prometheus: [server1, server2]
+
+  # Example: service runs on ALL hosts (e.g., monitoring agents)
+  # node-exporter: all
+
+# ------------------------------------------------------------------------------
+# traefik_file: (optional) Auto-generate Traefik file-provider config
+# ------------------------------------------------------------------------------
+# When set, compose-farm automatically regenerates this file after
+# up/down/restart/update commands. Traefik watches this file for changes.
+#
+# traefik_file: /opt/compose/traefik/dynamic.d/compose-farm.yml
+
+# ------------------------------------------------------------------------------
+# traefik_service: (optional) Service name running Traefik
+# ------------------------------------------------------------------------------
+# When generating traefik_file, services on the same host as Traefik are
+# skipped (they're handled by Traefik's Docker provider directly).
+#
+# traefik_service: traefik

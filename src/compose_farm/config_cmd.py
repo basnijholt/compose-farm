@@ -1,0 +1,260 @@
+"""Configuration management commands for compose-farm."""
+
+from __future__ import annotations
+
+import os
+import platform
+import shlex
+import shutil
+import subprocess
+from importlib import resources
+from pathlib import Path
+from typing import Annotated
+
+import typer
+
+from .config import load_config, xdg_config_home
+from .console import console, err_console
+
+config_app = typer.Typer(
+    name="config",
+    help="Manage compose-farm configuration files.",
+    no_args_is_help=True,
+)
+
+# Default config location
+USER_CONFIG_PATH = xdg_config_home() / "compose-farm" / "compose-farm.yaml"
+
+# Search paths for existing config
+CONFIG_PATHS = [
+    Path("compose-farm.yaml"),
+    USER_CONFIG_PATH,
+]
+
+# --- CLI Options (same pattern as cli.py) ---
+_PathOption = Annotated[
+    Path | None,
+    typer.Option("--path", "-p", help="Path to config file. Uses auto-detection if not specified."),
+]
+_ForceOption = Annotated[
+    bool,
+    typer.Option("--force", "-f", help="Overwrite existing config without confirmation."),
+]
+_RawOption = Annotated[
+    bool,
+    typer.Option("--raw", "-r", help="Output raw file contents (for copy-paste)."),
+]
+
+
+def _get_editor() -> str:
+    """Get the user's preferred editor.
+
+    Checks $EDITOR, then $VISUAL, then falls back to platform defaults.
+    """
+    for env_var in ("EDITOR", "VISUAL"):
+        editor = os.environ.get(env_var)
+        if editor:
+            return editor
+
+    if platform.system() == "Windows":
+        return "notepad"
+
+    # Try common editors on Unix-like systems
+    for editor in ("nano", "vim", "vi"):
+        if shutil.which(editor):
+            return editor
+
+    return "vi"
+
+
+def _generate_template() -> str:
+    """Generate a config template with documented schema."""
+    try:
+        template_file = resources.files(__package__) / "example-config.yaml"
+        return template_file.read_text(encoding="utf-8")
+    except FileNotFoundError as e:
+        err_console.print("[red]Example config template is missing from the package.[/red]")
+        err_console.print("Reinstall compose-farm or report this issue.")
+        raise typer.Exit(1) from e
+
+
+def _get_config_file(path: Path | None) -> Path | None:
+    """Resolve config path, or auto-detect from standard locations."""
+    if path:
+        return path.expanduser().resolve()
+
+    # Check environment variable
+    if env_path := os.environ.get("CF_CONFIG"):
+        p = Path(env_path)
+        if p.exists():
+            return p.resolve()
+
+    # Check standard locations
+    for p in CONFIG_PATHS:
+        if p.exists():
+            return p.resolve()
+
+    return None
+
+
+@config_app.command("init")
+def config_init(
+    path: _PathOption = None,
+    force: _ForceOption = False,
+) -> None:
+    """Create a new config file with documented example.
+
+    The generated config file serves as a template showing all available
+    options with explanatory comments.
+    """
+    target_path = (path.expanduser().resolve() if path else None) or USER_CONFIG_PATH
+
+    if target_path.exists() and not force:
+        console.print(
+            f"[bold yellow]Config file already exists at:[/bold yellow] [cyan]{target_path}[/cyan]",
+        )
+        if not typer.confirm("Overwrite existing config file?"):
+            console.print("[dim]Aborted.[/dim]")
+            raise typer.Exit(0)
+
+    # Create parent directories
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Generate and write template
+    template_content = _generate_template()
+    target_path.write_text(template_content, encoding="utf-8")
+
+    console.print(f"[green]✓[/] Config file created at: {target_path}")
+    console.print("\n[dim]Edit the file to customize your settings:[/dim]")
+    console.print("  [cyan]cf config edit[/cyan]")
+
+
+@config_app.command("edit")
+def config_edit(
+    path: _PathOption = None,
+) -> None:
+    """Open the config file in your default editor.
+
+    The editor is determined by: $EDITOR > $VISUAL > platform default.
+    """
+    config_file = _get_config_file(path)
+
+    if config_file is None:
+        console.print("[yellow]No config file found.[/yellow]")
+        console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
+        console.print("\nSearched locations:")
+        for p in CONFIG_PATHS:
+            console.print(f"  - {p}")
+        raise typer.Exit(1)
+
+    if not config_file.exists():
+        console.print("[yellow]Config file not found.[/yellow]")
+        console.print(f"\nProvided path does not exist: [cyan]{config_file}[/cyan]")
+        console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
+        raise typer.Exit(1)
+
+    editor = _get_editor()
+    console.print(f"[dim]Opening {config_file} with {editor}...[/dim]")
+
+    try:
+        editor_cmd = shlex.split(editor, posix=os.name != "nt")
+    except ValueError as e:
+        err_console.print("[red]Invalid editor command. Check $EDITOR/$VISUAL.[/red]")
+        raise typer.Exit(1) from e
+
+    if not editor_cmd:
+        err_console.print("[red]Editor command is empty.[/red]")
+        raise typer.Exit(1)
+
+    try:
+        subprocess.run([*editor_cmd, str(config_file)], check=True)
+    except FileNotFoundError:
+        err_console.print(f"[red]Editor '{editor_cmd[0]}' not found.[/red]")
+        err_console.print("Set $EDITOR environment variable to your preferred editor.")
+        raise typer.Exit(1) from None
+    except subprocess.CalledProcessError as e:
+        err_console.print(f"[red]Editor exited with error code {e.returncode}[/red]")
+        raise typer.Exit(e.returncode) from None
+
+
+@config_app.command("show")
+def config_show(
+    path: _PathOption = None,
+    raw: _RawOption = False,
+) -> None:
+    """Display the config file location and contents."""
+    config_file = _get_config_file(path)
+
+    if config_file is None:
+        console.print("[yellow]No config file found.[/yellow]")
+        console.print("\nSearched locations:")
+        for p in CONFIG_PATHS:
+            status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
+            console.print(f"  - {p} ({status})")
+        console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
+        raise typer.Exit(0)
+
+    if not config_file.exists():
+        console.print("[yellow]Config file not found.[/yellow]")
+        console.print(f"\nProvided path does not exist: [cyan]{config_file}[/cyan]")
+        console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
+        raise typer.Exit(1)
+
+    content = config_file.read_text(encoding="utf-8")
+
+    if raw:
+        print(content, end="")
+        return
+
+    from rich.syntax import Syntax  # noqa: PLC0415
+
+    console.print(f"[bold green]Config file:[/bold green] [cyan]{config_file}[/cyan]")
+    console.print()
+    syntax = Syntax(content, "yaml", theme="monokai", line_numbers=True, word_wrap=True)
+    console.print(syntax)
+    console.print()
+    console.print("[dim]Tip: Use -r for copy-paste friendly output[/dim]")
+
+
+@config_app.command("path")
+def config_path(
+    path: _PathOption = None,
+) -> None:
+    """Print the config file path (useful for scripting)."""
+    config_file = _get_config_file(path)
+
+    if config_file is None:
+        console.print("[yellow]No config file found.[/yellow]")
+        console.print("\nSearched locations:")
+        for p in CONFIG_PATHS:
+            status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
+            console.print(f"  - {p} ({status})")
+        raise typer.Exit(1)
+
+    # Just print the path for easy piping
+    print(config_file)
+
+
+@config_app.command("validate")
+def config_validate(
+    path: _PathOption = None,
+) -> None:
+    """Validate the config file syntax and schema."""
+    config_file = _get_config_file(path)
+
+    if config_file is None:
+        err_console.print("[red]✗[/] No config file found")
+        raise typer.Exit(1)
+
+    try:
+        cfg = load_config(config_file)
+    except FileNotFoundError as e:
+        err_console.print(f"[red]✗[/] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        err_console.print(f"[red]✗[/] Invalid config: {e}")
+        raise typer.Exit(1) from e
+
+    console.print(f"[green]✓[/] Valid config: {config_file}")
+    console.print(f"  Hosts: {len(cfg.hosts)}")
+    console.print(f"  Services: {len(cfg.services)}")

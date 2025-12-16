@@ -12,6 +12,7 @@
 compose_farm/
 ├── cli.py         # Typer commands (thin layer, delegates to operations)
 ├── config.py      # Pydantic models, YAML loading
+├── config_cmd.py  # Config subcommand (init, show, path, validate, edit)
 ├── compose.py     # Compose file parsing (.env, ports, volumes, networks)
 ├── console.py     # Shared Rich console instances
 ├── executor.py    # SSH/local command execution, streaming output
@@ -60,3 +61,4 @@ CLI available as `cf` or `compose-farm`.
 | `check` | Validate config, traefik labels, mounts, networks; show host compatibility |
 | `init-network` | Create Docker network on hosts with consistent subnet/gateway |
 | `traefik-file` | Generate Traefik file-provider config from compose labels |
+| `config` | Manage config files (init, show, path, validate, edit) |
