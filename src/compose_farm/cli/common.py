@@ -51,9 +51,9 @@ HostOption = Annotated[
     typer.Option("--host", "-H", help="Filter to services on this host"),
 ]
 
-# --- Constants ---
-MISSING_PATH_PREVIEW_LIMIT = 2
-STATS_PREVIEW_LIMIT = 3  # Max number of pending migrations to show by name
+# --- Constants (internal) ---
+_MISSING_PATH_PREVIEW_LIMIT = 2
+_STATS_PREVIEW_LIMIT = 3  # Max number of pending migrations to show by name
 
 
 @contextlib.contextmanager

@@ -71,10 +71,10 @@ class TestGetConfigFile:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("CF_CONFIG", raising=False)
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "nonexistent"))
-        # Monkeypatch CONFIG_PATHS to avoid finding existing files
+        # Monkeypatch _CONFIG_PATHS to avoid finding existing files
         monkeypatch.setattr(
             config_cmd_module,
-            "CONFIG_PATHS",
+            "_CONFIG_PATHS",
             [
                 tmp_path / "compose-farm.yaml",
                 tmp_path / "nonexistent" / "compose-farm" / "compose-farm.yaml",

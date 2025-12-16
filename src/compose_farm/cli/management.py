@@ -12,7 +12,7 @@ from rich.progress import Progress, TaskID  # noqa: TC002
 
 from compose_farm.cli.app import app
 from compose_farm.cli.common import (
-    MISSING_PATH_PREVIEW_LIMIT,
+    _MISSING_PATH_PREVIEW_LIMIT,
     AllOption,
     ConfigOption,
     LogPathOption,
@@ -382,9 +382,9 @@ def _report_host_compatibility(
         if found == total:
             console.print(f"  [green]✓[/] [magenta]{host_name}[/] {found}/{total}{marker}")
         else:
-            preview = ", ".join(missing[:MISSING_PATH_PREVIEW_LIMIT])
-            if len(missing) > MISSING_PATH_PREVIEW_LIMIT:
-                preview += f", +{len(missing) - MISSING_PATH_PREVIEW_LIMIT} more"
+            preview = ", ".join(missing[:_MISSING_PATH_PREVIEW_LIMIT])
+            if len(missing) > _MISSING_PATH_PREVIEW_LIMIT:
+                preview += f", +{len(missing) - _MISSING_PATH_PREVIEW_LIMIT} more"
             console.print(
                 f"  [red]✗[/] [magenta]{host_name}[/] {found}/{total} "
                 f"[dim](missing: {preview})[/]{marker}"

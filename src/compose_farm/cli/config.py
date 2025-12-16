@@ -23,13 +23,13 @@ config_app = typer.Typer(
     no_args_is_help=True,
 )
 
-# Default config location
-USER_CONFIG_PATH = xdg_config_home() / "compose-farm" / "compose-farm.yaml"
+# Default config location (internal)
+_USER_CONFIG_PATH = xdg_config_home() / "compose-farm" / "compose-farm.yaml"
 
-# Search paths for existing config
-CONFIG_PATHS = [
+# Search paths for existing config (internal)
+_CONFIG_PATHS = [
     Path("compose-farm.yaml"),
-    USER_CONFIG_PATH,
+    _USER_CONFIG_PATH,
 ]
 
 # --- CLI Options (same pattern as cli.py) ---
@@ -91,7 +91,7 @@ def _get_config_file(path: Path | None) -> Path | None:
             return p.resolve()
 
     # Check standard locations
-    for p in CONFIG_PATHS:
+    for p in _CONFIG_PATHS:
         if p.exists():
             return p.resolve()
 
@@ -108,7 +108,7 @@ def config_init(
     The generated config file serves as a template showing all available
     options with explanatory comments.
     """
-    target_path = (path.expanduser().resolve() if path else None) or USER_CONFIG_PATH
+    target_path = (path.expanduser().resolve() if path else None) or _USER_CONFIG_PATH
 
     if target_path.exists() and not force:
         console.print(
@@ -144,7 +144,7 @@ def config_edit(
         console.print("[yellow]No config file found.[/yellow]")
         console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
         console.print("\nSearched locations:")
-        for p in CONFIG_PATHS:
+        for p in _CONFIG_PATHS:
             console.print(f"  - {p}")
         raise typer.Exit(1)
 
@@ -189,7 +189,7 @@ def config_show(
     if config_file is None:
         console.print("[yellow]No config file found.[/yellow]")
         console.print("\nSearched locations:")
-        for p in CONFIG_PATHS:
+        for p in _CONFIG_PATHS:
             status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
             console.print(f"  - {p} ({status})")
         console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
@@ -227,7 +227,7 @@ def config_path(
     if config_file is None:
         console.print("[yellow]No config file found.[/yellow]")
         console.print("\nSearched locations:")
-        for p in CONFIG_PATHS:
+        for p in _CONFIG_PATHS:
             status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
             console.print(f"  - {p} ({status})")
         raise typer.Exit(1)

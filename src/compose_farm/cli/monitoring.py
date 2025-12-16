@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import typer
@@ -13,7 +12,11 @@ from rich.table import Table
 
 from compose_farm.cli.app import app
 from compose_farm.cli.common import (
-    STATS_PREVIEW_LIMIT,
+    _STATS_PREVIEW_LIMIT,
+    AllOption,
+    ConfigOption,
+    HostOption,
+    ServicesArg,
     get_services,
     load_config_or_exit,
     progress_bar,
@@ -27,24 +30,6 @@ from compose_farm.state import get_services_needing_migration, load_state
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-
-# --- Shared CLI Options ---
-ServicesArg = Annotated[
-    list[str] | None,
-    typer.Argument(help="Services to operate on"),
-]
-AllOption = Annotated[
-    bool,
-    typer.Option("--all", "-a", help="Run on all services"),
-]
-ConfigOption = Annotated[
-    Path | None,
-    typer.Option("--config", "-c", help="Path to config file"),
-]
-HostOption = Annotated[
-    str | None,
-    typer.Option("--host", "-H", help="Filter to services on this host"),
-]
 
 
 def _group_services_by_host(
@@ -152,8 +137,8 @@ def _build_summary_table(
     table.add_row("Compose files on disk", str(len(on_disk)))
 
     if pending:
-        preview = ", ".join(pending[:STATS_PREVIEW_LIMIT])
-        suffix = "..." if len(pending) > STATS_PREVIEW_LIMIT else ""
+        preview = ", ".join(pending[:_STATS_PREVIEW_LIMIT])
+        suffix = "..." if len(pending) > _STATS_PREVIEW_LIMIT else ""
         table.add_row("Pending migrations", f"[yellow]{len(pending)}[/] ({preview}{suffix})")
     else:
         table.add_row("Pending migrations", "[green]0[/]")
