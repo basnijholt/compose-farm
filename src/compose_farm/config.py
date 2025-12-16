@@ -170,6 +170,13 @@ def load_config(path: Path | None = None) -> Config:
         msg = f"Config file not found. Searched: {', '.join(str(p) for p in search_paths)}"
         raise FileNotFoundError(msg)
 
+    if config_path.is_dir():
+        msg = (
+            f"Config path is a directory, not a file: {config_path}\n"
+            "This often happens when Docker creates an empty directory for a missing mount."
+        )
+        raise FileNotFoundError(msg)
+
     with config_path.open() as f:
         raw = yaml.safe_load(f)
 
