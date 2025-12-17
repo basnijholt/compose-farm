@@ -166,6 +166,7 @@ async def _run_ssh_command(
 
     import asyncssh  # noqa: PLC0415 - lazy import for faster CLI startup
 
+    proc: asyncssh.SSHClientProcess[Any]
     try:
         async with asyncssh.connect(  # noqa: SIM117 - conn needed before create_process
             host.address,
