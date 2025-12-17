@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
-import asyncssh
 from rich.markup import escape
 
 from .console import console, err_console
@@ -165,7 +164,8 @@ async def _run_ssh_command(
             success=result.returncode == 0,
         )
 
-    proc: asyncssh.SSHClientProcess[Any]
+    import asyncssh  # noqa: PLC0415 - lazy import for faster CLI startup
+
     try:
         async with asyncssh.connect(  # noqa: SIM117 - conn needed before create_process
             host.address,
