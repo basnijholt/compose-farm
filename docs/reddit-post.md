@@ -67,7 +67,6 @@ cf up plex  # migrates automatically
 
 - No high availability (if a host goes down, services don't auto-migrate)
 - No overlay networking (containers on different hosts can't talk via Docker DNS)
-- No service discovery
 - No health checks or automatic restarts
 
 It's a convenience wrapper around `docker compose` + SSH. If you need failover or cross-host container networking, you probably do need Swarm or Kubernetes.
