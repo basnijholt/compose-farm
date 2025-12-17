@@ -62,6 +62,18 @@ async def pull_service(name: str) -> dict[str, Any]:
     return await _run_service_action(name, "pull")
 
 
+@router.post("/service/{name}/build")  # type: ignore[misc]
+async def build_service(name: str) -> dict[str, Any]:
+    """Build images for a service."""
+    return await _run_service_action(name, "build")
+
+
+@router.post("/service/{name}/logs")  # type: ignore[misc]
+async def logs_service(name: str) -> dict[str, Any]:
+    """Show logs for a service."""
+    return await _run_service_action(name, "logs")
+
+
 @router.post("/apply")  # type: ignore[misc]
 async def apply_all() -> dict[str, Any]:
     """Run cf apply to reconcile all services."""

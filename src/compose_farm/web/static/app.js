@@ -304,6 +304,19 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
     }
 });
 
+/**
+ * Expand terminal collapse and scroll to it
+ */
+function expandTerminal() {
+    const toggle = document.getElementById('terminal-toggle');
+    if (toggle) toggle.checked = true;
+
+    const collapse = document.getElementById('terminal-collapse');
+    if (collapse) {
+        collapse.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
 // Handle action responses (terminal streaming)
 document.body.addEventListener('htmx:afterRequest', function(evt) {
     if (!evt.detail.successful || !evt.detail.xhr) return;
@@ -315,6 +328,9 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     try {
         const response = JSON.parse(text);
         if (response.task_id) {
+            // Expand terminal and scroll to it
+            expandTerminal();
+
             // Wait for xterm to be loaded if needed
             const tryInit = (attempts) => {
                 if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {

@@ -13,7 +13,19 @@
         <button id="save-config-btn" class="btn btn-outline">
             Save
         </button>
+        <button hx-post="/api/apply"
+                hx-swap="none"
+                class="btn btn-primary">
+            Apply
+        </button>
+        <button hx-post="/api/refresh"
+                hx-swap="none"
+                class="btn btn-outline">
+            Refresh
+        </button>
     </div>
+
+    {% include "partials/terminal.html" %}
 
     <!-- Config Editor -->
     <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
