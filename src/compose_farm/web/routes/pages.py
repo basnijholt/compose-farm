@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import yaml
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
+from compose_farm.state import (
+    get_orphaned_services,
+    get_service_host,
+    get_services_needing_migration,
+    get_services_not_in_state,
+    load_state,
+)
 from compose_farm.web.app import get_config, get_templates
 
 router = APIRouter()
@@ -17,8 +25,6 @@ async def index(request: Request) -> HTMLResponse:
     templates = get_templates()
 
     # Get state (load_state returns the deployed dict directly)
-    from compose_farm.state import load_state
-
     deployed = load_state(config)
 
     return templates.TemplateResponse(
@@ -56,8 +62,6 @@ async def service_detail(request: Request, name: str) -> HTMLResponse:
     hosts = config.get_hosts(name)
 
     # Get state
-    from compose_farm.state import get_service_host
-
     current_host = get_service_host(config, name)
 
     return templates.TemplateResponse(
@@ -104,13 +108,9 @@ async def state_page(request: Request) -> HTMLResponse:
     config = get_config()
     templates = get_templates()
 
-    from compose_farm.state import load_state
-
     deployed = load_state(config)
 
     # Convert state to YAML for display (wrap in deployed key to match file format)
-    import yaml
-
     state_content = yaml.dump({"deployed": deployed}, default_flow_style=False, sort_keys=False)
 
     return templates.TemplateResponse(
@@ -128,13 +128,6 @@ async def stats_page(request: Request) -> HTMLResponse:
     """Stats overview page."""
     config = get_config()
     templates = get_templates()
-
-    from compose_farm.state import (
-        get_orphaned_services,
-        get_services_needing_migration,
-        get_services_not_in_state,
-        load_state,
-    )
 
     deployed = load_state(config)
 
@@ -171,13 +164,23 @@ async def stats_page(request: Request) -> HTMLResponse:
     )
 
 
+@router.get("/partials/config-tables", response_class=HTMLResponse)
+async def config_tables_partial(request: Request) -> HTMLResponse:
+    """Config tables partial for HTMX refresh after save."""
+    config = get_config()
+    templates = get_templates()
+
+    return templates.TemplateResponse(
+        "partials/config_tables.html",
+        {"request": request, "config": config},
+    )
+
+
 @router.get("/partials/sidebar", response_class=HTMLResponse)
 async def sidebar_partial(request: Request) -> HTMLResponse:
     """Sidebar service list partial."""
     config = get_config()
     templates = get_templates()
-
-    from compose_farm.state import load_state
 
     state = load_state(config)
 

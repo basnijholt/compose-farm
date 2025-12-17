@@ -117,9 +117,9 @@ function loadMonaco(callback) {
 
     // Load the Monaco loader script
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js';
+    script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js';
     script.onload = function() {
-        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' }});
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs' }});
         require(['vs/editor/editor.main'], function() {
             monacoLoaded = true;
             monacoLoading = false;
@@ -238,6 +238,18 @@ async function saveAllEditors() {
     } else if (saveBtn && results.length > 0) {
         saveBtn.textContent = 'Saved!';
         setTimeout(() => saveBtn.textContent = saveBtn.id === 'save-config-btn' ? 'Save' : 'Save All', 2000);
+
+        // Refresh config tables if on config page
+        const configTables = document.getElementById('config-tables');
+        if (configTables) {
+            htmx.ajax('GET', '/partials/config-tables', {target: '#config-tables', swap: 'outerHTML'});
+        }
+
+        // Refresh sidebar to show updated services
+        const sidebar = document.querySelector('#sidebar nav');
+        if (sidebar) {
+            htmx.ajax('GET', '/partials/sidebar', {target: '#sidebar nav', swap: 'innerHTML'});
+        }
     }
 }
 

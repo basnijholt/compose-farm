@@ -29,6 +29,12 @@ def get_config() -> Config:
     return load_config()
 
 
+def reload_config() -> Config:
+    """Clear config cache and reload from disk."""
+    get_config.cache_clear()
+    return get_config()
+
+
 def get_templates() -> Jinja2Templates:
     """Get Jinja2 templates instance."""
     return Jinja2Templates(directory=str(TEMPLATES_DIR))

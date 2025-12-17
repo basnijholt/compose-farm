@@ -1,3 +1,9 @@
+/* Subtle gradient background */
+html {
+    background: linear-gradient(135deg, #13151a 0%, #1a1d24 50%, #151820 100%);
+    background-attachment: fixed;
+}
+
 /* Layout */
 .layout {
     display: grid;

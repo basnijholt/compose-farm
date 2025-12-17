@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+import yaml
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import PlainTextResponse
 
-from compose_farm.web.app import get_config
+from compose_farm.state import get_service_host, load_state
+from compose_farm.web.app import get_config, reload_config
 
 router = APIRouter(tags=["api"])
 
@@ -16,11 +18,7 @@ router = APIRouter(tags=["api"])
 async def list_services() -> list[dict[str, Any]]:
     """List all services with their status."""
     config = get_config()
-
-    from compose_farm.state import load_state
-
-    state = load_state(config)
-    deployed = state.get("deployed", {})
+    deployed = load_state(config)
 
     services = []
     for name in sorted(config.services.keys()):
@@ -48,8 +46,6 @@ async def get_service(name: str) -> dict[str, Any]:
 
     if name not in config.services:
         raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
-
-    from compose_farm.state import get_service_host
 
     hosts = config.get_hosts(name)
     current_host = get_service_host(config, name)
@@ -94,8 +90,6 @@ async def save_compose(
         raise HTTPException(status_code=404, detail="Compose file not found")
 
     # Validate YAML before saving
-    import yaml
-
     try:
         yaml.safe_load(content)
     except yaml.YAMLError as e:
@@ -163,14 +157,15 @@ async def save_config(
         raise HTTPException(status_code=404, detail="Config path not set")
 
     # Validate YAML before saving
-    import yaml
-
     try:
         yaml.safe_load(content)
     except yaml.YAMLError as e:
         raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}") from e
 
     config.config_path.write_text(content)
+
+    # Reload config so subsequent requests see updated values
+    reload_config()
 
     return {"success": True, "message": "Config saved"}
 
@@ -179,7 +174,4 @@ async def save_config(
 async def get_state() -> dict[str, Any]:
     """Get current deployment state."""
     config = get_config()
-
-    from compose_farm.state import load_state
-
     return load_state(config)

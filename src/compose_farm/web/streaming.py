@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from compose_farm.executor import run_compose
+from compose_farm.state import (
+    get_orphaned_services,
+    get_services_needing_migration,
+    get_services_not_in_state,
+)
+
 if TYPE_CHECKING:
     from compose_farm.config import Config
 
@@ -37,8 +44,6 @@ async def run_compose_streaming(
     task_id: str,
 ) -> None:
     """Run a compose command with output streamed to task buffer."""
-    from compose_farm.executor import run_compose
-
     try:
         compose_path = config.get_compose_path(service)
         if not compose_path:
@@ -62,12 +67,6 @@ async def run_compose_streaming(
 
 async def run_apply_streaming(config: Config, task_id: str) -> None:
     """Run cf apply with streaming output."""
-    from compose_farm.state import (
-        get_orphaned_services,
-        get_services_needing_migration,
-        get_services_not_in_state,
-    )
-
     try:
         await stream_to_task(task_id, "\x1b[36m[apply]\x1b[0m Analyzing state...\r\n")
 
