@@ -5,6 +5,8 @@
 // Store active terminals and editors
 const terminals = {};
 const editors = {};
+let monacoLoaded = false;
+let monacoLoading = false;
 
 /**
  * Initialize a terminal and connect to WebSocket for streaming
@@ -93,6 +95,42 @@ function initTerminal(elementId, taskId) {
 window.initTerminal = initTerminal;
 
 /**
+ * Load Monaco editor dynamically (only once)
+ */
+function loadMonaco(callback) {
+    if (monacoLoaded) {
+        callback();
+        return;
+    }
+
+    if (monacoLoading) {
+        // Wait for it to load
+        const checkInterval = setInterval(() => {
+            if (monacoLoaded) {
+                clearInterval(checkInterval);
+                callback();
+            }
+        }, 100);
+        return;
+    }
+
+    monacoLoading = true;
+
+    // Load the Monaco loader script
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js';
+    script.onload = function() {
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' }});
+        require(['vs/editor/editor.main'], function() {
+            monacoLoaded = true;
+            monacoLoading = false;
+            callback();
+        });
+    };
+    document.head.appendChild(script);
+}
+
+/**
  * Create a Monaco editor instance
  * @param {HTMLElement} container - Container element
  * @param {string} content - Initial content
@@ -125,7 +163,9 @@ function createEditor(container, content, language) {
  */
 function initMonacoEditors() {
     // Dispose existing editors
-    Object.values(editors).forEach(ed => ed.dispose());
+    Object.values(editors).forEach(ed => {
+        if (ed && ed.dispose) ed.dispose();
+    });
     Object.keys(editors).forEach(key => delete editors[key]);
 
     const editorConfigs = [
@@ -134,8 +174,12 @@ function initMonacoEditors() {
         { id: 'config-editor', language: 'yaml' }
     ];
 
-    // Check if Monaco is loaded
-    const initEditors = () => {
+    // Check if any editor elements exist
+    const hasEditors = editorConfigs.some(({ id }) => document.getElementById(id));
+    if (!hasEditors) return;
+
+    // Load Monaco and create editors
+    loadMonaco(() => {
         editorConfigs.forEach(({ id, language }) => {
             const el = document.getElementById(id);
             if (!el) return;
@@ -144,14 +188,7 @@ function initMonacoEditors() {
             editors[id] = createEditor(el, content, language);
             editors[id].saveUrl = el.dataset.saveUrl;
         });
-    };
-
-    if (typeof monaco !== 'undefined') {
-        initEditors();
-    } else if (typeof require !== 'undefined') {
-        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' }});
-        require(['vs/editor/editor.main'], initEditors);
-    }
+    });
 }
 
 /**
@@ -162,7 +199,7 @@ async function saveAllEditors() {
     const results = [];
 
     for (const [id, editor] of Object.entries(editors)) {
-        if (!editor.saveUrl) continue;
+        if (!editor || !editor.saveUrl) continue;
 
         const content = editor.getValue();
         try {
@@ -212,7 +249,7 @@ function initKeyboardShortcuts() {
             // Only handle if we have editors and no Monaco editor is focused
             if (Object.keys(editors).length > 0) {
                 // Check if any Monaco editor is focused
-                const focusedEditor = Object.values(editors).find(ed => ed.hasTextFocus && ed.hasTextFocus());
+                const focusedEditor = Object.values(editors).find(ed => ed && ed.hasTextFocus && ed.hasTextFocus());
                 if (!focusedEditor) {
                     e.preventDefault();
                     saveAllEditors();
