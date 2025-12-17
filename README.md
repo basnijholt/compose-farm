@@ -233,7 +233,7 @@ The CLI is available as both `compose-farm` and the shorter `cf` alias.
 | `cf restart <svc>` | down + up |
 | `cf update <svc>` | pull + down + up |
 | `cf pull <svc>` | Pull latest images |
-| `cf apply` | Make reality match config (migrate + stop orphans) |
+| `cf apply` | Make reality match config (start + migrate + stop orphans) |
 | `cf logs -f <svc>` | Follow logs |
 | `cf ps` | Show status of all services |
 | `cf refresh` | Update state from running services |
