@@ -48,6 +48,14 @@ dependencies = [
     "rich>=13.0.0",
 ]
 
+[project.optional-dependencies]
+web = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "jinja2>=3.1.0",
+    "websockets>=12.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/basnijholt/compose-farm"
 Repository = "https://github.com/basnijholt/compose-farm"
@@ -102,6 +110,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "PLR2004", "S108", "D102", "D103"]  # relaxed docstrings + asserts in tests
+"src/compose_farm/web/*" = ["PLC0415", "SIM117", "FAST002", "TC003"]  # lazy imports, nested async context managers
 
 [tool.ruff.lint.mccabe]
 max-complexity = 18
@@ -113,6 +122,10 @@ plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
 module = "asyncssh.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["fastapi.*", "uvicorn.*", "jinja2.*", "websockets.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

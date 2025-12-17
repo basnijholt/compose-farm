@@ -1,0 +1,16 @@
+<ul>
+    {% set deployed = state.get('deployed', {}) %}
+    {% for service in services %}
+    <li>
+        <a href="/service/{{ service }}"
+           {% if service in deployed %}class="running"{% endif %}>
+            {% if service in deployed %}
+                <span class="status-dot running"></span>
+            {% else %}
+                <span class="status-dot stopped"></span>
+            {% endif %}
+            {{ service }}
+        </a>
+    </li>
+    {% endfor %}
+</ul>

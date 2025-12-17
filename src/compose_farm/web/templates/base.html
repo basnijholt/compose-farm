@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Compose Farm{% endblock %}</title>
+
+    <!-- PicoCSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+
+    <!-- xterm.js -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <aside id="sidebar">
+            <header>
+                <h2>Compose Farm</h2>
+            </header>
+            <nav hx-get="/partials/sidebar" hx-trigger="load" hx-swap="innerHTML">
+                <p>Loading...</p>
+            </nav>
+            <footer>
+                <button hx-post="/api/apply"
+                        hx-target="#terminal-output"
+                        hx-swap="innerHTML"
+                        class="apply-btn">
+                    Apply
+                </button>
+            </footer>
+        </aside>
+
+        <!-- Main content -->
+        <main>
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <script src="/static/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
