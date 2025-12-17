@@ -324,7 +324,7 @@ cf ps
 │ pull           Pull latest images (docker compose pull).                     │
 │ restart        Restart services (down + up).                                 │
 │ update         Update services (pull + build + down + up).                   │
-│ apply          Make reality match config (migrate services + stop orphans).  │
+│ apply          Make reality match config (start, migrate, stop as needed).   │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Configuration ──────────────────────────────────────────────────────────────╮
 │ traefik-file   Generate a Traefik file-provider fragment from compose        │
