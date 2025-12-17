@@ -76,4 +76,4 @@ It's a convenience wrapper around `docker compose` + SSH. If you need failover o
 - GitHub: https://github.com/basnijholt/compose-farm
 - Install: `uv tool install compose-farm` or `pip install compose-farm`
 
-Built this in 4 days because I was mass-SSHing into machines like a caveman. Happy to answer questions or take feedback!
+Happy to answer questions or take feedback!
