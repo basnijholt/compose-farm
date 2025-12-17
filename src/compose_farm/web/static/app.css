@@ -1,7 +1,17 @@
-/* Gradient background */
+/* Gradient background - warm tones for amber theme */
 html {
-    background: linear-gradient(135deg, #0f1318 0%, #1a2030 40%, #12181f 100%);
+    background: linear-gradient(135deg, #1a1512 0%, #201a15 40%, #18140f 100%);
     background-attachment: fixed;
+}
+
+/* Card shadow */
+article {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* Details summary styling */
+details > summary:hover {
+    color: var(--pico-primary);
 }
 
 /* Layout */
@@ -129,6 +139,7 @@ table tbody tr:hover {
 
 .status-dot.running {
     background: #22c55e;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
 }
 
 .status-dot.stopped {
@@ -185,6 +196,7 @@ p.hint {
 
 .stat-value.running {
     color: #22c55e;
+    text-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
 }
 
 .stat-value.stopped {
@@ -204,10 +216,12 @@ mark.warning {
 
 /* Terminal */
 #terminal-container {
-    background: #1a1a2e;
-    border-radius: 0.25rem;
-    padding: 0.5rem;
+    background: #0d1117;
+    border-radius: 0.5rem;
+    padding: 0.75rem;
     min-height: 200px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 #terminal-output {
