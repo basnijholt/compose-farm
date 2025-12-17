@@ -306,14 +306,28 @@ document.body.addEventListener('htmx:afterSwap', function(evt) {
 
 // Handle action responses (terminal streaming)
 document.body.addEventListener('htmx:afterRequest', function(evt) {
-    if (evt.detail.successful && evt.detail.xhr && evt.detail.xhr.responseText) {
-        try {
-            const response = JSON.parse(evt.detail.xhr.responseText);
-            if (response.task_id) {
-                initTerminal('terminal-output', response.task_id);
-            }
-        } catch (e) {
-            // Not JSON, ignore
+    if (!evt.detail.successful || !evt.detail.xhr) return;
+
+    const text = evt.detail.xhr.responseText;
+    // Only try to parse if it looks like JSON (starts with {)
+    if (!text || !text.trim().startsWith('{')) return;
+
+    try {
+        const response = JSON.parse(text);
+        if (response.task_id) {
+            // Wait for xterm to be loaded if needed
+            const tryInit = (attempts) => {
+                if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
+                    initTerminal('terminal-output', response.task_id);
+                } else if (attempts > 0) {
+                    setTimeout(() => tryInit(attempts - 1), 100);
+                } else {
+                    console.error('xterm.js failed to load');
+                }
+            };
+            tryInit(20); // Try for up to 2 seconds
         }
+    } catch (e) {
+        // Not valid JSON, ignore
     }
 });
