@@ -3,7 +3,7 @@ repos:
     hooks:
       - id: check-readme-commands
         name: Check README documents all CLI commands
-        entry: python .github/check_readme_commands.py
+        entry: uv run python .github/check_readme_commands.py
         language: system
         files: ^(README\.md|src/compose_farm/cli/.*)$
         pass_filenames: false
