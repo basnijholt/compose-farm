@@ -44,6 +44,14 @@ async def service_detail(request: Request, name: str) -> HTMLResponse:
     if compose_path and compose_path.exists():
         compose_content = compose_path.read_text()
 
+    # Get .env file content
+    env_content = ""
+    env_path = None
+    if compose_path:
+        env_path = compose_path.parent / ".env"
+        if env_path.exists():
+            env_content = env_path.read_text()
+
     # Get host info
     hosts = config.get_hosts(name)
 
@@ -61,7 +69,101 @@ async def service_detail(request: Request, name: str) -> HTMLResponse:
             "current_host": current_host,
             "compose_content": compose_content,
             "compose_path": str(compose_path) if compose_path else None,
+            "env_content": env_content,
+            "env_path": str(env_path) if env_path else None,
             "services": sorted(config.services.keys()),
+        },
+    )
+
+
+@router.get("/config", response_class=HTMLResponse)
+async def config_page(request: Request) -> HTMLResponse:
+    """Config viewer/editor page."""
+    config = get_config()
+    templates = get_templates()
+
+    # Read the raw config file
+    config_content = ""
+    if config.config_path and config.config_path.exists():
+        config_content = config.config_path.read_text()
+
+    return templates.TemplateResponse(
+        "config.html",
+        {
+            "request": request,
+            "config": config,
+            "config_content": config_content,
+            "config_path": str(config.config_path) if config.config_path else None,
+        },
+    )
+
+
+@router.get("/state", response_class=HTMLResponse)
+async def state_page(request: Request) -> HTMLResponse:
+    """State viewer page."""
+    config = get_config()
+    templates = get_templates()
+
+    from compose_farm.state import load_state
+
+    state = load_state(config)
+
+    # Convert state to YAML for display
+    import yaml
+
+    state_content = yaml.dump(state, default_flow_style=False, sort_keys=False)
+
+    return templates.TemplateResponse(
+        "state.html",
+        {
+            "request": request,
+            "state": state,
+            "state_content": state_content,
+        },
+    )
+
+
+@router.get("/stats", response_class=HTMLResponse)
+async def stats_page(request: Request) -> HTMLResponse:
+    """Stats overview page."""
+    config = get_config()
+    templates = get_templates()
+
+    from compose_farm.state import (
+        get_orphaned_services,
+        get_services_needing_migration,
+        get_services_not_in_state,
+        load_state,
+    )
+
+    state = load_state(config)
+    deployed = state.get("deployed", {})
+
+    # Gather stats
+    total_services = len(config.services)
+    running_services = len(deployed)
+    stopped_services = total_services - running_services
+    orphaned = get_orphaned_services(config)
+    migrations = get_services_needing_migration(config)
+    not_started = get_services_not_in_state(config)
+
+    # Group services by host
+    services_by_host: dict[str, list[str]] = {}
+    for svc, host in deployed.items():
+        services_by_host.setdefault(host, []).append(svc)
+
+    return templates.TemplateResponse(
+        "stats.html",
+        {
+            "request": request,
+            "total_services": total_services,
+            "running_services": running_services,
+            "stopped_services": stopped_services,
+            "orphaned": orphaned,
+            "migrations": migrations,
+            "not_started": not_started,
+            "services_by_host": services_by_host,
+            "hosts": config.hosts,
         },
     )
 

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Stats - Compose Farm{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <hgroup>
+            <h1>Stats Overview</h1>
+            <p>Cluster status and pending operations</p>
+        </hgroup>
+    </header>
+
+    <!-- Summary Cards -->
+    <div class="grid">
+        <article class="stat-card">
+            <header>Total Services</header>
+            <strong class="stat-value">{{ total_services }}</strong>
+        </article>
+        <article class="stat-card">
+            <header>Running</header>
+            <strong class="stat-value running">{{ running_services }}</strong>
+        </article>
+        <article class="stat-card">
+            <header>Stopped</header>
+            <strong class="stat-value stopped">{{ stopped_services }}</strong>
+        </article>
+    </div>
+
+    <!-- Pending Operations -->
+    {% if orphaned or migrations or not_started %}
+    <details open>
+        <summary>Pending Operations</summary>
+
+        {% if orphaned %}
+        <h4>Orphaned Services (will be stopped)</h4>
+        <ul>
+            {% for svc, host in orphaned.items() %}
+            <li><mark class="warning">{{ svc }}</mark> on {{ host }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if migrations %}
+        <h4>Services Needing Migration</h4>
+        <ul>
+            {% for svc in migrations %}
+            <li><mark>{{ svc }}</mark></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if not_started %}
+        <h4>Services Not Started</h4>
+        <ul>
+            {% for svc in not_started %}
+            <li><mark class="secondary">{{ svc }}</mark></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <button hx-post="/api/apply"
+                hx-target="#terminal-output"
+                hx-swap="innerHTML"
+                class="apply-btn">
+            Apply All Changes
+        </button>
+    </details>
+    {% else %}
+    <p><mark class="success">All services are in sync with configuration.</mark></p>
+    {% endif %}
+
+    <!-- Services by Host -->
+    <details open>
+        <summary>Services by Host</summary>
+        {% for host_name, services in services_by_host.items() | sort %}
+        <h4>{{ host_name }}
+            {% if host_name in hosts %}
+            <small><code>{{ hosts[host_name].address }}</code></small>
+            {% endif %}
+        </h4>
+        <ul>
+            {% for svc in services | sort %}
+            <li><a href="/service/{{ svc }}">{{ svc }}</a></li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p><em>No services currently running.</em></p>
+        {% endfor %}
+    </details>
+
+    <!-- Terminal for Apply output -->
+    <details>
+        <summary>Terminal Output</summary>
+        <div id="terminal-container">
+            <div id="terminal-output"></div>
+        </div>
+    </details>
+</article>
+{% endblock %}

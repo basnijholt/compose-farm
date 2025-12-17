@@ -39,16 +39,21 @@
             Restart
         </button>
         <button id="save-btn" class="outline">
-            Save
+            Save All
         </button>
     </div>
 
     <!-- Compose Editor -->
-    <section>
-        <h3>Compose File</h3>
-        <p><small><code>{{ compose_path }}</code></small></p>
-        <div id="editor"></div>
-    </section>
+    <details>
+        <summary>Compose File <small><code>{{ compose_path }}</code></small></summary>
+        <div id="compose-editor" class="yaml-editor" data-content="{{ compose_content | e }}" data-save-url="/api/service/{{ name }}/compose"></div>
+    </details>
+
+    <!-- Environment Editor -->
+    <details>
+        <summary>.env File <small><code>{{ env_path }}</code></small></summary>
+        <div id="env-editor" class="env-editor" data-content="{{ env_content | e }}" data-save-url="/api/service/{{ name }}/env"></div>
+    </details>
 
     <!-- Terminal -->
     <details open>
@@ -58,61 +63,4 @@
         </div>
     </details>
 </article>
-{% endblock %}
-
-{% block scripts %}
-<!-- Monaco Editor -->
-<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
-<script>
-    // Monaco Editor
-    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' }});
-    require(['vs/editor/editor.main'], function() {
-        window.editor = monaco.editor.create(document.getElementById('editor'), {
-            value: {{ compose_content | tojson }},
-            language: 'yaml',
-            theme: 'vs-dark',
-            minimap: { enabled: false },
-            automaticLayout: true,
-            scrollBeyondLastLine: false,
-            fontSize: 14,
-            lineNumbers: 'on',
-            wordWrap: 'on'
-        });
-    });
-
-    // Save button
-    document.getElementById('save-btn').addEventListener('click', async function() {
-        const content = window.editor.getValue();
-        try {
-            const response = await fetch('/api/service/{{ name }}/compose', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'text/plain' },
-                body: content
-            });
-            const data = await response.json();
-            if (data.success) {
-                this.textContent = 'Saved!';
-                setTimeout(() => this.textContent = 'Save', 2000);
-            } else {
-                alert('Error: ' + (data.detail || 'Unknown error'));
-            }
-        } catch (e) {
-            alert('Error saving: ' + e.message);
-        }
-    });
-
-    // Terminal for actions
-    document.body.addEventListener('htmx:afterRequest', function(evt) {
-        if (evt.detail.successful && evt.detail.xhr.responseText) {
-            try {
-                const response = JSON.parse(evt.detail.xhr.responseText);
-                if (response.task_id) {
-                    initTerminal('terminal-output', response.task_id);
-                }
-            } catch (e) {
-                // Not JSON, ignore
-            }
-        }
-    });
-</script>
 {% endblock %}

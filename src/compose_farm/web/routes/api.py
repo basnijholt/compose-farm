@@ -106,11 +106,73 @@ async def save_compose(
     return {"success": True, "message": "Compose file saved"}
 
 
+@router.get("/service/{name}/env", response_class=PlainTextResponse)
+async def get_env(name: str) -> str:
+    """Get .env file content."""
+    config = get_config()
+
+    if name not in config.services:
+        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
+
+    compose_path = config.get_compose_path(name)
+    if not compose_path:
+        raise HTTPException(status_code=404, detail="Compose file not found")
+
+    env_path = compose_path.parent / ".env"
+    if not env_path.exists():
+        return ""
+
+    return env_path.read_text()
+
+
+@router.put("/service/{name}/env")
+async def save_env(
+    name: str, content: str = Body(..., media_type="text/plain")
+) -> dict[str, Any]:
+    """Save .env file content."""
+    config = get_config()
+
+    if name not in config.services:
+        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
+
+    compose_path = config.get_compose_path(name)
+    if not compose_path:
+        raise HTTPException(status_code=404, detail="Compose file not found")
+
+    env_path = compose_path.parent / ".env"
+    env_path.write_text(content)
+
+    return {"success": True, "message": ".env file saved"}
+
+
 @router.get("/config")
 async def get_config_route() -> dict[str, Any]:
     """Get current configuration."""
     config = get_config()
     return config.model_dump(mode="json")
+
+
+@router.put("/config")
+async def save_config(
+    content: str = Body(..., media_type="text/plain"),
+) -> dict[str, Any]:
+    """Save compose-farm.yaml config file."""
+    config = get_config()
+
+    if not config.config_path:
+        raise HTTPException(status_code=404, detail="Config path not set")
+
+    # Validate YAML before saving
+    import yaml
+
+    try:
+        yaml.safe_load(content)
+    except yaml.YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}") from e
+
+    config.config_path.write_text(content)
+
+    return {"success": True, "message": "Config saved"}
 
 
 @router.get("/state")

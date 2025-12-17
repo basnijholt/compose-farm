@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Config - Compose Farm{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <hgroup>
+            <h1>Configuration</h1>
+            <p><code>{{ config_path }}</code></p>
+        </hgroup>
+    </header>
+
+    <!-- Action Buttons -->
+    <div role="group">
+        <button id="save-config-btn" class="outline">
+            Save
+        </button>
+    </div>
+
+    <!-- Config Editor -->
+    <details>
+        <summary>compose-farm.yaml</summary>
+        <div id="config-editor" class="yaml-editor" data-content="{{ config_content | e }}" data-save-url="/api/config"></div>
+    </details>
+
+    <!-- Hosts Overview -->
+    <details open>
+        <summary>Hosts</summary>
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Address</th>
+                    <th>User</th>
+                    <th>Port</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for name, host in config.hosts.items() %}
+                <tr>
+                    <td><strong>{{ name }}</strong></td>
+                    <td><code>{{ host.address }}</code></td>
+                    <td>{{ host.user }}</td>
+                    <td>{{ host.port }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </details>
+
+    <!-- Services Overview -->
+    <details open>
+        <summary>Services ({{ config.services | length }})</summary>
+        <table>
+            <thead>
+                <tr>
+                    <th>Service</th>
+                    <th>Host(s)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for name, svc in config.services.items() %}
+                <tr>
+                    <td><a href="/service/{{ name }}">{{ name }}</a></td>
+                    <td>
+                        {% if svc.host %}
+                            {{ svc.host }}
+                        {% elif svc.hosts %}
+                            {{ svc.hosts | join(', ') }}
+                        {% else %}
+                            <em>default</em>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </details>
+</article>
+{% endblock %}

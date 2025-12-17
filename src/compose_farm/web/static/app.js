@@ -2,8 +2,9 @@
  * Compose Farm Web UI JavaScript
  */
 
-// Store active terminals
+// Store active terminals and editors
 const terminals = {};
+const editors = {};
 
 /**
  * Initialize a terminal and connect to WebSocket for streaming
@@ -90,3 +91,168 @@ function initTerminal(elementId, taskId) {
 
 // Export for global use
 window.initTerminal = initTerminal;
+
+/**
+ * Create a Monaco editor instance
+ * @param {HTMLElement} container - Container element
+ * @param {string} content - Initial content
+ * @param {string} language - Editor language (yaml, plaintext, etc.)
+ * @returns {object} Monaco editor instance
+ */
+function createEditor(container, content, language) {
+    const editor = monaco.editor.create(container, {
+        value: content,
+        language: language,
+        theme: 'vs-dark',
+        minimap: { enabled: false },
+        automaticLayout: true,
+        scrollBeyondLastLine: false,
+        fontSize: 14,
+        lineNumbers: 'on',
+        wordWrap: 'on'
+    });
+
+    // Add Command+S / Ctrl+S handler
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
+        saveAllEditors();
+    });
+
+    return editor;
+}
+
+/**
+ * Initialize all Monaco editors on the page
+ */
+function initMonacoEditors() {
+    // Dispose existing editors
+    Object.values(editors).forEach(ed => ed.dispose());
+    Object.keys(editors).forEach(key => delete editors[key]);
+
+    const editorConfigs = [
+        { id: 'compose-editor', language: 'yaml' },
+        { id: 'env-editor', language: 'plaintext' },
+        { id: 'config-editor', language: 'yaml' }
+    ];
+
+    // Check if Monaco is loaded
+    const initEditors = () => {
+        editorConfigs.forEach(({ id, language }) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+
+            const content = el.dataset.content || '';
+            editors[id] = createEditor(el, content, language);
+            editors[id].saveUrl = el.dataset.saveUrl;
+        });
+    };
+
+    if (typeof monaco !== 'undefined') {
+        initEditors();
+    } else if (typeof require !== 'undefined') {
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' }});
+        require(['vs/editor/editor.main'], initEditors);
+    }
+}
+
+/**
+ * Save all editors
+ */
+async function saveAllEditors() {
+    const saveBtn = document.getElementById('save-btn') || document.getElementById('save-config-btn');
+    const results = [];
+
+    for (const [id, editor] of Object.entries(editors)) {
+        if (!editor.saveUrl) continue;
+
+        const content = editor.getValue();
+        try {
+            const response = await fetch(editor.saveUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'text/plain' },
+                body: content
+            });
+            const data = await response.json();
+            if (!data.success) {
+                results.push({ id, success: false, error: data.detail || 'Unknown error' });
+            } else {
+                results.push({ id, success: true });
+            }
+        } catch (e) {
+            results.push({ id, success: false, error: e.message });
+        }
+    }
+
+    // Show result
+    const errors = results.filter(r => !r.success);
+    if (errors.length > 0) {
+        alert('Errors saving:\n' + errors.map(e => `${e.id}: ${e.error}`).join('\n'));
+    } else if (saveBtn && results.length > 0) {
+        saveBtn.textContent = 'Saved!';
+        setTimeout(() => saveBtn.textContent = saveBtn.id === 'save-config-btn' ? 'Save' : 'Save All', 2000);
+    }
+}
+
+/**
+ * Initialize save button handler
+ */
+function initSaveButton() {
+    const saveBtn = document.getElementById('save-btn') || document.getElementById('save-config-btn');
+    if (!saveBtn) return;
+
+    saveBtn.onclick = saveAllEditors;
+}
+
+/**
+ * Global keyboard shortcut handler
+ */
+function initKeyboardShortcuts() {
+    document.addEventListener('keydown', function(e) {
+        // Command+S (Mac) or Ctrl+S (Windows/Linux)
+        if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+            // Only handle if we have editors and no Monaco editor is focused
+            if (Object.keys(editors).length > 0) {
+                // Check if any Monaco editor is focused
+                const focusedEditor = Object.values(editors).find(ed => ed.hasTextFocus && ed.hasTextFocus());
+                if (!focusedEditor) {
+                    e.preventDefault();
+                    saveAllEditors();
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Initialize page components
+ */
+function initPage() {
+    initMonacoEditors();
+    initSaveButton();
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initPage();
+    initKeyboardShortcuts();
+});
+
+// Re-initialize after HTMX swaps main content
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.id === 'main-content') {
+        initPage();
+    }
+});
+
+// Handle action responses (terminal streaming)
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.successful && evt.detail.xhr && evt.detail.xhr.responseText) {
+        try {
+            const response = JSON.parse(evt.detail.xhr.responseText);
+            if (response.task_id) {
+                initTerminal('terminal-output', response.task_id);
+            }
+        } catch (e) {
+            // Not JSON, ignore
+        }
+    }
+});

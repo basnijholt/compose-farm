@@ -11,6 +11,9 @@
     <!-- xterm.js -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
 
+    <!-- Monaco Editor loader -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+
     <!-- Custom styles -->
     <link rel="stylesheet" href="/static/app.css">
 </head>
@@ -35,7 +38,7 @@
         </aside>
 
         <!-- Main content -->
-        <main>
+        <main id="main-content" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
             {% block content %}{% endblock %}
         </main>
     </div>

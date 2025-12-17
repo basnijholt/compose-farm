@@ -32,6 +32,34 @@
     padding: 0.5rem;
 }
 
+/* Sidebar sections */
+.sidebar-section {
+    margin-bottom: 1rem;
+}
+
+.sidebar-section h4 {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--pico-muted-color);
+    margin: 0.75rem 0.75rem 0.25rem;
+    padding: 0;
+}
+
+.sidebar-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.nav-icon {
+    display: inline-block;
+    width: 16px;
+    text-align: center;
+    opacity: 0.6;
+    font-family: monospace;
+}
+
 #sidebar nav ul {
     list-style: none;
     padding: 0;
@@ -93,11 +121,58 @@ main article {
     max-width: 1200px;
 }
 
-/* Editor */
+/* Editors */
+.yaml-editor, .env-editor {
+    height: 400px;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 0.25rem;
+}
+
+.env-editor {
+    height: 250px;
+}
+
+/* Legacy editor ID support */
 #editor {
     height: 400px;
     border: 1px solid var(--pico-muted-border-color);
     border-radius: 0.25rem;
+}
+
+/* Stats cards */
+.stat-card {
+    text-align: center;
+    padding: 1rem;
+}
+
+.stat-card header {
+    padding: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--pico-muted-color);
+}
+
+.stat-value {
+    font-size: 2.5rem;
+    display: block;
+}
+
+.stat-value.running {
+    color: #22c55e;
+}
+
+.stat-value.stopped {
+    color: #6b7280;
+}
+
+/* Marks for status */
+mark.success {
+    background: rgba(34, 197, 94, 0.2);
+    color: #22c55e;
+}
+
+mark.warning {
+    background: rgba(234, 179, 8, 0.2);
+    color: #eab308;
 }
 
 /* Terminal */

@@ -1,16 +1,31 @@
-<ul>
-    {% set deployed = state.get('deployed', {}) %}
-    {% for service in services %}
-    <li>
-        <a href="/service/{{ service }}"
-           {% if service in deployed %}class="running"{% endif %}>
-            {% if service in deployed %}
-                <span class="status-dot running"></span>
-            {% else %}
-                <span class="status-dot stopped"></span>
-            {% endif %}
-            {{ service }}
-        </a>
-    </li>
-    {% endfor %}
-</ul>
+<!-- Overview Section -->
+<div class="sidebar-section">
+    <h4>Overview</h4>
+    <ul hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
+        <li><a href="/"><span class="nav-icon">~</span> Dashboard</a></li>
+        <li><a href="/config"><span class="nav-icon">#</span> Config</a></li>
+        <li><a href="/state"><span class="nav-icon">@</span> State</a></li>
+        <li><a href="/stats"><span class="nav-icon">$</span> Stats</a></li>
+    </ul>
+</div>
+
+<!-- Services Section -->
+<div class="sidebar-section">
+    <h4>Services</h4>
+    <ul hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
+        {% set deployed = state.get('deployed', {}) %}
+        {% for service in services %}
+        <li>
+            <a href="/service/{{ service }}"
+               {% if service in deployed %}class="running"{% endif %}>
+                {% if service in deployed %}
+                    <span class="status-dot running"></span>
+                {% else %}
+                    <span class="status-dot stopped"></span>
+                {% endif %}
+                {{ service }}
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+</div>

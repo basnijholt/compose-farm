@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}State - Compose Farm{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <hgroup>
+            <h1>Deployment State</h1>
+            <p>Current state of deployed services</p>
+        </hgroup>
+    </header>
+
+    <!-- Actions -->
+    <div role="group">
+        <button hx-post="/api/refresh"
+                hx-swap="none"
+                class="secondary">
+            Refresh from Reality
+        </button>
+    </div>
+
+    <!-- Deployed Services -->
+    <details open>
+        <summary>Deployed Services ({{ state.get('deployed', {}) | length }})</summary>
+        {% set deployed = state.get('deployed', {}) %}
+        {% if deployed %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Service</th>
+                    <th>Running On</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for svc, host in deployed.items() | sort %}
+                <tr>
+                    <td><a href="/service/{{ svc }}">{{ svc }}</a></td>
+                    <td><code>{{ host }}</code></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p><em>No services currently deployed.</em></p>
+        {% endif %}
+    </details>
+
+    <!-- Raw State YAML -->
+    <details>
+        <summary>Raw State (YAML)</summary>
+        <pre><code>{{ state_content }}</code></pre>
+    </details>
+</article>
+{% endblock %}
