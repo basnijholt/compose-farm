@@ -261,5 +261,68 @@ def config_validate(
     console.print(f"  Services: {len(cfg.services)}")
 
 
+@config_app.command("symlink")
+def config_symlink(
+    target: Annotated[
+        Path | None,
+        typer.Argument(help="Config file to link to. Defaults to ./compose-farm.yaml"),
+    ] = None,
+    force: _ForceOption = False,
+) -> None:
+    """Create a symlink from the default config location to a config file.
+
+    This makes a local config file discoverable globally without copying.
+    Always uses absolute paths to avoid broken symlinks.
+
+    Examples:
+        cf config symlink                    # Link to ./compose-farm.yaml
+        cf config symlink /opt/compose/config.yaml  # Link to specific file
+
+    """
+    # Default to compose-farm.yaml in current directory
+    target_path = (target or Path("compose-farm.yaml")).expanduser().resolve()
+
+    if not target_path.exists():
+        err_console.print(f"[red]✗[/] Target config file not found: {target_path}")
+        raise typer.Exit(1)
+
+    if not target_path.is_file():
+        err_console.print(f"[red]✗[/] Target is not a file: {target_path}")
+        raise typer.Exit(1)
+
+    symlink_path = _USER_CONFIG_PATH
+
+    # Check if symlink location already exists
+    if symlink_path.exists() or symlink_path.is_symlink():
+        if symlink_path.is_symlink():
+            current_target = symlink_path.resolve() if symlink_path.exists() else None
+            if current_target == target_path:
+                console.print(f"[green]✓[/] Symlink already points to: {target_path}")
+                return
+            # Update existing symlink
+            if not force:
+                existing = symlink_path.readlink()
+                console.print(f"[yellow]Symlink exists:[/] {symlink_path} -> {existing}")
+                if not typer.confirm(f"Update to point to {target_path}?"):
+                    console.print("[dim]Aborted.[/dim]")
+                    raise typer.Exit(0)
+            symlink_path.unlink()
+        else:
+            # Regular file exists
+            err_console.print(f"[red]✗[/] A regular file exists at: {symlink_path}")
+            err_console.print("    Back it up or remove it first, then retry.")
+            raise typer.Exit(1)
+
+    # Create parent directories
+    symlink_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create symlink with absolute path
+    symlink_path.symlink_to(target_path)
+
+    console.print("[green]✓[/] Created symlink:")
+    console.print(f"    {symlink_path}")
+    console.print(f"    -> {target_path}")
+
+
 # Register config subcommand on the shared app
 app.add_typer(config_app, name="config", rich_help_panel="Configuration")
