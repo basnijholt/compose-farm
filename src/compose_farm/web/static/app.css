@@ -1,6 +1,6 @@
-/* Subtle gradient background */
+/* Gradient background */
 html {
-    background: linear-gradient(135deg, #13151a 0%, #1a1d24 50%, #151820 100%);
+    background: linear-gradient(135deg, #0f1318 0%, #1a2030 40%, #12181f 100%);
     background-attachment: fixed;
 }
 
@@ -30,6 +30,24 @@ html {
 #sidebar header h2 {
     margin: 0;
     font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.github-link {
+    color: var(--pico-muted-color);
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.github-link:hover {
+    opacity: 1;
+}
+
+/* Table row hover */
+table tbody tr:hover {
+    filter: brightness(1.2);
 }
 
 #sidebar nav {
