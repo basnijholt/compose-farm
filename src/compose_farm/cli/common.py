@@ -110,6 +110,15 @@ def get_services(
 
     # Resolve "." to current directory name
     resolved = [Path.cwd().name if svc == "." else svc for svc in services]
+
+    # Validate all services exist in config
+    unknown = [svc for svc in resolved if svc not in config.services]
+    if unknown:
+        for svc in unknown:
+            err_console.print(f"[red]✗[/] Unknown service: [cyan]{svc}[/]")
+        err_console.print("[dim]Hint: Add the service to compose-farm.yaml or use --all[/]")
+        raise typer.Exit(1)
+
     return resolved, config
 
 
