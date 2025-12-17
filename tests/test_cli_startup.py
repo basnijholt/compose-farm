@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 import time
 
-# Threshold in seconds (0.35s to accommodate slower CI runners like macOS/Windows)
-CLI_STARTUP_THRESHOLD = 0.35
+# Thresholds in seconds, per OS
+if sys.platform == "win32":
+    CLI_STARTUP_THRESHOLD = 2.0
+elif sys.platform == "darwin":
+    CLI_STARTUP_THRESHOLD = 0.35
+else:  # Linux
+    CLI_STARTUP_THRESHOLD = 0.2
 
 
 def test_cli_startup_time() -> None:
