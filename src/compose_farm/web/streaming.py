@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
@@ -125,52 +126,40 @@ async def run_apply_streaming(config: Config, task_id: str) -> None:
         tasks[task_id]["status"] = "failed"
 
 
-async def run_refresh_streaming(config: Config, task_id: str) -> None:  # noqa: PLR0912
+async def run_refresh_streaming(config: Config, task_id: str) -> None:
     """Run cf refresh with streaming output."""
+
+    async def check_service(service: str) -> tuple[str, str | list[str] | None]:
+        """Check where a service is running."""
+        assigned_hosts = config.get_hosts(service)
+        if config.is_multi_host(service):
+            running = [h for h in assigned_hosts if await check_service_running(config, service, h)]
+            return service, running if running else None
+        for host in [assigned_hosts[0]] + [h for h in config.hosts if h != assigned_hosts[0]]:
+            if await check_service_running(config, service, host):
+                return service, host
+        return service, None
+
     try:
         await stream_to_task(task_id, f"{CYAN}[refresh]{RESET} Discovering running services...\r\n")
 
         current_state = load_state(config)
         discovered: dict[str, str | list[str]] = {}
 
-        # Check each service
-        for service in config.services:
-            assigned_hosts = config.get_hosts(service)
-
-            if config.is_multi_host(service):
-                # Multi-host: find all hosts where running
-                running_hosts = [
-                    h for h in assigned_hosts if await check_service_running(config, service, h)
-                ]
-                if running_hosts:
-                    discovered[service] = running_hosts
-                    await stream_to_task(
-                        task_id,
-                        f"{GREEN}[refresh]{RESET} {service}: running on {', '.join(running_hosts)}\r\n",
-                    )
-                else:
-                    await stream_to_task(
-                        task_id, f"{YELLOW}[refresh]{RESET} {service}: not running\r\n"
-                    )
+        # Check all services in parallel, stream results as they complete
+        check_tasks = [asyncio.create_task(check_service(s)) for s in config.services]
+        for coro in asyncio.as_completed(check_tasks):
+            service, host = await coro
+            if host:
+                discovered[service] = host
+                host_str = ", ".join(host) if isinstance(host, list) else host
+                await stream_to_task(
+                    task_id, f"{GREEN}[refresh]{RESET} {service}: running on {host_str}\r\n"
+                )
             else:
-                # Single-host: check assigned host first, then others
-                found_host = None
-                for host_name in [assigned_hosts[0]] + [
-                    h for h in config.hosts if h != assigned_hosts[0]
-                ]:
-                    if await check_service_running(config, service, host_name):
-                        found_host = host_name
-                        break
-
-                if found_host:
-                    discovered[service] = found_host
-                    await stream_to_task(
-                        task_id, f"{GREEN}[refresh]{RESET} {service}: running on {found_host}\r\n"
-                    )
-                else:
-                    await stream_to_task(
-                        task_id, f"{YELLOW}[refresh]{RESET} {service}: not running\r\n"
-                    )
+                await stream_to_task(
+                    task_id, f"{YELLOW}[refresh]{RESET} {service}: not running\r\n"
+                )
 
         # Calculate changes
         added = [s for s in discovered if s not in current_state]
