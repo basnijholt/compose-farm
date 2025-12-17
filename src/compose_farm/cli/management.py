@@ -40,7 +40,7 @@ from compose_farm.logs import (
     write_toml,
 )
 from compose_farm.operations import check_host_compatibility, check_service_requirements
-from compose_farm.state import load_state, save_state
+from compose_farm.state import get_orphaned_services, load_state, save_state
 from compose_farm.traefik import generate_traefik_config, render_traefik_config
 
 # --- Sync helpers ---
@@ -272,12 +272,12 @@ def _report_config_status(cfg: Config) -> bool:
     """Check and report config vs disk status. Returns True if errors found."""
     configured = set(cfg.services.keys())
     on_disk = cfg.discover_compose_dirs()
-    missing_from_config = sorted(on_disk - configured)
+    unmanaged = sorted(on_disk - configured)
     missing_from_disk = sorted(configured - on_disk)
 
-    if missing_from_config:
-        console.print(f"\n[yellow]On disk but not in config[/] ({len(missing_from_config)}):")
-        for name in missing_from_config:
+    if unmanaged:
+        console.print(f"\n[yellow]Unmanaged[/] (on disk but not in config, {len(unmanaged)}):")
+        for name in unmanaged:
             console.print(f"  [yellow]+[/] [cyan]{name}[/]")
 
     if missing_from_disk:
@@ -285,7 +285,7 @@ def _report_config_status(cfg: Config) -> bool:
         for name in missing_from_disk:
             console.print(f"  [red]-[/] [cyan]{name}[/]")
 
-    if not missing_from_config and not missing_from_disk:
+    if not unmanaged and not missing_from_disk:
         console.print("[green]✓[/] Config matches disk")
 
     return bool(missing_from_disk)
@@ -293,17 +293,15 @@ def _report_config_status(cfg: Config) -> bool:
 
 def _report_orphaned_services(cfg: Config) -> bool:
     """Check for services in state but not in config. Returns True if orphans found."""
-    state = load_state(cfg)
-    configured = set(cfg.services.keys())
-    tracked = set(state.keys())
-    orphaned = sorted(tracked - configured)
+    orphaned = get_orphaned_services(cfg)
 
     if orphaned:
         console.print("\n[yellow]Orphaned services[/] (in state but not in config):")
-        console.print("[dim]These may still be running. Use 'docker compose down' to stop them.[/]")
-        for name in orphaned:
-            host = state[name]
-            host_str = ", ".join(host) if isinstance(host, list) else host
+        console.print(
+            "[dim]Run 'cf up --migrate' to stop them, or 'cf down <service>' manually.[/]"
+        )
+        for name, hosts in sorted(orphaned.items()):
+            host_str = ", ".join(hosts) if isinstance(hosts, list) else hosts
             console.print(f"  [yellow]![/] [cyan]{name}[/] on [magenta]{host_str}[/]")
         return True
 

@@ -21,9 +21,10 @@ from compose_farm.cli.common import (
 )
 from compose_farm.console import console
 from compose_farm.executor import run_on_services, run_sequential_on_services
-from compose_farm.operations import up_services
+from compose_farm.operations import stop_orphaned_services, up_services
 from compose_farm.state import (
     add_service_to_host,
+    get_orphaned_services,
     get_services_needing_migration,
     remove_service,
     remove_service_from_host,
@@ -35,7 +36,10 @@ def up(
     services: ServicesArg = None,
     all_services: AllOption = False,
     migrate: Annotated[
-        bool, typer.Option("--migrate", "-m", help="Only services needing migration")
+        bool,
+        typer.Option(
+            "--migrate", "-m", help="Migrate services + stop orphaned (sync state to config)"
+        ),
     ] = False,
     host: HostOption = None,
     config: ConfigOption = None,
@@ -50,9 +54,23 @@ def up(
     if migrate:
         cfg = load_config_or_exit(config)
         svc_list = get_services_needing_migration(cfg)
-        if not svc_list:
+        orphaned = get_orphaned_services(cfg)
+
+        if not svc_list and not orphaned:
             console.print("[green]✓[/] No services need migration")
             return
+
+        # Handle orphaned services first (in state but removed from config)
+        if orphaned:
+            console.print(
+                f"[yellow]Stopping {len(orphaned)} orphaned service(s):[/] "
+                f"{', '.join(orphaned.keys())}"
+            )
+            run_async(stop_orphaned_services(cfg))
+
+        if not svc_list:
+            return
+
         console.print(f"[cyan]Migrating {len(svc_list)} service(s):[/] {', '.join(svc_list)}")
     else:
         svc_list, cfg = get_services(services or [], all_services, config)

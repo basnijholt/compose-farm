@@ -6,6 +6,7 @@ import pytest
 
 from compose_farm.config import Config, Host
 from compose_farm.state import (
+    get_orphaned_services,
     get_service_host,
     load_state,
     remove_service,
@@ -130,3 +131,53 @@ class TestRemoveService:
 
         result = load_state(config)
         assert result["plex"] == "nas01"
+
+
+class TestGetOrphanedServices:
+    """Tests for get_orphaned_services function."""
+
+    def test_no_orphans(self, config: Config) -> None:
+        """Returns empty dict when all services in state are in config."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  plex: nas01\n")
+
+        result = get_orphaned_services(config)
+        assert result == {}
+
+    def test_finds_orphaned_service(self, config: Config) -> None:
+        """Returns services in state but not in config."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  plex: nas01\n  jellyfin: nas02\n")
+
+        result = get_orphaned_services(config)
+        # plex is in config, jellyfin is not
+        assert result == {"jellyfin": "nas02"}
+
+    def test_finds_orphaned_multi_host_service(self, config: Config) -> None:
+        """Returns multi-host orphaned services with host list."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  plex: nas01\n  dozzle:\n  - nas01\n  - nas02\n")
+
+        result = get_orphaned_services(config)
+        assert result == {"dozzle": ["nas01", "nas02"]}
+
+    def test_empty_state(self, config: Config) -> None:
+        """Returns empty dict when state is empty."""
+        result = get_orphaned_services(config)
+        assert result == {}
+
+    def test_all_orphaned(self, tmp_path: Path) -> None:
+        """Returns all services when none are in config."""
+        config_path = tmp_path / "compose-farm.yaml"
+        config_path.write_text("")
+        cfg = Config(
+            compose_dir=tmp_path / "compose",
+            hosts={"nas01": Host(address="192.168.1.10")},
+            services={},  # No services in config
+            config_path=config_path,
+        )
+        state_file = cfg.get_state_path()
+        state_file.write_text("deployed:\n  plex: nas01\n  jellyfin: nas02\n")
+
+        result = get_orphaned_services(cfg)
+        assert result == {"plex": "nas01", "jellyfin": "nas02"}

@@ -249,7 +249,7 @@ Each command replaces: look up host → SSH → find compose file → run `ssh h
 # Start services (auto-migrates if host changed in config)
 cf up plex jellyfin
 cf up --all
-cf up --migrate        # only services needing migration (state ≠ config)
+cf up --migrate        # migrate + stop orphaned services (state ≠ config)
 
 # Stop services
 cf down plex
@@ -357,6 +357,8 @@ services:
 services:
   plex: server-2  # Compose Farm will migrate automatically
 ```
+
+**Orphaned services**: When you remove (or comment out) a service from config, `cf up --migrate` will also stop it. These are called "orphaned" services—they're tracked in state but no longer in config. This makes the config truly declarative: comment out a service, run `cf up -m`, and it stops.
 
 ## Traefik Multihost Ingress (File Provider)
 
