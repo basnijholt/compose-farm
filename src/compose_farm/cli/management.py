@@ -267,7 +267,9 @@ def _check_service_requirements(
 
         return all_mount_errors, all_network_errors, all_device_errors
 
-    with progress_bar("Checking requirements", len(services)) as (progress, task_id):
+    with progress_bar(
+        "Checking requirements", len(services), initial_description="[dim]checking...[/]"
+    ) as (progress, task_id):
         return asyncio.run(gather_with_progress(progress, task_id))
 
 
