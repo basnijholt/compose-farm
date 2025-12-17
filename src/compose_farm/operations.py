@@ -226,6 +226,7 @@ async def up_services(
                 continue
 
             # If service is deployed elsewhere, migrate it
+            did_migration = False
             if current_host and current_host != target_host:
                 if current_host in cfg.hosts:
                     failure = await _migrate_service(
@@ -234,6 +235,7 @@ async def up_services(
                     if failure:
                         results.append(failure)
                         continue
+                    did_migration = True
                 else:
                     err_console.print(
                         f"{prefix} [yellow]![/] was on "
@@ -251,6 +253,12 @@ async def up_services(
             # Update state on success
             if up_result.success:
                 set_service_host(cfg, service, target_host)
+            elif did_migration:
+                # Up failed after migration - clean up orphaned containers on target
+                err_console.print(
+                    f"{prefix} [yellow]![/] Cleaning up failed start on [magenta]{target_host}[/]"
+                )
+                await run_compose(cfg, service, "down", raw=raw)
     except OperationInterruptedError:
         # Convert to KeyboardInterrupt to propagate up to CLI
         raise KeyboardInterrupt from None
