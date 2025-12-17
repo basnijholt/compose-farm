@@ -10,7 +10,7 @@
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 > [!NOTE]
-> Run `docker compose` commands across multiple hosts via SSH. One YAML maps services to hosts. Change the mapping, run `up`, and it auto-migrates. No Kubernetes, no Swarm, no magic.
+> Run `docker compose` commands across multiple hosts via SSH. One YAML maps services to hosts. Run `cf apply` and reality matches your config—services start, migrate, or stop as needed. No Kubernetes, no Swarm, no magic.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -43,7 +43,7 @@ I used to run 100+ Docker Compose stacks on a single machine that kept running o
 
 Both require changes to your compose files. **Compose Farm requires zero changes**—your existing `docker-compose.yml` files work as-is.
 
-I also wanted a declarative setup—one config file that defines where everything runs. Change the config, run `up`, and services migrate automatically. See [Comparison with Alternatives](#comparison-with-alternatives) for how this compares to other approaches.
+I also wanted a declarative setup—one config file that defines where everything runs. Change the config, run `cf apply`, and everything reconciles—services start, migrate, or stop as needed. See [Comparison with Alternatives](#comparison-with-alternatives) for how this compares to other approaches.
 
 <p align="center">
 <a href="https://xkcd.com/927/">
@@ -56,18 +56,26 @@ Before you say it—no, this is not a new standard. I changed nothing about my e
 Compose Farm just automates what you'd do by hand:
 - Runs `docker compose` commands over SSH
 - Tracks which service runs on which host
-- Auto-migrates services when you change the host assignment
+- **One command (`cf apply`) to reconcile everything**—start missing services, migrate moved ones, stop removed ones
 - Generates Traefik file-provider config for cross-host routing
 
 **It's a convenience wrapper, not a new paradigm.**
 
 ## How It Works
 
-1. You run `cf up plex`
-2. Compose Farm looks up which host runs `plex` (e.g., `server-1`)
-3. It SSHs to `server-1` (or runs locally if `localhost`)
-4. It executes `docker compose -f /opt/compose/plex/docker-compose.yml up -d`
-5. Output is streamed back with `[plex]` prefix
+**The declarative way** — run `cf apply` and reality matches your config:
+
+1. Compose Farm compares your config to what's actually running
+2. Services in config but not running? **Starts them**
+3. Services on the wrong host? **Migrates them** (stops on old host, starts on new)
+4. Services running but removed from config? **Stops them**
+
+**Under the hood** — each service operation is just SSH + docker compose:
+
+1. Look up which host runs the service (e.g., `plex` → `server-1`)
+2. SSH to `server-1` (or run locally if `localhost`)
+3. Execute `docker compose -f /opt/compose/plex/docker-compose.yml up -d`
+4. Stream output back with `[plex]` prefix
 
 That's it. No orchestration, no service discovery, no magic.
 
@@ -228,12 +236,12 @@ The CLI is available as both `compose-farm` and the shorter `cf` alias.
 
 | Command | Description |
 |---------|-------------|
+| **`cf apply`** | **Make reality match config (start + migrate + stop orphans)** |
 | `cf up <svc>` | Start service (auto-migrates if host changed) |
 | `cf down <svc>` | Stop service |
 | `cf restart <svc>` | down + up |
 | `cf update <svc>` | pull + down + up |
 | `cf pull <svc>` | Pull latest images |
-| `cf apply` | Make reality match config (start + migrate + stop orphans) |
 | `cf logs -f <svc>` | Follow logs |
 | `cf ps` | Show status of all services |
 | `cf refresh` | Update state from running services |
@@ -247,18 +255,16 @@ All commands support `--all` to operate on all services.
 Each command replaces: look up host → SSH → find compose file → run `ssh host "cd /opt/compose/plex && docker compose up -d"`.
 
 ```bash
-# Start services (auto-migrates if host changed in config)
-cf up plex jellyfin
-cf up --all
-
-# Stop services
-cf down plex
-cf down --orphaned     # stop services removed from config
-
-# Make reality match config (the "reconcile" command)
+# The main command: make reality match your config
 cf apply               # start missing + migrate + stop orphans
 cf apply --dry-run     # preview what would change
 cf apply --no-orphans  # skip stopping orphaned services
+
+# Or operate on individual services
+cf up plex jellyfin    # start services (auto-migrates if host changed)
+cf up --all
+cf down plex           # stop services
+cf down --orphaned     # stop services removed from config
 
 # Pull latest images
 cf pull --all
