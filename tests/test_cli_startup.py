@@ -6,8 +6,8 @@ import shutil
 import subprocess
 import time
 
-# Threshold in seconds
-CLI_STARTUP_THRESHOLD = 0.2
+# Threshold in seconds (0.35s to accommodate slower CI runners like macOS/Windows)
+CLI_STARTUP_THRESHOLD = 0.35
 
 
 def test_cli_startup_time() -> None:
