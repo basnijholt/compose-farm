@@ -19,9 +19,9 @@
         <li>
             <a href="/service/{{ service }}" class="flex items-center gap-2">
                 {% if service in state %}
-                    <span class="w-2 h-2 rounded-full bg-success shadow-[0_0_6px_rgba(34,197,94,0.5)]" title="In state file"></span>
+                    <span class="status status-success" title="In state file"></span>
                 {% else %}
-                    <span class="w-2 h-2 rounded-full bg-base-content/30" title="Not in state file"></span>
+                    <span class="status status-neutral" title="Not in state file"></span>
                 {% endif %}
                 {{ service }}
             </a>

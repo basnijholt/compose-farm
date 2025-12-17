@@ -9,24 +9,18 @@
     </div>
 
     <!-- Quick Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="card bg-base-100 shadow">
-            <div class="card-body items-center text-center p-4">
-                <span class="text-sm text-base-content/60">Hosts</span>
-                <span class="text-4xl font-bold">{{ config.hosts | length }}</span>
-            </div>
+    <div class="stats shadow mb-6 w-full">
+        <div class="stat">
+            <div class="stat-title">Hosts</div>
+            <div class="stat-value">{{ config.hosts | length }}</div>
         </div>
-        <div class="card bg-base-100 shadow">
-            <div class="card-body items-center text-center p-4">
-                <span class="text-sm text-base-content/60">Services</span>
-                <span class="text-4xl font-bold">{{ config.services | length }}</span>
-            </div>
+        <div class="stat">
+            <div class="stat-title">Services</div>
+            <div class="stat-value">{{ config.services | length }}</div>
         </div>
-        <div class="card bg-base-100 shadow">
-            <div class="card-body items-center text-center p-4">
-                <span class="text-sm text-base-content/60">Deployed</span>
-                <span class="text-4xl font-bold text-success">{{ state | length }}</span>
-            </div>
+        <div class="stat">
+            <div class="stat-title">Deployed</div>
+            <div class="stat-value text-success">{{ state | length }}</div>
         </div>
     </div>
 

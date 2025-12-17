@@ -8,25 +8,19 @@
         <p class="text-base-content/60 text-lg">Cluster status and pending operations</p>
     </div>
 
-    <!-- Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="card bg-base-100 shadow">
-            <div class="card-body items-center text-center p-4">
-                <span class="text-sm text-base-content/60">Total Services</span>
-                <span class="text-4xl font-bold">{{ total_services }}</span>
-            </div>
+    <!-- Summary Stats -->
+    <div class="stats shadow mb-6 w-full">
+        <div class="stat">
+            <div class="stat-title">Total Services</div>
+            <div class="stat-value">{{ total_services }}</div>
         </div>
-        <div class="card bg-base-100 shadow">
-            <div class="card-body items-center text-center p-4">
-                <span class="text-sm text-base-content/60">Running</span>
-                <span class="text-4xl font-bold text-success">{{ running_services }}</span>
-            </div>
+        <div class="stat">
+            <div class="stat-title">Running</div>
+            <div class="stat-value text-success">{{ running_services }}</div>
         </div>
-        <div class="card bg-base-100 shadow">
-            <div class="card-body items-center text-center p-4">
-                <span class="text-sm text-base-content/60">Stopped</span>
-                <span class="text-4xl font-bold text-base-content/50">{{ stopped_services }}</span>
-            </div>
+        <div class="stat">
+            <div class="stat-title">Stopped</div>
+            <div class="stat-value text-base-content/50">{{ stopped_services }}</div>
         </div>
     </div>
 
@@ -71,7 +65,7 @@
         </div>
     </div>
     {% else %}
-    <div class="alert alert-success mb-4">
+    <div role="alert" class="alert alert-success mb-4">
         <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         <span>All services are in sync with configuration.</span>
     </div>
@@ -89,9 +83,9 @@
                 <code class="text-xs ml-2 opacity-60">{{ hosts[host_name].address }}</code>
                 {% endif %}
             </h4>
-            <ul class="list-disc list-inside mb-2">
+            <ul class="menu menu-horizontal bg-base-200 rounded-box mb-2">
                 {% for svc in services | sort %}
-                <li><a href="/service/{{ svc }}" class="link link-primary">{{ svc }}</a></li>
+                <li><a href="/service/{{ svc }}">{{ svc }}</a></li>
                 {% endfor %}
             </ul>
             {% else %}
@@ -115,7 +109,6 @@
 
 {% block scripts %}
 <script>
-    // Show terminal section when action is triggered
     document.body.addEventListener('htmx:afterRequest', function(evt) {
         if (evt.detail.successful && evt.detail.xhr && evt.detail.xhr.responseText) {
             try {
@@ -128,9 +121,7 @@
                     }
                     initTerminal('terminal-output', response.task_id);
                 }
-            } catch (e) {
-                // Not JSON, ignore
-            }
+            } catch (e) {}
         }
     });
 </script>
