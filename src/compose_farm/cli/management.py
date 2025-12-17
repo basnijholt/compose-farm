@@ -298,7 +298,7 @@ def _report_orphaned_services(cfg: Config) -> bool:
     if orphaned:
         console.print("\n[yellow]Orphaned services[/] (in state but not in config):")
         console.print(
-            "[dim]Run 'cf up --migrate' to stop them, or 'cf down <service>' manually.[/]"
+            "[dim]Run 'cf apply' to stop them, or 'cf down --orphaned' for just orphans.[/]"
         )
         for name, hosts in sorted(orphaned.items()):
             host_str = ", ".join(hosts) if isinstance(hosts, list) else hosts
@@ -480,19 +480,21 @@ def traefik_file(
 
 
 @app.command(rich_help_panel="Configuration")
-def sync(
+def refresh(
     config: ConfigOption = None,
     log_path: LogPathOption = None,
     dry_run: Annotated[
         bool,
-        typer.Option("--dry-run", "-n", help="Show what would be synced without writing"),
+        typer.Option("--dry-run", "-n", help="Show what would change without writing"),
     ] = False,
 ) -> None:
-    """Sync local state with running services.
+    """Update local state from running services.
 
     Discovers which services are running on which hosts, updates the state
-    file, and captures image digests. Combines service discovery with
-    image snapshot into a single command.
+    file, and captures image digests. This is a read operation - it updates
+    your local state to match reality, not the other way around.
+
+    Use 'cf apply' to make reality match your config (stop orphans, migrate).
     """
     cfg = load_config_or_exit(config)
     current_state = load_state(cfg)
