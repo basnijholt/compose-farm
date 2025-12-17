@@ -3,27 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+import os
 from typing import TYPE_CHECKING, Any
-
-from compose_farm.executor import run_compose
-from compose_farm.operations import discover_service_host
-from compose_farm.state import (
-    get_orphaned_services,
-    get_services_needing_migration,
-    get_services_not_in_state,
-    load_state,
-    save_state,
-)
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
 
 # ANSI color codes
 GREEN = "\x1b[32m"
-YELLOW = "\x1b[33m"
 RED = "\x1b[31m"
-CYAN = "\x1b[36m"
 RESET = "\x1b[0m"
 
 # In-memory task registry
@@ -36,19 +24,49 @@ async def stream_to_task(task_id: str, message: str) -> None:
         tasks[task_id]["output"].append(message)
 
 
-def make_task_callback(
+async def run_cli_streaming(
+    config: Config,
+    args: list[str],
     task_id: str,
-) -> Callable[[str, str, bool], Awaitable[None]]:
-    """Create an output callback that writes to a task buffer with ANSI colors."""
+) -> None:
+    """Run a cf CLI command as subprocess and stream output to task buffer.
 
-    async def callback(prefix: str, text: str, is_stderr: bool) -> None:
-        if is_stderr:
-            msg = f"{CYAN}[{prefix}]{RESET} {YELLOW}{text}{RESET}"
-        else:
-            msg = f"{CYAN}[{prefix}]{RESET} {text}"
-        await stream_to_task(task_id, msg)
+    This reuses all CLI logic including Rich formatting, progress bars, etc.
+    The subprocess gets a pseudo-TTY via FORCE_COLOR so Rich outputs ANSI codes.
+    """
+    try:
+        # Build command - config option goes after the subcommand
+        cmd = ["cf", *args, f"--config={config.config_path}"]
 
-    return callback
+        # Show command being executed
+        cmd_display = " ".join(["cf", *args])
+        await stream_to_task(task_id, f"\x1b[2m$ {cmd_display}\x1b[0m\r\n")
+
+        # Force color output even though there's no real TTY
+        env = {"FORCE_COLOR": "1", "TERM": "xterm-256color"}
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            env={**os.environ, **env},
+        )
+
+        # Stream output line by line
+        if process.stdout:
+            async for line in process.stdout:
+                text = line.decode("utf-8", errors="replace")
+                # Convert \n to \r\n for xterm.js
+                if text.endswith("\n") and not text.endswith("\r\n"):
+                    text = text[:-1] + "\r\n"
+                await stream_to_task(task_id, text)
+
+        exit_code = await process.wait()
+        tasks[task_id]["status"] = "completed" if exit_code == 0 else "failed"
+
+    except Exception as e:
+        await stream_to_task(task_id, f"{RED}Error: {e}{RESET}\r\n")
+        tasks[task_id]["status"] = "failed"
 
 
 async def run_compose_streaming(
@@ -57,124 +75,22 @@ async def run_compose_streaming(
     command: str,
     task_id: str,
 ) -> None:
-    """Run a compose command with output streamed to task buffer."""
-    try:
-        compose_path = config.get_compose_path(service)
-        if not compose_path:
-            await stream_to_task(
-                task_id, f"{RED}Error: Compose file not found for {service}{RESET}\r\n"
-            )
-            tasks[task_id]["status"] = "failed"
-            return
+    """Run a compose command (up/down/pull/restart) via CLI subprocess."""
+    # Split command into args (e.g., "up -d" -> ["up", "-d"])
+    args = command.split()
+    cli_cmd = args[0]  # up, down, pull, restart
+    extra_args = args[1:]  # -d, etc.
 
-        await stream_to_task(task_id, f"{CYAN}[{service}]{RESET} Running: {command}\r\n")
-
-        callback = make_task_callback(task_id)
-        result = await run_compose(config, service, command, output_callback=callback)
-
-        tasks[task_id]["status"] = "completed" if result.success else "failed"
-
-    except Exception as e:
-        await stream_to_task(task_id, f"{RED}Error: {e}{RESET}\r\n")
-        tasks[task_id]["status"] = "failed"
+    # Build CLI args
+    cli_args = [cli_cmd, service, *extra_args]
+    await run_cli_streaming(config, cli_args, task_id)
 
 
 async def run_apply_streaming(config: Config, task_id: str) -> None:
-    """Run cf apply with streaming output."""
-    try:
-        await stream_to_task(task_id, f"{CYAN}[apply]{RESET} Analyzing state...\r\n")
-
-        orphaned = get_orphaned_services(config)
-        migrations = get_services_needing_migration(config)
-        missing = get_services_not_in_state(config)
-
-        if not orphaned and not migrations and not missing:
-            await stream_to_task(
-                task_id, f"{GREEN}[apply]{RESET} Nothing to apply - reality matches config\r\n"
-            )
-            tasks[task_id]["status"] = "completed"
-            return
-
-        # Report what will be done
-        if orphaned:
-            await stream_to_task(
-                task_id,
-                f"{YELLOW}[apply]{RESET} Orphaned services: {', '.join(orphaned.keys())}\r\n",
-            )
-        if migrations:
-            await stream_to_task(
-                task_id, f"{CYAN}[apply]{RESET} Services to migrate: {', '.join(migrations)}\r\n"
-            )
-        if missing:
-            await stream_to_task(
-                task_id, f"{GREEN}[apply]{RESET} Services to start: {', '.join(missing)}\r\n"
-            )
-
-        # Stop orphaned services
-        for svc in orphaned:
-            await stream_to_task(task_id, f"{YELLOW}[apply]{RESET} Stopping orphaned: {svc}\r\n")
-            await run_compose_streaming(config, svc, "down", task_id)
-
-        # Migrate and start services
-        for svc in migrations + missing:
-            await stream_to_task(task_id, f"{GREEN}[apply]{RESET} Starting: {svc}\r\n")
-            await run_compose_streaming(config, svc, "up -d", task_id)
-
-        tasks[task_id]["status"] = "completed"
-
-    except Exception as e:
-        await stream_to_task(task_id, f"{RED}[apply] Error: {e}{RESET}\r\n")
-        tasks[task_id]["status"] = "failed"
+    """Run cf apply via CLI subprocess."""
+    await run_cli_streaming(config, ["apply"], task_id)
 
 
 async def run_refresh_streaming(config: Config, task_id: str) -> None:
-    """Run cf refresh with streaming output."""
-    try:
-        await stream_to_task(task_id, f"{CYAN}[refresh]{RESET} Discovering running services...\r\n")
-
-        current_state = load_state(config)
-        discovered: dict[str, str | list[str]] = {}
-
-        # Check all services in parallel, stream results as they complete
-        check_tasks = [
-            asyncio.create_task(discover_service_host(config, s)) for s in config.services
-        ]
-        for coro in asyncio.as_completed(check_tasks):
-            service, host = await coro
-            if host:
-                discovered[service] = host
-                host_str = ", ".join(host) if isinstance(host, list) else host
-                await stream_to_task(
-                    task_id, f"{GREEN}[refresh]{RESET} {service}: running on {host_str}\r\n"
-                )
-            else:
-                await stream_to_task(
-                    task_id, f"{YELLOW}[refresh]{RESET} {service}: not running\r\n"
-                )
-
-        # Calculate changes
-        added = [s for s in discovered if s not in current_state]
-        removed = [s for s in current_state if s not in discovered]
-
-        if added or removed:
-            if added:
-                await stream_to_task(
-                    task_id, f"{GREEN}[refresh]{RESET} New: {', '.join(added)}\r\n"
-                )
-            if removed:
-                await stream_to_task(
-                    task_id, f"{YELLOW}[refresh]{RESET} Removed: {', '.join(removed)}\r\n"
-                )
-            save_state(config, discovered)
-            await stream_to_task(
-                task_id,
-                f"{GREEN}[refresh]{RESET} State updated: {len(discovered)} services tracked\r\n",
-            )
-        else:
-            await stream_to_task(task_id, f"{GREEN}[refresh]{RESET} State already in sync\r\n")
-
-        tasks[task_id]["status"] = "completed"
-
-    except Exception as e:
-        await stream_to_task(task_id, f"{RED}[refresh] Error: {e}{RESET}\r\n")
-        tasks[task_id]["status"] = "failed"
+    """Run cf refresh via CLI subprocess."""
+    await run_cli_streaming(config, ["refresh"], task_id)
