@@ -55,7 +55,7 @@ CLI available as `cf` or `compose-farm`.
 
 | Command | Description |
 |---------|-------------|
-| `up`    | Start services (`docker compose up -d`), auto-migrates if host changed. Use `--migrate` to find and migrate all |
+| `up`    | Start services (`docker compose up -d`), auto-migrates if host changed |
 | `down`  | Stop services (`docker compose down`). Use `--orphaned` to stop services removed from config |
 | `pull`  | Pull latest images |
 | `restart` | `down` + `up -d` |

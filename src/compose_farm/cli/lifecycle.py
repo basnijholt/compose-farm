@@ -40,31 +40,11 @@ from compose_farm.state import (
 def up(
     services: ServicesArg = None,
     all_services: AllOption = False,
-    migrate: Annotated[
-        bool,
-        typer.Option(
-            "--migrate", "-m", help="Find and migrate services where host differs from config"
-        ),
-    ] = False,
     host: HostOption = None,
     config: ConfigOption = None,
 ) -> None:
     """Start services (docker compose up -d). Auto-migrates if host changed."""
-    if migrate and host:
-        err_console.print("[red]✗[/] Cannot use --migrate and --host together")
-        raise typer.Exit(1)
-
-    if migrate:
-        cfg = load_config_or_exit(config)
-        svc_list = get_services_needing_migration(cfg)
-
-        if not svc_list:
-            console.print("[green]✓[/] No services need migration")
-            return
-
-        console.print(f"[cyan]Migrating {len(svc_list)} service(s):[/] {', '.join(svc_list)}")
-    else:
-        svc_list, cfg = get_services(services or [], all_services, config)
+    svc_list, cfg = get_services(services or [], all_services, config)
 
     # Per-host operation: run on specific host only
     if host:

@@ -256,10 +256,9 @@ cf down plex
 cf down --orphaned     # stop services removed from config
 
 # Make reality match config (the "reconcile" command)
-cf apply               # migrate services + stop orphans
+cf apply               # start missing + migrate + stop orphans
 cf apply --dry-run     # preview what would change
-cf apply --no-orphans  # only migrate, don't stop orphans
-cf up --migrate        # just migrate (same as apply --no-orphans)
+cf apply --no-orphans  # skip stopping orphaned services
 
 # Pull latest images
 cf pull --all
@@ -354,7 +353,7 @@ When you change a service's host assignment in config and run `up`, Compose Farm
 3. Runs `up -d` on the new host
 4. Updates state tracking
 
-Use `cf up --migrate` (or `-m`) to automatically find and migrate all services where the current state differs from config—no need to list them manually.
+Use `cf apply` to automatically reconcile all services—it finds and migrates services on wrong hosts, stops orphaned services, and starts missing services.
 
 ```yaml
 # Before: plex runs on server-1
