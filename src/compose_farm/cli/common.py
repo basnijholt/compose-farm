@@ -143,9 +143,19 @@ def report_results(results: list[CommandResult]) -> None:
         raise typer.Exit(1)
 
 
-def maybe_regenerate_traefik(cfg: Config) -> None:
-    """Regenerate traefik config if traefik_file is configured."""
+def maybe_regenerate_traefik(
+    cfg: Config,
+    results: list[CommandResult] | None = None,
+) -> None:
+    """Regenerate traefik config if traefik_file is configured.
+
+    If results are provided, skips regeneration if all services failed.
+    """
     if cfg.traefik_file is None:
+        return
+
+    # Skip if all services failed
+    if results and not any(r.success for r in results):
         return
 
     try:
@@ -203,5 +213,5 @@ def run_host_operation(
         results.append(result)
         if result.success:
             state_callback(cfg, service, host)
-    maybe_regenerate_traefik(cfg)
+    maybe_regenerate_traefik(cfg, results)
     report_results(results)

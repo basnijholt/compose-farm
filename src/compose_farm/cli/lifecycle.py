@@ -64,7 +64,7 @@ def up(
 
     # Normal operation: use up_services with migration logic
     results = run_async(up_services(cfg, svc_list, raw=True))
-    maybe_regenerate_traefik(cfg)
+    maybe_regenerate_traefik(cfg, results)
     report_results(results)
 
 
@@ -97,7 +97,7 @@ def down(
                 remove_service(cfg, base_service)
                 removed_services.add(base_service)
 
-    maybe_regenerate_traefik(cfg)
+    maybe_regenerate_traefik(cfg, results)
     report_results(results)
 
 
@@ -124,7 +124,7 @@ def restart(
     svc_list, cfg = get_services(services or [], all_services, config)
     raw = len(svc_list) == 1
     results = run_async(run_sequential_on_services(cfg, svc_list, ["down", "up -d"], raw=raw))
-    maybe_regenerate_traefik(cfg)
+    maybe_regenerate_traefik(cfg, results)
     report_results(results)
 
 
@@ -140,5 +140,5 @@ def update(
     results = run_async(
         run_sequential_on_services(cfg, svc_list, ["pull", "down", "up -d"], raw=raw)
     )
-    maybe_regenerate_traefik(cfg)
+    maybe_regenerate_traefik(cfg, results)
     report_results(results)
