@@ -96,7 +96,10 @@ def get_services(
     all_services: bool,
     config_path: Path | None,
 ) -> tuple[list[str], Config]:
-    """Resolve service list and load config."""
+    """Resolve service list and load config.
+
+    Supports "." as shorthand for the current directory name.
+    """
     config = load_config_or_exit(config_path)
 
     if all_services:
@@ -104,7 +107,10 @@ def get_services(
     if not services:
         err_console.print("[red]✗[/] Specify services or use --all")
         raise typer.Exit(1)
-    return list(services), config
+
+    # Resolve "." to current directory name
+    resolved = [Path.cwd().name if svc == "." else svc for svc in services]
+    return resolved, config
 
 
 def run_async(coro: Coroutine[None, None, _T]) -> _T:
