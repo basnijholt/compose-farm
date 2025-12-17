@@ -233,9 +233,10 @@ The CLI is available as both `compose-farm` and the shorter `cf` alias.
 | `cf restart <svc>` | down + up |
 | `cf update <svc>` | pull + down + up |
 | `cf pull <svc>` | Pull latest images |
+| `cf apply` | Make reality match config (start + migrate + stop orphans) |
 | `cf logs -f <svc>` | Follow logs |
 | `cf ps` | Show status of all services |
-| `cf sync` | Discover running services + capture image digests |
+| `cf refresh` | Update state from running services |
 | `cf check` | Validate config, mounts, networks |
 | `cf init-network` | Create Docker network on hosts |
 | `cf traefik-file` | Generate Traefik file-provider config |
@@ -249,10 +250,15 @@ Each command replaces: look up host → SSH → find compose file → run `ssh h
 # Start services (auto-migrates if host changed in config)
 cf up plex jellyfin
 cf up --all
-cf up --migrate        # only services needing migration (state ≠ config)
 
 # Stop services
 cf down plex
+cf down --orphaned     # stop services removed from config
+
+# Make reality match config (the "reconcile" command)
+cf apply               # start missing + migrate + stop orphans
+cf apply --dry-run     # preview what would change
+cf apply --no-orphans  # skip stopping orphaned services
 
 # Pull latest images
 cf pull --all
@@ -263,9 +269,9 @@ cf restart plex
 # Update (pull + down + up) - the end-to-end update command
 cf update --all
 
-# Sync state with reality (discovers running services + captures image digests)
-cf sync              # updates state.yaml and dockerfarm-log.toml
-cf sync --dry-run    # preview without writing
+# Update state from reality (discovers running services + captures digests)
+cf refresh             # updates state.yaml and dockerfarm-log.toml
+cf refresh --dry-run   # preview without writing
 
 # Validate config, traefik labels, mounts, and networks
 cf check                 # full validation (includes SSH checks)
@@ -316,12 +322,13 @@ cf ps
 │ down           Stop services (docker compose down).                          │
 │ pull           Pull latest images (docker compose pull).                     │
 │ restart        Restart services (down + up).                                 │
-│ update         Update services (pull + down + up).                           │
+│ update         Update services (pull + build + down + up).                   │
+│ apply          Make reality match config (start, migrate, stop as needed).   │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Configuration ──────────────────────────────────────────────────────────────╮
 │ traefik-file   Generate a Traefik file-provider fragment from compose        │
 │                Traefik labels.                                               │
-│ sync           Sync local state with running services.                       │
+│ refresh        Update local state from running services.                     │
 │ check          Validate configuration, traefik labels, mounts, and networks. │
 │ init-network   Create Docker network on hosts with consistent settings.      │
 │ config         Manage compose-farm configuration files.                      │
@@ -346,7 +353,7 @@ When you change a service's host assignment in config and run `up`, Compose Farm
 3. Runs `up -d` on the new host
 4. Updates state tracking
 
-Use `cf up --migrate` (or `-m`) to automatically find and migrate all services where the current state differs from config—no need to list them manually.
+Use `cf apply` to automatically reconcile all services—it finds and migrates services on wrong hosts, stops orphaned services, and starts missing services.
 
 ```yaml
 # Before: plex runs on server-1
@@ -357,6 +364,14 @@ services:
 services:
   plex: server-2  # Compose Farm will migrate automatically
 ```
+
+**Orphaned services**: When you remove (or comment out) a service from config, it becomes "orphaned"—tracked in state but no longer in config. Use these commands to handle orphans:
+
+- `cf apply` — Migrate services AND stop orphans (the full reconcile)
+- `cf down --orphaned` — Only stop orphaned services
+- `cf apply --dry-run` — Preview what would change before applying
+
+This makes the config truly declarative: comment out a service, run `cf apply`, and it stops.
 
 ## Traefik Multihost Ingress (File Provider)
 

@@ -1,0 +1,348 @@
+"""Tests for CLI lifecycle commands (apply, down --orphaned)."""
+
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+import typer
+
+from compose_farm.cli.lifecycle import apply, down
+from compose_farm.config import Config, Host
+from compose_farm.executor import CommandResult
+
+
+def _make_config(tmp_path: Path, services: dict[str, str] | None = None) -> Config:
+    """Create a minimal config for testing."""
+    compose_dir = tmp_path / "compose"
+    compose_dir.mkdir()
+
+    svc_dict = services or {"svc1": "host1", "svc2": "host2"}
+    for svc in svc_dict:
+        svc_dir = compose_dir / svc
+        svc_dir.mkdir()
+        (svc_dir / "docker-compose.yml").write_text("services: {}\n")
+
+    config_path = tmp_path / "compose-farm.yaml"
+    config_path.write_text("")
+
+    return Config(
+        compose_dir=compose_dir,
+        hosts={"host1": Host(address="localhost"), "host2": Host(address="localhost")},
+        services=svc_dict,
+        config_path=config_path,
+    )
+
+
+def _make_result(service: str, success: bool = True) -> CommandResult:
+    """Create a command result."""
+    return CommandResult(
+        service=service,
+        exit_code=0 if success else 1,
+        success=success,
+        stdout="",
+        stderr="",
+    )
+
+
+class TestApplyCommand:
+    """Tests for the apply command."""
+
+    def test_apply_nothing_to_do(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        """When no migrations, orphans, or missing services, prints success message."""
+        cfg = _make_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_services", return_value={}),
+            patch("compose_farm.cli.lifecycle.get_services_needing_migration", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_services_not_in_state", return_value=[]),
+        ):
+            apply(dry_run=False, no_orphans=False, config=None)
+
+        captured = capsys.readouterr()
+        assert "Nothing to apply" in captured.out
+
+    def test_apply_dry_run_shows_preview(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Dry run shows what would be done without executing."""
+        cfg = _make_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch(
+                "compose_farm.cli.lifecycle.get_orphaned_services",
+                return_value={"old-svc": "host1"},
+            ),
+            patch(
+                "compose_farm.cli.lifecycle.get_services_needing_migration",
+                return_value=["svc1"],
+            ),
+            patch("compose_farm.cli.lifecycle.get_services_not_in_state", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_service_host", return_value="host1"),
+            patch("compose_farm.cli.lifecycle.stop_orphaned_services") as mock_stop,
+            patch("compose_farm.cli.lifecycle.up_services") as mock_up,
+        ):
+            apply(dry_run=True, no_orphans=False, config=None)
+
+        captured = capsys.readouterr()
+        assert "Services to migrate" in captured.out
+        assert "svc1" in captured.out
+        assert "Orphaned services to stop" in captured.out
+        assert "old-svc" in captured.out
+        assert "dry-run" in captured.out
+
+        # Should not have called the actual operations
+        mock_stop.assert_not_called()
+        mock_up.assert_not_called()
+
+    def test_apply_executes_migrations(self, tmp_path: Path) -> None:
+        """Apply runs migrations when services need migration."""
+        cfg = _make_config(tmp_path)
+        mock_results = [_make_result("svc1")]
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_services", return_value={}),
+            patch(
+                "compose_farm.cli.lifecycle.get_services_needing_migration",
+                return_value=["svc1"],
+            ),
+            patch("compose_farm.cli.lifecycle.get_services_not_in_state", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_service_host", return_value="host1"),
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                return_value=mock_results,
+            ),
+            patch("compose_farm.cli.lifecycle.up_services") as mock_up,
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            apply(dry_run=False, no_orphans=False, config=None)
+
+            mock_up.assert_called_once()
+            call_args = mock_up.call_args
+            assert call_args[0][1] == ["svc1"]  # services list
+
+    def test_apply_executes_orphan_cleanup(self, tmp_path: Path) -> None:
+        """Apply stops orphaned services."""
+        cfg = _make_config(tmp_path)
+        mock_results = [_make_result("old-svc@host1")]
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch(
+                "compose_farm.cli.lifecycle.get_orphaned_services",
+                return_value={"old-svc": "host1"},
+            ),
+            patch("compose_farm.cli.lifecycle.get_services_needing_migration", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_services_not_in_state", return_value=[]),
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                return_value=mock_results,
+            ),
+            patch("compose_farm.cli.lifecycle.stop_orphaned_services") as mock_stop,
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            apply(dry_run=False, no_orphans=False, config=None)
+
+            mock_stop.assert_called_once_with(cfg)
+
+    def test_apply_no_orphans_skips_orphan_cleanup(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """--no-orphans flag skips orphan cleanup."""
+        cfg = _make_config(tmp_path)
+        mock_results = [_make_result("svc1")]
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch(
+                "compose_farm.cli.lifecycle.get_orphaned_services",
+                return_value={"old-svc": "host1"},
+            ),
+            patch(
+                "compose_farm.cli.lifecycle.get_services_needing_migration",
+                return_value=["svc1"],
+            ),
+            patch("compose_farm.cli.lifecycle.get_services_not_in_state", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_service_host", return_value="host1"),
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                return_value=mock_results,
+            ),
+            patch("compose_farm.cli.lifecycle.up_services") as mock_up,
+            patch("compose_farm.cli.lifecycle.stop_orphaned_services") as mock_stop,
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            apply(dry_run=False, no_orphans=True, config=None)
+
+            # Should run migrations but not orphan cleanup
+            mock_up.assert_called_once()
+            mock_stop.assert_not_called()
+
+        # Orphans should not appear in output
+        captured = capsys.readouterr()
+        assert "old-svc" not in captured.out
+
+    def test_apply_no_orphans_nothing_to_do(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """--no-orphans with only orphans means nothing to do."""
+        cfg = _make_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch(
+                "compose_farm.cli.lifecycle.get_orphaned_services",
+                return_value={"old-svc": "host1"},
+            ),
+            patch("compose_farm.cli.lifecycle.get_services_needing_migration", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_services_not_in_state", return_value=[]),
+        ):
+            apply(dry_run=False, no_orphans=True, config=None)
+
+        captured = capsys.readouterr()
+        assert "Nothing to apply" in captured.out
+
+    def test_apply_starts_missing_services(self, tmp_path: Path) -> None:
+        """Apply starts services that are in config but not in state."""
+        cfg = _make_config(tmp_path)
+        mock_results = [_make_result("svc1")]
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_services", return_value={}),
+            patch("compose_farm.cli.lifecycle.get_services_needing_migration", return_value=[]),
+            patch(
+                "compose_farm.cli.lifecycle.get_services_not_in_state",
+                return_value=["svc1"],
+            ),
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                return_value=mock_results,
+            ),
+            patch("compose_farm.cli.lifecycle.up_services") as mock_up,
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            apply(dry_run=False, no_orphans=False, config=None)
+
+            mock_up.assert_called_once()
+            call_args = mock_up.call_args
+            assert call_args[0][1] == ["svc1"]
+
+    def test_apply_dry_run_shows_missing_services(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Dry run shows services that would be started."""
+        cfg = _make_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_services", return_value={}),
+            patch("compose_farm.cli.lifecycle.get_services_needing_migration", return_value=[]),
+            patch(
+                "compose_farm.cli.lifecycle.get_services_not_in_state",
+                return_value=["svc1"],
+            ),
+        ):
+            apply(dry_run=True, no_orphans=False, config=None)
+
+        captured = capsys.readouterr()
+        assert "Services to start" in captured.out
+        assert "svc1" in captured.out
+        assert "dry-run" in captured.out
+
+
+class TestDownOrphaned:
+    """Tests for down --orphaned flag."""
+
+    def test_down_orphaned_no_orphans(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """When no orphans exist, prints success message."""
+        cfg = _make_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_services", return_value={}),
+        ):
+            down(
+                services=None,
+                all_services=False,
+                orphaned=True,
+                host=None,
+                config=None,
+            )
+
+        captured = capsys.readouterr()
+        assert "No orphaned services to stop" in captured.out
+
+    def test_down_orphaned_stops_services(self, tmp_path: Path) -> None:
+        """--orphaned stops orphaned services."""
+        cfg = _make_config(tmp_path)
+        mock_results = [_make_result("old-svc@host1")]
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch(
+                "compose_farm.cli.lifecycle.get_orphaned_services",
+                return_value={"old-svc": "host1"},
+            ),
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                return_value=mock_results,
+            ),
+            patch("compose_farm.cli.lifecycle.stop_orphaned_services") as mock_stop,
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            down(
+                services=None,
+                all_services=False,
+                orphaned=True,
+                host=None,
+                config=None,
+            )
+
+            mock_stop.assert_called_once_with(cfg)
+
+    def test_down_orphaned_with_services_errors(self) -> None:
+        """--orphaned cannot be combined with service arguments."""
+        with pytest.raises(typer.Exit) as exc_info:
+            down(
+                services=["svc1"],
+                all_services=False,
+                orphaned=True,
+                host=None,
+                config=None,
+            )
+
+        assert exc_info.value.exit_code == 1
+
+    def test_down_orphaned_with_all_errors(self) -> None:
+        """--orphaned cannot be combined with --all."""
+        with pytest.raises(typer.Exit) as exc_info:
+            down(
+                services=None,
+                all_services=True,
+                orphaned=True,
+                host=None,
+                config=None,
+            )
+
+        assert exc_info.value.exit_code == 1
+
+    def test_down_orphaned_with_host_errors(self) -> None:
+        """--orphaned cannot be combined with --host."""
+        with pytest.raises(typer.Exit) as exc_info:
+            down(
+                services=None,
+                all_services=False,
+                orphaned=True,
+                host="host1",
+                config=None,
+            )
+
+        assert exc_info.value.exit_code == 1

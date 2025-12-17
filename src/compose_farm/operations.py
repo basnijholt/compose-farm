@@ -6,6 +6,7 @@ CLI commands are thin wrappers around these functions.
 
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, NamedTuple
 
 from .compose import parse_devices, parse_external_networks, parse_host_volumes
@@ -19,7 +20,13 @@ from .executor import (
     run_compose,
     run_compose_on_host,
 )
-from .state import get_service_host, set_multi_host_service, set_service_host
+from .state import (
+    get_orphaned_services,
+    get_service_host,
+    remove_service,
+    set_multi_host_service,
+    set_service_host,
+)
 
 if TYPE_CHECKING:
     from .config import Config
@@ -214,8 +221,8 @@ async def _migrate_service(
 
     # Prepare images on target host before stopping old service to minimize downtime.
     # Pull handles image-based services; build handles Dockerfile-based services.
-    # Each command is a no-op for the other type (exit 0, no work done).
-    for cmd, label in [("pull", "Pull"), ("build", "Build")]:
+    # --ignore-buildable makes pull skip images that have build: defined.
+    for cmd, label in [("pull --ignore-buildable", "Pull"), ("build", "Build")]:
         result = await _run_compose_step(cfg, service, cmd, raw=raw)
         if not result.success:
             err_console.print(
@@ -332,5 +339,76 @@ async def check_host_compatibility(
         )
         found = total - len(all_missing)
         results[host_name] = (found, total, all_missing)
+
+    return results
+
+
+async def stop_orphaned_services(cfg: Config) -> list[CommandResult]:
+    """Stop orphaned services (in state but not in config).
+
+    Runs docker compose down on each service on its tracked host(s).
+    Only removes from state on successful stop.
+
+    Returns list of CommandResults for each service@host.
+    """
+    orphaned = get_orphaned_services(cfg)
+    if not orphaned:
+        return []
+
+    results: list[CommandResult] = []
+    tasks: list[tuple[str, str, asyncio.Task[CommandResult]]] = []
+
+    # Build list of (service, host, task) for all orphaned services
+    for service, hosts in orphaned.items():
+        host_list = hosts if isinstance(hosts, list) else [hosts]
+        for host in host_list:
+            # Skip hosts no longer in config
+            if host not in cfg.hosts:
+                console.print(
+                    f"  [yellow]![/] {service}@{host}: host no longer in config, skipping"
+                )
+                results.append(
+                    CommandResult(
+                        service=f"{service}@{host}",
+                        exit_code=1,
+                        success=False,
+                        stderr="host no longer in config",
+                    )
+                )
+                continue
+            coro = run_compose_on_host(cfg, service, host, "down")
+            tasks.append((service, host, asyncio.create_task(coro)))
+
+    # Run all down commands in parallel
+    if tasks:
+        for service, host, task in tasks:
+            try:
+                result = await task
+                results.append(result)
+                if result.success:
+                    console.print(f"  [green]✓[/] {service}@{host}: stopped")
+                else:
+                    console.print(f"  [red]✗[/] {service}@{host}: {result.stderr or 'failed'}")
+            except Exception as e:
+                console.print(f"  [red]✗[/] {service}@{host}: {e}")
+                results.append(
+                    CommandResult(
+                        service=f"{service}@{host}",
+                        exit_code=1,
+                        success=False,
+                        stderr=str(e),
+                    )
+                )
+
+    # Remove from state only for services where ALL hosts succeeded
+    for service, hosts in orphaned.items():
+        host_list = hosts if isinstance(hosts, list) else [hosts]
+        all_succeeded = all(
+            r.success
+            for r in results
+            if r.service.startswith(f"{service}@") or r.service == service
+        )
+        if all_succeeded:
+            remove_service(cfg, service)
 
     return results
