@@ -2,10 +2,8 @@
 
 - Multi-host Docker Compose without Kubernetes or file changes
 - I built a CLI to run Docker Compose across hosts. Zero changes to your files.
-
+- I made a CLI to run Docker Compose across multiple hosts without Kubernetes or Swarm
 ---
-
-# I made a CLI to run Docker Compose across multiple hosts without Kubernetes or Swarm
 
 I've been running 100+ Docker Compose stacks on a single machine, and it kept running out of memory. I needed to spread services across multiple hosts, but:
 
@@ -37,6 +35,7 @@ Then just:
 
 ```bash
 cf up plex        # runs on nuc via SSH
+cf apply          # makes config state match desired state on all hosts (like Terraform apply)
 cf up --all       # starts everything on their assigned hosts
 cf logs -f plex   # streams logs
 cf ps             # shows status across all hosts
