@@ -57,7 +57,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.get_services_needing_migration", return_value=[]),
             patch("compose_farm.cli.lifecycle.get_services_not_in_state", return_value=[]),
         ):
-            apply(dry_run=False, no_orphans=False, config=None)
+            apply(dry_run=False, no_orphans=False, full=False, config=None)
 
         captured = capsys.readouterr()
         assert "Nothing to apply" in captured.out
@@ -83,7 +83,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.stop_orphaned_services") as mock_stop,
             patch("compose_farm.cli.lifecycle.up_services") as mock_up,
         ):
-            apply(dry_run=True, no_orphans=False, config=None)
+            apply(dry_run=True, no_orphans=False, full=False, config=None)
 
         captured = capsys.readouterr()
         assert "Services to migrate" in captured.out
@@ -118,7 +118,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            apply(dry_run=False, no_orphans=False, config=None)
+            apply(dry_run=False, no_orphans=False, full=False, config=None)
 
             mock_up.assert_called_once()
             call_args = mock_up.call_args
@@ -144,7 +144,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.stop_orphaned_services") as mock_stop,
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            apply(dry_run=False, no_orphans=False, config=None)
+            apply(dry_run=False, no_orphans=False, full=False, config=None)
 
             mock_stop.assert_called_once_with(cfg)
 
@@ -176,7 +176,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            apply(dry_run=False, no_orphans=True, config=None)
+            apply(dry_run=False, no_orphans=True, full=False, config=None)
 
             # Should run migrations but not orphan cleanup
             mock_up.assert_called_once()
@@ -201,7 +201,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.get_services_needing_migration", return_value=[]),
             patch("compose_farm.cli.lifecycle.get_services_not_in_state", return_value=[]),
         ):
-            apply(dry_run=False, no_orphans=True, config=None)
+            apply(dry_run=False, no_orphans=True, full=False, config=None)
 
         captured = capsys.readouterr()
         assert "Nothing to apply" in captured.out
@@ -227,7 +227,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            apply(dry_run=False, no_orphans=False, config=None)
+            apply(dry_run=False, no_orphans=False, full=False, config=None)
 
             mock_up.assert_called_once()
             call_args = mock_up.call_args
@@ -248,12 +248,90 @@ class TestApplyCommand:
                 return_value=["svc1"],
             ),
         ):
-            apply(dry_run=True, no_orphans=False, config=None)
+            apply(dry_run=True, no_orphans=False, full=False, config=None)
 
         captured = capsys.readouterr()
         assert "Services to start" in captured.out
         assert "svc1" in captured.out
         assert "dry-run" in captured.out
+
+    def test_apply_full_refreshes_all_services(self, tmp_path: Path) -> None:
+        """--full runs up on all services to pick up config changes."""
+        cfg = _make_config(tmp_path)
+        mock_results = [_make_result("svc1"), _make_result("svc2")]
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_services", return_value={}),
+            patch("compose_farm.cli.lifecycle.get_services_needing_migration", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_services_not_in_state", return_value=[]),
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                return_value=mock_results,
+            ),
+            patch("compose_farm.cli.lifecycle.up_services") as mock_up,
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            apply(dry_run=False, no_orphans=False, full=True, config=None)
+
+            mock_up.assert_called_once()
+            call_args = mock_up.call_args
+            # Should refresh all services in config
+            assert set(call_args[0][1]) == {"svc1", "svc2"}
+
+    def test_apply_full_dry_run_shows_refresh(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """--full --dry-run shows services that would be refreshed."""
+        cfg = _make_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_services", return_value={}),
+            patch("compose_farm.cli.lifecycle.get_services_needing_migration", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_services_not_in_state", return_value=[]),
+        ):
+            apply(dry_run=True, no_orphans=False, full=True, config=None)
+
+        captured = capsys.readouterr()
+        assert "Services to refresh" in captured.out
+        assert "svc1" in captured.out
+        assert "svc2" in captured.out
+        assert "dry-run" in captured.out
+
+    def test_apply_full_excludes_already_handled_services(self, tmp_path: Path) -> None:
+        """--full doesn't double-process services that are migrating or starting."""
+        cfg = _make_config(tmp_path, {"svc1": "host1", "svc2": "host2", "svc3": "host1"})
+        mock_results = [_make_result("svc1"), _make_result("svc3")]
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_services", return_value={}),
+            patch(
+                "compose_farm.cli.lifecycle.get_services_needing_migration",
+                return_value=["svc1"],
+            ),
+            patch(
+                "compose_farm.cli.lifecycle.get_services_not_in_state",
+                return_value=["svc2"],
+            ),
+            patch("compose_farm.cli.lifecycle.get_service_host", return_value="host2"),
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                return_value=mock_results,
+            ),
+            patch("compose_farm.cli.lifecycle.up_services") as mock_up,
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            apply(dry_run=False, no_orphans=False, full=True, config=None)
+
+            # up_services should be called 3 times: migrate, start, refresh
+            assert mock_up.call_count == 3
+            # Get the third call (refresh) and check it only has svc3
+            refresh_call = mock_up.call_args_list[2]
+            assert refresh_call[0][1] == ["svc3"]
 
 
 class TestDownOrphaned:

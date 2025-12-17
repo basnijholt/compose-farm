@@ -259,6 +259,7 @@ Each command replaces: look up host → SSH → find compose file → run `ssh h
 cf apply               # start missing + migrate + stop orphans
 cf apply --dry-run     # preview what would change
 cf apply --no-orphans  # skip stopping orphaned services
+cf apply --full        # also refresh all services (picks up config changes)
 
 # Or operate on individual services
 cf up plex jellyfin    # start services (auto-migrates if host changed)

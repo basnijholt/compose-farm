@@ -193,6 +193,14 @@ def _report_pending_starts(cfg: Config, missing: list[str]) -> None:
         console.print(f"  [cyan]{svc}[/] on [magenta]{target}[/]")
 
 
+def _report_pending_refresh(cfg: Config, to_refresh: list[str]) -> None:
+    """Report services that will be refreshed."""
+    console.print(f"[blue]Services to refresh ({len(to_refresh)}):[/]")
+    for svc in to_refresh:
+        target = _format_host(cfg.get_hosts(svc))
+        console.print(f"  [cyan]{svc}[/] on [magenta]{target}[/]")
+
+
 @app.command(rich_help_panel="Lifecycle")
 def apply(
     dry_run: Annotated[
@@ -202,6 +210,10 @@ def apply(
     no_orphans: Annotated[
         bool,
         typer.Option("--no-orphans", help="Only migrate, don't stop orphaned services"),
+    ] = False,
+    full: Annotated[
+        bool,
+        typer.Option("--full", help="Also run up on all services to apply config changes"),
     ] = False,
     config: ConfigOption = None,
 ) -> None:
@@ -216,17 +228,23 @@ def apply(
 
     Use --dry-run to preview changes before applying.
     Use --no-orphans to only migrate/start without stopping orphaned services.
+    Use --full to also run 'up' on all services (picks up compose/env changes).
     """
     cfg = load_config_or_exit(config)
     orphaned = get_orphaned_services(cfg)
     migrations = get_services_needing_migration(cfg)
     missing = get_services_not_in_state(cfg)
 
+    # For --full: refresh all services not already being started/migrated
+    handled = set(migrations) | set(missing)
+    to_refresh = [svc for svc in cfg.services if svc not in handled] if full else []
+
     has_orphans = bool(orphaned) and not no_orphans
     has_migrations = bool(migrations)
     has_missing = bool(missing)
+    has_refresh = bool(to_refresh)
 
-    if not has_orphans and not has_migrations and not has_missing:
+    if not has_orphans and not has_migrations and not has_missing and not has_refresh:
         console.print("[green]✓[/] Nothing to apply - reality matches config")
         return
 
@@ -237,6 +255,8 @@ def apply(
         _report_pending_migrations(cfg, migrations)
     if has_missing:
         _report_pending_starts(cfg, missing)
+    if has_refresh:
+        _report_pending_refresh(cfg, to_refresh)
 
     if dry_run:
         console.print("\n[dim](dry-run: no changes made)[/]")
@@ -264,5 +284,12 @@ def apply(
         start_results = run_async(up_services(cfg, missing, raw=True))
         all_results.extend(start_results)
         maybe_regenerate_traefik(cfg, start_results)
+
+    # 4. Refresh remaining services (--full: run up to apply config changes)
+    if has_refresh:
+        console.print("[blue]Refreshing services...[/]")
+        refresh_results = run_async(up_services(cfg, to_refresh, raw=True))
+        all_results.extend(refresh_results)
+        maybe_regenerate_traefik(cfg, refresh_results)
 
     report_results(all_results)
