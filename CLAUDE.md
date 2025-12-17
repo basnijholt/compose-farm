@@ -15,8 +15,8 @@ compose_farm/
 │   ├── app.py         # Shared Typer app instance, version callback
 │   ├── common.py      # Shared helpers, options, progress bar utilities
 │   ├── config.py      # Config subcommand (init, show, path, validate, edit)
-│   ├── lifecycle.py   # up, down, pull, restart, update commands
-│   ├── management.py  # sync, check, init-network, traefik-file commands
+│   ├── lifecycle.py   # up, down, pull, restart, update, apply commands
+│   ├── management.py  # refresh, check, init-network, traefik-file commands
 │   └── monitoring.py  # logs, ps, stats commands
 ├── config.py          # Pydantic models, YAML loading
 ├── compose.py         # Compose file parsing (.env, ports, volumes, networks)
@@ -55,15 +55,16 @@ CLI available as `cf` or `compose-farm`.
 
 | Command | Description |
 |---------|-------------|
-| `up`    | Start services (`docker compose up -d`), auto-migrates if host changed. Use `--migrate` for auto-detection |
-| `down`  | Stop services (`docker compose down`) |
+| `up`    | Start services (`docker compose up -d`), auto-migrates if host changed. Use `--migrate` to find and migrate all |
+| `down`  | Stop services (`docker compose down`). Use `--orphaned` to stop services removed from config |
 | `pull`  | Pull latest images |
 | `restart` | `down` + `up -d` |
 | `update` | `pull` + `down` + `up -d` |
+| `apply` | Make reality match config: migrate services + stop orphans. Use `--dry-run` to preview |
 | `logs`  | Show service logs |
 | `ps`    | Show status of all services |
 | `stats` | Show overview (hosts, services, pending migrations; `--live` for container counts) |
-| `sync`  | Discover running services, update state, capture image digests |
+| `refresh` | Update state from reality: discover running services, capture image digests |
 | `check` | Validate config, traefik labels, mounts, networks; show host compatibility |
 | `init-network` | Create Docker network on hosts with consistent subnet/gateway |
 | `traefik-file` | Generate Traefik file-provider config from compose labels |

@@ -142,3 +142,25 @@ def get_services_needing_migration(config: Config) -> list[str]:
         if current_host and current_host != configured_host:
             needs_migration.append(service)
     return needs_migration
+
+
+def get_orphaned_services(config: Config) -> dict[str, str | list[str]]:
+    """Get services that are in state but not in config.
+
+    These are services that were previously deployed but have been
+    removed from the config file (e.g., commented out).
+
+    Returns a dict mapping service name to host(s) where it's deployed.
+    """
+    state = load_state(config)
+    return {service: hosts for service, hosts in state.items() if service not in config.services}
+
+
+def get_services_not_in_state(config: Config) -> list[str]:
+    """Get services that are in config but not in state.
+
+    These are services that should be running but aren't tracked
+    (e.g., newly added to config, or previously stopped as orphans).
+    """
+    state = load_state(config)
+    return [service for service in config.services if service not in state]
