@@ -6,7 +6,8 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
-from compose_farm.executor import check_service_running, run_compose
+from compose_farm.executor import run_compose
+from compose_farm.operations import discover_service_host
 from compose_farm.state import (
     get_orphaned_services,
     get_services_needing_migration,
@@ -128,18 +129,6 @@ async def run_apply_streaming(config: Config, task_id: str) -> None:
 
 async def run_refresh_streaming(config: Config, task_id: str) -> None:
     """Run cf refresh with streaming output."""
-
-    async def check_service(service: str) -> tuple[str, str | list[str] | None]:
-        """Check where a service is running."""
-        assigned_hosts = config.get_hosts(service)
-        if config.is_multi_host(service):
-            running = [h for h in assigned_hosts if await check_service_running(config, service, h)]
-            return service, running if running else None
-        for host in [assigned_hosts[0]] + [h for h in config.hosts if h != assigned_hosts[0]]:
-            if await check_service_running(config, service, host):
-                return service, host
-        return service, None
-
     try:
         await stream_to_task(task_id, f"{CYAN}[refresh]{RESET} Discovering running services...\r\n")
 
@@ -147,7 +136,9 @@ async def run_refresh_streaming(config: Config, task_id: str) -> None:
         discovered: dict[str, str | list[str]] = {}
 
         # Check all services in parallel, stream results as they complete
-        check_tasks = [asyncio.create_task(check_service(s)) for s in config.services]
+        check_tasks = [
+            asyncio.create_task(discover_service_host(config, s)) for s in config.services
+        ]
         for coro in asyncio.as_completed(check_tasks):
             service, host = await coro
             if host:
