@@ -239,6 +239,7 @@ def config_validate(
         err_console.print("[red]✗[/] No config file found")
         raise typer.Exit(1)
 
+    # Lazy import: pydantic adds ~50ms to startup, only load when actually needed
     from compose_farm.config import load_config  # noqa: PLC0415
 
     try:

@@ -81,6 +81,7 @@ def progress_bar(label: str, total: int) -> Generator[tuple[Progress, TaskID], N
 
 def load_config_or_exit(config_path: Path | None) -> Config:
     """Load config or exit with a friendly error message."""
+    # Lazy import: pydantic adds ~50ms to startup, only load when actually needed
     from compose_farm.config import load_config  # noqa: PLC0415
 
     try:
@@ -160,6 +161,7 @@ def maybe_regenerate_traefik(
     if results and not any(r.success for r in results):
         return
 
+    # Lazy import: traefik/yaml adds startup time, only load when traefik_file is configured
     from compose_farm.traefik import (  # noqa: PLC0415
         generate_traefik_config,
         render_traefik_config,
