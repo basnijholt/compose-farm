@@ -33,7 +33,7 @@
                     </thead>
                     <tbody>
                         {% for svc, host in state.items() | sort %}
-                        <tr class="hover">
+                        <tr class="hover:bg-base-300">
                             <td><a href="/service/{{ svc }}" class="link link-primary">{{ svc }}</a></td>
                             <td><code class="text-sm">{% if host is iterable and host is not string %}{{ host | join(', ') }}{% else %}{{ host }}{% endif %}</code></td>
                         </tr>

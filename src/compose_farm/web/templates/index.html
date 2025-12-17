@@ -46,7 +46,7 @@
                     </thead>
                     <tbody>
                         {% for name, host in config.hosts.items() %}
-                        <tr class="hover">
+                        <tr class="hover:bg-base-300">
                             <td class="font-semibold">{{ name }}</td>
                             <td><code class="text-sm">{{ host.address }}</code></td>
                             <td>
