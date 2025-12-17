@@ -9,18 +9,24 @@
     </div>
 
     <!-- Summary Stats -->
-    <div class="stats shadow mb-6 w-full">
-        <div class="stat">
-            <div class="stat-title">Total Services</div>
-            <div class="stat-value">{{ total_services }}</div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center">
+                <h2 class="card-title text-base-content/60 text-sm">Total Services</h2>
+                <p class="text-4xl font-bold">{{ total_services }}</p>
+            </div>
         </div>
-        <div class="stat">
-            <div class="stat-title">Running</div>
-            <div class="stat-value text-success">{{ running_services }}</div>
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center">
+                <h2 class="card-title text-base-content/60 text-sm">Running</h2>
+                <p class="text-4xl font-bold text-success">{{ running_services }}</p>
+            </div>
         </div>
-        <div class="stat">
-            <div class="stat-title">Stopped</div>
-            <div class="stat-value text-base-content/50">{{ stopped_services }}</div>
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center">
+                <h2 class="card-title text-base-content/60 text-sm">Stopped</h2>
+                <p class="text-4xl font-bold text-base-content/50">{{ stopped_services }}</p>
+            </div>
         </div>
     </div>
 
