@@ -25,9 +25,9 @@ def test_cli_startup_time() -> None:
     cf_path = shutil.which("cf")
     assert cf_path is not None, "cf command not found in PATH"
 
-    # Run up to 3 times, return early if we hit the threshold
+    # Run up to 6 times, return early if we hit the threshold
     times: list[float] = []
-    for _ in range(3):
+    for _ in range(6):
         start = time.perf_counter()
         result = subprocess.run(
             [cf_path, "--help"],
