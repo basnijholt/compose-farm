@@ -2,100 +2,115 @@
 {% block title %}Stats - Compose Farm{% endblock %}
 
 {% block content %}
-<article>
-    <header>
-        <hgroup>
-            <h1>Stats Overview</h1>
-            <p>Cluster status and pending operations</p>
-        </hgroup>
-    </header>
+<div class="max-w-5xl">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold">Stats Overview</h1>
+        <p class="text-base-content/60 text-lg">Cluster status and pending operations</p>
+    </div>
 
     <!-- Summary Cards -->
-    <div class="grid">
-        <article class="stat-card">
-            <header>Total Services</header>
-            <strong class="stat-value">{{ total_services }}</strong>
-        </article>
-        <article class="stat-card">
-            <header>Running</header>
-            <strong class="stat-value running">{{ running_services }}</strong>
-        </article>
-        <article class="stat-card">
-            <header>Stopped</header>
-            <strong class="stat-value stopped">{{ stopped_services }}</strong>
-        </article>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center p-4">
+                <span class="text-sm text-base-content/60">Total Services</span>
+                <span class="text-4xl font-bold">{{ total_services }}</span>
+            </div>
+        </div>
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center p-4">
+                <span class="text-sm text-base-content/60">Running</span>
+                <span class="text-4xl font-bold text-success">{{ running_services }}</span>
+            </div>
+        </div>
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center p-4">
+                <span class="text-sm text-base-content/60">Stopped</span>
+                <span class="text-4xl font-bold text-base-content/50">{{ stopped_services }}</span>
+            </div>
+        </div>
     </div>
 
     <!-- Pending Operations -->
     {% if orphaned or migrations or not_started %}
-    <details open>
-        <summary>Pending Operations</summary>
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" checked />
+        <div class="collapse-title font-medium">Pending Operations</div>
+        <div class="collapse-content">
+            {% if orphaned %}
+            <h4 class="font-semibold mt-2 mb-1">Orphaned Services (will be stopped)</h4>
+            <ul class="list-disc list-inside mb-4">
+                {% for svc, host in orphaned.items() %}
+                <li><span class="badge badge-warning">{{ svc }}</span> on {{ host }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
 
-        {% if orphaned %}
-        <h4>Orphaned Services (will be stopped)</h4>
-        <ul>
-            {% for svc, host in orphaned.items() %}
-            <li><mark class="warning">{{ svc }}</mark> on {{ host }}</li>
-            {% endfor %}
-        </ul>
-        {% endif %}
+            {% if migrations %}
+            <h4 class="font-semibold mt-2 mb-1">Services Needing Migration</h4>
+            <ul class="list-disc list-inside mb-4">
+                {% for svc in migrations %}
+                <li><span class="badge badge-info">{{ svc }}</span></li>
+                {% endfor %}
+            </ul>
+            {% endif %}
 
-        {% if migrations %}
-        <h4>Services Needing Migration</h4>
-        <ul>
-            {% for svc in migrations %}
-            <li><mark>{{ svc }}</mark></li>
-            {% endfor %}
-        </ul>
-        {% endif %}
+            {% if not_started %}
+            <h4 class="font-semibold mt-2 mb-1">Services Not Started</h4>
+            <ul class="list-disc list-inside mb-4">
+                {% for svc in not_started %}
+                <li><span class="badge badge-ghost">{{ svc }}</span></li>
+                {% endfor %}
+            </ul>
+            {% endif %}
 
-        {% if not_started %}
-        <h4>Services Not Started</h4>
-        <ul>
-            {% for svc in not_started %}
-            <li><mark class="secondary">{{ svc }}</mark></li>
-            {% endfor %}
-        </ul>
-        {% endif %}
-
-        <button hx-post="/api/apply"
-                hx-target="#terminal-output"
-                hx-swap="innerHTML"
-                class="apply-btn">
-            Apply All Changes
-        </button>
-    </details>
+            <button hx-post="/api/apply"
+                    hx-swap="none"
+                    class="btn btn-primary mt-4">
+                Apply All Changes
+            </button>
+        </div>
+    </div>
     {% else %}
-    <p><mark class="success">All services are in sync with configuration.</mark></p>
+    <div class="alert alert-success mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <span>All services are in sync with configuration.</span>
+    </div>
     {% endif %}
 
     <!-- Services by Host -->
-    <details open>
-        <summary>Services by Host</summary>
-        {% for host_name, services in services_by_host.items() | sort %}
-        <h4>{{ host_name }}
-            {% if host_name in hosts %}
-            <small><code>{{ hosts[host_name].address }}</code></small>
-            {% endif %}
-        </h4>
-        <ul>
-            {% for svc in services | sort %}
-            <li><a href="/service/{{ svc }}">{{ svc }}</a></li>
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" checked />
+        <div class="collapse-title font-medium">Services by Host</div>
+        <div class="collapse-content">
+            {% for host_name, services in services_by_host.items() | sort %}
+            <h4 class="font-semibold mt-3 mb-1">
+                {{ host_name }}
+                {% if host_name in hosts %}
+                <code class="text-xs ml-2 opacity-60">{{ hosts[host_name].address }}</code>
+                {% endif %}
+            </h4>
+            <ul class="list-disc list-inside mb-2">
+                {% for svc in services | sort %}
+                <li><a href="/service/{{ svc }}" class="link link-primary">{{ svc }}</a></li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p class="text-base-content/60 italic">No services currently running.</p>
             {% endfor %}
-        </ul>
-        {% else %}
-        <p><em>No services currently running.</em></p>
-        {% endfor %}
-    </details>
+        </div>
+    </div>
 
     <!-- Terminal for Apply output (hidden until used) -->
-    <details id="terminal-section" style="display: none;">
-        <summary>Terminal Output</summary>
-        <div id="terminal-container">
-            <div id="terminal-output"></div>
+    <div id="terminal-section" class="collapse collapse-arrow bg-base-100 shadow mb-4 hidden">
+        <input type="checkbox" checked />
+        <div class="collapse-title font-medium">Terminal Output</div>
+        <div class="collapse-content">
+            <div id="terminal-container" class="bg-[#0d1117] rounded-lg p-3 min-h-[200px] border border-white/10">
+                <div id="terminal-output"></div>
+            </div>
         </div>
-    </details>
-</article>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -108,8 +123,8 @@
                 if (response.task_id) {
                     const termSection = document.getElementById('terminal-section');
                     if (termSection) {
-                        termSection.style.display = 'block';
-                        termSection.open = true;
+                        termSection.classList.remove('hidden');
+                        termSection.querySelector('input[type="checkbox"]').checked = true;
                     }
                     initTerminal('terminal-output', response.task_id);
                 }

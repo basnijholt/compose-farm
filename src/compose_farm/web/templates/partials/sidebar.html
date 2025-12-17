@@ -1,26 +1,27 @@
 <!-- Overview Section -->
-<div class="sidebar-section">
-    <h4>Overview</h4>
-    <ul hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
-        <li><a href="/"><span class="nav-icon">~</span> Dashboard</a></li>
-        <li><a href="/config"><span class="nav-icon">#</span> Config</a></li>
-        <li><a href="/state"><span class="nav-icon">@</span> State</a></li>
-        <li><a href="/stats"><span class="nav-icon">$</span> Stats</a></li>
+<div class="mb-4">
+    <h4 class="text-xs uppercase tracking-wide text-base-content/60 px-3 py-1">Overview</h4>
+    <ul class="menu" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
+        <li><a href="/"><span class="font-mono opacity-60">~</span> Dashboard</a></li>
+        <li><a href="/config"><span class="font-mono opacity-60">#</span> Config</a></li>
+        <li><a href="/state"><span class="font-mono opacity-60">@</span> State</a></li>
+        <li><a href="/stats"><span class="font-mono opacity-60">$</span> Stats</a></li>
     </ul>
 </div>
 
 <!-- Services Section -->
-<div class="sidebar-section">
-    <h4>Services <small class="hint" title="Green = tracked in state file">(state)</small></h4>
-    <ul hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
+<div class="mb-4">
+    <h4 class="text-xs uppercase tracking-wide text-base-content/60 px-3 py-1">
+        Services <span class="text-xs opacity-50" title="Green = tracked in state file">(state)</span>
+    </h4>
+    <ul class="menu" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
         {% for service in services %}
         <li>
-            <a href="/service/{{ service }}"
-               {% if service in state %}class="running"{% endif %}>
+            <a href="/service/{{ service }}" class="flex items-center gap-2">
                 {% if service in state %}
-                    <span class="status-dot running" title="In state file"></span>
+                    <span class="w-2 h-2 rounded-full bg-success shadow-[0_0_6px_rgba(34,197,94,0.5)]" title="In state file"></span>
                 {% else %}
-                    <span class="status-dot stopped" title="Not in state file"></span>
+                    <span class="w-2 h-2 rounded-full bg-base-content/30" title="Not in state file"></span>
                 {% endif %}
                 {{ service }}
             </a>

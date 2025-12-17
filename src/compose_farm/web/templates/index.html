@@ -2,58 +2,68 @@
 {% block title %}Dashboard - Compose Farm{% endblock %}
 
 {% block content %}
-<article>
-    <header>
-        <hgroup>
-            <h1>Dashboard</h1>
-            <p>Compose Farm cluster overview</p>
-        </hgroup>
-    </header>
-
-    <!-- Quick Stats -->
-    <div class="grid">
-        <article class="stat-card">
-            <header>Hosts</header>
-            <strong class="stat-value">{{ config.hosts | length }}</strong>
-        </article>
-        <article class="stat-card">
-            <header>Services</header>
-            <strong class="stat-value">{{ config.services | length }}</strong>
-        </article>
-        <article class="stat-card">
-            <header>Deployed</header>
-            <strong class="stat-value running">{{ state | length }}</strong>
-        </article>
+<div class="max-w-5xl">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold">Dashboard</h1>
+        <p class="text-base-content/60 text-lg">Compose Farm cluster overview</p>
     </div>
 
-    <details open>
-        <summary>Hosts</summary>
-        <table>
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Address</th>
-                    <th>Services</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for name, host in config.hosts.items() %}
-                <tr>
-                    <td><strong>{{ name }}</strong></td>
-                    <td><code>{{ host.address }}</code></td>
-                    <td>
-                        {% set count = [] %}
-                        {% for svc, svc_host in state.items() %}
-                            {% if svc_host == name or (svc_host is iterable and svc_host is not string and name in svc_host) %}
-                                {% if count.append(1) %}{% endif %}
-                            {% endif %}
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center p-4">
+                <span class="text-sm text-base-content/60">Hosts</span>
+                <span class="text-4xl font-bold">{{ config.hosts | length }}</span>
+            </div>
+        </div>
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center p-4">
+                <span class="text-sm text-base-content/60">Services</span>
+                <span class="text-4xl font-bold">{{ config.services | length }}</span>
+            </div>
+        </div>
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center p-4">
+                <span class="text-sm text-base-content/60">Deployed</span>
+                <span class="text-4xl font-bold text-success">{{ state | length }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hosts Table -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" checked />
+        <div class="collapse-title font-medium">Hosts</div>
+        <div class="collapse-content">
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Address</th>
+                            <th>Services</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, host in config.hosts.items() %}
+                        <tr class="hover">
+                            <td class="font-semibold">{{ name }}</td>
+                            <td><code class="text-sm">{{ host.address }}</code></td>
+                            <td>
+                                {% set count = [] %}
+                                {% for svc, svc_host in state.items() %}
+                                    {% if svc_host == name or (svc_host is iterable and svc_host is not string and name in svc_host) %}
+                                        {% if count.append(1) %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                                {{ count | length }}
+                            </td>
+                        </tr>
                         {% endfor %}
-                        {{ count | length }}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </details>
-</article>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
