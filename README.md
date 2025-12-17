@@ -350,6 +350,9 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ ps             Show status of all services.                                  │
 │ stats          Show overview statistics for hosts and services.              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Server ─────────────────────────────────────────────────────────────────────╮
+│ web            Start the web UI server.                                      │
+╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
