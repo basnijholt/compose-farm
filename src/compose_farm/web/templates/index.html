@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Compose Farm{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <h1>Dashboard</h1>
+    </header>
+
+    <section>
+        <h3>Configuration</h3>
+        <dl>
+            <dt>Compose Directory</dt>
+            <dd><code>{{ config.compose_dir }}</code></dd>
+            <dt>Hosts</dt>
+            <dd>{{ config.hosts.keys() | list | join(', ') }}</dd>
+            <dt>Services</dt>
+            <dd>{{ config.services | length }} configured</dd>
+        </dl>
+    </section>
+
+    <section>
+        <h3>State</h3>
+        {% set deployed = state.get('deployed', {}) %}
+        <dl>
+            <dt>Running</dt>
+            <dd>{{ deployed | length }} services</dd>
+        </dl>
+    </section>
+
+    <section>
+        <h3>Terminal</h3>
+        <div id="terminal-container">
+            <div id="terminal-output"></div>
+        </div>
+    </section>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize terminal when action is triggered
+    document.body.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.successful && evt.detail.xhr.responseText) {
+            try {
+                const response = JSON.parse(evt.detail.xhr.responseText);
+                if (response.task_id) {
+                    initTerminal('terminal-output', response.task_id);
+                }
+            } catch (e) {
+                // Not JSON, ignore
+            }
+        }
+    });
+</script>
+{% endblock %}
