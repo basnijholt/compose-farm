@@ -32,31 +32,31 @@ async def _run_service_action(
     return {"task_id": task_id, "service": name, "command": command}
 
 
-@router.post("/service/{name}/up")
+@router.post("/service/{name}/up")  # type: ignore[misc]
 async def up_service(name: str, background_tasks: BackgroundTasks) -> dict[str, Any]:
     """Start a service."""
     return await _run_service_action(name, "up -d", background_tasks)
 
 
-@router.post("/service/{name}/down")
+@router.post("/service/{name}/down")  # type: ignore[misc]
 async def down_service(name: str, background_tasks: BackgroundTasks) -> dict[str, Any]:
     """Stop a service."""
     return await _run_service_action(name, "down", background_tasks)
 
 
-@router.post("/service/{name}/restart")
+@router.post("/service/{name}/restart")  # type: ignore[misc]
 async def restart_service(name: str, background_tasks: BackgroundTasks) -> dict[str, Any]:
     """Restart a service (down + up)."""
     return await _run_service_action(name, "down && docker compose up -d", background_tasks)
 
 
-@router.post("/service/{name}/pull")
+@router.post("/service/{name}/pull")  # type: ignore[misc]
 async def pull_service(name: str, background_tasks: BackgroundTasks) -> dict[str, Any]:
     """Pull latest images for a service."""
     return await _run_service_action(name, "pull", background_tasks)
 
 
-@router.post("/apply")
+@router.post("/apply")  # type: ignore[misc]
 async def apply_all(background_tasks: BackgroundTasks) -> dict[str, Any]:
     """Run cf apply to reconcile all services."""
     from compose_farm.web.streaming import run_apply_streaming
@@ -70,7 +70,7 @@ async def apply_all(background_tasks: BackgroundTasks) -> dict[str, Any]:
     return {"task_id": task_id, "command": "apply"}
 
 
-@router.post("/refresh")
+@router.post("/refresh")  # type: ignore[misc]
 async def refresh_state(background_tasks: BackgroundTasks) -> dict[str, Any]:
     """Refresh state from running services."""
     task_id = str(uuid.uuid4())

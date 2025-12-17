@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from compose_farm.executor import check_service_running, run_compose
@@ -33,7 +34,9 @@ async def stream_to_task(task_id: str, message: str) -> None:
         tasks[task_id]["output"].append(message)
 
 
-def make_task_callback(task_id: str):
+def make_task_callback(
+    task_id: str,
+) -> Callable[[str, str, bool], Awaitable[None]]:
     """Create an output callback that writes to a task buffer with ANSI colors."""
 
     async def callback(prefix: str, text: str, is_stderr: bool) -> None:
@@ -122,7 +125,7 @@ async def run_apply_streaming(config: Config, task_id: str) -> None:
         tasks[task_id]["status"] = "failed"
 
 
-async def run_refresh_streaming(config: Config, task_id: str) -> None:
+async def run_refresh_streaming(config: Config, task_id: str) -> None:  # noqa: PLR0912
     """Run cf refresh with streaming output."""
     try:
         await stream_to_task(task_id, f"{CYAN}[refresh]{RESET} Discovering running services...\r\n")
@@ -136,10 +139,9 @@ async def run_refresh_streaming(config: Config, task_id: str) -> None:
 
             if config.is_multi_host(service):
                 # Multi-host: find all hosts where running
-                running_hosts = []
-                for host_name in assigned_hosts:
-                    if await check_service_running(config, service, host_name):
-                        running_hosts.append(host_name)
+                running_hosts = [
+                    h for h in assigned_hosts if await check_service_running(config, service, h)
+                ]
                 if running_hosts:
                     discovered[service] = running_hosts
                     await stream_to_task(
@@ -153,7 +155,9 @@ async def run_refresh_streaming(config: Config, task_id: str) -> None:
             else:
                 # Single-host: check assigned host first, then others
                 found_host = None
-                for host_name in [assigned_hosts[0]] + [h for h in config.hosts if h != assigned_hosts[0]]:
+                for host_name in [assigned_hosts[0]] + [
+                    h for h in config.hosts if h != assigned_hosts[0]
+                ]:
                     if await check_service_running(config, service, host_name):
                         found_host = host_name
                         break
@@ -187,9 +191,7 @@ async def run_refresh_streaming(config: Config, task_id: str) -> None:
                 f"{GREEN}[refresh]{RESET} State updated: {len(discovered)} services tracked\r\n",
             )
         else:
-            await stream_to_task(
-                task_id, f"{GREEN}[refresh]{RESET} State already in sync\r\n"
-            )
+            await stream_to_task(task_id, f"{GREEN}[refresh]{RESET} State already in sync\r\n")
 
         tasks[task_id]["status"] = "completed"
 

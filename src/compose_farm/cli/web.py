@@ -15,7 +15,7 @@ def web(
     host: Annotated[
         str,
         typer.Option("--host", "-H", help="Host to bind to"),
-    ] = "0.0.0.0",
+    ] = "0.0.0.0",  # noqa: S104
     port: Annotated[
         int,
         typer.Option("--port", "-p", help="Port to listen on"),
@@ -27,7 +27,7 @@ def web(
 ) -> None:
     """Start the web UI server."""
     try:
-        import uvicorn
+        import uvicorn  # noqa: PLC0415
     except ImportError:
         console.print(
             "[red]Error:[/] Web dependencies not installed. "

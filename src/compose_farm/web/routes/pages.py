@@ -18,7 +18,7 @@ from compose_farm.web.app import get_config, get_templates
 router = APIRouter()
 
 
-@router.get("/", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse)  # type: ignore[misc]
 async def index(request: Request) -> HTMLResponse:
     """Dashboard page."""
     config = get_config()
@@ -38,7 +38,7 @@ async def index(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/service/{name}", response_class=HTMLResponse)
+@router.get("/service/{name}", response_class=HTMLResponse)  # type: ignore[misc]
 async def service_detail(request: Request, name: str) -> HTMLResponse:
     """Service detail page."""
     config = get_config()
@@ -80,7 +80,7 @@ async def service_detail(request: Request, name: str) -> HTMLResponse:
     )
 
 
-@router.get("/config", response_class=HTMLResponse)
+@router.get("/config", response_class=HTMLResponse)  # type: ignore[misc]
 async def config_page(request: Request) -> HTMLResponse:
     """Config viewer/editor page."""
     config = get_config()
@@ -102,7 +102,7 @@ async def config_page(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/state", response_class=HTMLResponse)
+@router.get("/state", response_class=HTMLResponse)  # type: ignore[misc]
 async def state_page(request: Request) -> HTMLResponse:
     """State viewer page."""
     config = get_config()
@@ -123,7 +123,7 @@ async def state_page(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/stats", response_class=HTMLResponse)
+@router.get("/stats", response_class=HTMLResponse)  # type: ignore[misc]
 async def stats_page(request: Request) -> HTMLResponse:
     """Stats overview page."""
     config = get_config()
@@ -164,7 +164,7 @@ async def stats_page(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/partials/config-tables", response_class=HTMLResponse)
+@router.get("/partials/config-tables", response_class=HTMLResponse)  # type: ignore[misc]
 async def config_tables_partial(request: Request) -> HTMLResponse:
     """Config tables partial for HTMX refresh after save."""
     config = get_config()
@@ -176,7 +176,7 @@ async def config_tables_partial(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/partials/sidebar", response_class=HTMLResponse)
+@router.get("/partials/sidebar", response_class=HTMLResponse)  # type: ignore[misc]
 async def sidebar_partial(request: Request) -> HTMLResponse:
     """Sidebar service list partial."""
     config = get_config()

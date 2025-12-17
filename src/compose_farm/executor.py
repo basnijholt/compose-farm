@@ -145,7 +145,7 @@ async def _run_local_command(
         )
     except OSError as e:
         if output_callback:
-            await output_callback(service, f"Local error: {e}\n", True)
+            await output_callback(service, f"Local error: {e}\n", True)  # noqa: FBT003
         else:
             err_console.print(f"[cyan]\\[{service}][/] [red]Local error:[/] {e}")
         return CommandResult(service=service, exit_code=1, success=False)
@@ -223,7 +223,7 @@ async def _run_ssh_command(
                 )
     except (OSError, asyncssh.Error) as e:
         if output_callback:
-            await output_callback(service, f"SSH error: {e}\n", True)
+            await output_callback(service, f"SSH error: {e}\n", True)  # noqa: FBT003
         else:
             err_console.print(f"[cyan]\\[{service}][/] [red]SSH error:[/] {e}")
         return CommandResult(service=service, exit_code=1, success=False)
@@ -247,6 +247,7 @@ async def run_command(
         stream: Whether to stream output (default True)
         raw: Whether to use raw mode with TTY (default False)
         output_callback: Optional async callback (prefix, text, is_stderr) for custom output handling
+
     """
     if is_local(host):
         return await _run_local_command(

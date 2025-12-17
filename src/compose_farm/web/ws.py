@@ -11,7 +11,7 @@ from compose_farm.web.streaming import tasks
 router = APIRouter()
 
 
-@router.websocket("/ws/terminal/{task_id}")
+@router.websocket("/ws/terminal/{task_id}")  # type: ignore[misc]
 async def terminal_websocket(websocket: WebSocket, task_id: str) -> None:
     """WebSocket endpoint for terminal streaming."""
     await websocket.accept()
