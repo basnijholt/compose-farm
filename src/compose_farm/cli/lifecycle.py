@@ -213,7 +213,7 @@ def apply(
     ] = False,
     full: Annotated[
         bool,
-        typer.Option("--full", help="Also run up on all services to apply config changes"),
+        typer.Option("--full", "-f", help="Also run up on all services to apply config changes"),
     ] = False,
     config: ConfigOption = None,
 ) -> None:
