@@ -1,0 +1,63 @@
+<div id="config-tables">
+    <!-- Hosts Overview -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" checked />
+        <div class="collapse-title font-medium">Hosts ({{ config.hosts | length }})</div>
+        <div class="collapse-content">
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Address</th>
+                            <th>User</th>
+                            <th>Port</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, host in config.hosts.items() %}
+                        <tr class="hover:bg-base-300">
+                            <td class="font-semibold">{{ name }}</td>
+                            <td><code class="text-sm">{{ host.address }}</code></td>
+                            <td><code class="text-sm">{{ host.user }}</code></td>
+                            <td><code class="text-sm">{{ host.port }}</code></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Services Overview -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" checked />
+        <div class="collapse-title font-medium">Services ({{ config.services | length }})</div>
+        <div class="collapse-content">
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Host(s)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, host_value in config.services.items() | sort %}
+                        <tr class="hover:bg-base-300">
+                            <td><a href="/service/{{ name }}" class="link link-primary">{{ name }}</a></td>
+                            <td>
+                                {% if host_value is string %}
+                                    <code class="text-sm">{{ host_value }}</code>
+                                {% else %}
+                                    <code class="text-sm">{{ host_value | join(', ') }}</code>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

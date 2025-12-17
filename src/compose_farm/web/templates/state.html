@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}State - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold">Deployment State</h1>
+        <p class="text-base-content/60 text-lg">Services tracked in <code>compose-farm-state.yaml</code></p>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button hx-post="/api/refresh"
+                hx-swap="none"
+                class="btn btn-outline">
+            Refresh from Reality
+        </button>
+    </div>
+
+    <!-- Terminal (collapsed by default, expands on action) -->
+    <div id="terminal-section" class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" id="terminal-toggle" />
+        <div class="collapse-title font-medium">Terminal Output</div>
+        <div class="collapse-content">
+            <div id="terminal-container" class="bg-[#0d1117] rounded-lg p-3 min-h-[200px] border border-white/10">
+                <div id="terminal-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deployed Services -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" checked />
+        <div class="collapse-title font-medium">Deployed Services ({{ state | length }})</div>
+        <div class="collapse-content">
+            {% if state %}
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Running On</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for svc, host in state.items() | sort %}
+                        <tr class="hover:bg-base-300">
+                            <td><a href="/service/{{ svc }}" class="link link-primary">{{ svc }}</a></td>
+                            <td><code class="text-sm">{% if host is iterable and host is not string %}{{ host | join(', ') }}{% else %}{{ host }}{% endif %}</code></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-base-content/60 italic">No services currently tracked in state file.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Raw State YAML -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" />
+        <div class="collapse-title font-medium">Raw State (YAML)</div>
+        <div class="collapse-content">
+            <div id="state-viewer" class="yaml-viewer" data-content="{{ state_content | e }}"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.body.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.successful && evt.detail.xhr && evt.detail.xhr.responseText) {
+            try {
+                const response = JSON.parse(evt.detail.xhr.responseText);
+                if (response.task_id) {
+                    // Expand terminal section
+                    const toggle = document.getElementById('terminal-toggle');
+                    if (toggle) toggle.checked = true;
+
+                    // Scroll to terminal
+                    const section = document.getElementById('terminal-section');
+                    if (section) section.scrollIntoView({ behavior: 'smooth' });
+
+                    // Initialize terminal
+                    initTerminal('terminal-output', response.task_id);
+                }
+            } catch (e) {}
+        }
+    });
+</script>
+{% endblock %}

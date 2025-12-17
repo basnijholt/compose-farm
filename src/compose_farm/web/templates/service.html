@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold">{{ name }}</h1>
+        <p class="text-base-content/60 text-lg">
+            {% if current_host %}
+                <span class="badge badge-success">Running on {{ current_host }}</span>
+            {% else %}
+                <span class="badge badge-ghost">Not running</span>
+            {% endif %}
+            <span class="mx-2">&bull;</span>
+            Configured for: {{ hosts | join(', ') }}
+        </p>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button hx-post="/api/service/{{ name }}/pull"
+                hx-swap="none"
+                class="btn btn-outline">
+            Pull
+        </button>
+        <button hx-post="/api/service/{{ name }}/up"
+                hx-swap="none"
+                class="btn btn-primary">
+            Up
+        </button>
+        <button hx-post="/api/service/{{ name }}/down"
+                hx-swap="none"
+                class="btn btn-outline">
+            Down
+        </button>
+        <button hx-post="/api/service/{{ name }}/restart"
+                hx-swap="none"
+                class="btn btn-secondary">
+            Restart
+        </button>
+        <button id="save-btn" class="btn btn-outline">
+            Save All
+        </button>
+    </div>
+
+    <!-- Compose Editor -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" />
+        <div class="collapse-title font-medium">
+            Compose File <code class="text-xs ml-2 opacity-60">{{ compose_path }}</code>
+        </div>
+        <div class="collapse-content">
+            <div id="compose-editor" class="yaml-editor" data-content="{{ compose_content | e }}" data-save-url="/api/service/{{ name }}/compose"></div>
+        </div>
+    </div>
+
+    <!-- Environment Editor -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" />
+        <div class="collapse-title font-medium">
+            .env File <code class="text-xs ml-2 opacity-60">{{ env_path }}</code>
+        </div>
+        <div class="collapse-content">
+            <div id="env-editor" class="env-editor" data-content="{{ env_content | e }}" data-save-url="/api/service/{{ name }}/env"></div>
+        </div>
+    </div>
+
+    <!-- Terminal -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" checked />
+        <div class="collapse-title font-medium">Terminal Output</div>
+        <div class="collapse-content">
+            <div id="terminal-container" class="bg-[#0d1117] rounded-lg p-3 min-h-[200px] border border-white/10">
+                <div id="terminal-output"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

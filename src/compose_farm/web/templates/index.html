@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold">Dashboard</h1>
+        <p class="text-base-content/60 text-lg">Compose Farm cluster overview</p>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center">
+                <h2 class="card-title text-base-content/60 text-sm">Hosts</h2>
+                <p class="text-4xl font-bold">{{ config.hosts | length }}</p>
+            </div>
+        </div>
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center">
+                <h2 class="card-title text-base-content/60 text-sm">Services</h2>
+                <p class="text-4xl font-bold">{{ config.services | length }}</p>
+            </div>
+        </div>
+        <div class="card bg-base-100 shadow">
+            <div class="card-body items-center text-center">
+                <h2 class="card-title text-base-content/60 text-sm">Deployed</h2>
+                <p class="text-4xl font-bold text-success">{{ state | length }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hosts Table -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" checked />
+        <div class="collapse-title font-medium">Hosts</div>
+        <div class="collapse-content">
+            <div class="overflow-x-auto">
+                <table class="table table-zebra">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Address</th>
+                            <th>Services</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for name, host in config.hosts.items() %}
+                        <tr class="hover:bg-base-300">
+                            <td class="font-semibold">{{ name }}</td>
+                            <td><code class="text-sm">{{ host.address }}</code></td>
+                            <td>
+                                {% set count = [] %}
+                                {% for svc, svc_host in state.items() %}
+                                    {% if svc_host == name or (svc_host is iterable and svc_host is not string and name in svc_host) %}
+                                        {% if count.append(1) %}{% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                                {{ count | length }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

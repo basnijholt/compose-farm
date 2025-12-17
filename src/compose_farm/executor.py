@@ -14,9 +14,12 @@ from rich.markup import escape
 from .console import console, err_console
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from .config import Config, Host
+
+    # Type alias for output callback: (prefix, text, is_stderr) -> Awaitable[None]
+    OutputCallback = Callable[[str, str, bool], Awaitable[None]]
 
 LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
 _DEFAULT_SSH_PORT = 22
@@ -77,6 +80,7 @@ async def _run_local_command(
     *,
     stream: bool = True,
     raw: bool = False,
+    output_callback: OutputCallback | None = None,
 ) -> CommandResult:
     """Run a command locally with streaming output."""
     try:
@@ -108,14 +112,17 @@ async def _run_local_command(
                 *,
                 is_stderr: bool = False,
             ) -> None:
-                out = err_console if is_stderr else console
                 while True:
                     line = await reader.readline()
                     if not line:
                         break
                     text = line.decode()
                     if text.strip():  # Skip empty lines
-                        out.print(f"[cyan]\\[{prefix}][/] {escape(text)}", end="")
+                        if output_callback:
+                            await output_callback(prefix, text, is_stderr)
+                        else:
+                            out = err_console if is_stderr else console
+                            out.print(f"[cyan]\\[{prefix}][/] {escape(text)}", end="")
 
             await asyncio.gather(
                 read_stream(proc.stdout, service),
@@ -137,7 +144,10 @@ async def _run_local_command(
             stderr=stderr_data.decode() if stderr_data else "",
         )
     except OSError as e:
-        err_console.print(f"[cyan]\\[{service}][/] [red]Local error:[/] {e}")
+        if output_callback:
+            await output_callback(service, f"Local error: {e}\n", True)  # noqa: FBT003
+        else:
+            err_console.print(f"[cyan]\\[{service}][/] [red]Local error:[/] {e}")
         return CommandResult(service=service, exit_code=1, success=False)
 
 
@@ -148,6 +158,7 @@ async def _run_ssh_command(
     *,
     stream: bool = True,
     raw: bool = False,
+    output_callback: OutputCallback | None = None,
 ) -> CommandResult:
     """Run a command on a remote host via SSH with streaming output."""
     if raw:
@@ -183,10 +194,13 @@ async def _run_ssh_command(
                         *,
                         is_stderr: bool = False,
                     ) -> None:
-                        out = err_console if is_stderr else console
                         async for line in reader:
                             if line.strip():  # Skip empty lines
-                                out.print(f"[cyan]\\[{prefix}][/] {escape(line)}", end="")
+                                if output_callback:
+                                    await output_callback(prefix, line, is_stderr)
+                                else:
+                                    out = err_console if is_stderr else console
+                                    out.print(f"[cyan]\\[{prefix}][/] {escape(line)}", end="")
 
                     await asyncio.gather(
                         read_stream(proc.stdout, service),
@@ -208,7 +222,10 @@ async def _run_ssh_command(
                     stderr=stderr_data,
                 )
     except (OSError, asyncssh.Error) as e:
-        err_console.print(f"[cyan]\\[{service}][/] [red]SSH error:[/] {e}")
+        if output_callback:
+            await output_callback(service, f"SSH error: {e}\n", True)  # noqa: FBT003
+        else:
+            err_console.print(f"[cyan]\\[{service}][/] [red]SSH error:[/] {e}")
         return CommandResult(service=service, exit_code=1, success=False)
 
 
@@ -219,11 +236,26 @@ async def run_command(
     *,
     stream: bool = True,
     raw: bool = False,
+    output_callback: OutputCallback | None = None,
 ) -> CommandResult:
-    """Run a command on a host (locally or via SSH)."""
+    """Run a command on a host (locally or via SSH).
+
+    Args:
+        host: Host configuration
+        command: Command to run
+        service: Service name (used as prefix in output)
+        stream: Whether to stream output (default True)
+        raw: Whether to use raw mode with TTY (default False)
+        output_callback: Optional async callback (prefix, text, is_stderr) for custom output handling
+
+    """
     if is_local(host):
-        return await _run_local_command(command, service, stream=stream, raw=raw)
-    return await _run_ssh_command(host, command, service, stream=stream, raw=raw)
+        return await _run_local_command(
+            command, service, stream=stream, raw=raw, output_callback=output_callback
+        )
+    return await _run_ssh_command(
+        host, command, service, stream=stream, raw=raw, output_callback=output_callback
+    )
 
 
 async def run_compose(
@@ -233,13 +265,16 @@ async def run_compose(
     *,
     stream: bool = True,
     raw: bool = False,
+    output_callback: OutputCallback | None = None,
 ) -> CommandResult:
     """Run a docker compose command for a service."""
     host = config.get_host(service)
     compose_path = config.get_compose_path(service)
 
     command = f"docker compose -f {compose_path} {compose_cmd}"
-    return await run_command(host, command, service, stream=stream, raw=raw)
+    return await run_command(
+        host, command, service, stream=stream, raw=raw, output_callback=output_callback
+    )
 
 
 async def run_compose_on_host(

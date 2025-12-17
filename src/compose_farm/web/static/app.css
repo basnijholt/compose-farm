@@ -1,0 +1,19 @@
+/* Editors (Monaco) */
+.yaml-editor, .env-editor, .yaml-viewer {
+    border: 1px solid oklch(var(--bc) / 0.2);
+    border-radius: 0.5rem;
+}
+
+.yaml-editor { height: 400px; }
+.env-editor { height: 250px; }
+.yaml-viewer { height: 300px; }
+
+/* Terminal output */
+#terminal-output {
+    height: 300px;
+}
+
+/* Prevent save button resize when text changes */
+#save-btn, #save-config-btn {
+    min-width: 5rem;
+}

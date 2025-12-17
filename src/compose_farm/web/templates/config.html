@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Config - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold">Configuration</h1>
+        <p class="text-base-content/60 text-lg"><code>{{ config_path }}</code></p>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button id="save-config-btn" class="btn btn-outline">
+            Save
+        </button>
+    </div>
+
+    <!-- Config Editor -->
+    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" />
+        <div class="collapse-title font-medium">Edit <code class="text-sm ml-2">compose-farm.yaml</code></div>
+        <div class="collapse-content">
+            <div id="config-editor" class="yaml-editor" data-content="{{ config_content | e }}" data-save-url="/api/config"></div>
+        </div>
+    </div>
+
+    {% include "partials/config_tables.html" %}
+</div>
+{% endblock %}
