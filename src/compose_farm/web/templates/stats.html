@@ -30,6 +30,17 @@
         </div>
     </div>
 
+    <!-- Terminal (collapsed by default, expands on action) -->
+    <div id="terminal-section" class="collapse collapse-arrow bg-base-100 shadow mb-4">
+        <input type="checkbox" id="terminal-toggle" />
+        <div class="collapse-title font-medium">Terminal Output</div>
+        <div class="collapse-content">
+            <div id="terminal-container" class="bg-[#0d1117] rounded-lg p-3 min-h-[200px] border border-white/10">
+                <div id="terminal-output"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Pending Operations -->
     {% if orphaned or migrations or not_started %}
     <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
@@ -99,17 +110,6 @@
             {% endfor %}
         </div>
     </div>
-
-    <!-- Terminal for Apply output (hidden until used) -->
-    <div id="terminal-section" class="collapse collapse-arrow bg-base-100 shadow mb-4 hidden">
-        <input type="checkbox" checked />
-        <div class="collapse-title font-medium">Terminal Output</div>
-        <div class="collapse-content">
-            <div id="terminal-container" class="bg-[#0d1117] rounded-lg p-3 min-h-[200px] border border-white/10">
-                <div id="terminal-output"></div>
-            </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -120,11 +120,15 @@
             try {
                 const response = JSON.parse(evt.detail.xhr.responseText);
                 if (response.task_id) {
-                    const termSection = document.getElementById('terminal-section');
-                    if (termSection) {
-                        termSection.classList.remove('hidden');
-                        termSection.querySelector('input[type="checkbox"]').checked = true;
-                    }
+                    // Expand terminal section
+                    const toggle = document.getElementById('terminal-toggle');
+                    if (toggle) toggle.checked = true;
+
+                    // Scroll to terminal
+                    const section = document.getElementById('terminal-section');
+                    if (section) section.scrollIntoView({ behavior: 'smooth' });
+
+                    // Initialize terminal
                     initTerminal('terminal-output', response.task_id);
                 }
             } catch (e) {}
