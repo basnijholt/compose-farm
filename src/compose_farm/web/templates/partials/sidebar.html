@@ -13,12 +13,11 @@
 <div class="sidebar-section">
     <h4>Services</h4>
     <ul hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
-        {% set deployed = state.get('deployed', {}) %}
         {% for service in services %}
         <li>
             <a href="/service/{{ service }}"
-               {% if service in deployed %}class="running"{% endif %}>
-                {% if service in deployed %}
+               {% if service in state %}class="running"{% endif %}>
+                {% if service in state %}
                     <span class="status-dot running"></span>
                 {% else %}
                     <span class="status-dot stopped"></span>

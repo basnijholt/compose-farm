@@ -106,18 +106,18 @@ async def state_page(request: Request) -> HTMLResponse:
 
     from compose_farm.state import load_state
 
-    state = load_state(config)
+    deployed = load_state(config)
 
-    # Convert state to YAML for display
+    # Convert state to YAML for display (wrap in deployed key to match file format)
     import yaml
 
-    state_content = yaml.dump(state, default_flow_style=False, sort_keys=False)
+    state_content = yaml.dump({"deployed": deployed}, default_flow_style=False, sort_keys=False)
 
     return templates.TemplateResponse(
         "state.html",
         {
             "request": request,
-            "state": state,
+            "state": deployed,
             "state_content": state_content,
         },
     )
@@ -136,8 +136,7 @@ async def stats_page(request: Request) -> HTMLResponse:
         load_state,
     )
 
-    state = load_state(config)
-    deployed = state.get("deployed", {})
+    deployed = load_state(config)
 
     # Gather stats
     total_services = len(config.services)
@@ -147,10 +146,14 @@ async def stats_page(request: Request) -> HTMLResponse:
     migrations = get_services_needing_migration(config)
     not_started = get_services_not_in_state(config)
 
-    # Group services by host
+    # Group services by host (handle multi-host services with list values)
     services_by_host: dict[str, list[str]] = {}
     for svc, host in deployed.items():
-        services_by_host.setdefault(host, []).append(svc)
+        if isinstance(host, list):
+            for h in host:
+                services_by_host.setdefault(h, []).append(svc)
+        else:
+            services_by_host.setdefault(host, []).append(svc)
 
     return templates.TemplateResponse(
         "stats.html",

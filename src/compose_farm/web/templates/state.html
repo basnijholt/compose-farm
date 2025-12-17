@@ -21,9 +21,8 @@
 
     <!-- Deployed Services -->
     <details open>
-        <summary>Deployed Services ({{ state.get('deployed', {}) | length }})</summary>
-        {% set deployed = state.get('deployed', {}) %}
-        {% if deployed %}
+        <summary>Deployed Services ({{ state | length }})</summary>
+        {% if state %}
         <table>
             <thead>
                 <tr>
@@ -32,10 +31,10 @@
                 </tr>
             </thead>
             <tbody>
-                {% for svc, host in deployed.items() | sort %}
+                {% for svc, host in state.items() | sort %}
                 <tr>
                     <td><a href="/service/{{ svc }}">{{ svc }}</a></td>
-                    <td><code>{{ host }}</code></td>
+                    <td><code>{% if host is iterable and host is not string %}{{ host | join(', ') }}{% else %}{{ host }}{% endif %}</code></td>
                 </tr>
                 {% endfor %}
             </tbody>
