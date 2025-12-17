@@ -9,10 +9,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
-
-def xdg_config_home() -> Path:
-    """Get XDG config directory, respecting XDG_CONFIG_HOME env var."""
-    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+from .paths import xdg_config_home
 
 
 class Host(BaseModel):

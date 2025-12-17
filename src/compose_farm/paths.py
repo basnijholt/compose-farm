@@ -1,0 +1,21 @@
+"""Path utilities - lightweight module with no heavy dependencies."""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+
+def xdg_config_home() -> Path:
+    """Get XDG config directory, respecting XDG_CONFIG_HOME env var."""
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+
+
+def default_config_path() -> Path:
+    """Get the default user config path."""
+    return xdg_config_home() / "compose-farm" / "compose-farm.yaml"
+
+
+def config_search_paths() -> list[Path]:
+    """Get search paths for config files."""
+    return [Path("compose-farm.yaml"), default_config_path()]

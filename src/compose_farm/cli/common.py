@@ -18,13 +18,13 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from compose_farm.config import Config, load_config
 from compose_farm.console import console, err_console
-from compose_farm.executor import CommandResult  # noqa: TC001
-from compose_farm.traefik import generate_traefik_config, render_traefik_config
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Generator
+
+    from compose_farm.config import Config
+    from compose_farm.executor import CommandResult
 
 _T = TypeVar("_T")
 
@@ -81,6 +81,8 @@ def progress_bar(label: str, total: int) -> Generator[tuple[Progress, TaskID], N
 
 def load_config_or_exit(config_path: Path | None) -> Config:
     """Load config or exit with a friendly error message."""
+    from compose_farm.config import load_config  # noqa: PLC0415
+
     try:
         return load_config(config_path)
     except FileNotFoundError as e:
@@ -157,6 +159,11 @@ def maybe_regenerate_traefik(
     # Skip if all services failed
     if results and not any(r.success for r in results):
         return
+
+    from compose_farm.traefik import (  # noqa: PLC0415
+        generate_traefik_config,
+        render_traefik_config,
+    )
 
     try:
         dynamic, warnings = generate_traefik_config(cfg, list(cfg.services.keys()))

@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from .config import xdg_config_home
 from .executor import run_compose
+from .paths import xdg_config_home
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable, Iterable

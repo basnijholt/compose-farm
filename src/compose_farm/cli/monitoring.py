@@ -23,13 +23,14 @@ from compose_farm.cli.common import (
     report_results,
     run_async,
 )
-from compose_farm.config import Config  # noqa: TC001
 from compose_farm.console import console, err_console
 from compose_farm.executor import run_command, run_on_services
 from compose_farm.state import get_services_needing_migration, load_state
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+    from compose_farm.config import Config
 
 
 def _group_services_by_host(

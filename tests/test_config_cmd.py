@@ -7,7 +7,6 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-import compose_farm.cli.config as config_cmd_module
 from compose_farm.cli import app
 from compose_farm.cli.config import (
     _generate_template,
@@ -70,16 +69,9 @@ class TestGetConfigFile:
     ) -> None:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("CF_CONFIG", raising=False)
+        # Set XDG_CONFIG_HOME to a nonexistent path - config_search_paths() will
+        # now return paths that don't exist
         monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "nonexistent"))
-        # Monkeypatch _CONFIG_PATHS to avoid finding existing files
-        monkeypatch.setattr(
-            config_cmd_module,
-            "_CONFIG_PATHS",
-            [
-                tmp_path / "compose-farm.yaml",
-                tmp_path / "nonexistent" / "compose-farm" / "compose-farm.yaml",
-            ],
-        )
         result = _get_config_file(None)
         assert result is None
 

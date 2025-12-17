@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 from pathlib import Path  # noqa: TC003
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 from rich.progress import Progress, TaskID  # noqa: TC002
@@ -22,7 +22,10 @@ from compose_farm.cli.common import (
     progress_bar,
     run_async,
 )
-from compose_farm.config import Config  # noqa: TC001
+
+if TYPE_CHECKING:
+    from compose_farm.config import Config
+
 from compose_farm.console import console, err_console
 from compose_farm.executor import (
     CommandResult,

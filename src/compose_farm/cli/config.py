@@ -14,8 +14,8 @@ from typing import Annotated
 import typer
 
 from compose_farm.cli.app import app
-from compose_farm.config import load_config, xdg_config_home
 from compose_farm.console import console, err_console
+from compose_farm.paths import config_search_paths, default_config_path
 
 config_app = typer.Typer(
     name="config",
@@ -23,14 +23,6 @@ config_app = typer.Typer(
     no_args_is_help=True,
 )
 
-# Default config location (internal)
-_USER_CONFIG_PATH = xdg_config_home() / "compose-farm" / "compose-farm.yaml"
-
-# Search paths for existing config (internal)
-_CONFIG_PATHS = [
-    Path("compose-farm.yaml"),
-    _USER_CONFIG_PATH,
-]
 
 # --- CLI Options (same pattern as cli.py) ---
 _PathOption = Annotated[
@@ -91,7 +83,7 @@ def _get_config_file(path: Path | None) -> Path | None:
             return p.resolve()
 
     # Check standard locations
-    for p in _CONFIG_PATHS:
+    for p in config_search_paths():
         if p.exists():
             return p.resolve()
 
@@ -108,7 +100,7 @@ def config_init(
     The generated config file serves as a template showing all available
     options with explanatory comments.
     """
-    target_path = (path.expanduser().resolve() if path else None) or _USER_CONFIG_PATH
+    target_path = (path.expanduser().resolve() if path else None) or default_config_path()
 
     if target_path.exists() and not force:
         console.print(
@@ -144,7 +136,7 @@ def config_edit(
         console.print("[yellow]No config file found.[/yellow]")
         console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
         console.print("\nSearched locations:")
-        for p in _CONFIG_PATHS:
+        for p in config_search_paths():
             console.print(f"  - {p}")
         raise typer.Exit(1)
 
@@ -189,7 +181,7 @@ def config_show(
     if config_file is None:
         console.print("[yellow]No config file found.[/yellow]")
         console.print("\nSearched locations:")
-        for p in _CONFIG_PATHS:
+        for p in config_search_paths():
             status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
             console.print(f"  - {p} ({status})")
         console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
@@ -227,7 +219,7 @@ def config_path(
     if config_file is None:
         console.print("[yellow]No config file found.[/yellow]")
         console.print("\nSearched locations:")
-        for p in _CONFIG_PATHS:
+        for p in config_search_paths():
             status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
             console.print(f"  - {p} ({status})")
         raise typer.Exit(1)
@@ -246,6 +238,8 @@ def config_validate(
     if config_file is None:
         err_console.print("[red]✗[/] No config file found")
         raise typer.Exit(1)
+
+    from compose_farm.config import load_config  # noqa: PLC0415
 
     try:
         cfg = load_config(config_file)
@@ -290,7 +284,7 @@ def config_symlink(
         err_console.print(f"[red]✗[/] Target is not a file: {target_path}")
         raise typer.Exit(1)
 
-    symlink_path = _USER_CONFIG_PATH
+    symlink_path = default_config_path()
 
     # Check if symlink location already exists
     if symlink_path.exists() or symlink_path.is_symlink():
