@@ -8,6 +8,7 @@ from compose_farm.config import Config, Host
 from compose_farm.state import (
     get_orphaned_services,
     get_service_host,
+    get_services_not_in_state,
     load_state,
     remove_service,
     save_state,
@@ -181,3 +182,60 @@ class TestGetOrphanedServices:
 
         result = get_orphaned_services(cfg)
         assert result == {"plex": "nas01", "jellyfin": "nas02"}
+
+
+class TestGetServicesNotInState:
+    """Tests for get_services_not_in_state function."""
+
+    def test_all_in_state(self, config: Config) -> None:
+        """Returns empty list when all services are in state."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  plex: nas01\n")
+
+        result = get_services_not_in_state(config)
+        assert result == []
+
+    def test_finds_missing_service(self, tmp_path: Path) -> None:
+        """Returns services in config but not in state."""
+        config_path = tmp_path / "compose-farm.yaml"
+        config_path.write_text("")
+        cfg = Config(
+            compose_dir=tmp_path / "compose",
+            hosts={"nas01": Host(address="192.168.1.10")},
+            services={"plex": "nas01", "jellyfin": "nas01"},
+            config_path=config_path,
+        )
+        state_file = cfg.get_state_path()
+        state_file.write_text("deployed:\n  plex: nas01\n")
+
+        result = get_services_not_in_state(cfg)
+        assert result == ["jellyfin"]
+
+    def test_empty_state(self, tmp_path: Path) -> None:
+        """Returns all services when state is empty."""
+        config_path = tmp_path / "compose-farm.yaml"
+        config_path.write_text("")
+        cfg = Config(
+            compose_dir=tmp_path / "compose",
+            hosts={"nas01": Host(address="192.168.1.10")},
+            services={"plex": "nas01", "jellyfin": "nas01"},
+            config_path=config_path,
+        )
+
+        result = get_services_not_in_state(cfg)
+        assert set(result) == {"plex", "jellyfin"}
+
+    def test_empty_config(self, config: Config) -> None:
+        """Returns empty list when config has no services."""
+        # config fixture has plex: nas01, but we need empty config
+        config_path = config.config_path
+        config_path.write_text("")
+        cfg = Config(
+            compose_dir=config.compose_dir,
+            hosts={"nas01": Host(address="192.168.1.10")},
+            services={},
+            config_path=config_path,
+        )
+
+        result = get_services_not_in_state(cfg)
+        assert result == []

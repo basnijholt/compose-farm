@@ -154,3 +154,13 @@ def get_orphaned_services(config: Config) -> dict[str, str | list[str]]:
     """
     state = load_state(config)
     return {service: hosts for service, hosts in state.items() if service not in config.services}
+
+
+def get_services_not_in_state(config: Config) -> list[str]:
+    """Get services that are in config but not in state.
+
+    These are services that should be running but aren't tracked
+    (e.g., newly added to config, or previously stopped as orphans).
+    """
+    state = load_state(config)
+    return [service for service in config.services if service not in state]

@@ -30,6 +30,7 @@ from compose_farm.state import (
     get_orphaned_services,
     get_service_host,
     get_services_needing_migration,
+    get_services_not_in_state,
     remove_service,
     remove_service_from_host,
 )
@@ -204,6 +205,14 @@ def _report_pending_orphans(orphaned: dict[str, str | list[str]]) -> None:
         console.print(f"  [cyan]{svc}[/] on [magenta]{_format_host(hosts)}[/]")
 
 
+def _report_pending_starts(cfg: Config, missing: list[str]) -> None:
+    """Report services that will be started."""
+    console.print(f"[green]Services to start ({len(missing)}):[/]")
+    for svc in missing:
+        target = _format_host(cfg.get_hosts(svc))
+        console.print(f"  [cyan]{svc}[/] on [magenta]{target}[/]")
+
+
 @app.command(rich_help_panel="Lifecycle")
 def apply(
     dry_run: Annotated[
@@ -216,33 +225,38 @@ def apply(
     ] = False,
     config: ConfigOption = None,
 ) -> None:
-    """Make reality match config (migrate services + stop orphans).
+    """Make reality match config (start, migrate, stop as needed).
 
     This is the "reconcile" command that ensures running services match your
     config file. It will:
 
-    1. Migrate services that are on the wrong host (host in state ≠ host in config)
-    2. Stop orphaned services (in state but removed from config)
+    1. Stop orphaned services (in state but removed from config)
+    2. Migrate services on wrong host (host in state ≠ host in config)
+    3. Start missing services (in config but not in state)
 
     Use --dry-run to preview changes before applying.
-    Use --no-orphans to only migrate without stopping orphaned services.
+    Use --no-orphans to only migrate/start without stopping orphaned services.
     """
     cfg = load_config_or_exit(config)
-    migrations = get_services_needing_migration(cfg)
     orphaned = get_orphaned_services(cfg)
+    migrations = get_services_needing_migration(cfg)
+    missing = get_services_not_in_state(cfg)
 
-    has_migrations = bool(migrations)
     has_orphans = bool(orphaned) and not no_orphans
+    has_migrations = bool(migrations)
+    has_missing = bool(missing)
 
-    if not has_migrations and not has_orphans:
+    if not has_orphans and not has_migrations and not has_missing:
         console.print("[green]✓[/] Nothing to apply - reality matches config")
         return
 
     # Report what will be done
-    if has_migrations:
-        _report_pending_migrations(cfg, migrations)
     if has_orphans:
         _report_pending_orphans(orphaned)
+    if has_migrations:
+        _report_pending_migrations(cfg, migrations)
+    if has_missing:
+        _report_pending_starts(cfg, missing)
 
     if dry_run:
         console.print("\n[dim](dry-run: no changes made)[/]")
@@ -252,14 +266,23 @@ def apply(
     console.print()
     all_results = []
 
+    # 1. Stop orphaned services first
     if has_orphans:
         console.print("[yellow]Stopping orphaned services...[/]")
         all_results.extend(run_async(stop_orphaned_services(cfg)))
 
+    # 2. Migrate services on wrong host
     if has_migrations:
         console.print("[cyan]Migrating services...[/]")
         migrate_results = run_async(up_services(cfg, migrations, raw=True))
         all_results.extend(migrate_results)
         maybe_regenerate_traefik(cfg, migrate_results)
+
+    # 3. Start missing services (reuse up_services which handles state updates)
+    if has_missing:
+        console.print("[green]Starting missing services...[/]")
+        start_results = run_async(up_services(cfg, missing, raw=True))
+        all_results.extend(start_results)
+        maybe_regenerate_traefik(cfg, start_results)
 
     report_results(all_results)
