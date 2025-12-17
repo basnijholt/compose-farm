@@ -69,6 +69,7 @@ function initTerminal(elementId, taskId) {
 
     ws.onopen = () => {
         term.write('\x1b[2m[Connected]\x1b[0m\r\n');
+        setTerminalLoading(true);
     };
 
     ws.onmessage = (event) => {
@@ -77,11 +78,13 @@ function initTerminal(elementId, taskId) {
 
     ws.onclose = () => {
         // Terminal already shows [Done] or [Failed] from server
+        setTerminalLoading(false);
     };
 
     ws.onerror = (error) => {
         term.write('\x1b[31m[WebSocket Error]\x1b[0m\r\n');
         console.error('WebSocket error:', error);
+        setTerminalLoading(false);
     };
 
     // Store reference
@@ -314,6 +317,16 @@ function expandTerminal() {
     const collapse = document.getElementById('terminal-collapse');
     if (collapse) {
         collapse.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
+
+/**
+ * Show/hide terminal loading spinner
+ */
+function setTerminalLoading(loading) {
+    const spinner = document.getElementById('terminal-spinner');
+    if (spinner) {
+        spinner.classList.toggle('hidden', !loading);
     }
 }
 

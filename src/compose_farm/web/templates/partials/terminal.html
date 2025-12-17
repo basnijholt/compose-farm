@@ -1,7 +1,10 @@
 <!-- Shared Terminal Component -->
 <div class="collapse collapse-arrow bg-base-100 shadow mb-4" id="terminal-collapse">
     <input type="checkbox" id="terminal-toggle" />
-    <div class="collapse-title font-medium">Terminal Output</div>
+    <div class="collapse-title font-medium flex items-center gap-2">
+        Terminal Output
+        <span id="terminal-spinner" class="loading loading-spinner loading-sm hidden"></span>
+    </div>
     <div class="collapse-content">
         <div id="terminal-container" class="bg-[#0d1117] rounded-lg p-3 min-h-[200px] border border-white/10">
             <div id="terminal-output"></div>

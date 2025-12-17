@@ -39,11 +39,12 @@ async def terminal_websocket(websocket: WebSocket, task_id: str) -> None:
                     await websocket.send_text(output[sent_count])
                     sent_count += 1
 
-                # Send completion message
+                # Send completion message and close
                 if task["status"] == "completed":
                     await websocket.send_text("\r\n\x1b[32m[Done]\x1b[0m\r\n")
                 else:
                     await websocket.send_text("\r\n\x1b[31m[Failed]\x1b[0m\r\n")
+                await websocket.close()
                 break
 
             # Small delay to avoid busy loop
