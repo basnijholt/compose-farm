@@ -134,11 +134,13 @@ def update(
     all_services: AllOption = False,
     config: ConfigOption = None,
 ) -> None:
-    """Update services (pull + down + up)."""
+    """Update services (pull + build + down + up)."""
     svc_list, cfg = get_services(services or [], all_services, config)
     raw = len(svc_list) == 1
     results = run_async(
-        run_sequential_on_services(cfg, svc_list, ["pull", "down", "up -d"], raw=raw)
+        run_sequential_on_services(
+            cfg, svc_list, ["pull --ignore-buildable", "build", "down", "up -d"], raw=raw
+        )
     )
     maybe_regenerate_traefik(cfg, results)
     report_results(results)

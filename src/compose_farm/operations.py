@@ -214,8 +214,8 @@ async def _migrate_service(
 
     # Prepare images on target host before stopping old service to minimize downtime.
     # Pull handles image-based services; build handles Dockerfile-based services.
-    # Each command is a no-op for the other type (exit 0, no work done).
-    for cmd, label in [("pull", "Pull"), ("build", "Build")]:
+    # --ignore-buildable makes pull skip images that have build: defined.
+    for cmd, label in [("pull --ignore-buildable", "Pull"), ("build", "Build")]:
         result = await _run_compose_step(cfg, service, cmd, raw=raw)
         if not result.success:
             err_console.print(
