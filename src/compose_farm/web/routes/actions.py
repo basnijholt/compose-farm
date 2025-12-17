@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from compose_farm.web.app import get_config
-from compose_farm.web.streaming import run_compose_streaming, run_refresh_streaming, tasks
+from compose_farm.web.streaming import run_compose_streaming, tasks
 
 router = APIRouter(tags=["actions"])
 
@@ -68,15 +68,3 @@ async def apply_all(background_tasks: BackgroundTasks) -> dict[str, Any]:
     background_tasks.add_task(run_apply_streaming, config, task_id)
 
     return {"task_id": task_id, "command": "apply"}
-
-
-@router.post("/refresh")
-async def refresh_state(background_tasks: BackgroundTasks) -> dict[str, Any]:
-    """Refresh state from running services."""
-    task_id = str(uuid.uuid4())
-    tasks[task_id] = {"status": "running", "output": []}
-
-    config = get_config()
-    background_tasks.add_task(run_refresh_streaming, config, task_id)
-
-    return {"task_id": task_id, "command": "refresh"}
