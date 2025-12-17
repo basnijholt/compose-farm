@@ -125,10 +125,6 @@ module = "asyncssh.*"
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-module = ["fastapi.*", "uvicorn.*", "jinja2.*", "websockets.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_decorators = false
 
@@ -166,4 +162,9 @@ dev = [
     "ruff>=0.14.8",
     "types-pyyaml>=6.0.12.20250915",
     "markdown-code-runner>=0.7.0",
+    # Web deps for type checking (these ship with inline types)
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "jinja2>=3.1.0",
+    "websockets>=12.0",
 ]

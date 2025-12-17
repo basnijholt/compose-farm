@@ -167,6 +167,8 @@ web = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "fastapi" },
+    { name = "jinja2" },
     { name = "markdown-code-runner" },
     { name = "mypy" },
     { name = "pre-commit" },
@@ -175,6 +177,8 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
     { name = "types-pyyaml" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
 ]
 
 [package.metadata]
@@ -193,6 +197,8 @@ provides-extras = ["web"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "fastapi", specifier = ">=0.109.0" },
+    { name = "jinja2", specifier = ">=3.1.0" },
     { name = "markdown-code-runner", specifier = ">=0.7.0" },
     { name = "mypy", specifier = ">=1.19.0" },
     { name = "pre-commit", specifier = ">=4.5.0" },
@@ -201,6 +207,8 @@ dev = [
     { name = "pytest-cov", specifier = ">=6.0.0" },
     { name = "ruff", specifier = ">=0.14.8" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.27.0" },
+    { name = "websockets", specifier = ">=12.0" },
 ]
 
 [[package]]
