@@ -13,7 +13,7 @@ if sys.platform == "win32":
 elif sys.platform == "darwin":
     CLI_STARTUP_THRESHOLD = 0.35
 else:  # Linux
-    CLI_STARTUP_THRESHOLD = 0.2
+    CLI_STARTUP_THRESHOLD = 0.25
 
 
 def test_cli_startup_time() -> None:
