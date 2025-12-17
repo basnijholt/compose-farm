@@ -19,13 +19,14 @@
 
     <!-- Config Editor -->
     <details>
-        <summary>compose-farm.yaml</summary>
+        <summary>Edit <code>compose-farm.yaml</code></summary>
+        <p class="hint">Changes require saving and page refresh to update the tables below.</p>
         <div id="config-editor" class="yaml-editor" data-content="{{ config_content | e }}" data-save-url="/api/config"></div>
     </details>
 
     <!-- Hosts Overview -->
     <details open>
-        <summary>Hosts</summary>
+        <summary>Hosts ({{ config.hosts | length }})</summary>
         <table>
             <thead>
                 <tr>
@@ -40,8 +41,8 @@
                 <tr>
                     <td><strong>{{ name }}</strong></td>
                     <td><code>{{ host.address }}</code></td>
-                    <td>{{ host.user }}</td>
-                    <td>{{ host.port }}</td>
+                    <td><code>{{ host.user }}</code></td>
+                    <td><code>{{ host.port }}</code></td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -59,16 +60,14 @@
                 </tr>
             </thead>
             <tbody>
-                {% for name, svc in config.services.items() %}
+                {% for name, host_value in config.services.items() | sort %}
                 <tr>
                     <td><a href="/service/{{ name }}">{{ name }}</a></td>
                     <td>
-                        {% if svc.host %}
-                            {{ svc.host }}
-                        {% elif svc.hosts %}
-                            {{ svc.hosts | join(', ') }}
+                        {% if host_value is string %}
+                            <code>{{ host_value }}</code>
                         {% else %}
-                            <em>default</em>
+                            <code>{{ host_value | join(', ') }}</code>
                         {% endif %}
                     </td>
                 </tr>

@@ -132,6 +132,23 @@ main article {
     height: 250px;
 }
 
+.yaml-viewer {
+    height: 300px;
+    border: 1px solid var(--pico-muted-border-color);
+    border-radius: 0.25rem;
+}
+
+/* Hints and helper text */
+.hint {
+    font-size: 0.8rem;
+    color: var(--pico-muted-color);
+    font-weight: normal;
+}
+
+p.hint {
+    margin-bottom: 0.5rem;
+}
+
 /* Legacy editor ID support */
 #editor {
     height: 400px;

@@ -6,7 +6,7 @@
     <header>
         <hgroup>
             <h1>Deployment State</h1>
-            <p>Current state of deployed services</p>
+            <p>Services tracked in <code>compose-farm-state.yaml</code></p>
         </hgroup>
     </header>
 
@@ -40,14 +40,14 @@
             </tbody>
         </table>
         {% else %}
-        <p><em>No services currently deployed.</em></p>
+        <p><em>No services currently tracked in state file.</em></p>
         {% endif %}
     </details>
 
-    <!-- Raw State YAML -->
+    <!-- Raw State YAML with syntax highlighting -->
     <details>
         <summary>Raw State (YAML)</summary>
-        <pre><code>{{ state_content }}</code></pre>
+        <div id="state-viewer" class="yaml-viewer" data-content="{{ state_content | e }}"></div>
     </details>
 </article>
 {% endblock %}

@@ -4,53 +4,67 @@
 {% block content %}
 <article>
     <header>
-        <h1>Dashboard</h1>
+        <hgroup>
+            <h1>Dashboard</h1>
+            <p>Compose Farm cluster overview</p>
+        </hgroup>
     </header>
 
-    <section>
-        <h3>Configuration</h3>
-        <dl>
-            <dt>Compose Directory</dt>
-            <dd><code>{{ config.compose_dir }}</code></dd>
-            <dt>Hosts</dt>
-            <dd>{{ config.hosts.keys() | list | join(', ') }}</dd>
-            <dt>Services</dt>
-            <dd>{{ config.services | length }} configured</dd>
-        </dl>
-    </section>
+    <!-- Quick Stats -->
+    <div class="grid">
+        <article class="stat-card">
+            <header>Hosts</header>
+            <strong class="stat-value">{{ config.hosts | length }}</strong>
+        </article>
+        <article class="stat-card">
+            <header>Services</header>
+            <strong class="stat-value">{{ config.services | length }}</strong>
+        </article>
+        <article class="stat-card">
+            <header>Deployed</header>
+            <strong class="stat-value running">{{ state | length }}</strong>
+        </article>
+    </div>
 
-    <section>
-        <h3>State</h3>
-        {% set deployed = state.get('deployed', {}) %}
-        <dl>
-            <dt>Running</dt>
-            <dd>{{ deployed | length }} services</dd>
-        </dl>
-    </section>
+    <details open>
+        <summary>Hosts</summary>
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Address</th>
+                    <th>Services</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for name, host in config.hosts.items() %}
+                <tr>
+                    <td><strong>{{ name }}</strong></td>
+                    <td><code>{{ host.address }}</code></td>
+                    <td>
+                        {% set count = [] %}
+                        {% for svc, svc_host in state.items() %}
+                            {% if svc_host == name or (svc_host is iterable and svc_host is not string and name in svc_host) %}
+                                {% if count.append(1) %}{% endif %}
+                            {% endif %}
+                        {% endfor %}
+                        {{ count | length }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </details>
 
-    <section>
-        <h3>Terminal</h3>
-        <div id="terminal-container">
-            <div id="terminal-output"></div>
-        </div>
-    </section>
+    <details>
+        <summary>Quick Links</summary>
+        <nav>
+            <ul>
+                <li><a href="/config">View/Edit Configuration</a></li>
+                <li><a href="/state">View Deployment State</a></li>
+                <li><a href="/stats">Cluster Stats & Operations</a></li>
+            </ul>
+        </nav>
+    </details>
 </article>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    // Initialize terminal when action is triggered
-    document.body.addEventListener('htmx:afterRequest', function(evt) {
-        if (evt.detail.successful && evt.detail.xhr.responseText) {
-            try {
-                const response = JSON.parse(evt.detail.xhr.responseText);
-                if (response.task_id) {
-                    initTerminal('terminal-output', response.task_id);
-                }
-            } catch (e) {
-                // Not JSON, ignore
-            }
-        }
-    });
-</script>
 {% endblock %}

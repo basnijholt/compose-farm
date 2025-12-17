@@ -11,16 +11,16 @@
 
 <!-- Services Section -->
 <div class="sidebar-section">
-    <h4>Services</h4>
+    <h4>Services <small class="hint" title="Green = tracked in state file">(state)</small></h4>
     <ul hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
         {% for service in services %}
         <li>
             <a href="/service/{{ service }}"
                {% if service in state %}class="running"{% endif %}>
                 {% if service in state %}
-                    <span class="status-dot running"></span>
+                    <span class="status-dot running" title="In state file"></span>
                 {% else %}
-                    <span class="status-dot stopped"></span>
+                    <span class="status-dot stopped" title="Not in state file"></span>
                 {% endif %}
                 {{ service }}
             </a>

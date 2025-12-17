@@ -16,17 +16,17 @@ async def index(request: Request) -> HTMLResponse:
     config = get_config()
     templates = get_templates()
 
-    # Get state
+    # Get state (load_state returns the deployed dict directly)
     from compose_farm.state import load_state
 
-    state = load_state(config)
+    deployed = load_state(config)
 
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
             "config": config,
-            "state": state,
+            "state": deployed,
             "services": sorted(config.services.keys()),
         },
     )

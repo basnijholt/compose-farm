@@ -159,6 +159,25 @@ function createEditor(container, content, language) {
 }
 
 /**
+ * Create a read-only Monaco viewer
+ */
+function createViewer(container, content, language) {
+    return monaco.editor.create(container, {
+        value: content,
+        language: language,
+        theme: 'vs-dark',
+        minimap: { enabled: false },
+        automaticLayout: true,
+        scrollBeyondLastLine: false,
+        fontSize: 14,
+        lineNumbers: 'on',
+        wordWrap: 'on',
+        readOnly: true,
+        domReadOnly: true
+    });
+}
+
+/**
  * Initialize all Monaco editors on the page
  */
 function initMonacoEditors() {
@@ -169,9 +188,10 @@ function initMonacoEditors() {
     Object.keys(editors).forEach(key => delete editors[key]);
 
     const editorConfigs = [
-        { id: 'compose-editor', language: 'yaml' },
-        { id: 'env-editor', language: 'plaintext' },
-        { id: 'config-editor', language: 'yaml' }
+        { id: 'compose-editor', language: 'yaml', readonly: false },
+        { id: 'env-editor', language: 'plaintext', readonly: false },
+        { id: 'config-editor', language: 'yaml', readonly: false },
+        { id: 'state-viewer', language: 'yaml', readonly: true }
     ];
 
     // Check if any editor elements exist
@@ -180,13 +200,17 @@ function initMonacoEditors() {
 
     // Load Monaco and create editors
     loadMonaco(() => {
-        editorConfigs.forEach(({ id, language }) => {
+        editorConfigs.forEach(({ id, language, readonly }) => {
             const el = document.getElementById(id);
             if (!el) return;
 
             const content = el.dataset.content || '';
-            editors[id] = createEditor(el, content, language);
-            editors[id].saveUrl = el.dataset.saveUrl;
+            if (readonly) {
+                editors[id] = createViewer(el, content, language);
+            } else {
+                editors[id] = createEditor(el, content, language);
+                editors[id].saveUrl = el.dataset.saveUrl;
+            }
         });
     });
 }

@@ -88,12 +88,35 @@
         {% endfor %}
     </details>
 
-    <!-- Terminal for Apply output -->
-    <details>
+    <!-- Terminal for Apply output (hidden until used) -->
+    <details id="terminal-section" style="display: none;">
         <summary>Terminal Output</summary>
         <div id="terminal-container">
             <div id="terminal-output"></div>
         </div>
     </details>
 </article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Show terminal section when action is triggered
+    document.body.addEventListener('htmx:afterRequest', function(evt) {
+        if (evt.detail.successful && evt.detail.xhr && evt.detail.xhr.responseText) {
+            try {
+                const response = JSON.parse(evt.detail.xhr.responseText);
+                if (response.task_id) {
+                    const termSection = document.getElementById('terminal-section');
+                    if (termSection) {
+                        termSection.style.display = 'block';
+                        termSection.open = true;
+                    }
+                    initTerminal('terminal-output', response.task_id);
+                }
+            } catch (e) {
+                // Not JSON, ignore
+            }
+        }
+    });
+</script>
 {% endblock %}
