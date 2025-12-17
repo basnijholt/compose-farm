@@ -121,22 +121,15 @@ main article {
     max-width: 1200px;
 }
 
-/* Editors */
-.yaml-editor, .env-editor {
-    height: 400px;
+/* Editors (Monaco) */
+.yaml-editor, .env-editor, .yaml-viewer {
     border: 1px solid var(--pico-muted-border-color);
     border-radius: 0.25rem;
 }
 
-.env-editor {
-    height: 250px;
-}
-
-.yaml-viewer {
-    height: 300px;
-    border: 1px solid var(--pico-muted-border-color);
-    border-radius: 0.25rem;
-}
+.yaml-editor { height: 400px; }
+.env-editor { height: 250px; }
+.yaml-viewer { height: 300px; }
 
 /* Hints and helper text */
 .hint {
@@ -147,13 +140,6 @@ main article {
 
 p.hint {
     margin-bottom: 0.5rem;
-}
-
-/* Legacy editor ID support */
-#editor {
-    height: 400px;
-    border: 1px solid var(--pico-muted-border-color);
-    border-radius: 0.25rem;
 }
 
 /* Stats cards */

@@ -8,10 +8,32 @@ const editors = {};
 let monacoLoaded = false;
 let monacoLoading = false;
 
+// Terminal color theme (dark mode matching PicoCSS)
+const TERMINAL_THEME = {
+    background: '#1a1a2e',
+    foreground: '#e4e4e7',
+    cursor: '#e4e4e7',
+    cursorAccent: '#1a1a2e',
+    black: '#18181b',
+    red: '#ef4444',
+    green: '#22c55e',
+    yellow: '#eab308',
+    blue: '#3b82f6',
+    magenta: '#a855f7',
+    cyan: '#06b6d4',
+    white: '#e4e4e7',
+    brightBlack: '#52525b',
+    brightRed: '#f87171',
+    brightGreen: '#4ade80',
+    brightYellow: '#facc15',
+    brightBlue: '#60a5fa',
+    brightMagenta: '#c084fc',
+    brightCyan: '#22d3ee',
+    brightWhite: '#fafafa'
+};
+
 /**
  * Initialize a terminal and connect to WebSocket for streaming
- * @param {string} elementId - ID of the container element
- * @param {string} taskId - Task ID to connect to
  */
 function initTerminal(elementId, taskId) {
     const container = document.getElementById(elementId);
@@ -20,34 +42,11 @@ function initTerminal(elementId, taskId) {
         return;
     }
 
-    // Clear existing terminal
     container.innerHTML = '';
 
-    // Create terminal
     const term = new Terminal({
         convertEol: true,
-        theme: {
-            background: '#1a1a2e',
-            foreground: '#e4e4e7',
-            cursor: '#e4e4e7',
-            cursorAccent: '#1a1a2e',
-            black: '#18181b',
-            red: '#ef4444',
-            green: '#22c55e',
-            yellow: '#eab308',
-            blue: '#3b82f6',
-            magenta: '#a855f7',
-            cyan: '#06b6d4',
-            white: '#e4e4e7',
-            brightBlack: '#52525b',
-            brightRed: '#f87171',
-            brightGreen: '#4ade80',
-            brightYellow: '#facc15',
-            brightBlue: '#60a5fa',
-            brightMagenta: '#c084fc',
-            brightCyan: '#22d3ee',
-            brightWhite: '#fafafa'
-        },
+        theme: TERMINAL_THEME,
         fontSize: 13,
         fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
         scrollback: 5000
@@ -135,10 +134,11 @@ function loadMonaco(callback) {
  * @param {HTMLElement} container - Container element
  * @param {string} content - Initial content
  * @param {string} language - Editor language (yaml, plaintext, etc.)
+ * @param {boolean} readonly - Whether editor is read-only
  * @returns {object} Monaco editor instance
  */
-function createEditor(container, content, language) {
-    const editor = monaco.editor.create(container, {
+function createEditor(container, content, language, readonly = false) {
+    const options = {
         value: content,
         language: language,
         theme: 'vs-dark',
@@ -148,33 +148,23 @@ function createEditor(container, content, language) {
         fontSize: 14,
         lineNumbers: 'on',
         wordWrap: 'on'
-    });
+    };
 
-    // Add Command+S / Ctrl+S handler
-    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
-        saveAllEditors();
-    });
+    if (readonly) {
+        options.readOnly = true;
+        options.domReadOnly = true;
+    }
+
+    const editor = monaco.editor.create(container, options);
+
+    // Add Command+S / Ctrl+S handler for editable editors
+    if (!readonly) {
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
+            saveAllEditors();
+        });
+    }
 
     return editor;
-}
-
-/**
- * Create a read-only Monaco viewer
- */
-function createViewer(container, content, language) {
-    return monaco.editor.create(container, {
-        value: content,
-        language: language,
-        theme: 'vs-dark',
-        minimap: { enabled: false },
-        automaticLayout: true,
-        scrollBeyondLastLine: false,
-        fontSize: 14,
-        lineNumbers: 'on',
-        wordWrap: 'on',
-        readOnly: true,
-        domReadOnly: true
-    });
 }
 
 /**
@@ -205,10 +195,8 @@ function initMonacoEditors() {
             if (!el) return;
 
             const content = el.dataset.content || '';
-            if (readonly) {
-                editors[id] = createViewer(el, content, language);
-            } else {
-                editors[id] = createEditor(el, content, language);
+            editors[id] = createEditor(el, content, language, readonly);
+            if (!readonly) {
                 editors[id].saveUrl = el.dataset.saveUrl;
             }
         });

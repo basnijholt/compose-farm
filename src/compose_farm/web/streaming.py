@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -18,6 +17,19 @@ async def stream_to_task(task_id: str, message: str) -> None:
         tasks[task_id]["output"].append(message)
 
 
+def make_task_callback(task_id: str):
+    """Create an output callback that writes to a task buffer with ANSI colors."""
+
+    async def callback(prefix: str, text: str, is_stderr: bool) -> None:
+        if is_stderr:
+            msg = f"\x1b[36m[{prefix}]\x1b[0m \x1b[33m{text}\x1b[0m"
+        else:
+            msg = f"\x1b[36m[{prefix}]\x1b[0m {text}"
+        await stream_to_task(task_id, msg)
+
+    return callback
+
+
 async def run_compose_streaming(
     config: Config,
     service: str,
@@ -25,13 +37,10 @@ async def run_compose_streaming(
     task_id: str,
 ) -> None:
     """Run a compose command with output streamed to task buffer."""
-    from compose_farm.executor import is_local
+    from compose_farm.executor import run_compose
 
     try:
-        host_name = config.get_hosts(service)[0]
-        host = config.hosts[host_name]
         compose_path = config.get_compose_path(service)
-
         if not compose_path:
             await stream_to_task(
                 task_id, f"\x1b[31mError: Compose file not found for {service}\x1b[0m\r\n"
@@ -39,74 +48,16 @@ async def run_compose_streaming(
             tasks[task_id]["status"] = "failed"
             return
 
-        # Build the full command
-        if "&&" in command:
-            # Handle compound commands like "down && docker compose up -d"
-            full_command = f"cd {compose_path.parent} && docker compose {command}"
-        else:
-            full_command = f"docker compose -f {compose_path} {command}"
-
         await stream_to_task(task_id, f"\x1b[36m[{service}]\x1b[0m Running: {command}\r\n")
 
-        if is_local(host):
-            await _run_local_streaming(full_command, task_id, service)
-        else:
-            await _run_ssh_streaming(host, full_command, task_id, service)
+        callback = make_task_callback(task_id)
+        result = await run_compose(config, service, command, output_callback=callback)
 
-        tasks[task_id]["status"] = "completed"
+        tasks[task_id]["status"] = "completed" if result.success else "failed"
 
     except Exception as e:
         await stream_to_task(task_id, f"\x1b[31mError: {e}\x1b[0m\r\n")
         tasks[task_id]["status"] = "failed"
-
-
-async def _run_local_streaming(command: str, task_id: str, prefix: str) -> int:
-    """Run command locally with streaming output."""
-    proc = await asyncio.create_subprocess_shell(
-        command,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
-
-    if proc.stdout:
-        async for line in proc.stdout:
-            text = line.decode("utf-8", errors="replace")
-            await stream_to_task(task_id, f"\x1b[36m[{prefix}]\x1b[0m {text}")
-
-    await proc.wait()
-    return proc.returncode or 0
-
-
-async def _run_ssh_streaming(
-    host: Any,
-    command: str,
-    task_id: str,
-    prefix: str,
-) -> int:
-    """Run command via SSH with streaming output."""
-    import asyncssh
-
-    try:
-        async with asyncssh.connect(
-            host.address,
-            username=host.user,
-            port=host.port,
-            known_hosts=None,
-        ) as conn:
-            async with conn.create_process(command) as proc:
-                if proc.stdout:
-                    async for line in proc.stdout:
-                        await stream_to_task(task_id, f"\x1b[36m[{prefix}]\x1b[0m {line}")
-                if proc.stderr:
-                    async for line in proc.stderr:
-                        await stream_to_task(
-                            task_id, f"\x1b[36m[{prefix}]\x1b[0m \x1b[33m{line}\x1b[0m"
-                        )
-                await proc.wait()
-                return proc.exit_status or 0
-    except Exception as e:
-        await stream_to_task(task_id, f"\x1b[31mSSH Error: {e}\x1b[0m\r\n")
-        return 1
 
 
 async def run_apply_streaming(config: Config, task_id: str) -> None:
