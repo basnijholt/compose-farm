@@ -297,6 +297,8 @@ cf logs -f plex  # follow
 cf ps
 ```
 
+### CLI `--help` Output
+
 <details>
 <summary>See the output of <code>cf --help</code></summary>
 
@@ -316,35 +318,532 @@ cf ps
 
  Compose Farm - run docker compose commands across multiple hosts
 
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --version             -v        Show version and exit                        │
-│ --install-completion            Install completion for the current shell.    │
-│ --show-completion               Show completion for the current shell, to    │
-│                                 copy it or customize the installation.       │
-│ --help                -h        Show this message and exit.                  │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Lifecycle ──────────────────────────────────────────────────────────────────╮
-│ up             Start services (docker compose up -d). Auto-migrates if host  │
-│                changed.                                                      │
-│ down           Stop services (docker compose down).                          │
-│ pull           Pull latest images (docker compose pull).                     │
-│ restart        Restart services (down + up).                                 │
-│ update         Update services (pull + build + down + up).                   │
-│ apply          Make reality match config (start, migrate, stop as needed).   │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Configuration ──────────────────────────────────────────────────────────────╮
-│ traefik-file   Generate a Traefik file-provider fragment from compose        │
-│                Traefik labels.                                               │
-│ refresh        Update local state from running services.                     │
-│ check          Validate configuration, traefik labels, mounts, and networks. │
-│ init-network   Create Docker network on hosts with consistent settings.      │
-│ config         Manage compose-farm configuration files.                      │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Monitoring ─────────────────────────────────────────────────────────────────╮
-│ logs           Show service logs.                                            │
-│ ps             Show status of all services.                                  │
-│ stats          Show overview statistics for hosts and services.              │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --version             -v        Show version and exit                                  │
+│ --install-completion            Install completion for the current shell.              │
+│ --show-completion               Show completion for the current shell, to copy it or   │
+│                                 customize the installation.                            │
+│ --help                -h        Show this message and exit.                            │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Lifecycle ────────────────────────────────────────────────────────────────────────────╮
+│ up             Start services (docker compose up -d). Auto-migrates if host changed.   │
+│ down           Stop services (docker compose down).                                    │
+│ pull           Pull latest images (docker compose pull).                               │
+│ restart        Restart services (down + up).                                           │
+│ update         Update services (pull + build + down + up).                             │
+│ apply          Make reality match config (start, migrate, stop as needed).             │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Configuration ────────────────────────────────────────────────────────────────────────╮
+│ traefik-file   Generate a Traefik file-provider fragment from compose Traefik labels.  │
+│ refresh        Update local state from running services.                               │
+│ check          Validate configuration, traefik labels, mounts, and networks.           │
+│ init-network   Create Docker network on hosts with consistent settings.                │
+│ config         Manage compose-farm configuration files.                                │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Monitoring ───────────────────────────────────────────────────────────────────────────╮
+│ logs           Show service logs.                                                      │
+│ ps             Show status of all services.                                            │
+│ stats          Show overview statistics for hosts and services.                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+**Lifecycle**
+
+<details>
+<summary>See the output of <code>cf up--help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf up--help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+<details>
+<summary>See the output of <code>cf down --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf down --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf down [OPTIONS] [SERVICES]...
+
+ Stop services (docker compose down).
+
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   services      [SERVICES]...  Services to operate on                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all       -a            Run on all services                                          │
+│ --orphaned                Stop orphaned services (in state but removed from config)    │
+│ --host      -H      TEXT  Filter to services on this host                              │
+│ --config    -c      PATH  Path to config file                                          │
+│ --help      -h            Show this message and exit.                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+<details>
+<summary>See the output of <code>cf pull --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf pull --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf pull [OPTIONS] [SERVICES]...
+
+ Pull latest images (docker compose pull).
+
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   services      [SERVICES]...  Services to operate on                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a            Run on all services                                            │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+<details>
+<summary>See the output of <code>cf restart --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf restart --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf restart [OPTIONS] [SERVICES]...
+
+ Restart services (down + up).
+
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   services      [SERVICES]...  Services to operate on                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a            Run on all services                                            │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+<details>
+<summary>See the output of <code>cf update --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf update --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf update [OPTIONS] [SERVICES]...
+
+ Update services (pull + build + down + up).
+
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   services      [SERVICES]...  Services to operate on                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a            Run on all services                                            │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+<details>
+<summary>See the output of <code>cf apply --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf apply --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf apply [OPTIONS]
+
+ Make reality match config (start, migrate, stop as needed).
+
+ This is the "reconcile" command that ensures running services match your config file. It
+ will:
+ 1. Stop orphaned services (in state but removed from config) 2. Migrate services on
+ wrong host (host in state ≠ host in config) 3. Start missing services (in config but not
+ in state)
+ Use --dry-run to preview changes before applying. Use --no-orphans to only migrate/start
+ without stopping orphaned services. Use --full to also run 'up' on all services (picks
+ up compose/env changes).
+
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run     -n            Show what would change without executing                   │
+│ --no-orphans                Only migrate, don't stop orphaned services                 │
+│ --full        -f            Also run up on all services to apply config changes        │
+│ --config      -c      PATH  Path to config file                                        │
+│ --help        -h            Show this message and exit.                                │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+**Configuration**
+
+<details>
+<summary>See the output of <code>cf traefik-file --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf traefik-file --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf traefik-file [OPTIONS] [SERVICES]...
+
+ Generate a Traefik file-provider fragment from compose Traefik labels.
+
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   services      [SERVICES]...  Services to operate on                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a            Run on all services                                            │
+│ --output  -o      PATH  Write Traefik file-provider YAML to this path (stdout if       │
+│                         omitted)                                                       │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+<details>
+<summary>See the output of <code>cf refresh --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf refresh --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf refresh [OPTIONS]
+
+ Update local state from running services.
+
+ Discovers which services are running on which hosts, updates the state file, and
+ captures image digests. This is a read operation - it updates your local state to match
+ reality, not the other way around.
+ Use 'cf apply' to make reality match your config (stop orphans, migrate).
+
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --config    -c      PATH  Path to config file                                          │
+│ --log-path  -l      PATH  Path to Dockerfarm TOML log                                  │
+│ --dry-run   -n            Show what would change without writing                       │
+│ --help      -h            Show this message and exit.                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+
+<details>
+<summary>See the output of <code>cf check --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf check --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf check [OPTIONS] [SERVICES]...
+
+ Validate configuration, traefik labels, mounts, and networks.
+
+ Without arguments: validates all services against configured hosts. With service
+ arguments: validates specific services and shows host compatibility.
+ Use --local to skip SSH-based checks for faster validation.
+
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   services      [SERVICES]...  Services to operate on                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --local                 Skip SSH-based checks (faster)                                 │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+
+<details>
+<summary>See the output of <code>cf init-network --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf init-network --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf init-network [OPTIONS] [HOSTS]...
+
+ Create Docker network on hosts with consistent settings.
+
+ Creates an external Docker network that services can use for cross-host communication.
+ Uses the same subnet/gateway on all hosts to ensure consistent networking.
+
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   hosts      [HOSTS]...  Hosts to create network on (default: all)                     │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --network  -n      TEXT  Network name [default: mynetwork]                             │
+│ --subnet   -s      TEXT  Network subnet [default: 172.20.0.0/16]                       │
+│ --gateway  -g      TEXT  Network gateway [default: 172.20.0.1]                         │
+│ --config   -c      PATH  Path to config file                                           │
+│ --help     -h            Show this message and exit.                                   │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+
+<details>
+<summary>See the output of <code>cf config --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf config --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf config [OPTIONS] COMMAND [ARGS]...
+
+ Manage compose-farm configuration files.
+
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --help  -h        Show this message and exit.                                          │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ─────────────────────────────────────────────────────────────────────────────╮
+│ init       Create a new config file with documented example.                           │
+│ edit       Open the config file in your default editor.                                │
+│ show       Display the config file location and contents.                              │
+│ path       Print the config file path (useful for scripting).                          │
+│ validate   Validate the config file syntax and schema.                                 │
+│ symlink    Create a symlink from the default config location to a config file.         │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+**Monitoring**
+
+<details>
+<summary>See the output of <code>cf logs --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf logs --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf logs [OPTIONS] [SERVICES]...
+
+ Show service logs.
+
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   services      [SERVICES]...  Services to operate on                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a               Run on all services                                         │
+│ --host    -H      TEXT     Filter to services on this host                             │
+│ --follow  -f               Follow logs                                                 │
+│ --tail    -n      INTEGER  Number of lines (default: 20 for --all, 100 otherwise)      │
+│ --config  -c      PATH     Path to config file                                         │
+│ --help    -h               Show this message and exit.                                 │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+
+<details>
+<summary>See the output of <code>cf ps --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf ps --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf ps [OPTIONS]
+
+ Show status of all services.
+
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+
+```
+
+<!-- OUTPUT:END -->
+
+</details>
+
+
+<details>
+<summary>See the output of <code>cf stats --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf stats --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
+<!-- OUTPUT:START -->
+<!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
+```yaml
+
+ Usage: cf stats [OPTIONS]
+
+ Show overview statistics for hosts and services.
+
+ Without --live: Shows config/state info (hosts, services, pending migrations). With
+ --live: Also queries Docker on each host for container counts.
+
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --live    -l            Query Docker for live container stats                          │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
