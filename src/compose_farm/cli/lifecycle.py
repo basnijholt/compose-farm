@@ -293,3 +293,7 @@ def apply(
         maybe_regenerate_traefik(cfg, refresh_results)
 
     report_results(all_results)
+
+
+# Alias: cf a = cf apply
+app.command("a", hidden=True)(apply)
