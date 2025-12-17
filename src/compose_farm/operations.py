@@ -74,6 +74,29 @@ async def check_service_requirements(
     return missing_paths, missing_networks, missing_devices
 
 
+async def _cleanup_and_rollback(
+    cfg: Config,
+    service: str,
+    target_host: str,
+    current_host: str,
+    prefix: str,
+    *,
+    raw: bool = False,
+) -> None:
+    """Clean up failed start and attempt rollback to old host."""
+    err_console.print(
+        f"{prefix} [yellow]![/] Cleaning up failed start on [magenta]{target_host}[/]"
+    )
+    await run_compose(cfg, service, "down", raw=raw)
+
+    err_console.print(f"{prefix} [yellow]![/] Rolling back to [magenta]{current_host}[/]...")
+    rollback_result = await run_compose_on_host(cfg, service, current_host, "up -d", raw=raw)
+    if rollback_result.success:
+        console.print(f"{prefix} [green]✓[/] Rollback succeeded on [magenta]{current_host}[/]")
+    else:
+        err_console.print(f"{prefix} [red]✗[/] Rollback failed - service is down")
+
+
 def _report_preflight_failures(
     service: str,
     target_host: str,
@@ -252,15 +275,13 @@ async def up_services(
             _check_interrupted(up_result)
             results.append(up_result)
 
-            # Update state on success
+            # Update state on success, or rollback on failure
             if up_result.success:
                 set_service_host(cfg, service, target_host)
-            elif did_migration:
-                # Up failed after migration - clean up orphaned containers on target
-                err_console.print(
-                    f"{prefix} [yellow]![/] Cleaning up failed start on [magenta]{target_host}[/]"
+            elif did_migration and current_host:
+                await _cleanup_and_rollback(
+                    cfg, service, target_host, current_host, prefix, raw=raw
                 )
-                await run_compose(cfg, service, "down", raw=raw)
     except OperationInterruptedError:
         # Convert to KeyboardInterrupt to propagate up to CLI
         raise KeyboardInterrupt from None
