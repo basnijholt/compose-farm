@@ -29,9 +29,6 @@ tasks: dict[str, dict[str, Any]] = {}
 # How long to keep completed tasks (10 minutes)
 TASK_TTL_SECONDS = 600
 
-# SSH returns 255 when connection is closed unexpectedly (e.g., container killed)
-SSH_CONNECTION_CLOSED = 255
-
 
 def cleanup_stale_tasks() -> int:
     """Remove tasks that completed more than TASK_TTL_SECONDS ago.
@@ -128,47 +125,35 @@ async def _run_cli_via_ssh(
     """Run a cf CLI command via SSH to the host.
 
     Used for self-updates to ensure the command survives container restart.
-    The command is run with nohup to survive SSH disconnection when the
-    container dies during 'down'.
+    The command is run with nohup in the background - we don't stream output
+    since the SSH connection will die when the container is killed.
     """
     try:
         # Get the host for the web service
         host = config.get_host(CF_WEB_SERVICE)
 
         # Build the remote command with nohup to survive SSH disconnect.
-        # When container dies during 'down', SSH client is killed, but the
-        # nohup'd command continues running on the host.
+        # Fire-and-forget: we can't stream output because SSH dies with container.
         cf_cmd = f"cf {' '.join(args)} --config={config.config_path}"
-        log_file = "/tmp/cf-self-update.log"  # noqa: S108
-
-        # Use nohup with explicit stdin/stdout redirect to fully detach.
-        # The command runs in background, then we tail the log to stream output.
-        # When SSH dies, the background command continues unaffected.
         remote_cmd = (
-            f"PATH=$HOME/.local/bin:/usr/local/bin:$PATH && "
-            f"rm -f {log_file} && "
-            f"nohup sh -c '{cf_cmd}' > {log_file} 2>&1 & "
-            f"PID=$! && "
-            f"sleep 0.5 && "  # Give command time to start
-            f"tail -f {log_file} --pid=$PID 2>/dev/null; "
-            f"wait $PID 2>/dev/null"
+            f"PATH=$HOME/.local/bin:/usr/local/bin:$PATH && nohup {cf_cmd} > /dev/null 2>&1 &"
         )
 
         # Show what we're doing
         await stream_to_task(
             task_id,
-            f"{DIM}$ ssh {host.user}@{host.address} {cf_cmd}{RESET}{CRLF}",
+            f"{DIM}$ {cf_cmd}{RESET}{CRLF}",
         )
         await stream_to_task(
             task_id,
-            f"{GREEN}Running via SSH with nohup (survives container restart){RESET}{CRLF}",
+            f"{GREEN}Starting self-update via SSH...{RESET}{CRLF}",
         )
 
-        # Build SSH command (no tty needed since output goes through log file)
+        # Build SSH command
         ssh_args = build_ssh_command(host, remote_cmd, tty=False)
 
         # Set up environment with SSH agent
-        env = {**os.environ, "FORCE_COLOR": "1", "TERM": "xterm-256color"}
+        env = {**os.environ}
         ssh_sock = get_ssh_auth_sock()
         if ssh_sock:
             env["SSH_AUTH_SOCK"] = ssh_sock
@@ -180,26 +165,18 @@ async def _run_cli_via_ssh(
             env=env,
         )
 
-        # Stream output until SSH dies (container killed) or command completes
-        if process.stdout:
-            async for line in process.stdout:
-                text = line.decode("utf-8", errors="replace")
-                if text.endswith("\n") and not text.endswith("\r\n"):
-                    text = text[:-1] + "\r\n"
-                await stream_to_task(task_id, text)
+        await process.wait()
 
-        exit_code = await process.wait()
-
-        # Exit code 255 means SSH connection closed (container died during down)
-        # This is expected for self-updates - the command continues via nohup
-        if exit_code == SSH_CONNECTION_CLOSED:
-            await stream_to_task(
-                task_id,
-                f"{CRLF}{GREEN}Container restarting... refresh the page in a few seconds.{RESET}{CRLF}",
-            )
-            tasks[task_id]["status"] = "completed"
-        else:
-            tasks[task_id]["status"] = "completed" if exit_code == 0 else "failed"
+        # Command was started successfully (nohup backgrounded it)
+        await stream_to_task(
+            task_id,
+            f"{GREEN}Update started. Container will restart shortly.{RESET}{CRLF}",
+        )
+        await stream_to_task(
+            task_id,
+            f"{DIM}Refresh the page in a few seconds...{RESET}{CRLF}",
+        )
+        tasks[task_id]["status"] = "completed"
         tasks[task_id]["completed_at"] = time.time()
 
     except Exception as e:
