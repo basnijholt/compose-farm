@@ -60,8 +60,12 @@ function initTerminal(elementId, taskId) {
     term.open(container);
     fitAddon.fit();
 
-    // Handle window resize
+    // Handle window and container resize
     window.addEventListener('resize', () => fitAddon.fit());
+
+    // Refit when container is manually resized (drag handle)
+    const resizeObserver = new ResizeObserver(() => fitAddon.fit());
+    resizeObserver.observe(container);
 
     // Connect WebSocket
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

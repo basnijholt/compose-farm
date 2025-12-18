@@ -8,9 +8,18 @@
 .env-editor { height: 250px; }
 .yaml-viewer { height: 300px; }
 
-/* Terminal output */
+/* Terminal - make xterm fill and resize with container */
+#terminal-container {
+    display: flex;
+    flex-direction: column;
+}
+
 #terminal-output {
-    height: 300px;
+    flex: 1;
+}
+
+#terminal-output .xterm {
+    height: 100%;
 }
 
 /* Prevent save button resize when text changes */
