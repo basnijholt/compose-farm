@@ -446,18 +446,34 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     let commands = [];
     let selected = 0;
 
-    const actions = [
-        { type: 'action', name: 'Apply', desc: 'Make reality match config', action: () => htmx.ajax('POST', '/api/apply', {swap: 'none'}) },
-        { type: 'action', name: 'Refresh', desc: 'Update state from reality', action: () => htmx.ajax('POST', '/api/refresh', {swap: 'none'}) },
-        { type: 'nav', name: 'Dashboard', desc: 'Go to dashboard', action: () => window.location.href = '/' },
-    ];
+    function getActions() {
+        const actions = [
+            { type: 'action', name: 'Apply', desc: 'Make reality match config', action: () => htmx.ajax('POST', '/api/apply', {swap: 'none'}) },
+            { type: 'action', name: 'Refresh', desc: 'Update state from reality', action: () => htmx.ajax('POST', '/api/refresh', {swap: 'none'}) },
+            { type: 'nav', name: 'Dashboard', desc: 'Go to dashboard', action: () => window.location.href = '/' },
+        ];
+        // Add service-specific actions if on a service page
+        const match = window.location.pathname.match(/^\/service\/(.+)$/);
+        if (match) {
+            const svc = match[1];
+            actions.unshift(
+                { type: 'service', name: 'Up', desc: `Start ${svc}`, action: () => htmx.ajax('POST', `/api/service/${svc}/up`, {swap: 'none'}) },
+                { type: 'service', name: 'Down', desc: `Stop ${svc}`, action: () => htmx.ajax('POST', `/api/service/${svc}/down`, {swap: 'none'}) },
+                { type: 'service', name: 'Restart', desc: `Restart ${svc}`, action: () => htmx.ajax('POST', `/api/service/${svc}/restart`, {swap: 'none'}) },
+                { type: 'service', name: 'Pull', desc: `Pull ${svc}`, action: () => htmx.ajax('POST', `/api/service/${svc}/pull`, {swap: 'none'}) },
+                { type: 'service', name: 'Update', desc: `Pull + restart ${svc}`, action: () => htmx.ajax('POST', `/api/service/${svc}/update`, {swap: 'none'}) },
+                { type: 'service', name: 'Logs', desc: `View ${svc} logs`, action: () => htmx.ajax('POST', `/api/service/${svc}/logs`, {swap: 'none'}) },
+            );
+        }
+        return actions;
+    }
 
     function buildCommands() {
         const services = [...document.querySelectorAll('#sidebar-services li[data-svc]')].map(li => {
             const name = li.querySelector('a')?.textContent.trim();
-            return { type: 'service', name, desc: 'Go to service', action: () => window.location.href = `/service/${name}` };
+            return { type: 'nav', name, desc: 'Go to service', action: () => window.location.href = `/service/${name}` };
         });
-        commands = [...actions, ...services];
+        commands = [...getActions(), ...services];
     }
 
     function render(filter = '') {
