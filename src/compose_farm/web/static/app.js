@@ -482,6 +482,15 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     const fab = document.getElementById('cmd-fab');
     if (!dialog || !input || !list) return;
 
+    // Load icons from template (rendered server-side from icons.html)
+    const iconTemplate = document.getElementById('cmd-icons');
+    const icons = {};
+    if (iconTemplate) {
+        iconTemplate.content.querySelectorAll('[data-icon]').forEach(el => {
+            icons[el.dataset.icon] = el.innerHTML;
+        });
+    }
+
     const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6' };
     let commands = [];
     let filtered = [];
@@ -489,35 +498,35 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
 
     const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
     const nav = (url) => () => window.location.href = url;
-    const cmd = (type, name, desc, action) => ({ type, name, desc, action });
+    const cmd = (type, name, desc, action, icon = null) => ({ type, name, desc, action, icon });
 
     function buildCommands() {
         const actions = [
-            cmd('action', 'Apply', 'Make reality match config', post('/api/apply')),
-            cmd('action', 'Refresh', 'Update state from reality', post('/api/refresh')),
-            cmd('nav', 'Dashboard', 'Go to dashboard', nav('/')),
-            cmd('nav', 'Console', 'Go to console', nav('/console')),
+            cmd('action', 'Apply', 'Make reality match config', post('/api/apply'), icons.check),
+            cmd('action', 'Refresh', 'Update state from reality', post('/api/refresh'), icons.refresh_cw),
+            cmd('nav', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
+            cmd('nav', 'Console', 'Go to console', nav('/console'), icons.terminal),
         ];
 
         // Add service-specific actions if on a service page
         const match = window.location.pathname.match(/^\/service\/(.+)$/);
         if (match) {
             const svc = decodeURIComponent(match[1]);
-            const svcCmd = (name, desc, endpoint) => cmd('service', name, `${desc} ${svc}`, post(`/api/service/${svc}/${endpoint}`));
+            const svcCmd = (name, desc, endpoint, icon) => cmd('service', name, `${desc} ${svc}`, post(`/api/service/${svc}/${endpoint}`), icon);
             actions.unshift(
-                svcCmd('Up', 'Start', 'up'),
-                svcCmd('Down', 'Stop', 'down'),
-                svcCmd('Restart', 'Restart', 'restart'),
-                svcCmd('Pull', 'Pull', 'pull'),
-                svcCmd('Update', 'Pull + restart', 'update'),
-                svcCmd('Logs', 'View logs for', 'logs'),
+                svcCmd('Up', 'Start', 'up', icons.play),
+                svcCmd('Down', 'Stop', 'down', icons.square),
+                svcCmd('Restart', 'Restart', 'restart', icons.rotate_cw),
+                svcCmd('Pull', 'Pull', 'pull', icons.cloud_download),
+                svcCmd('Update', 'Pull + restart', 'update', icons.refresh_cw),
+                svcCmd('Logs', 'View logs for', 'logs', icons.file_text),
             );
         }
 
         // Add nav commands for all services from sidebar
         const services = [...document.querySelectorAll('#sidebar-services li[data-svc] a[href]')].map(a => {
             const name = a.getAttribute('href').replace('/service/', '');
-            return cmd('nav', name, 'Go to service', nav(`/service/${name}`));
+            return cmd('nav', name, 'Go to service', nav(`/service/${name}`), icons.box);
         });
 
         commands = [...actions, ...services];
@@ -532,7 +541,7 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     function render() {
         list.innerHTML = filtered.map((c, i) => `
             <a class="flex justify-between items-center px-3 py-2 rounded-r cursor-pointer hover:bg-base-200 border-l-4 ${i === selected ? 'bg-base-300' : ''}" style="border-left-color: ${colors[c.type] || '#666'}" data-idx="${i}">
-                <span><span class="opacity-50 text-xs mr-2">${c.type}</span>${c.name}</span>
+                <span class="flex items-center gap-2">${c.icon || ''}<span>${c.name}</span></span>
                 <span class="opacity-40 text-xs">${c.desc}</span>
             </a>
         `).join('') || '<div class="opacity-50 p-2">No matches</div>';
