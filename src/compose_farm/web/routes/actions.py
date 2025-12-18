@@ -62,6 +62,12 @@ async def pull_service(name: str) -> dict[str, Any]:
     return await _run_service_action(name, "pull")
 
 
+@router.post("/service/{name}/update")  # type: ignore[misc]
+async def update_service(name: str) -> dict[str, Any]:
+    """Update a service (pull + build + down + up)."""
+    return await _run_service_action(name, "update")
+
+
 @router.post("/service/{name}/logs")  # type: ignore[misc]
 async def logs_service(name: str) -> dict[str, Any]:
     """Show logs for a service."""

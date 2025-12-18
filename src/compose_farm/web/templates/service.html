@@ -18,29 +18,45 @@
 
     <!-- Action Buttons -->
     <div class="flex flex-wrap gap-2 mb-6">
-        <button hx-post="/api/service/{{ name }}/pull"
-                hx-swap="none"
-                class="btn btn-outline">
-            Pull
-        </button>
+        <!-- Lifecycle -->
         <button hx-post="/api/service/{{ name }}/up"
                 hx-swap="none"
-                class="btn btn-primary">
+                class="btn btn-primary"
+                title="Start service (docker compose up -d)">
             Up
         </button>
         <button hx-post="/api/service/{{ name }}/down"
                 hx-swap="none"
-                class="btn btn-outline">
+                class="btn btn-outline"
+                title="Stop service (docker compose down)">
             Down
         </button>
         <button hx-post="/api/service/{{ name }}/restart"
                 hx-swap="none"
-                class="btn btn-secondary">
+                class="btn btn-secondary"
+                title="Restart service (down + up)">
             Restart
+        </button>
+        <button hx-post="/api/service/{{ name }}/update"
+                hx-swap="none"
+                class="btn btn-accent"
+                title="Update to latest (pull + build + down + up)">
+            Update
+        </button>
+
+        <div class="divider divider-horizontal mx-0"></div>
+
+        <!-- Other -->
+        <button hx-post="/api/service/{{ name }}/pull"
+                hx-swap="none"
+                class="btn btn-outline"
+                title="Pull latest images (no restart)">
+            Pull
         </button>
         <button hx-post="/api/service/{{ name }}/logs"
                 hx-swap="none"
-                class="btn btn-outline">
+                class="btn btn-outline"
+                title="Show recent logs">
             Logs
         </button>
         <button id="save-btn" class="btn btn-outline">
