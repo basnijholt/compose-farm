@@ -496,6 +496,7 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
             cmd('action', 'Apply', 'Make reality match config', post('/api/apply')),
             cmd('action', 'Refresh', 'Update state from reality', post('/api/refresh')),
             cmd('nav', 'Dashboard', 'Go to dashboard', nav('/')),
+            cmd('nav', 'Console', 'Go to console', nav('/console')),
         ];
 
         // Add service-specific actions if on a service page
