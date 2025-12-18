@@ -41,7 +41,7 @@ async def _run_service_action(
 @router.post("/service/{name}/up")  # type: ignore[misc]
 async def up_service(name: str) -> dict[str, Any]:
     """Start a service."""
-    return await _run_service_action(name, "up -d")
+    return await _run_service_action(name, "up")
 
 
 @router.post("/service/{name}/down")  # type: ignore[misc]
