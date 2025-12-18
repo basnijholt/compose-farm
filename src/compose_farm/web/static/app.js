@@ -466,13 +466,11 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         selected = Math.max(0, Math.min(selected, filtered.length - 1));
 
         list.innerHTML = filtered.map((c, i) => `
-            <li>
-                <a class="flex justify-between ${i === selected ? 'active' : ''}" data-idx="${i}">
-                    <span><span class="opacity-50 text-xs mr-2">${c.type}</span>${c.name}</span>
-                    <span class="opacity-40 text-xs">${c.desc}</span>
-                </a>
-            </li>
-        `).join('') || '<li class="opacity-50 p-2">No matches</li>';
+            <a class="flex justify-between items-center px-3 py-2 rounded cursor-pointer hover:bg-base-200 ${i === selected ? 'bg-base-300' : ''}" data-idx="${i}">
+                <span><span class="opacity-50 text-xs mr-2">${c.type}</span>${c.name}</span>
+                <span class="opacity-40 text-xs">${c.desc}</span>
+            </a>
+        `).join('') || '<div class="opacity-50 p-2">No matches</div>';
         return filtered;
     }
 
