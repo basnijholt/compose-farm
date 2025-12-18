@@ -152,7 +152,6 @@ function initTerminal(elementId, taskId) {
         term.write(`${ANSI.RED}[WebSocket Error]${ANSI.RESET}${ANSI.CRLF}`);
         console.error('WebSocket error:', error);
         setTerminalLoading(false);
-        localStorage.removeItem(taskKey);
     };
 
     terminals[taskId] = { term, ws, fitAddon };
@@ -433,8 +432,6 @@ function tryReconnectToTask() {
             initTerminal('terminal-output', taskId);
         } else if (attempts > 0) {
             setTimeout(() => tryInit(attempts - 1), 100);
-        } else {
-            localStorage.removeItem(getTaskKey());
         }
     };
     tryInit(20);
