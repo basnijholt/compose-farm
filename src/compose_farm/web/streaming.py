@@ -36,6 +36,18 @@ def _get_ssh_auth_sock() -> str | None:
     return None
 
 
+def get_ssh_client_keys() -> list[str] | None:
+    """Get SSH client keys for asyncssh if compose-farm key exists.
+
+    Returns a list of key paths for asyncssh's client_keys parameter,
+    or None if no key exists.
+    """
+    from compose_farm.ssh_keys import get_key_path  # noqa: PLC0415
+
+    key_path = get_key_path()
+    return [str(key_path)] if key_path else None
+
+
 # In-memory task registry
 tasks: dict[str, dict[str, Any]] = {}
 
