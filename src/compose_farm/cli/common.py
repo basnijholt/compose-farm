@@ -56,6 +56,13 @@ _MISSING_PATH_PREVIEW_LIMIT = 2
 _STATS_PREVIEW_LIMIT = 3  # Max number of pending migrations to show by name
 
 
+def format_host(host: str | list[str]) -> str:
+    """Format a host value for display."""
+    if isinstance(host, list):
+        return ", ".join(host)
+    return host
+
+
 @contextlib.contextmanager
 def progress_bar(
     label: str, total: int, *, initial_description: str = "[dim]connecting...[/]"

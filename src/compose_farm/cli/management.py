@@ -17,6 +17,7 @@ from compose_farm.cli.common import (
     ConfigOption,
     LogPathOption,
     ServicesArg,
+    format_host,
     get_services,
     load_config_or_exit,
     progress_bar,
@@ -119,13 +120,6 @@ def _snapshot_services(
     return effective_log_path
 
 
-def _format_host(host: str | list[str]) -> str:
-    """Format a host value for display."""
-    if isinstance(host, list):
-        return ", ".join(host)
-    return host
-
-
 def _report_sync_changes(
     added: list[str],
     removed: list[str],
@@ -137,14 +131,14 @@ def _report_sync_changes(
     if added:
         console.print(f"\nNew services found ({len(added)}):")
         for service in sorted(added):
-            host_str = _format_host(discovered[service])
+            host_str = format_host(discovered[service])
             console.print(f"  [green]+[/] [cyan]{service}[/] on [magenta]{host_str}[/]")
 
     if changed:
         console.print(f"\nServices on different hosts ({len(changed)}):")
         for service, old_host, new_host in sorted(changed):
-            old_str = _format_host(old_host)
-            new_str = _format_host(new_host)
+            old_str = format_host(old_host)
+            new_str = format_host(new_host)
             console.print(
                 f"  [yellow]~[/] [cyan]{service}[/]: [magenta]{old_str}[/] → [magenta]{new_str}[/]"
             )
@@ -152,7 +146,7 @@ def _report_sync_changes(
     if removed:
         console.print(f"\nServices no longer running ({len(removed)}):")
         for service in sorted(removed):
-            host_str = _format_host(current_state[service])
+            host_str = format_host(current_state[service])
             console.print(f"  [red]-[/] [cyan]{service}[/] (was on [magenta]{host_str}[/])")
 
 

@@ -15,6 +15,7 @@ from compose_farm.cli.common import (
     ConfigOption,
     HostOption,
     ServicesArg,
+    format_host,
     get_services,
     load_config_or_exit,
     maybe_regenerate_traefik,
@@ -162,13 +163,6 @@ def update(
     report_results(results)
 
 
-def _format_host(host: str | list[str]) -> str:
-    """Format a host value for display."""
-    if isinstance(host, list):
-        return ", ".join(host)
-    return host
-
-
 def _report_pending_migrations(cfg: Config, migrations: list[str]) -> None:
     """Report services that need migration."""
     console.print(f"[cyan]Services to migrate ({len(migrations)}):[/]")
@@ -182,14 +176,14 @@ def _report_pending_orphans(orphaned: dict[str, str | list[str]]) -> None:
     """Report orphaned services that will be stopped."""
     console.print(f"[yellow]Orphaned services to stop ({len(orphaned)}):[/]")
     for svc, hosts in orphaned.items():
-        console.print(f"  [cyan]{svc}[/] on [magenta]{_format_host(hosts)}[/]")
+        console.print(f"  [cyan]{svc}[/] on [magenta]{format_host(hosts)}[/]")
 
 
 def _report_pending_starts(cfg: Config, missing: list[str]) -> None:
     """Report services that will be started."""
     console.print(f"[green]Services to start ({len(missing)}):[/]")
     for svc in missing:
-        target = _format_host(cfg.get_hosts(svc))
+        target = format_host(cfg.get_hosts(svc))
         console.print(f"  [cyan]{svc}[/] on [magenta]{target}[/]")
 
 
@@ -197,7 +191,7 @@ def _report_pending_refresh(cfg: Config, to_refresh: list[str]) -> None:
     """Report services that will be refreshed."""
     console.print(f"[blue]Services to refresh ({len(to_refresh)}):[/]")
     for svc in to_refresh:
-        target = _format_host(cfg.get_hosts(svc))
+        target = format_host(cfg.get_hosts(svc))
         console.print(f"  [cyan]{svc}[/] on [magenta]{target}[/]")
 
 
