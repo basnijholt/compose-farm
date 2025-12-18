@@ -443,68 +443,75 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     const list = document.getElementById('cmd-list');
     if (!dialog || !input || !list) return;
 
+    const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6' };
     let commands = [];
+    let filtered = [];
     let selected = 0;
 
-    function getActions() {
+    const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
+    const nav = (url) => () => window.location.href = url;
+    const cmd = (type, name, desc, action) => ({ type, name, desc, action });
+
+    function buildCommands() {
         const actions = [
-            { type: 'action', name: 'Apply', desc: 'Make reality match config', action: () => htmx.ajax('POST', '/api/apply', {swap: 'none'}) },
-            { type: 'action', name: 'Refresh', desc: 'Update state from reality', action: () => htmx.ajax('POST', '/api/refresh', {swap: 'none'}) },
-            { type: 'nav', name: 'Dashboard', desc: 'Go to dashboard', action: () => window.location.href = '/' },
+            cmd('action', 'Apply', 'Make reality match config', post('/api/apply')),
+            cmd('action', 'Refresh', 'Update state from reality', post('/api/refresh')),
+            cmd('nav', 'Dashboard', 'Go to dashboard', nav('/')),
         ];
+
         // Add service-specific actions if on a service page
         const match = window.location.pathname.match(/^\/service\/(.+)$/);
         if (match) {
-            const svc = match[1];
+            const svc = decodeURIComponent(match[1]);
+            const svcCmd = (name, desc, endpoint) => cmd('service', name, `${desc} ${svc}`, post(`/api/service/${svc}/${endpoint}`));
             actions.unshift(
-                { type: 'service', name: 'Up', desc: `Start ${svc}`, action: () => htmx.ajax('POST', `/api/service/${svc}/up`, {swap: 'none'}) },
-                { type: 'service', name: 'Down', desc: `Stop ${svc}`, action: () => htmx.ajax('POST', `/api/service/${svc}/down`, {swap: 'none'}) },
-                { type: 'service', name: 'Restart', desc: `Restart ${svc}`, action: () => htmx.ajax('POST', `/api/service/${svc}/restart`, {swap: 'none'}) },
-                { type: 'service', name: 'Pull', desc: `Pull ${svc}`, action: () => htmx.ajax('POST', `/api/service/${svc}/pull`, {swap: 'none'}) },
-                { type: 'service', name: 'Update', desc: `Pull + restart ${svc}`, action: () => htmx.ajax('POST', `/api/service/${svc}/update`, {swap: 'none'}) },
-                { type: 'service', name: 'Logs', desc: `View ${svc} logs`, action: () => htmx.ajax('POST', `/api/service/${svc}/logs`, {swap: 'none'}) },
+                svcCmd('Up', 'Start', 'up'),
+                svcCmd('Down', 'Stop', 'down'),
+                svcCmd('Restart', 'Restart', 'restart'),
+                svcCmd('Pull', 'Pull', 'pull'),
+                svcCmd('Update', 'Pull + restart', 'update'),
+                svcCmd('Logs', 'View logs for', 'logs'),
             );
         }
-        return actions;
-    }
 
-    function buildCommands() {
-        const services = [...document.querySelectorAll('#sidebar-services li[data-svc]')].map(li => {
-            const name = li.querySelector('a')?.textContent.trim();
-            return { type: 'nav', name, desc: 'Go to service', action: () => window.location.href = `/service/${name}` };
+        // Add nav commands for all services from sidebar
+        const services = [...document.querySelectorAll('#sidebar-services li[data-svc] a[href]')].map(a => {
+            const name = a.getAttribute('href').replace('/service/', '');
+            return cmd('nav', name, 'Go to service', nav(`/service/${name}`));
         });
-        commands = [...getActions(), ...services];
+
+        commands = [...actions, ...services];
     }
 
-    function render(filter = '') {
-        const q = filter.toLowerCase();
-        const filtered = commands.filter(c => c.name.toLowerCase().includes(q));
+    function filter() {
+        const q = input.value.toLowerCase();
+        filtered = commands.filter(c => c.name.toLowerCase().includes(q));
         selected = Math.max(0, Math.min(selected, filtered.length - 1));
+    }
 
-        const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6' };
+    function render() {
         list.innerHTML = filtered.map((c, i) => `
             <a class="flex justify-between items-center px-3 py-2 rounded-r cursor-pointer hover:bg-base-200 border-l-4 ${i === selected ? 'bg-base-300' : ''}" style="border-left-color: ${colors[c.type] || '#666'}" data-idx="${i}">
                 <span><span class="opacity-50 text-xs mr-2">${c.type}</span>${c.name}</span>
                 <span class="opacity-40 text-xs">${c.desc}</span>
             </a>
         `).join('') || '<div class="opacity-50 p-2">No matches</div>';
-        return filtered;
     }
 
     function open() {
         buildCommands();
         selected = 0;
         input.value = '';
+        filter();
         render();
         dialog.showModal();
         input.focus();
     }
 
-    function exec(filtered) {
-        const cmd = filtered[selected];
-        if (cmd) {
+    function exec() {
+        if (filtered[selected]) {
             dialog.close();
-            cmd.action();
+            filtered[selected].action();
         }
     }
 
@@ -517,23 +524,22 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     });
 
     // Input filtering
-    input.addEventListener('input', () => render(input.value));
+    input.addEventListener('input', () => { filter(); render(); });
 
-    // Keyboard nav inside palette (use dialog to catch all keys)
+    // Keyboard nav inside palette
     dialog.addEventListener('keydown', e => {
         if (!dialog.open) return;
-        const filtered = commands.filter(c => c.name.toLowerCase().includes(input.value.toLowerCase()));
-        if (e.key === 'ArrowDown') { e.preventDefault(); selected = Math.min(selected + 1, filtered.length - 1); render(input.value); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); selected = Math.max(selected - 1, 0); render(input.value); }
-        else if (e.key === 'Enter') { e.preventDefault(); exec(filtered); }
+        if (e.key === 'ArrowDown') { e.preventDefault(); selected = Math.min(selected + 1, filtered.length - 1); render(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); selected = Math.max(selected - 1, 0); render(); }
+        else if (e.key === 'Enter') { e.preventDefault(); exec(); }
     });
 
     // Click to execute
     list.addEventListener('click', e => {
         const a = e.target.closest('a[data-idx]');
         if (a) {
-            selected = parseInt(a.dataset.idx);
-            exec(commands.filter(c => c.name.toLowerCase().includes(input.value.toLowerCase())));
+            selected = parseInt(a.dataset.idx, 10);
+            exec();
         }
     });
 })();
