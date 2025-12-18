@@ -1,9 +1,9 @@
-{# Page header with title and optional subtitle #}
+{# Page header with title and optional subtitle (supports HTML) #}
 {% macro page_header(title, subtitle=None) %}
 <div class="mb-6">
     <h1 class="text-3xl font-bold">{{ title }}</h1>
     {% if subtitle %}
-    <p class="text-base-content/60 text-lg">{{ subtitle }}</p>
+    <p class="text-base-content/60 text-lg">{{ subtitle | safe }}</p>
     {% endif %}
 </div>
 {% endmacro %}
