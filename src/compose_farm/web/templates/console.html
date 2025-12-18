@@ -1,0 +1,279 @@
+{% extends "base.html" %}
+{% from "partials/components.html" import page_header %}
+{% from "partials/icons.html" import terminal, save %}
+{% block title %}Console - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl">
+    {{ page_header("Console", "Terminal and editor access") }}
+
+    <!-- Host Selector -->
+    <div class="flex items-center gap-4 mb-4">
+        <label class="font-semibold">Host:</label>
+        <select id="console-host-select" class="select select-sm select-bordered">
+            {% for name in hosts %}
+            <option value="{{ name }}">{{ name }}{% if name == local_host %} (local){% endif %}</option>
+            {% endfor %}
+        </select>
+        <button id="console-connect-btn" class="btn btn-sm btn-primary" onclick="connectConsole()">Connect</button>
+        <span id="console-status" class="text-sm opacity-60"></span>
+    </div>
+
+    <!-- Terminal -->
+    <div class="mb-6">
+        <div class="flex items-center gap-2 mb-2">
+            <h3 class="font-semibold flex items-center gap-2">{{ terminal() }} Terminal</h3>
+            <span class="text-xs opacity-50">Full shell access to selected host</span>
+        </div>
+        <div id="console-terminal" class="w-full h-96 bg-base-300 rounded-lg overflow-hidden"></div>
+    </div>
+
+    <!-- Editor -->
+    <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-4">
+                <h3 class="font-semibold">Editor</h3>
+                <input type="text" id="console-file-path" class="input input-sm input-bordered w-96" placeholder="Enter file path (e.g., ~/docker-compose.yaml)" value="{{ config_path }}">
+                <button class="btn btn-sm btn-outline" onclick="loadFile()">Open</button>
+            </div>
+            <button id="console-save-btn" class="btn btn-sm btn-primary" onclick="saveFile()">{{ save() }} Save</button>
+        </div>
+        <div class="editor-wrapper">
+            <div id="console-editor" class="h-[32rem]"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let consoleTerminal = null;
+let consoleWs = null;
+let consoleEditor = null;
+let currentFilePath = null;
+let currentHost = null;
+
+function connectConsole() {
+    const hostSelect = document.getElementById('console-host-select');
+    const host = hostSelect.value;
+    const statusEl = document.getElementById('console-status');
+    const terminalEl = document.getElementById('console-terminal');
+
+    if (!host) {
+        statusEl.textContent = 'Please select a host';
+        return;
+    }
+
+    currentHost = host;
+
+    // Clean up existing connection
+    if (consoleWs) {
+        consoleWs.close();
+        consoleWs = null;
+    }
+    if (consoleTerminal) {
+        consoleTerminal.dispose();
+        consoleTerminal = null;
+    }
+
+    statusEl.textContent = 'Connecting...';
+
+    // Create WebSocket
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    consoleWs = new WebSocket(`${protocol}//${window.location.host}/ws/shell/${host}`);
+
+    // Resize callback
+    const sendSize = (cols, rows) => {
+        if (consoleWs && consoleWs.readyState === WebSocket.OPEN) {
+            consoleWs.send(JSON.stringify({ type: 'resize', cols, rows }));
+        }
+    };
+
+    // Create terminal with resize callback
+    const { term } = createTerminal(terminalEl, { cursorBlink: true }, sendSize);
+    consoleTerminal = term;
+
+    consoleWs.onopen = () => {
+        statusEl.textContent = `Connected to ${host}`;
+        sendSize(term.cols, term.rows);
+        term.focus();
+        // Auto-load the default file once editor is ready
+        const pathInput = document.getElementById('console-file-path');
+        if (pathInput && pathInput.value) {
+            const tryLoad = () => {
+                if (consoleEditor) {
+                    loadFile();
+                } else {
+                    setTimeout(tryLoad, 100);
+                }
+            };
+            tryLoad();
+        }
+    };
+
+    consoleWs.onmessage = (event) => term.write(event.data);
+
+    consoleWs.onclose = () => {
+        statusEl.textContent = 'Disconnected';
+        term.write('\r\n\x1b[2m[Connection closed]\x1b[0m\r\n');
+    };
+
+    consoleWs.onerror = (error) => {
+        statusEl.textContent = 'Connection error';
+        term.write('\x1b[31m[WebSocket Error]\x1b[0m\r\n');
+        console.error('Console WebSocket error:', error);
+    };
+
+    // Send input to WebSocket
+    term.onData((data) => {
+        if (consoleWs && consoleWs.readyState === WebSocket.OPEN) {
+            consoleWs.send(data);
+        }
+    });
+}
+
+function initConsoleEditor() {
+    const editorEl = document.getElementById('console-editor');
+    if (!editorEl || consoleEditor) return;
+
+    loadMonaco(() => {
+        consoleEditor = monaco.editor.create(editorEl, {
+            value: '# Select a file to edit\n# Enter a file path above and click "Open"',
+            language: 'plaintext',
+            theme: 'vs-dark',
+            minimap: { enabled: false },
+            automaticLayout: true,
+            scrollBeyondLastLine: false,
+            fontSize: 14,
+            lineNumbers: 'on',
+            wordWrap: 'on'
+        });
+
+        // Cmd+S to save
+        consoleEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveFile);
+    });
+}
+
+function getLanguageFromPath(path) {
+    const ext = path.split('.').pop().toLowerCase();
+    const langMap = {
+        'yaml': 'yaml', 'yml': 'yaml',
+        'json': 'json',
+        'js': 'javascript', 'mjs': 'javascript',
+        'ts': 'typescript', 'tsx': 'typescript',
+        'py': 'python',
+        'sh': 'shell', 'bash': 'shell',
+        'md': 'markdown',
+        'html': 'html', 'htm': 'html',
+        'css': 'css',
+        'sql': 'sql',
+        'toml': 'toml',
+        'ini': 'ini', 'conf': 'ini',
+        'dockerfile': 'dockerfile',
+        'env': 'plaintext'
+    };
+    return langMap[ext] || 'plaintext';
+}
+
+async function loadFile() {
+    const pathInput = document.getElementById('console-file-path');
+    const path = pathInput.value.trim();
+    const statusEl = document.getElementById('console-status');
+
+    if (!path) {
+        statusEl.textContent = 'Enter a file path';
+        return;
+    }
+
+    if (!currentHost) {
+        statusEl.textContent = 'Connect to a host first';
+        return;
+    }
+
+    statusEl.textContent = `Loading ${path}...`;
+
+    try {
+        const response = await fetch(`/api/console/file?host=${encodeURIComponent(currentHost)}&path=${encodeURIComponent(path)}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            statusEl.textContent = data.detail || 'Failed to load file';
+            return;
+        }
+
+        currentFilePath = path;
+        const language = getLanguageFromPath(path);
+
+        if (consoleEditor) {
+            consoleEditor.setValue(data.content);
+            monaco.editor.setModelLanguage(consoleEditor.getModel(), language);
+        }
+
+        statusEl.textContent = `Loaded: ${path}`;
+    } catch (e) {
+        statusEl.textContent = `Error: ${e.message}`;
+    }
+}
+
+async function saveFile() {
+    const statusEl = document.getElementById('console-status');
+
+    if (!currentFilePath) {
+        statusEl.textContent = 'No file loaded';
+        return;
+    }
+
+    if (!currentHost) {
+        statusEl.textContent = 'Not connected to a host';
+        return;
+    }
+
+    if (!consoleEditor) {
+        statusEl.textContent = 'Editor not ready';
+        return;
+    }
+
+    statusEl.textContent = `Saving ${currentFilePath}...`;
+
+    try {
+        const content = consoleEditor.getValue();
+        const response = await fetch(`/api/console/file?host=${encodeURIComponent(currentHost)}&path=${encodeURIComponent(currentFilePath)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'text/plain' },
+            body: content
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            statusEl.textContent = data.detail || 'Failed to save file';
+            return;
+        }
+
+        statusEl.textContent = `Saved: ${currentFilePath}`;
+    } catch (e) {
+        statusEl.textContent = `Error: ${e.message}`;
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', () => {
+    initConsoleEditor();
+    // Auto-connect to first host if available
+    const hostSelect = document.getElementById('console-host-select');
+    if (hostSelect && hostSelect.options.length > 0) {
+        connectConsole();
+    }
+});
+
+// Re-init after HTMX swap
+document.body.addEventListener('htmx:afterSwap', (evt) => {
+    if (evt.detail.target.id === 'main-content') {
+        // Re-init if we're on console page
+        if (window.location.pathname === '/console') {
+            consoleEditor = null;
+            initConsoleEditor();
+        }
+    }
+});
+</script>
+{% endblock %}

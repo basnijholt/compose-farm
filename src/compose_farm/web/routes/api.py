@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
+import shlex
 from typing import TYPE_CHECKING, Annotated, Any
 
+import asyncssh
 import yaml
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
-from compose_farm.executor import run_compose_on_host
+from compose_farm.executor import is_local, run_compose_on_host
 from compose_farm.paths import find_config_path
 from compose_farm.state import load_state
 from compose_farm.web.deps import get_config, get_templates
@@ -210,3 +213,123 @@ async def save_config(
     config_path.write_text(content)
 
     return {"success": True, "message": "Config saved"}
+
+
+async def _read_file_local(path: str) -> str:
+    """Read a file from the local filesystem."""
+    from pathlib import Path  # noqa: PLC0415
+
+    expanded = Path(path).expanduser()
+    loop = asyncio.get_event_loop()
+
+    def read_sync() -> str:
+        return expanded.read_text(encoding="utf-8")
+
+    return await loop.run_in_executor(None, read_sync)
+
+
+async def _write_file_local(path: str, content: str) -> None:
+    """Write content to a file on the local filesystem."""
+    from pathlib import Path  # noqa: PLC0415
+
+    expanded = Path(path).expanduser()
+    loop = asyncio.get_event_loop()
+
+    def write_sync() -> None:
+        expanded.write_text(content, encoding="utf-8")
+
+    await loop.run_in_executor(None, write_sync)
+
+
+async def _read_file_remote(host: Any, path: str) -> str:
+    """Read a file from a remote host via SSH."""
+    # Expand ~ on remote by using shell
+    cmd = f"cat {shlex.quote(path)}"
+    if path.startswith("~/"):
+        cmd = f"cat ~/{shlex.quote(path[2:])}"
+
+    async with asyncssh.connect(
+        host.address,
+        port=host.port,
+        username=host.user,
+        known_hosts=None,
+    ) as conn:
+        result = await conn.run(cmd, check=True)
+        stdout = result.stdout or ""
+        return stdout.decode() if isinstance(stdout, bytes) else stdout
+
+
+async def _write_file_remote(host: Any, path: str, content: str) -> None:
+    """Write content to a file on a remote host via SSH."""
+    # Expand ~ on remote by using shell
+    target_path = f"~/{path[2:]}" if path.startswith("~/") else path
+    cmd = f"cat > {shlex.quote(target_path)}"
+
+    async with asyncssh.connect(
+        host.address,
+        port=host.port,
+        username=host.user,
+        known_hosts=None,
+    ) as conn:
+        result = await conn.run(cmd, input=content, check=True)
+        if result.returncode != 0:
+            stderr = result.stderr.decode() if isinstance(result.stderr, bytes) else result.stderr
+            msg = f"Failed to write file: {stderr}"
+            raise RuntimeError(msg)
+
+
+@router.get("/console/file")
+async def read_console_file(
+    host: Annotated[str, Query(description="Host name")],
+    path: Annotated[str, Query(description="File path")],
+) -> dict[str, Any]:
+    """Read a file from a host for the console editor."""
+    config = get_config()
+    host_config = config.hosts.get(host)
+
+    if not host_config:
+        raise HTTPException(status_code=404, detail=f"Host '{host}' not found")
+
+    if not path:
+        raise HTTPException(status_code=400, detail="Path is required")
+
+    try:
+        if is_local(host_config):
+            content = await _read_file_local(path)
+        else:
+            content = await _read_file_remote(host_config, path)
+        return {"success": True, "content": content}
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail=f"File not found: {path}") from None
+    except PermissionError:
+        raise HTTPException(status_code=403, detail=f"Permission denied: {path}") from None
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.put("/console/file")
+async def write_console_file(
+    host: Annotated[str, Query(description="Host name")],
+    path: Annotated[str, Query(description="File path")],
+    content: Annotated[str, Body(media_type="text/plain")],
+) -> dict[str, Any]:
+    """Write a file to a host from the console editor."""
+    config = get_config()
+    host_config = config.hosts.get(host)
+
+    if not host_config:
+        raise HTTPException(status_code=404, detail=f"Host '{host}' not found")
+
+    if not path:
+        raise HTTPException(status_code=400, detail="Path is required")
+
+    try:
+        if is_local(host_config):
+            await _write_file_local(path, content)
+        else:
+            await _write_file_remote(host_config, path, content)
+        return {"success": True, "message": f"File saved: {path}"}
+    except PermissionError:
+        raise HTTPException(status_code=403, detail=f"Permission denied: {path}") from None
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e

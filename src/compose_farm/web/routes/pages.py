@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
+from compose_farm.executor import is_local
 from compose_farm.paths import find_config_path
 from compose_farm.state import (
     get_orphaned_services,
@@ -18,6 +19,38 @@ from compose_farm.state import (
 from compose_farm.web.deps import get_config, get_templates
 
 router = APIRouter()
+
+
+@router.get("/console", response_class=HTMLResponse)
+async def console(request: Request) -> HTMLResponse:
+    """Console page with terminal and editor."""
+    config = get_config()
+    templates = get_templates()
+
+    # Find local host and sort it first
+    local_host = None
+    for name, host in config.hosts.items():
+        if is_local(host):
+            local_host = name
+            break
+
+    # Sort hosts with local first
+    hosts = sorted(config.hosts.keys())
+    if local_host:
+        hosts = [local_host] + [h for h in hosts if h != local_host]
+
+    # Get config path for default editor file
+    config_path = str(config.config_path) if config.config_path else ""
+
+    return templates.TemplateResponse(
+        "console.html",
+        {
+            "request": request,
+            "hosts": hosts,
+            "local_host": local_host,
+            "config_path": config_path,
+        },
+    )
 
 
 @router.get("/", response_class=HTMLResponse)
