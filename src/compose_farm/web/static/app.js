@@ -17,6 +17,10 @@ const editors = {};
 let monacoLoaded = false;
 let monacoLoading = false;
 
+// LocalStorage key prefix for active tasks (scoped by page)
+const TASK_KEY_PREFIX = 'cf_task:';
+const getTaskKey = () => TASK_KEY_PREFIX + window.location.pathname;
+
 // Language detection from file path
 const LANGUAGE_MAP = {
     'yaml': 'yaml', 'yml': 'yaml',
@@ -131,11 +135,18 @@ function initTerminal(elementId, taskId) {
     const { term, fitAddon } = createTerminal(container);
     const ws = createWebSocket(`/ws/terminal/${taskId}`);
 
+    const taskKey = getTaskKey();
     ws.onopen = () => {
         term.write(`${ANSI.DIM}[Connected]${ANSI.RESET}${ANSI.CRLF}`);
         setTerminalLoading(true);
+        localStorage.setItem(taskKey, taskId);
     };
-    ws.onmessage = (event) => term.write(event.data);
+    ws.onmessage = (event) => {
+        term.write(event.data);
+        if (event.data.includes('[Done]') || event.data.includes('[Failed]')) {
+            localStorage.removeItem(taskKey);
+        }
+    };
     ws.onclose = () => setTerminalLoading(false);
     ws.onerror = (error) => {
         term.write(`${ANSI.RED}[WebSocket Error]${ANSI.RESET}${ANSI.CRLF}`);
@@ -407,10 +418,32 @@ function initPage() {
     initSaveButton();
 }
 
+/**
+ * Attempt to reconnect to an active task from localStorage
+ */
+function tryReconnectToTask() {
+    const taskId = localStorage.getItem(getTaskKey());
+    if (!taskId) return;
+
+    // Wait for xterm to be loaded
+    const tryInit = (attempts) => {
+        if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
+            expandTerminal();
+            initTerminal('terminal-output', taskId);
+        } else if (attempts > 0) {
+            setTimeout(() => tryInit(attempts - 1), 100);
+        }
+    };
+    tryInit(20);
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     initPage();
     initKeyboardShortcuts();
+
+    // Try to reconnect to any active task
+    tryReconnectToTask();
 
     // Handle ?action= parameter (from command palette navigation)
     const params = new URLSearchParams(window.location.search);
@@ -427,6 +460,8 @@ document.addEventListener('DOMContentLoaded', function() {
 document.body.addEventListener('htmx:afterSwap', function(evt) {
     if (evt.detail.target.id === 'main-content') {
         initPage();
+        // Try to reconnect when navigating back to dashboard
+        tryReconnectToTask();
     }
 });
 
