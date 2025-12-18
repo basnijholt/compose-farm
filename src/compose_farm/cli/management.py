@@ -59,7 +59,6 @@ def _discover_services(cfg: Config) -> dict[str, str | list[str]]:
         "Discovering",
         list(cfg.services),
         lambda s: discover_service_host(cfg, s),
-        get_description=lambda r: f"[cyan]{r[0]}[/]",
     )
     return {svc: host for svc, host in results if host is not None}
 
@@ -84,7 +83,6 @@ def _snapshot_services(
         "Capturing",
         services,
         collect_service,
-        get_description=lambda r: f"[cyan]{r[0]}[/]",
     )
     snapshot_entries = [entry for _, entries in results for entry in entries]
 
@@ -151,7 +149,6 @@ def _check_ssh_connectivity(cfg: Config) -> list[str]:
         "Checking SSH connectivity",
         remote_hosts,
         check_host,
-        get_description=lambda r: f"[cyan]{r[0]}[/]",
     )
     return [host for host, success in results if not success]
 
@@ -194,7 +191,6 @@ def _check_service_requirements(
         "Checking requirements",
         services,
         check_service,
-        get_description=lambda r: f"[cyan]{r[0]}[/]",
     )
 
     all_mount_errors: list[tuple[str, str, str]] = []

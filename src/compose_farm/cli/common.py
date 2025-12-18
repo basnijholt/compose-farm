@@ -93,15 +93,14 @@ def run_parallel_with_progress(
     label: str,
     items: list[_T],
     async_fn: Callable[[_T], Coroutine[None, None, _R]],
-    get_description: Callable[[_R], str] = lambda r: f"[cyan]{r}[/]",
 ) -> list[_R]:
     """Run async tasks in parallel with a progress bar.
 
     Args:
         label: Progress bar label (e.g., "Discovering", "Querying hosts")
         items: List of items to process
-        async_fn: Async function to call for each item, returns result
-        get_description: Function to extract description from result for progress bar
+        async_fn: Async function to call for each item, returns tuple where
+                  first element is used for progress description
 
     Returns:
         List of results from async_fn in completion order.
@@ -115,7 +114,7 @@ def run_parallel_with_progress(
             for coro in asyncio.as_completed(tasks):
                 result = await coro
                 results.append(result)
-                progress.update(task_id, advance=1, description=get_description(result))
+                progress.update(task_id, advance=1, description=f"[cyan]{result[0]}[/]")  # type: ignore[index]
             return results
 
     return asyncio.run(gather())

@@ -75,7 +75,6 @@ def _get_container_counts(cfg: Config) -> dict[str, int]:
         "Querying hosts",
         list(cfg.hosts.keys()),
         get_count,
-        get_description=lambda r: f"[cyan]{r[0]}[/]",
     )
     return dict(results)
 
