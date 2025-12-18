@@ -437,10 +437,27 @@ function tryReconnectToTask() {
     tryInit(20);
 }
 
+// Play intro animation on command palette button
+function playFabIntro() {
+    const fab = document.getElementById('cmd-fab');
+    if (!fab) return;
+    setTimeout(() => {
+        fab.style.setProperty('--cmd-bg-position', '0');
+        fab.style.setProperty('--cmd-before-opacity', '1');
+        fab.style.setProperty('--cmd-after-blur', '30');
+        setTimeout(() => {
+            fab.style.removeProperty('--cmd-bg-position');
+            fab.style.removeProperty('--cmd-before-opacity');
+            fab.style.removeProperty('--cmd-after-blur');
+        }, 3000);
+    }, 500);
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     initPage();
     initKeyboardShortcuts();
+    playFabIntro();
 
     // Try to reconnect to any active task
     tryReconnectToTask();
@@ -526,15 +543,6 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     const list = document.getElementById('cmd-list');
     const fab = document.getElementById('cmd-fab');
     if (!dialog || !input || !list) return;
-
-    // Play intro animation once per session to draw attention
-    if (fab && !sessionStorage.getItem('cmd-fab-intro-played')) {
-        fab.classList.add('cmd-fab-intro');
-        sessionStorage.setItem('cmd-fab-intro-played', '1');
-        fab.addEventListener('animationend', () => {
-            fab.classList.remove('cmd-fab-intro');
-        }, { once: true });
-    }
 
     // Load icons from template (rendered server-side from icons.html)
     const iconTemplate = document.getElementById('cmd-icons');
