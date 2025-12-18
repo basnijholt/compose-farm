@@ -481,9 +481,10 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         const filtered = commands.filter(c => c.name.toLowerCase().includes(q));
         selected = Math.max(0, Math.min(selected, filtered.length - 1));
 
+        const borderColors = { service: 'border-l-success', action: 'border-l-warning', nav: 'border-l-info' };
         list.innerHTML = filtered.map((c, i) => `
-            <a class="flex justify-between items-center px-3 py-2 rounded cursor-pointer hover:bg-base-200 ${i === selected ? 'bg-base-300' : ''}" data-idx="${i}">
-                <span><span class="opacity-50 text-xs mr-2">${c.type}</span>${c.name}</span>
+            <a class="flex justify-between items-center px-3 py-2 rounded-r cursor-pointer hover:bg-base-200 border-l-4 ${borderColors[c.type] || 'border-l-base-300'} ${i === selected ? 'bg-base-300' : ''}" data-idx="${i}">
+                <span>${c.name}</span>
                 <span class="opacity-40 text-xs">${c.desc}</span>
             </a>
         `).join('') || '<div class="opacity-50 p-2">No matches</div>';
