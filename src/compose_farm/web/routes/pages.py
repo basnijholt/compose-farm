@@ -5,6 +5,7 @@ from __future__ import annotations
 import yaml
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
+from pydantic import ValidationError
 
 from compose_farm.state import (
     get_orphaned_services,
@@ -21,22 +22,60 @@ router = APIRouter()
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
     """Dashboard page - combined view of all cluster info."""
-    config = get_config()
     templates = get_templates()
 
-    # Get state
-    deployed = load_state(config)
+    # Try to load config, handle errors gracefully
+    config_error = None
+    try:
+        config = get_config()
+    except (ValidationError, FileNotFoundError) as e:
+        # Extract error message
+        if isinstance(e, ValidationError):
+            config_error = "; ".join(err.get("msg", str(err)) for err in e.errors())
+        else:
+            config_error = str(e)
 
-    # Stats
+        # Read raw config content for the editor (find path manually)
+        import os  # noqa: PLC0415
+        from pathlib import Path  # noqa: PLC0415
+
+        from compose_farm.paths import xdg_config_home  # noqa: PLC0415
+
+        config_content = ""
+        for p in [
+            Path(os.environ.get("CF_CONFIG", "")),
+            Path("compose-farm.yaml"),
+            xdg_config_home() / "compose-farm" / "compose-farm.yaml",
+        ]:
+            if p.exists() and p.is_file():
+                config_content = p.read_text()
+                break
+
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "config_error": config_error,
+                "hosts": {},
+                "services": {},
+                "config_content": config_content,
+                "state_content": "",
+                "running_count": 0,
+                "stopped_count": 0,
+                "orphaned": [],
+                "migrations": [],
+                "not_started": [],
+                "services_by_host": {},
+            },
+        )
+
+    deployed = load_state(config)
     running_count = len(deployed)
     stopped_count = len(config.services) - running_count
-
-    # Pending operations
     orphaned = get_orphaned_services(config)
     migrations = get_services_needing_migration(config)
     not_started = get_services_not_in_state(config)
 
-    # Group services by host
     services_by_host: dict[str, list[str]] = {}
     for svc, host in deployed.items():
         if isinstance(host, list):
@@ -45,32 +84,26 @@ async def index(request: Request) -> HTMLResponse:
         else:
             services_by_host.setdefault(host, []).append(svc)
 
-    # Config file content
     config_content = ""
     if config.config_path and config.config_path.exists():
         config_content = config.config_path.read_text()
 
-    # State file content
     state_content = yaml.dump({"deployed": deployed}, default_flow_style=False, sort_keys=False)
 
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
-            # Config data
+            "config_error": None,
             "hosts": config.hosts,
             "services": config.services,
             "config_content": config_content,
-            # State data
             "state_content": state_content,
-            # Stats
             "running_count": running_count,
             "stopped_count": stopped_count,
-            # Pending operations
             "orphaned": orphaned,
             "migrations": migrations,
             "not_started": not_started,
-            # Services by host
             "services_by_host": services_by_host,
         },
     )
@@ -141,6 +174,23 @@ async def sidebar_partial(request: Request) -> HTMLResponse:
             "state": state,
         },
     )
+
+
+@router.get("/partials/config-error", response_class=HTMLResponse)
+async def config_error_partial(request: Request) -> HTMLResponse:
+    """Config error banner partial."""
+    templates = get_templates()
+    try:
+        get_config()
+        return HTMLResponse("")  # No error
+    except (ValidationError, FileNotFoundError) as e:
+        if isinstance(e, ValidationError):
+            error = "; ".join(err.get("msg", str(err)) for err in e.errors())
+        else:
+            error = str(e)
+        return templates.TemplateResponse(
+            "partials/config_error.html", {"request": request, "config_error": error}
+        )
 
 
 @router.get("/partials/stats", response_class=HTMLResponse)

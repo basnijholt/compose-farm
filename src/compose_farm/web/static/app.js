@@ -179,6 +179,7 @@ function refreshDashboard() {
     htmx.ajax('GET', '/partials/stats', {target: '#stats-cards', swap: 'outerHTML'});
     htmx.ajax('GET', `/partials/pending?expanded=${isExpanded('pending-collapse')}`, {target: '#pending-operations', swap: 'outerHTML'});
     htmx.ajax('GET', `/partials/services-by-host?expanded=${isExpanded('services-by-host-collapse')}`, {target: '#services-by-host', swap: 'outerHTML'});
+    htmx.ajax('GET', '/partials/config-error', {target: '#config-error', swap: 'innerHTML'});
 }
 
 /**
@@ -309,7 +310,7 @@ async function saveAllEditors() {
                 body: content
             });
             const data = await response.json();
-            if (!data.success) {
+            if (!response.ok || !data.success) {
                 results.push({ id, success: false, error: data.detail || 'Unknown error' });
             } else {
                 results.push({ id, success: true });
@@ -320,13 +321,9 @@ async function saveAllEditors() {
     }
 
     // Show result
-    const errors = results.filter(r => !r.success);
-    if (errors.length > 0) {
-        alert('Errors saving:\n' + errors.map(e => `${e.id}: ${e.error}`).join('\n'));
-    } else if (saveBtn && results.length > 0) {
+    if (saveBtn && results.length > 0) {
         saveBtn.textContent = 'Saved!';
         setTimeout(() => saveBtn.textContent = saveBtn.id === 'save-config-btn' ? 'Save Config' : 'Save All', 2000);
-
         refreshDashboard();
     }
 }

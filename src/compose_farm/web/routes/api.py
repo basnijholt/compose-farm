@@ -200,12 +200,26 @@ async def save_config(
     content: Annotated[str, Body(media_type="text/plain")],
 ) -> dict[str, Any]:
     """Save compose-farm.yaml config file."""
-    config = get_config()
+    import os  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
 
-    if not config.config_path:
-        raise HTTPException(status_code=404, detail="Config path not set")
+    from compose_farm.paths import xdg_config_home  # noqa: PLC0415
+
+    # Find config path (works even if current config is invalid)
+    config_path = None
+    for p in [
+        Path(os.environ.get("CF_CONFIG", "")),
+        Path("compose-farm.yaml"),
+        xdg_config_home() / "compose-farm" / "compose-farm.yaml",
+    ]:
+        if p.exists() and p.is_file():
+            config_path = p
+            break
+
+    if not config_path:
+        raise HTTPException(status_code=404, detail="Config file not found")
 
     _validate_yaml(content)
-    config.config_path.write_text(content)
+    config_path.write_text(content)
 
     return {"success": True, "message": "Config saved"}

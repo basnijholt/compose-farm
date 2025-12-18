@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import sys
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
 
 from compose_farm.web.deps import STATIC_DIR, get_config
 from compose_farm.web.routes import actions, api, pages
@@ -19,8 +20,9 @@ if TYPE_CHECKING:
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler."""
-    # Startup: pre-load config
-    get_config()
+    # Startup: pre-load config (ignore errors - handled per-request)
+    with suppress(ValidationError, FileNotFoundError):
+        get_config()
     yield
     # Shutdown: nothing to clean up
 

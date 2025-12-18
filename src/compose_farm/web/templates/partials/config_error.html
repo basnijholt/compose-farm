@@ -1,0 +1,8 @@
+{% from "partials/icons.html" import alert_triangle %}
+<div class="alert alert-error mb-4">
+    {{ alert_triangle(size=20) }}
+    <div>
+        <h3 class="font-bold">Configuration Error</h3>
+        <div class="text-sm">{{ config_error }}</div>
+    </div>
+</div>
