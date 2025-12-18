@@ -17,19 +17,7 @@
 .editor-wrapper.env-wrapper { height: 250px; }
 .editor-wrapper.viewer-wrapper { height: 300px; }
 
-/* Terminal - make xterm fill and resize with container */
-#terminal-container {
-    display: flex;
-    flex-direction: column;
-}
-
-#terminal-output {
-    flex: 1;
-}
-
-#terminal-output .xterm {
-    height: 100%;
-}
+/* Terminal - no custom CSS needed, using h-full class in HTML */
 
 /* Prevent save button resize when text changes */
 #save-btn, #save-config-btn {
