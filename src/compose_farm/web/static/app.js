@@ -101,6 +101,17 @@ function initTerminal(elementId, taskId) {
 window.initTerminal = initTerminal;
 
 /**
+ * Refresh dashboard partials while preserving collapse states
+ */
+function refreshDashboard() {
+    const isExpanded = (id) => document.getElementById(id)?.checked ?? true;
+    htmx.ajax('GET', '/partials/sidebar', {target: '#sidebar nav', swap: 'innerHTML'});
+    htmx.ajax('GET', '/partials/stats', {target: '#stats-cards', swap: 'outerHTML'});
+    htmx.ajax('GET', `/partials/pending?expanded=${isExpanded('pending-collapse')}`, {target: '#pending-operations', swap: 'outerHTML'});
+    htmx.ajax('GET', `/partials/services-by-host?expanded=${isExpanded('services-by-host-collapse')}`, {target: '#services-by-host', swap: 'outerHTML'});
+}
+
+/**
  * Load Monaco editor dynamically (only once)
  */
 function loadMonaco(callback) {
@@ -246,11 +257,7 @@ async function saveAllEditors() {
         saveBtn.textContent = 'Saved!';
         setTimeout(() => saveBtn.textContent = saveBtn.id === 'save-config-btn' ? 'Save Config' : 'Save All', 2000);
 
-        // Refresh sidebar to show updated services
-        const sidebar = document.querySelector('#sidebar nav');
-        if (sidebar) {
-            htmx.ajax('GET', '/partials/sidebar', {target: '#sidebar nav', swap: 'innerHTML'});
-        }
+        refreshDashboard();
     }
 }
 
