@@ -411,6 +411,16 @@ function initPage() {
 document.addEventListener('DOMContentLoaded', function() {
     initPage();
     initKeyboardShortcuts();
+
+    // Handle ?action= parameter (from command palette navigation)
+    const params = new URLSearchParams(window.location.search);
+    const action = params.get('action');
+    if (action && window.location.pathname === '/') {
+        // Clear the URL parameter
+        history.replaceState({}, '', '/');
+        // Trigger the action
+        htmx.ajax('POST', `/api/${action}`, {swap: 'none'});
+    }
 });
 
 // Re-initialize after HTMX swaps main content
@@ -491,21 +501,29 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         });
     }
 
-    const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6' };
+    const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6', app: '#a855f7' };
     let commands = [];
     let filtered = [];
     let selected = 0;
 
     const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
     const nav = (url) => () => window.location.href = url;
+    // Navigate to dashboard and trigger action (or just POST if already on dashboard)
+    const dashboardAction = (endpoint) => () => {
+        if (window.location.pathname === '/') {
+            htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
+        } else {
+            window.location.href = `/?action=${endpoint}`;
+        }
+    };
     const cmd = (type, name, desc, action, icon = null) => ({ type, name, desc, action, icon });
 
     function buildCommands() {
         const actions = [
-            cmd('action', 'Apply', 'Make reality match config', post('/api/apply'), icons.check),
-            cmd('action', 'Refresh', 'Update state from reality', post('/api/refresh'), icons.refresh_cw),
-            cmd('nav', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
-            cmd('nav', 'Console', 'Go to console', nav('/console'), icons.terminal),
+            cmd('action', 'Apply', 'Make reality match config', dashboardAction('apply'), icons.check),
+            cmd('action', 'Refresh', 'Update state from reality', dashboardAction('refresh'), icons.refresh_cw),
+            cmd('app', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
+            cmd('app', 'Console', 'Go to console', nav('/console'), icons.terminal),
         ];
 
         // Add service-specific actions if on a service page
@@ -545,6 +563,9 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
                 <span class="opacity-40 text-xs">${c.desc}</span>
             </a>
         `).join('') || '<div class="opacity-50 p-2">No matches</div>';
+        // Scroll selected item into view
+        const sel = list.querySelector(`[data-idx="${selected}"]`);
+        if (sel) sel.scrollIntoView({ block: 'nearest' });
     }
 
     function open() {
