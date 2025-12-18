@@ -18,7 +18,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from compose_farm.executor import is_local
 from compose_farm.web.deps import get_config
-from compose_farm.web.streaming import CRLF, DIM, GREEN, RED, RESET, tasks
+from compose_farm.web.streaming import CRLF, DIM, GREEN, RED, RESET, _get_ssh_auth_sock, tasks
 
 if TYPE_CHECKING:
     from compose_farm.config import Host
@@ -141,13 +141,20 @@ async def _run_local_exec(websocket: WebSocket, exec_cmd: str) -> None:
     await _bridge_websocket_to_fd(websocket, master_fd, proc)
 
 
-async def _run_remote_exec(websocket: WebSocket, host: Host, exec_cmd: str) -> None:
+async def _run_remote_exec(
+    websocket: WebSocket, host: Host, exec_cmd: str, *, agent_forwarding: bool = False
+) -> None:
     """Run docker exec on remote host via SSH with PTY."""
+    # Get SSH agent socket for authentication
+    agent_path = _get_ssh_auth_sock()
+
     async with asyncssh.connect(
         host.address,
         port=host.port,
         username=host.user,
         known_hosts=None,
+        agent_forwarding=agent_forwarding,
+        agent_path=agent_path,
     ) as conn:
         proc: asyncssh.SSHClientProcess[Any] = await conn.create_process(
             exec_cmd,
@@ -191,6 +198,48 @@ async def exec_websocket(
     try:
         await websocket.send_text(f"{DIM}[Connecting to {container} on {host}...]{RESET}{CRLF}")
         await _run_exec_session(websocket, container, host)
+        await websocket.send_text(f"{CRLF}{DIM}[Disconnected]{RESET}{CRLF}")
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        with contextlib.suppress(Exception):
+            await websocket.send_text(f"{RED}Error: {e}{RESET}{CRLF}")
+    finally:
+        with contextlib.suppress(Exception):
+            await websocket.close()
+
+
+async def _run_shell_session(
+    websocket: WebSocket,
+    host_name: str,
+) -> None:
+    """Run an interactive shell session on a host over WebSocket."""
+    config = get_config()
+    host = config.hosts.get(host_name)
+    if not host:
+        await websocket.send_text(f"{RED}Host '{host_name}' not found{RESET}{CRLF}")
+        return
+
+    # Start interactive shell in home directory (avoid login shell to prevent job control warnings)
+    shell_cmd = "cd ~ && exec bash -i 2>/dev/null || exec sh -i"
+
+    if is_local(host):
+        await _run_local_exec(websocket, shell_cmd)
+    else:
+        await _run_remote_exec(websocket, host, shell_cmd, agent_forwarding=True)
+
+
+@router.websocket("/ws/shell/{host}")
+async def shell_websocket(
+    websocket: WebSocket,
+    host: str,
+) -> None:
+    """WebSocket endpoint for interactive host shell access."""
+    await websocket.accept()
+
+    try:
+        await websocket.send_text(f"{DIM}[Connecting to {host}...]{RESET}{CRLF}")
+        await _run_shell_session(websocket, host)
         await websocket.send_text(f"{CRLF}{DIM}[Disconnected]{RESET}{CRLF}")
     except WebSocketDisconnect:
         pass
