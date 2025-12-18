@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from functools import lru_cache
 from pathlib import Path
@@ -13,6 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
     from compose_farm.config import Config
 
 # Paths
@@ -24,7 +25,7 @@ STATIC_DIR = WEB_DIR / "static"
 @lru_cache
 def get_config() -> Config:
     """Load config once per process (cached)."""
-    from compose_farm.config import load_config
+    from compose_farm.config import load_config  # noqa: PLC0415
 
     return load_config()
 
@@ -60,9 +61,9 @@ def create_app() -> FastAPI:
     # Mount static files
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
-    # Import and include routers
-    from compose_farm.web.routes import actions, api, pages
-    from compose_farm.web.ws import router as ws_router
+    # Import routers here to avoid circular imports
+    from compose_farm.web.routes import actions, api, pages  # noqa: PLC0415
+    from compose_farm.web.ws import router as ws_router  # noqa: PLC0415
 
     app.include_router(pages.router)
     app.include_router(api.router, prefix="/api")

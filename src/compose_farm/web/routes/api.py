@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import contextlib
 import json
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import yaml
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import HTMLResponse
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from compose_farm.executor import run_compose_on_host
 from compose_farm.state import load_state
@@ -174,7 +176,7 @@ async def get_containers(name: str, host: str | None = None) -> HTMLResponse:
 
 @router.put("/service/{name}/compose")
 async def save_compose(
-    name: str, content: str = Body(..., media_type="text/plain")
+    name: str, content: Annotated[str, Body(media_type="text/plain")]
 ) -> dict[str, Any]:
     """Save compose file content."""
     compose_path = _get_service_compose_path(name)
@@ -184,7 +186,9 @@ async def save_compose(
 
 
 @router.put("/service/{name}/env")
-async def save_env(name: str, content: str = Body(..., media_type="text/plain")) -> dict[str, Any]:
+async def save_env(
+    name: str, content: Annotated[str, Body(media_type="text/plain")]
+) -> dict[str, Any]:
     """Save .env file content."""
     env_path = _get_service_compose_path(name).parent / ".env"
     env_path.write_text(content)
@@ -193,7 +197,7 @@ async def save_env(name: str, content: str = Body(..., media_type="text/plain"))
 
 @router.put("/config")
 async def save_config(
-    content: str = Body(..., media_type="text/plain"),
+    content: Annotated[str, Body(media_type="text/plain")],
 ) -> dict[str, Any]:
     """Save compose-farm.yaml config file."""
     config = get_config()

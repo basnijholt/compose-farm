@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import Callable, Coroutine
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Coroutine
 
 from compose_farm.web.app import get_config
 from compose_farm.web.streaming import run_cli_streaming, run_compose_streaming, tasks
