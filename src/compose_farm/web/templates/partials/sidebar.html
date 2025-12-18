@@ -1,7 +1,8 @@
+{% from "partials/icons.html" import home %}
 <!-- Dashboard Link -->
 <div class="mb-4">
     <ul class="menu" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
-        <li><a href="/" class="font-semibold"><span class="font-mono opacity-60">~</span> Dashboard</a></li>
+        <li><a href="/" class="font-semibold">{{ home() }} Dashboard</a></li>
     </ul>
 </div>
 

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/components.html" import page_header, collapse, stat_card, table, action_btn %}
+{% from "partials/icons.html" import check, refresh_cw, save, settings, server, database %}
 {% block title %}Dashboard - Compose Farm{% endblock %}
 
 {% block content %}
@@ -11,15 +12,15 @@
 
     <!-- Global Actions -->
     <div class="flex flex-wrap gap-2 mb-6">
-        {{ action_btn("Apply", "/api/apply", "primary", "Make reality match config") }}
-        {{ action_btn("Refresh", "/api/refresh", "outline", "Update state from reality") }}
-        <button id="save-config-btn" class="btn btn-outline">Save Config</button>
+        {{ action_btn("Apply", "/api/apply", "primary", "Make reality match config", check()) }}
+        {{ action_btn("Refresh", "/api/refresh", "outline", "Update state from reality", refresh_cw()) }}
+        <button id="save-config-btn" class="btn btn-outline">{{ save() }} Save Config</button>
     </div>
 
     {% include "partials/terminal.html" %}
 
     <!-- Config Editor -->
-    {% call collapse("Edit Config", badge="compose-farm.yaml") %}
+    {% call collapse("Edit Config", badge="compose-farm.yaml", icon=settings()) %}
         <div class="editor-wrapper yaml-wrapper">
             <div id="config-editor" class="yaml-editor" data-content="{{ config_content | e }}" data-save-url="/api/config"></div>
         </div>
@@ -32,7 +33,7 @@
     {% include "partials/services_by_host.html" %}
 
     <!-- Hosts Configuration -->
-    {% call collapse("Hosts (" ~ (hosts | length) ~ ")") %}
+    {% call collapse("Hosts (" ~ (hosts | length) ~ ")", icon=server()) %}
         {% call table() %}
             <thead>
                 <tr>
@@ -56,7 +57,7 @@
     {% endcall %}
 
     <!-- State Viewer -->
-    {% call collapse("Raw State", badge="compose-farm-state.yaml") %}
+    {% call collapse("Raw State", badge="compose-farm-state.yaml", icon=database()) %}
         <div class="editor-wrapper viewer-wrapper">
             <div id="state-viewer" class="yaml-viewer" data-content="{{ state_content | e }}"></div>
         </div>
