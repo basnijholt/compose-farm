@@ -23,6 +23,9 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
   - [Best practices](#best-practices)
   - [What Compose Farm doesn't do](#what-compose-farm-doesnt-do)
 - [Installation](#installation)
+- [SSH Authentication](#ssh-authentication)
+  - [SSH Agent (default)](#ssh-agent-default)
+  - [Dedicated SSH Key (recommended for Docker/Web UI)](#dedicated-ssh-key-recommended-for-dockerweb-ui)
 - [Configuration](#configuration)
   - [Multi-Host Services](#multi-host-services)
   - [Config Command](#config-command)
@@ -156,6 +159,56 @@ docker run --rm \
   -v ./compose-farm.yaml:/root/.config/compose-farm/compose-farm.yaml:ro \
   ghcr.io/basnijholt/compose-farm up --all
 ```
+
+</details>
+
+## SSH Authentication
+
+Compose Farm uses SSH to run commands on remote hosts. There are two authentication methods:
+
+### SSH Agent (default)
+
+Works out of the box if you have an SSH agent running with your keys loaded:
+
+```bash
+# Verify your agent has keys
+ssh-add -l
+
+# Run compose-farm commands
+cf up --all
+```
+
+### Dedicated SSH Key (recommended for Docker/Web UI)
+
+When running compose-farm in Docker, the SSH agent connection can be lost (e.g., after container restart). The `cf ssh` command sets up a dedicated key that persists:
+
+```bash
+# Generate key and copy to all configured hosts
+cf ssh setup
+
+# Check status
+cf ssh status
+```
+
+This creates `~/.ssh/compose-farm` (ED25519, no passphrase) and copies the public key to each host's `authorized_keys`. Compose Farm tries the SSH agent first, then falls back to this key.
+
+<details><summary>🐳 Docker volume options for SSH keys</summary>
+
+When running in Docker, mount a volume to persist the SSH keys:
+
+**Option 1: Named volume (default)**
+```yaml
+volumes:
+  - cf-ssh:/root/.ssh
+```
+
+**Option 2: Host path (easier to backup/inspect)**
+```yaml
+volumes:
+  - ~/.ssh/compose-farm:/root/.ssh
+```
+
+Run `cf ssh setup` once after starting the container (while the SSH agent still works), and the keys will persist across restarts.
 
 </details>
 
