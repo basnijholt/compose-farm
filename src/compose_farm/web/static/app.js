@@ -17,8 +17,9 @@ const editors = {};
 let monacoLoaded = false;
 let monacoLoading = false;
 
-// LocalStorage key for active task
-const ACTIVE_TASK_KEY = 'cf_active_task';
+// LocalStorage key prefix for active tasks (scoped by page)
+const TASK_KEY_PREFIX = 'cf_task:';
+const getTaskKey = () => TASK_KEY_PREFIX + window.location.pathname;
 
 // Language detection from file path
 const LANGUAGE_MAP = {
@@ -134,15 +135,16 @@ function initTerminal(elementId, taskId) {
     const { term, fitAddon } = createTerminal(container);
     const ws = createWebSocket(`/ws/terminal/${taskId}`);
 
+    const taskKey = getTaskKey();
     ws.onopen = () => {
         term.write(`${ANSI.DIM}[Connected]${ANSI.RESET}${ANSI.CRLF}`);
         setTerminalLoading(true);
-        localStorage.setItem(ACTIVE_TASK_KEY, taskId);
+        localStorage.setItem(taskKey, taskId);
     };
     ws.onmessage = (event) => {
         term.write(event.data);
         if (event.data.includes('[Done]') || event.data.includes('[Failed]')) {
-            localStorage.removeItem(ACTIVE_TASK_KEY);
+            localStorage.removeItem(taskKey);
         }
     };
     ws.onclose = () => setTerminalLoading(false);
@@ -150,7 +152,7 @@ function initTerminal(elementId, taskId) {
         term.write(`${ANSI.RED}[WebSocket Error]${ANSI.RESET}${ANSI.CRLF}`);
         console.error('WebSocket error:', error);
         setTerminalLoading(false);
-        localStorage.removeItem(ACTIVE_TASK_KEY);
+        localStorage.removeItem(taskKey);
     };
 
     terminals[taskId] = { term, ws, fitAddon };
@@ -421,9 +423,9 @@ function initPage() {
  * Attempt to reconnect to an active task from localStorage
  */
 function tryReconnectToTask() {
-    const taskId = localStorage.getItem(ACTIVE_TASK_KEY);
-    // Only reconnect on the dashboard
-    if (!taskId || window.location.pathname !== '/') return;
+    const taskKey = getTaskKey();
+    const taskId = localStorage.getItem(taskKey);
+    if (!taskId || !document.getElementById('terminal-output')) return;
 
     // Wait for xterm to be loaded
     const tryInit = (attempts) => {
@@ -433,7 +435,7 @@ function tryReconnectToTask() {
         } else if (attempts > 0) {
             setTimeout(() => tryInit(attempts - 1), 100);
         } else {
-            localStorage.removeItem(ACTIVE_TASK_KEY);
+            localStorage.removeItem(taskKey);
         }
     };
     tryInit(20);
