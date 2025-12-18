@@ -10,7 +10,13 @@ import typer
 from compose_farm.cli.app import app
 from compose_farm.cli.common import ConfigOption, load_config_or_exit
 from compose_farm.console import console, err_console
-from compose_farm.ssh_keys import SSH_KEY_PATH, SSH_PUBKEY_PATH, get_pubkey_content, key_exists
+from compose_farm.ssh_keys import (
+    SSH_KEY_PATH,
+    SSH_PUBKEY_PATH,
+    get_pubkey_content,
+    get_ssh_env,
+    key_exists,
+)
 
 _DEFAULT_SSH_PORT = 22
 _PUBKEY_DISPLAY_THRESHOLD = 60
@@ -100,7 +106,7 @@ def _copy_key_to_host(host_name: str, address: str, user: str, port: int) -> boo
 
     try:
         # Don't capture output so user can see password prompt
-        result = subprocess.run(cmd, check=False)
+        result = subprocess.run(cmd, check=False, env=get_ssh_env())
         if result.returncode == 0:
             console.print(f"[green]Key copied to {host_name}[/]")
             return True
@@ -259,7 +265,9 @@ def ssh_status(  # noqa: PLR0912 - branches are clear and readable
         cmd.extend([f"{host.user}@{host.address}", "echo ok"])
 
         try:
-            result = subprocess.run(cmd, check=False, capture_output=True, timeout=10)
+            result = subprocess.run(
+                cmd, check=False, capture_output=True, timeout=10, env=get_ssh_env()
+            )
             if result.returncode == 0:
                 table.add_row(host_name, target, "[green]OK[/]")
             else:

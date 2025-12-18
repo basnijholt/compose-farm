@@ -17,16 +17,9 @@ import asyncssh
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from compose_farm.executor import is_local, ssh_connect_kwargs
+from compose_farm.ssh_keys import get_ssh_auth_sock
 from compose_farm.web.deps import get_config
-from compose_farm.web.streaming import (
-    CRLF,
-    DIM,
-    GREEN,
-    RED,
-    RESET,
-    _get_ssh_auth_sock,
-    tasks,
-)
+from compose_farm.web.streaming import CRLF, DIM, GREEN, RED, RESET, tasks
 
 if TYPE_CHECKING:
     from compose_farm.config import Host
@@ -164,7 +157,7 @@ async def _run_remote_exec(
 ) -> None:
     """Run docker exec on remote host via SSH with PTY."""
     # Get SSH agent socket for authentication
-    agent_path = _get_ssh_auth_sock()
+    agent_path = get_ssh_auth_sock()
     # Note: ssh_connect_kwargs includes client_keys fallback for when agent is unavailable
 
     async with asyncssh.connect(

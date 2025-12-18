@@ -180,7 +180,7 @@ async def _run_ssh_command(
             "LogLevel=ERROR",  # Suppress warnings about known_hosts
         ]
         # Add key file if it exists (fallback for when agent is unavailable)
-        from compose_farm.ssh_keys import get_key_path  # noqa: PLC0415
+        from compose_farm.ssh_keys import get_key_path, get_ssh_env  # noqa: PLC0415
 
         key_path = get_key_path()
         if key_path:
@@ -189,7 +189,8 @@ async def _run_ssh_command(
             ssh_args.extend(["-p", str(host.port)])
         ssh_args.extend([f"{host.user}@{host.address}", command])
         # Run in thread to avoid blocking the event loop
-        result = await asyncio.to_thread(subprocess.run, ssh_args, check=False)
+        # Use get_ssh_env() to auto-detect SSH agent socket
+        result = await asyncio.to_thread(subprocess.run, ssh_args, check=False, env=get_ssh_env())
         return CommandResult(
             service=service,
             exit_code=result.returncode,
