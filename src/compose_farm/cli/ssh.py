@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
 from compose_farm.cli.app import app
-from compose_farm.cli.common import ConfigOption, load_config_or_exit
+from compose_farm.cli.common import ConfigOption, load_config_or_exit, run_parallel_with_progress
 from compose_farm.console import console, err_console
 from compose_farm.executor import run_command
+
+if TYPE_CHECKING:
+    from compose_farm.config import Host
+
 from compose_farm.ssh_keys import (
     SSH_KEY_PATH,
     SSH_PUBKEY_PATH,
@@ -234,14 +238,9 @@ def ssh_status(
         console.print("  [dim]No remote hosts configured[/]")
         return
 
-    table = Table(show_header=True, header_style="bold")
-    table.add_column("Host")
-    table.add_column("Address")
-    table.add_column("Status")
-
-    async def check_host(host_name: str) -> tuple[str, str, str]:
+    async def check_host(item: tuple[str, Host]) -> tuple[str, str, str]:
         """Check connectivity to a single host."""
-        host = remote_hosts[host_name]
+        host_name, host = item
         target = f"{host.user}@{host.address}"
         if host.port != _DEFAULT_SSH_PORT:
             target += f":{host.port}"
@@ -259,13 +258,21 @@ def ssh_status(
 
         return host_name, target, status
 
-    async def check_all_hosts() -> list[tuple[str, str, str]]:
-        """Check all hosts in parallel."""
-        tasks = [check_host(name) for name in remote_hosts]
-        return await asyncio.gather(*tasks)
+    # Check connectivity in parallel with progress bar
+    results = run_parallel_with_progress(
+        "Checking hosts",
+        list(remote_hosts.items()),
+        check_host,
+    )
 
-    results = asyncio.run(check_all_hosts())
-    for host_name, target, status in results:
+    # Build table from results
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Host")
+    table.add_column("Address")
+    table.add_column("Status")
+
+    # Sort by host name for consistent order
+    for host_name, target, status in sorted(results, key=lambda r: r[0]):
         table.add_row(host_name, target, status)
 
     console.print(table)
