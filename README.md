@@ -208,7 +208,13 @@ volumes:
   - cf-ssh:/root/.ssh
 ```
 
-Run `cf ssh setup` once after starting the container (while the SSH agent still works), and the keys will persist across restarts.
+Run setup once after starting the container (while the SSH agent still works):
+
+```bash
+docker compose exec web cf ssh setup
+```
+
+The keys will persist across restarts.
 
 </details>
 
