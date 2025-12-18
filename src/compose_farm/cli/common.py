@@ -144,17 +144,45 @@ def get_services(
     services: list[str],
     all_services: bool,
     config_path: Path | None,
+    *,
+    host: str | None = None,
+    default_all: bool = False,
 ) -> tuple[list[str], Config]:
     """Resolve service list and load config.
 
+    Handles three mutually exclusive selection methods:
+    - Explicit service names
+    - --all flag
+    - --host filter
+
+    Args:
+        services: Explicit service names
+        all_services: Whether --all was specified
+        config_path: Path to config file
+        host: Filter to services on this host
+        default_all: If True, default to all services when nothing specified (for ps)
+
     Supports "." as shorthand for the current directory name.
+
     """
+    validate_service_selection(services, all_services, host)
     config = load_config_or_exit(config_path)
+
+    if host is not None:
+        validate_host(config, host)
+        svc_list = [s for s in config.services if host in config.get_hosts(s)]
+        if not svc_list:
+            print_warning(f"No services configured for host [magenta]{host}[/]")
+            raise typer.Exit(0)
+        return svc_list, config
 
     if all_services:
         return list(config.services.keys()), config
+
     if not services:
-        print_error("Specify services or use [bold]--all[/]")
+        if default_all:
+            return list(config.services.keys()), config
+        print_error("Specify services or use [bold]--all[/] / [bold]--host[/]")
         raise typer.Exit(1)
 
     # Resolve "." to current directory name

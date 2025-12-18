@@ -21,10 +21,8 @@ from compose_farm.cli.common import (
     maybe_regenerate_traefik,
     report_results,
     run_async,
-    validate_host,
-    validate_service_selection,
 )
-from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success, print_warning
+from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success
 from compose_farm.executor import run_on_services, run_sequential_on_services
 from compose_farm.operations import stop_orphaned_services, up_services
 from compose_farm.state import (
@@ -44,30 +42,7 @@ def up(
     config: ConfigOption = None,
 ) -> None:
     """Start services (docker compose up -d). Auto-migrates if host changed."""
-    validate_service_selection(services, all_services, host)
-    cfg = load_config_or_exit(config)
-
-    # Determine service list based on selection method
-    if host is not None:
-        validate_host(cfg, host)
-        svc_list = [s for s in cfg.services if host in cfg.get_hosts(s)]
-        if not svc_list:
-            print_warning(f"No services configured for host [magenta]{host}[/]")
-            return
-    elif all_services:
-        svc_list = list(cfg.services.keys())
-    elif services:
-        # Validate services exist
-        missing = [s for s in services if s not in cfg.services]
-        if missing:
-            print_error(f"Unknown services: {', '.join(missing)}")
-            raise typer.Exit(1)
-        svc_list = list(services)
-    else:
-        print_error("Specify services or use [bold]--all[/] / [bold]--host[/]")
-        raise typer.Exit(1)
-
-    # Normal operation: use up_services with migration logic
+    svc_list, cfg = get_services(services or [], all_services, config, host=host)
     results = run_async(up_services(cfg, svc_list, raw=True))
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
@@ -110,32 +85,7 @@ def down(
         report_results(results)
         return
 
-    validate_service_selection(services, all_services, host)
-    cfg = load_config_or_exit(config)
-
-    # Determine service list based on selection method
-    if host is not None:
-        validate_host(cfg, host)
-        svc_list = [s for s in cfg.services if host in cfg.get_hosts(s)]
-        if not svc_list:
-            print_warning(f"No services configured for host [magenta]{host}[/]")
-            return
-    elif all_services:
-        svc_list = list(cfg.services.keys())
-    elif services:
-        # Validate services exist
-        missing = [s for s in services if s not in cfg.services]
-        if missing:
-            print_error(f"Unknown services: {', '.join(missing)}")
-            raise typer.Exit(1)
-        svc_list = list(services)
-    else:
-        print_error(
-            "Specify services or use [bold]--all[/] / [bold]--host[/] / [bold]--orphaned[/]"
-        )
-        raise typer.Exit(1)
-
-    # Normal operation
+    svc_list, cfg = get_services(services or [], all_services, config, host=host)
     raw = len(svc_list) == 1
     results = run_async(run_on_services(cfg, svc_list, "down", raw=raw))
 
