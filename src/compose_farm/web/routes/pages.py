@@ -18,7 +18,7 @@ from compose_farm.web.app import get_config, get_templates
 router = APIRouter()
 
 
-@router.get("/", response_class=HTMLResponse)  # type: ignore[misc]
+@router.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
     """Dashboard page - combined view of all cluster info."""
     config = get_config()
@@ -78,7 +78,7 @@ async def index(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/service/{name}", response_class=HTMLResponse)  # type: ignore[misc]
+@router.get("/service/{name}", response_class=HTMLResponse)
 async def service_detail(request: Request, name: str) -> HTMLResponse:
     """Service detail page."""
     config = get_config()
@@ -120,7 +120,7 @@ async def service_detail(request: Request, name: str) -> HTMLResponse:
     )
 
 
-@router.get("/partials/sidebar", response_class=HTMLResponse)  # type: ignore[misc]
+@router.get("/partials/sidebar", response_class=HTMLResponse)
 async def sidebar_partial(request: Request) -> HTMLResponse:
     """Sidebar service list partial."""
     config = get_config()
@@ -138,7 +138,7 @@ async def sidebar_partial(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/partials/stats", response_class=HTMLResponse)  # type: ignore[misc]
+@router.get("/partials/stats", response_class=HTMLResponse)
 async def stats_partial(request: Request) -> HTMLResponse:
     """Stats cards partial."""
     config = get_config()
@@ -160,7 +160,7 @@ async def stats_partial(request: Request) -> HTMLResponse:
     )
 
 
-@router.get("/partials/pending", response_class=HTMLResponse)  # type: ignore[misc]
+@router.get("/partials/pending", response_class=HTMLResponse)
 async def pending_partial(request: Request, expanded: bool = True) -> HTMLResponse:
     """Pending operations partial."""
     config = get_config()
@@ -182,7 +182,7 @@ async def pending_partial(request: Request, expanded: bool = True) -> HTMLRespon
     )
 
 
-@router.get("/partials/services-by-host", response_class=HTMLResponse)  # type: ignore[misc]
+@router.get("/partials/services-by-host", response_class=HTMLResponse)
 async def services_by_host_partial(request: Request, expanded: bool = True) -> HTMLResponse:
     """Services by host partial."""
     config = get_config()

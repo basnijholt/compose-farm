@@ -83,7 +83,7 @@ async def _get_container_states(
     return containers
 
 
-@router.get("/services")  # type: ignore[misc]
+@router.get("/services")
 async def list_services() -> list[dict[str, Any]]:
     """List all services with their status."""
     config = get_config()
@@ -108,7 +108,7 @@ async def list_services() -> list[dict[str, Any]]:
     return services
 
 
-@router.get("/service/{name}")  # type: ignore[misc]
+@router.get("/service/{name}")
 async def get_service(name: str) -> dict[str, Any]:
     """Get service details."""
     config = get_config()
@@ -129,7 +129,7 @@ async def get_service(name: str) -> dict[str, Any]:
     }
 
 
-@router.get("/service/{name}/containers", response_class=HTMLResponse)  # type: ignore[misc]
+@router.get("/service/{name}/containers", response_class=HTMLResponse)
 async def get_containers(name: str, host: str | None = None) -> HTMLResponse:
     """Get containers for a service as HTML buttons.
 
@@ -218,7 +218,7 @@ def _render_host_containers(
     return "".join(html_parts)
 
 
-@router.get("/service/{name}/compose", response_class=PlainTextResponse)  # type: ignore[misc]
+@router.get("/service/{name}/compose", response_class=PlainTextResponse)
 async def get_compose(name: str) -> str:
     """Get compose file content."""
     config = get_config()
@@ -233,7 +233,7 @@ async def get_compose(name: str) -> str:
     return compose_path.read_text()
 
 
-@router.put("/service/{name}/compose")  # type: ignore[misc]
+@router.put("/service/{name}/compose")
 async def save_compose(
     name: str, content: str = Body(..., media_type="text/plain")
 ) -> dict[str, Any]:
@@ -258,7 +258,7 @@ async def save_compose(
     return {"success": True, "message": "Compose file saved"}
 
 
-@router.get("/service/{name}/env", response_class=PlainTextResponse)  # type: ignore[misc]
+@router.get("/service/{name}/env", response_class=PlainTextResponse)
 async def get_env(name: str) -> str:
     """Get .env file content."""
     config = get_config()
@@ -277,7 +277,7 @@ async def get_env(name: str) -> str:
     return env_path.read_text()
 
 
-@router.put("/service/{name}/env")  # type: ignore[misc]
+@router.put("/service/{name}/env")
 async def save_env(name: str, content: str = Body(..., media_type="text/plain")) -> dict[str, Any]:
     """Save .env file content."""
     config = get_config()
@@ -295,14 +295,14 @@ async def save_env(name: str, content: str = Body(..., media_type="text/plain"))
     return {"success": True, "message": ".env file saved"}
 
 
-@router.get("/config")  # type: ignore[misc]
+@router.get("/config")
 async def get_config_route() -> dict[str, Any]:
     """Get current configuration."""
     config = get_config()
     return config.model_dump(mode="json")
 
 
-@router.put("/config")  # type: ignore[misc]
+@router.put("/config")
 async def save_config(
     content: str = Body(..., media_type="text/plain"),
 ) -> dict[str, Any]:
@@ -326,7 +326,7 @@ async def save_config(
     return {"success": True, "message": "Config saved"}
 
 
-@router.get("/state")  # type: ignore[misc]
+@router.get("/state")
 async def get_state() -> dict[str, Any]:
     """Get current deployment state."""
     config = get_config()

@@ -5,8 +5,11 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import fcntl
+import json
 import os
 import pty
+import struct
+import termios
 from typing import TYPE_CHECKING, Any
 
 import asyncssh
@@ -20,6 +23,23 @@ if TYPE_CHECKING:
     from compose_farm.config import Host
 
 router = APIRouter()
+
+
+def _parse_resize(msg: str) -> tuple[int, int] | None:
+    """Parse a resize message, return (cols, rows) or None if not a resize."""
+    try:
+        data = json.loads(msg)
+        if data.get("type") == "resize":
+            return int(data["cols"]), int(data["rows"])
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        pass
+    return None
+
+
+def _resize_pty(fd: int, cols: int, rows: int) -> None:
+    """Resize a local PTY."""
+    winsize = struct.pack("HHHH", rows, cols, 0, 0)
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
 
 
 async def _bridge_websocket_to_fd(
@@ -48,7 +68,10 @@ async def _bridge_websocket_to_fd(
                 msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
             except TimeoutError:
                 continue
-            os.write(master_fd, msg.encode())
+            if size := _parse_resize(msg):
+                _resize_pty(master_fd, *size)
+            else:
+                os.write(master_fd, msg.encode())
     finally:
         read_task.cancel()
         os.close(master_fd)
@@ -80,7 +103,10 @@ async def _bridge_websocket_to_ssh(
                 msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
             except TimeoutError:
                 continue
-            proc.stdin.write(msg)
+            if size := _parse_resize(msg):
+                proc.change_terminal_size(*size)
+            else:
+                proc.stdin.write(msg)
     finally:
         read_task.cancel()
         proc.terminate()
@@ -114,11 +140,12 @@ async def _run_remote_exec(websocket: WebSocket, host: Host, exec_cmd: str) -> N
         username=host.user,
         known_hosts=None,
     ) as conn:
-        async with conn.create_process(
+        proc: asyncssh.SSHClientProcess[str] = await conn.create_process(
             exec_cmd,
             term_type="xterm-256color",
             term_size=(80, 24),
-        ) as proc:
+        )
+        async with proc:
             await _bridge_websocket_to_ssh(websocket, proc)
 
 
@@ -142,7 +169,7 @@ async def _run_exec_session(
         await _run_remote_exec(websocket, host, exec_cmd)
 
 
-@router.websocket("/ws/exec/{service}/{container}/{host}")  # type: ignore[misc]
+@router.websocket("/ws/exec/{service}/{container}/{host}")
 async def exec_websocket(
     websocket: WebSocket,
     service: str,  # noqa: ARG001
@@ -166,7 +193,7 @@ async def exec_websocket(
             await websocket.close()
 
 
-@router.websocket("/ws/terminal/{task_id}")  # type: ignore[misc]
+@router.websocket("/ws/terminal/{task_id}")
 async def terminal_websocket(websocket: WebSocket, task_id: str) -> None:
     """WebSocket endpoint for terminal streaming."""
     await websocket.accept()

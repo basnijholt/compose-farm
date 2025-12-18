@@ -148,8 +148,22 @@ function initExecTerminal(service, container, host) {
     execTerminal.open(terminalEl);
     fitAddon.fit();
 
+    // Send terminal size to server
+    const sendSize = () => {
+        if (execWs && execWs.readyState === WebSocket.OPEN) {
+            execWs.send(JSON.stringify({
+                type: 'resize',
+                cols: execTerminal.cols,
+                rows: execTerminal.rows
+            }));
+        }
+    };
+
     // Handle resize
-    const resizeObserver = new ResizeObserver(() => fitAddon.fit());
+    const resizeObserver = new ResizeObserver(() => {
+        fitAddon.fit();
+        sendSize();
+    });
     resizeObserver.observe(containerEl);
 
     // Connect WebSocket - include host in path
@@ -157,6 +171,7 @@ function initExecTerminal(service, container, host) {
     execWs = new WebSocket(`${protocol}//${window.location.host}/ws/exec/${service}/${container}/${host}`);
 
     execWs.onopen = () => {
+        sendSize();  // Send initial size
         execTerminal.focus();
     };
 

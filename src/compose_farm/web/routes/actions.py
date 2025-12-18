@@ -38,43 +38,43 @@ async def _run_service_action(
     return {"task_id": task_id, "service": name, "command": command}
 
 
-@router.post("/service/{name}/up")  # type: ignore[misc]
+@router.post("/service/{name}/up")
 async def up_service(name: str) -> dict[str, Any]:
     """Start a service."""
     return await _run_service_action(name, "up")
 
 
-@router.post("/service/{name}/down")  # type: ignore[misc]
+@router.post("/service/{name}/down")
 async def down_service(name: str) -> dict[str, Any]:
     """Stop a service."""
     return await _run_service_action(name, "down")
 
 
-@router.post("/service/{name}/restart")  # type: ignore[misc]
+@router.post("/service/{name}/restart")
 async def restart_service(name: str) -> dict[str, Any]:
     """Restart a service (down + up)."""
     return await _run_service_action(name, "restart")
 
 
-@router.post("/service/{name}/pull")  # type: ignore[misc]
+@router.post("/service/{name}/pull")
 async def pull_service(name: str) -> dict[str, Any]:
     """Pull latest images for a service."""
     return await _run_service_action(name, "pull")
 
 
-@router.post("/service/{name}/update")  # type: ignore[misc]
+@router.post("/service/{name}/update")
 async def update_service(name: str) -> dict[str, Any]:
     """Update a service (pull + build + down + up)."""
     return await _run_service_action(name, "update")
 
 
-@router.post("/service/{name}/logs")  # type: ignore[misc]
+@router.post("/service/{name}/logs")
 async def logs_service(name: str) -> dict[str, Any]:
     """Show logs for a service."""
     return await _run_service_action(name, "logs")
 
 
-@router.post("/apply")  # type: ignore[misc]
+@router.post("/apply")
 async def apply_all() -> dict[str, Any]:
     """Run cf apply to reconcile all services."""
     from compose_farm.web.streaming import run_apply_streaming
@@ -90,7 +90,7 @@ async def apply_all() -> dict[str, Any]:
     return {"task_id": task_id, "command": "apply"}
 
 
-@router.post("/refresh")  # type: ignore[misc]
+@router.post("/refresh")
 async def refresh_state() -> dict[str, Any]:
     """Refresh state from running services."""
     task_id = str(uuid.uuid4())
