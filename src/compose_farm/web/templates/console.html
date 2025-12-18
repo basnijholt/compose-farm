@@ -150,7 +150,9 @@ function initConsoleEditor() {
         });
 
         // Cmd+S to save
-        consoleEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveFile);
+        consoleEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+            saveFile();
+        });
     });
 }
 
@@ -254,6 +256,16 @@ async function saveFile() {
         statusEl.textContent = `Error: ${e.message}`;
     }
 }
+
+// Global Cmd+S handler for console page
+document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+        e.preventDefault();
+        if (currentFilePath) {
+            saveFile();
+        }
+    }
+});
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
