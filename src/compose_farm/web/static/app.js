@@ -543,14 +543,4 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
 
     // FAB click to open
     if (fab) fab.addEventListener('click', open);
-
-    // Animate ⌘ ↔ K every 3 seconds
-    const cmdIcon = document.getElementById('cmd-icon');
-    const cmdK = document.getElementById('cmd-k');
-    if (cmdIcon && cmdK) {
-        setInterval(() => {
-            cmdIcon.classList.toggle('opacity-0');
-            cmdK.classList.toggle('opacity-0');
-        }, 3000);
-    }
 })();
