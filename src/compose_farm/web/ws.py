@@ -54,6 +54,9 @@ async def _bridge_websocket_to_fd(
         while proc.returncode is None:
             try:
                 data = await loop.run_in_executor(None, lambda: os.read(master_fd, 4096))
+            except BlockingIOError:
+                await asyncio.sleep(0.01)
+                continue
             except OSError:
                 break
             if not data:
