@@ -1,8 +1,12 @@
 /* Sidebar inputs - remove double border on focus */
 #sidebar .input:focus,
-#sidebar .select:focus {
-    outline: none;
-    box-shadow: none;
+#sidebar .input:focus-visible,
+#sidebar .input:focus-within,
+#sidebar .select:focus,
+#sidebar .select:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: oklch(var(--bc) / 0.2) !important;
 }
 
 /* Editors (Monaco) - wrapper makes it resizable */
