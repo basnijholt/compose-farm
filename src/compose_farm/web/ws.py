@@ -261,7 +261,10 @@ async def terminal_websocket(websocket: WebSocket, task_id: str) -> None:
     await websocket.accept()
 
     if task_id not in tasks:
-        await websocket.send_text(f"{RED}Error: Task not found{RESET}{CRLF}")
+        await websocket.send_text(
+            f"{DIM}Task not found (container may have restarted).{RESET}{CRLF}"
+            f"{GREEN}Refresh the page to continue.{RESET}{CRLF}"
+        )
         await websocket.close(code=4004)
         return
 
