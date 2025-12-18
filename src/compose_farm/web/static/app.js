@@ -116,6 +116,7 @@ function createWebSocket(path) {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return new WebSocket(`${protocol}//${window.location.host}${path}`);
 }
+window.createWebSocket = createWebSocket;
 
 /**
  * Initialize a terminal and connect to WebSocket for streaming

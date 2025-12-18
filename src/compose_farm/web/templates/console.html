@@ -80,8 +80,7 @@ function connectConsole() {
     statusEl.textContent = 'Connecting...';
 
     // Create WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    consoleWs = new WebSocket(`${protocol}//${window.location.host}/ws/shell/${host}`);
+    consoleWs = createWebSocket(`/ws/shell/${host}`);
 
     // Resize callback - createTerminal's ResizeObserver calls this on container resize
     const sendSize = (cols, rows) => {
@@ -116,12 +115,12 @@ function connectConsole() {
 
     consoleWs.onclose = () => {
         statusEl.textContent = 'Disconnected';
-        term.write('\r\n\x1b[2m[Connection closed]\x1b[0m\r\n');
+        term.write(`${ANSI.CRLF}${ANSI.DIM}[Connection closed]${ANSI.RESET}${ANSI.CRLF}`);
     };
 
     consoleWs.onerror = (error) => {
         statusEl.textContent = 'Connection error';
-        term.write('\x1b[31m[WebSocket Error]\x1b[0m\r\n');
+        term.write(`${ANSI.RED}[WebSocket Error]${ANSI.RESET}${ANSI.CRLF}`);
         console.error('Console WebSocket error:', error);
     };
 
