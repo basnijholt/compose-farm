@@ -57,6 +57,10 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 - **NEVER merge anything into main.** Always commit directly or use fast-forward/rebase.
 - Never force push.
 
+## Pull Requests
+
+- Never include unchecked checklists (e.g., `- [ ] ...`) in PR descriptions. Either omit the checklist or use checked items.
+
 ## Releases
 
 Use `gh release create` to create releases. The tag is created automatically.
