@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import asyncio
 import subprocess
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
 from compose_farm.cli.app import app
-from compose_farm.cli.common import ConfigOption, load_config_or_exit
+from compose_farm.cli.common import ConfigOption, load_config_or_exit, run_parallel_with_progress
 from compose_farm.console import console, err_console
+
+if TYPE_CHECKING:
+    from compose_farm.config import Host
+
 from compose_farm.ssh_keys import (
     SSH_KEY_PATH,
     SSH_PUBKEY_PATH,
@@ -191,8 +196,61 @@ def ssh_setup(
         raise typer.Exit(1)
 
 
+async def _check_host_connectivity(
+    host_name: str,
+    host: Host,
+    has_key: bool,
+) -> tuple[str, str, str]:
+    """Check SSH connectivity for a single host.
+
+    Returns (host_name, target, status) tuple.
+    """
+    target = f"{host.user}@{host.address}"
+    if host.port != _DEFAULT_SSH_PORT:
+        target += f":{host.port}"
+
+    cmd = [
+        "ssh",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "ConnectTimeout=5",
+    ]
+
+    if has_key:
+        cmd.extend(["-i", str(SSH_KEY_PATH)])
+
+    if host.port != _DEFAULT_SSH_PORT:
+        cmd.extend(["-p", str(host.port)])
+
+    cmd.extend([f"{host.user}@{host.address}", "echo ok"])
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+            env=get_ssh_env(),
+        )
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=10)
+            if proc.returncode == 0:
+                return (host_name, target, "[green]OK[/]")
+            return (host_name, target, "[red]Auth failed[/]")
+        except TimeoutError:
+            proc.kill()
+            await proc.wait()  # Ensure process is reaped
+            return (host_name, target, "[red]Timeout[/]")
+    except Exception as e:
+        return (host_name, target, f"[red]Error: {e}[/]")
+
+
 @ssh_app.command("status")
-def ssh_status(  # noqa: PLR0912 - branches are clear and readable
+def ssh_status(
     config: ConfigOption = None,
 ) -> None:
     """Show SSH key status and host connectivity."""
@@ -204,7 +262,8 @@ def ssh_status(  # noqa: PLR0912 - branches are clear and readable
     console.print("[bold]SSH Key Status[/]")
     console.print()
 
-    if key_exists():
+    has_key = key_exists()
+    if has_key:
         console.print(f"  [green]Key exists:[/] {SSH_KEY_PATH}")
         pubkey = get_pubkey_content()
         if pubkey:
@@ -232,50 +291,22 @@ def ssh_status(  # noqa: PLR0912 - branches are clear and readable
         console.print("  [dim]No remote hosts configured[/]")
         return
 
+    # Check connectivity in parallel with progress bar
+    results = run_parallel_with_progress(
+        "Checking hosts",
+        list(remote_hosts.items()),
+        lambda item: _check_host_connectivity(item[0], item[1], has_key),
+    )
+
+    # Build table from results
     table = Table(show_header=True, header_style="bold")
     table.add_column("Host")
     table.add_column("Address")
     table.add_column("Status")
 
-    for host_name, host in remote_hosts.items():
-        target = f"{host.user}@{host.address}"
-        if host.port != _DEFAULT_SSH_PORT:
-            target += f":{host.port}"
-
-        # Test connectivity with a simple command
-        cmd = [
-            "ssh",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "BatchMode=yes",  # Fail immediately if password required
-            "-o",
-            "ConnectTimeout=5",
-        ]
-
-        # Add key file if it exists
-        if key_exists():
-            cmd.extend(["-i", str(SSH_KEY_PATH)])
-
-        if host.port != _DEFAULT_SSH_PORT:
-            cmd.extend(["-p", str(host.port)])
-
-        cmd.extend([f"{host.user}@{host.address}", "echo ok"])
-
-        try:
-            result = subprocess.run(
-                cmd, check=False, capture_output=True, timeout=10, env=get_ssh_env()
-            )
-            if result.returncode == 0:
-                table.add_row(host_name, target, "[green]OK[/]")
-            else:
-                table.add_row(host_name, target, "[red]Auth failed[/]")
-        except subprocess.TimeoutExpired:
-            table.add_row(host_name, target, "[red]Timeout[/]")
-        except Exception as e:
-            table.add_row(host_name, target, f"[red]Error: {e}[/]")
+    # Sort by host name to maintain consistent order
+    for host_name, target, status in sorted(results, key=lambda r: r[0]):
+        table.add_row(host_name, target, status)
 
     console.print(table)
 
