@@ -20,6 +20,7 @@ from compose_farm.cli.common import (
     report_results,
     run_async,
     run_parallel_with_progress,
+    validate_host,
 )
 from compose_farm.console import console, err_console
 from compose_farm.executor import run_command, run_on_services
@@ -164,9 +165,7 @@ def logs(
 
     # Determine service list based on options
     if host is not None:
-        if host not in cfg.hosts:
-            err_console.print(f"[red]✗[/] Host '{host}' not found in config")
-            raise typer.Exit(1)
+        validate_host(cfg, host)
         # Include services where host is in the list of configured hosts
         svc_list = [s for s in cfg.services if host in cfg.get_hosts(s)]
         if not svc_list:

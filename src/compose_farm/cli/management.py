@@ -21,6 +21,7 @@ from compose_farm.cli.common import (
     load_config_or_exit,
     run_async,
     run_parallel_with_progress,
+    validate_hosts,
 )
 
 if TYPE_CHECKING:
@@ -519,11 +520,7 @@ def init_network(
     cfg = load_config_or_exit(config)
 
     target_hosts = list(hosts) if hosts else list(cfg.hosts.keys())
-    invalid = [h for h in target_hosts if h not in cfg.hosts]
-    if invalid:
-        for h in invalid:
-            err_console.print(f"[red]✗[/] Host '{h}' not found in config")
-        raise typer.Exit(1)
+    validate_hosts(cfg, target_hosts)
 
     async def create_network_on_host(host_name: str) -> CommandResult:
         host = cfg.hosts[host_name]

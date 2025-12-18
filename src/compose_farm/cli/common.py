@@ -245,11 +245,25 @@ def maybe_regenerate_traefik(
         err_console.print(f"[yellow]![/] Failed to update traefik config: {exc}")
 
 
-def validate_host_for_service(cfg: Config, service: str, host: str) -> None:
-    """Validate that a host is valid for a service."""
+def validate_host(cfg: Config, host: str) -> None:
+    """Validate that a host exists in config. Exits with error if not found."""
     if host not in cfg.hosts:
         err_console.print(f"[red]✗[/] Host '{host}' not found in config")
         raise typer.Exit(1)
+
+
+def validate_hosts(cfg: Config, hosts: list[str]) -> None:
+    """Validate that all hosts exist in config. Exits with error if any not found."""
+    invalid = [h for h in hosts if h not in cfg.hosts]
+    if invalid:
+        for h in invalid:
+            err_console.print(f"[red]✗[/] Host '{h}' not found in config")
+        raise typer.Exit(1)
+
+
+def validate_host_for_service(cfg: Config, service: str, host: str) -> None:
+    """Validate that a host is valid for a service."""
+    validate_host(cfg, host)
     allowed_hosts = cfg.get_hosts(service)
     if host not in allowed_hosts:
         err_console.print(
