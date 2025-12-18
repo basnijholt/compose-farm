@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from rich.markup import escape
 
 from .console import console, err_console
+from .ssh_keys import get_key_path, get_ssh_auth_sock, get_ssh_env
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -73,8 +74,6 @@ def is_local(host: Host) -> bool:
 
 def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
     """Get kwargs for asyncssh.connect() from a Host config."""
-    from compose_farm.ssh_keys import get_key_path, get_ssh_auth_sock  # noqa: PLC0415
-
     kwargs: dict[str, Any] = {
         "host": host.address,
         "port": host.port,
@@ -184,8 +183,6 @@ async def _run_ssh_command(
             "LogLevel=ERROR",  # Suppress warnings about known_hosts
         ]
         # Add key file if it exists (fallback for when agent is unavailable)
-        from compose_farm.ssh_keys import get_key_path, get_ssh_env  # noqa: PLC0415
-
         key_path = get_key_path()
         if key_path:
             ssh_args.extend(["-i", str(key_path)])
