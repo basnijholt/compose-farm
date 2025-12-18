@@ -1,16 +1,20 @@
 # syntax=docker/dockerfile:1
-FROM ghcr.io/astral-sh/uv:python3.14-alpine
 
-# Install SSH client (required for remote host connections)
+# Build stage - install with uv
+FROM ghcr.io/astral-sh/uv:python3.14-alpine AS builder
+
+ARG VERSION
+RUN uv tool install --compile-bytecode "compose-farm[web]${VERSION:+==$VERSION}"
+
+# Runtime stage - minimal image without uv
+FROM python:3.14-alpine
+
+# Install only runtime requirements
 RUN apk add --no-cache openssh-client
 
-# Install compose-farm from PyPI
-ARG VERSION
-RUN uv tool install "compose-farm[web]${VERSION:+==$VERSION}"
+# Copy installed tool virtualenv and bin symlinks from builder
+COPY --from=builder /root/.local/share/uv/tools/compose-farm /root/.local/share/uv/tools/compose-farm
+COPY --from=builder /usr/local/bin/cf /usr/local/bin/compose-farm /usr/local/bin/
 
-# Add uv tool bin to PATH
-ENV PATH="/root/.local/bin:$PATH"
-
-# Default entrypoint
 ENTRYPOINT ["cf"]
 CMD ["--help"]
