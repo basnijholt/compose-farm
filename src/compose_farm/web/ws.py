@@ -8,6 +8,7 @@ import fcntl
 import json
 import os
 import pty
+import signal
 import struct
 import termios
 from typing import TYPE_CHECKING, Any
@@ -36,10 +37,15 @@ def _parse_resize(msg: str) -> tuple[int, int] | None:
     return None
 
 
-def _resize_pty(fd: int, cols: int, rows: int) -> None:
-    """Resize a local PTY."""
+def _resize_pty(
+    fd: int, cols: int, rows: int, proc: asyncio.subprocess.Process | None = None
+) -> None:
+    """Resize a local PTY and send SIGWINCH to the process."""
     winsize = struct.pack("HHHH", rows, cols, 0, 0)
     fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
+    # Explicitly send SIGWINCH so docker exec forwards it to the container
+    if proc and proc.pid:
+        os.kill(proc.pid, signal.SIGWINCH)
 
 
 async def _bridge_websocket_to_fd(
@@ -72,7 +78,7 @@ async def _bridge_websocket_to_fd(
             except TimeoutError:
                 continue
             if size := _parse_resize(msg):
-                _resize_pty(master_fd, *size)
+                _resize_pty(master_fd, *size, proc)
             else:
                 os.write(master_fd, msg.encode())
     finally:
