@@ -285,5 +285,4 @@ async def terminal_websocket(websocket: WebSocket, task_id: str) -> None:
             await asyncio.sleep(0.05)
     except WebSocketDisconnect:
         pass
-    finally:
-        tasks.pop(task_id, None)
+    # Task stays in memory for reconnection; cleanup_stale_tasks() handles expiry

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import time
 from typing import TYPE_CHECKING, Any
 
 from compose_farm.executor import build_ssh_command
@@ -24,6 +25,25 @@ CRLF = "\r\n"
 
 # In-memory task registry
 tasks: dict[str, dict[str, Any]] = {}
+
+# How long to keep completed tasks (10 minutes)
+TASK_TTL_SECONDS = 600
+
+
+def cleanup_stale_tasks() -> int:
+    """Remove tasks that completed more than TASK_TTL_SECONDS ago.
+
+    Returns the number of tasks removed.
+    """
+    cutoff = time.time() - TASK_TTL_SECONDS
+    stale = [
+        tid
+        for tid, task in tasks.items()
+        if task.get("completed_at") and task["completed_at"] < cutoff
+    ]
+    for tid in stale:
+        tasks.pop(tid, None)
+    return len(stale)
 
 
 async def stream_to_task(task_id: str, message: str) -> None:
@@ -77,10 +97,12 @@ async def run_cli_streaming(
 
         exit_code = await process.wait()
         tasks[task_id]["status"] = "completed" if exit_code == 0 else "failed"
+        tasks[task_id]["completed_at"] = time.time()
 
     except Exception as e:
         await stream_to_task(task_id, f"{RED}Error: {e}{RESET}{CRLF}")
         tasks[task_id]["status"] = "failed"
+        tasks[task_id]["completed_at"] = time.time()
 
 
 def _is_self_update(service: str, command: str) -> bool:
@@ -149,10 +171,12 @@ async def _run_cli_via_ssh(
 
         exit_code = await process.wait()
         tasks[task_id]["status"] = "completed" if exit_code == 0 else "failed"
+        tasks[task_id]["completed_at"] = time.time()
 
     except Exception as e:
         await stream_to_task(task_id, f"{RED}Error: {e}{RESET}{CRLF}")
         tasks[task_id]["status"] = "failed"
+        tasks[task_id]["completed_at"] = time.time()
 
 
 async def run_compose_streaming(

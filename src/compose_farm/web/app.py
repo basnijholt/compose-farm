@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
@@ -12,9 +13,17 @@ from pydantic import ValidationError
 
 from compose_farm.web.deps import STATIC_DIR, get_config
 from compose_farm.web.routes import actions, api, pages
+from compose_farm.web.streaming import TASK_TTL_SECONDS, cleanup_stale_tasks
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
+
+
+async def _task_cleanup_loop() -> None:
+    """Periodically clean up stale completed tasks."""
+    while True:
+        await asyncio.sleep(TASK_TTL_SECONDS // 2)  # Run every 5 minutes
+        cleanup_stale_tasks()
 
 
 @asynccontextmanager
@@ -23,8 +32,16 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup: pre-load config (ignore errors - handled per-request)
     with suppress(ValidationError, FileNotFoundError):
         get_config()
+
+    # Start background cleanup task
+    cleanup_task = asyncio.create_task(_task_cleanup_loop())
+
     yield
-    # Shutdown: nothing to clean up
+
+    # Shutdown: cancel cleanup task
+    cleanup_task.cancel()
+    with suppress(asyncio.CancelledError):
+        await cleanup_task
 
 
 def create_app() -> FastAPI:
