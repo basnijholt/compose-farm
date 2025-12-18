@@ -129,7 +129,7 @@ def ssh_keygen(
 ) -> None:
     """Generate SSH key (does not distribute to hosts).
 
-    Creates an ED25519 key at ~/.ssh/compose-farm with no passphrase.
+    Creates an ED25519 key at ~/.ssh/compose-farm/id_ed25519 with no passphrase.
     Use 'cf ssh setup' to also distribute the key to all configured hosts.
     """
     success = _generate_key(force=force)
@@ -144,8 +144,8 @@ def ssh_setup(
 ) -> None:
     """Generate SSH key and distribute to all configured hosts.
 
-    Creates an ED25519 key at ~/.ssh/compose-farm (no passphrase) and
-    copies the public key to authorized_keys on each host.
+    Creates an ED25519 key at ~/.ssh/compose-farm/id_ed25519 (no passphrase)
+    and copies the public key to authorized_keys on each host.
 
     For each host, tries SSH agent first. If agent is unavailable,
     prompts for password.
