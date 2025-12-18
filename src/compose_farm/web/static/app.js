@@ -422,7 +422,8 @@ function initPage() {
  */
 function tryReconnectToTask() {
     const taskId = localStorage.getItem(ACTIVE_TASK_KEY);
-    if (!taskId || !document.getElementById('terminal-output')) return;
+    // Only reconnect on the dashboard
+    if (!taskId || window.location.pathname !== '/') return;
 
     // Wait for xterm to be loaded
     const tryInit = (attempts) => {
