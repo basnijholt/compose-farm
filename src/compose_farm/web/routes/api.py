@@ -52,9 +52,9 @@ def _backup_file(file_path: Path) -> Path | None:
     # Copy current content to backup
     backup_path.write_text(file_path.read_text())
 
-    # Clean up old backups (keep last 50)
+    # Clean up old backups (keep last 200)
     backups = sorted(backup_dir.glob(f"{file_path.name}.*"), reverse=True)
-    for old_backup in backups[50:]:
+    for old_backup in backups[200:]:
         old_backup.unlink()
 
     return backup_path
