@@ -199,3 +199,31 @@
     --cmd-scale: 0.98;
     --cmd-after-blur: 15;
 }
+
+/* One-time intro animation to draw attention */
+@keyframes cmd-fab-intro {
+    0% {
+        --cmd-bg-position: 100;
+        --cmd-before-opacity: 0.3;
+        --cmd-after-blur: 10;
+    }
+    50% {
+        --cmd-bg-position: 0;
+        --cmd-before-opacity: 1;
+        --cmd-after-blur: 30;
+    }
+    100% {
+        --cmd-bg-position: 100;
+        --cmd-before-opacity: 0.3;
+        --cmd-after-blur: 10;
+    }
+}
+
+#cmd-fab.cmd-fab-intro {
+    animation: cmd-fab-intro 2s ease-out;
+}
+
+#cmd-fab.cmd-fab-intro .cmd-fab-inner::after {
+    background: var(--cmd-gradient);
+    opacity: 0.3;
+}

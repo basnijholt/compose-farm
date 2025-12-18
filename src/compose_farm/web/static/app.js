@@ -527,6 +527,15 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     const fab = document.getElementById('cmd-fab');
     if (!dialog || !input || !list) return;
 
+    // Play intro animation once per session to draw attention
+    if (fab && !sessionStorage.getItem('cmd-fab-intro-played')) {
+        fab.classList.add('cmd-fab-intro');
+        sessionStorage.setItem('cmd-fab-intro-played', '1');
+        fab.addEventListener('animationend', () => {
+            fab.classList.remove('cmd-fab-intro');
+        }, { once: true });
+    }
+
     // Load icons from template (rendered server-side from icons.html)
     const iconTemplate = document.getElementById('cmd-icons');
     const icons = {};
