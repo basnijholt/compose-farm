@@ -140,7 +140,7 @@ async def _run_remote_exec(websocket: WebSocket, host: Host, exec_cmd: str) -> N
         username=host.user,
         known_hosts=None,
     ) as conn:
-        proc: asyncssh.SSHClientProcess[str] = await conn.create_process(
+        proc = await conn.create_process(
             exec_cmd,
             term_type="xterm-256color",
             term_size=(80, 24),

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -12,9 +13,31 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from compose_farm.executor import run_compose_on_host
 from compose_farm.state import get_service_host, load_state
-from compose_farm.web.app import get_config, reload_config
+from compose_farm.web.app import get_config, get_templates, reload_config
 
 router = APIRouter(tags=["api"])
+
+
+def _validate_yaml(content: str) -> None:
+    """Validate YAML content, raise HTTPException on error."""
+    try:
+        yaml.safe_load(content)
+    except yaml.YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}") from e
+
+
+def _get_service_compose_path(name: str) -> Path:
+    """Get compose path for service, raising HTTPException if not found."""
+    config = get_config()
+
+    if name not in config.services:
+        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
+
+    compose_path = config.get_compose_path(name)
+    if not compose_path:
+        raise HTTPException(status_code=404, detail="Compose file not found")
+
+    return compose_path
 
 
 def _get_compose_services(config: Any, service: str, hosts: list[str]) -> list[dict[str, Any]]:
@@ -129,6 +152,17 @@ async def get_service(name: str) -> dict[str, Any]:
     }
 
 
+def _render_containers(
+    service: str, host: str, containers: list[dict[str, Any]], *, show_header: bool = False
+) -> str:
+    """Render containers HTML using Jinja template."""
+    templates = get_templates()
+    template = templates.env.get_template("partials/containers.html")
+    module = template.make_module()
+    result: str = module.host_containers(service, host, containers, show_header=show_header)
+    return result
+
+
 @router.get("/service/{name}/containers", response_class=HTMLResponse)
 async def get_containers(name: str, host: str | None = None) -> HTMLResponse:
     """Get containers for a service as HTML buttons.
@@ -156,7 +190,7 @@ async def get_containers(name: str, host: str | None = None) -> HTMLResponse:
 
         containers = _get_compose_services(config, name, [host])
         containers = await _get_container_states(config, name, containers)
-        return HTMLResponse(_render_host_containers(name, host, containers, show_header=False))
+        return HTMLResponse(_render_containers(name, host, containers))
 
     # Initial load: return all hosts with loading spinners, each fetches its own status
     html_parts = []
@@ -177,59 +211,19 @@ async def get_containers(name: str, host: str | None = None) -> HTMLResponse:
                  hx-target="this"
                  hx-select="unset"
                  hx-swap="innerHTML">
-                {_render_host_containers(name, h, containers, show_header=False)}
+                {_render_containers(name, h, containers)}
             </div>
         """)
 
     return HTMLResponse("".join(html_parts))
 
 
-def _render_host_containers(
-    service: str, host: str, containers: list[dict[str, Any]], *, show_header: bool
-) -> str:
-    """Render HTML for containers on a single host."""
-    html_parts = []
-
-    if show_header:
-        html_parts.append(f'<div class="font-semibold text-sm mt-3 mb-1">{host}</div>')
-
-    for c in containers:
-        container_name = c.get("Name", "unknown")
-        state = c.get("State", "unknown")
-
-        if state == "running":
-            badge = '<span class="badge badge-success">running</span>'
-        elif state == "unknown":
-            badge = '<span class="badge badge-ghost"><span class="loading loading-spinner loading-xs"></span></span>'
-        else:
-            badge = f'<span class="badge badge-warning">{state}</span>'
-
-        html_parts.append(f"""
-            <div class="flex items-center gap-2 mb-2">
-                {badge}
-                <code class="text-sm flex-1">{container_name}</code>
-                <button class="btn btn-sm btn-outline"
-                        onclick="initExecTerminal('{service}', '{container_name}', '{host}')">
-                    Shell
-                </button>
-            </div>
-        """)
-
-    return "".join(html_parts)
-
-
 @router.get("/service/{name}/compose", response_class=PlainTextResponse)
 async def get_compose(name: str) -> str:
     """Get compose file content."""
-    config = get_config()
-
-    if name not in config.services:
-        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
-
-    compose_path = config.get_compose_path(name)
-    if not compose_path or not compose_path.exists():
+    compose_path = _get_service_compose_path(name)
+    if not compose_path.exists():
         raise HTTPException(status_code=404, detail="Compose file not found")
-
     return compose_path.read_text()
 
 
@@ -238,60 +232,24 @@ async def save_compose(
     name: str, content: str = Body(..., media_type="text/plain")
 ) -> dict[str, Any]:
     """Save compose file content."""
-    config = get_config()
-
-    if name not in config.services:
-        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
-
-    compose_path = config.get_compose_path(name)
-    if not compose_path:
-        raise HTTPException(status_code=404, detail="Compose file not found")
-
-    # Validate YAML before saving
-    try:
-        yaml.safe_load(content)
-    except yaml.YAMLError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}") from e
-
+    compose_path = _get_service_compose_path(name)
+    _validate_yaml(content)
     compose_path.write_text(content)
-
     return {"success": True, "message": "Compose file saved"}
 
 
 @router.get("/service/{name}/env", response_class=PlainTextResponse)
 async def get_env(name: str) -> str:
     """Get .env file content."""
-    config = get_config()
-
-    if name not in config.services:
-        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
-
-    compose_path = config.get_compose_path(name)
-    if not compose_path:
-        raise HTTPException(status_code=404, detail="Compose file not found")
-
-    env_path = compose_path.parent / ".env"
-    if not env_path.exists():
-        return ""
-
-    return env_path.read_text()
+    env_path = _get_service_compose_path(name).parent / ".env"
+    return env_path.read_text() if env_path.exists() else ""
 
 
 @router.put("/service/{name}/env")
 async def save_env(name: str, content: str = Body(..., media_type="text/plain")) -> dict[str, Any]:
     """Save .env file content."""
-    config = get_config()
-
-    if name not in config.services:
-        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
-
-    compose_path = config.get_compose_path(name)
-    if not compose_path:
-        raise HTTPException(status_code=404, detail="Compose file not found")
-
-    env_path = compose_path.parent / ".env"
+    env_path = _get_service_compose_path(name).parent / ".env"
     env_path.write_text(content)
-
     return {"success": True, "message": ".env file saved"}
 
 
@@ -312,15 +270,8 @@ async def save_config(
     if not config.config_path:
         raise HTTPException(status_code=404, detail="Config path not set")
 
-    # Validate YAML before saving
-    try:
-        yaml.safe_load(content)
-    except yaml.YAMLError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}") from e
-
+    _validate_yaml(content)
     config.config_path.write_text(content)
-
-    # Reload config so subsequent requests see updated values
     reload_config()
 
     return {"success": True, "message": "Config saved"}
