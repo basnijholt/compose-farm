@@ -244,13 +244,7 @@ async function saveAllEditors() {
         alert('Errors saving:\n' + errors.map(e => `${e.id}: ${e.error}`).join('\n'));
     } else if (saveBtn && results.length > 0) {
         saveBtn.textContent = 'Saved!';
-        setTimeout(() => saveBtn.textContent = saveBtn.id === 'save-config-btn' ? 'Save' : 'Save All', 2000);
-
-        // Refresh config tables if on config page
-        const configTables = document.getElementById('config-tables');
-        if (configTables) {
-            htmx.ajax('GET', '/partials/config-tables', {target: '#config-tables', swap: 'outerHTML'});
-        }
+        setTimeout(() => saveBtn.textContent = saveBtn.id === 'save-config-btn' ? 'Save Config' : 'Save All', 2000);
 
         // Refresh sidebar to show updated services
         const sidebar = document.querySelector('#sidebar nav');
