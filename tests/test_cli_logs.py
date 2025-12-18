@@ -150,7 +150,7 @@ class TestLogsHostFilter:
         mock_run_async, _ = _mock_run_async_factory(["svc1", "svc2"])
 
         with (
-            patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
             patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
@@ -174,7 +174,7 @@ class TestLogsHostFilter:
         mock_run_async, _ = _mock_run_async_factory(["svc1", "svc2"])
 
         with (
-            patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
             patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
         ):
