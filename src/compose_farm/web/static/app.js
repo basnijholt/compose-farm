@@ -441,6 +441,7 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     const dialog = document.getElementById('cmd-palette');
     const input = document.getElementById('cmd-input');
     const list = document.getElementById('cmd-list');
+    const fab = document.getElementById('cmd-fab');
     if (!dialog || !input || !list) return;
 
     const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6' };
@@ -542,4 +543,7 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
             exec();
         }
     });
+
+    // FAB click to open
+    if (fab) fab.addEventListener('click', open);
 })();

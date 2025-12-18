@@ -1,4 +1,4 @@
-{% from "partials/icons.html" import search %}
+{% from "partials/icons.html" import search, command %}
 <dialog id="cmd-palette" class="modal">
     <div class="modal-box max-w-lg p-0">
         <label class="input input-lg bg-base-100 border-0 border-b border-base-300 w-full rounded-none rounded-t-box sticky top-0 z-10 focus-within:outline-none">
@@ -12,3 +12,8 @@
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
+
+<!-- Floating button to open command palette -->
+<button id="cmd-fab" class="btn btn-circle btn-primary shadow-lg fixed bottom-6 right-6 z-50" title="Command Palette (⌘K)">
+    {{ command(24) }}
+</button>
