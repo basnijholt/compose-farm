@@ -66,7 +66,7 @@ def _generate_template() -> str:
         template_file = resources.files("compose_farm") / "example-config.yaml"
         return template_file.read_text(encoding="utf-8")
     except FileNotFoundError as e:
-        err_console.print("[red]Example config template is missing from the package.[/red]")
+        err_console.print("[red]✗[/] Example config template is missing from the package.")
         err_console.print("Reinstall compose-farm or report this issue.")
         raise typer.Exit(1) from e
 
@@ -153,21 +153,21 @@ def config_edit(
     try:
         editor_cmd = shlex.split(editor, posix=os.name != "nt")
     except ValueError as e:
-        err_console.print("[red]Invalid editor command. Check $EDITOR/$VISUAL.[/red]")
+        err_console.print("[red]✗[/] Invalid editor command. Check $EDITOR/$VISUAL.")
         raise typer.Exit(1) from e
 
     if not editor_cmd:
-        err_console.print("[red]Editor command is empty.[/red]")
+        err_console.print("[red]✗[/] Editor command is empty.")
         raise typer.Exit(1)
 
     try:
         subprocess.run([*editor_cmd, str(config_file)], check=True)
     except FileNotFoundError:
-        err_console.print(f"[red]Editor '{editor_cmd[0]}' not found.[/red]")
+        err_console.print(f"[red]✗[/] Editor '{editor_cmd[0]}' not found.")
         err_console.print("Set $EDITOR environment variable to your preferred editor.")
         raise typer.Exit(1) from None
     except subprocess.CalledProcessError as e:
-        err_console.print(f"[red]Editor exited with error code {e.returncode}[/red]")
+        err_console.print(f"[red]✗[/] Editor exited with error code {e.returncode}")
         raise typer.Exit(e.returncode) from None
 
 
