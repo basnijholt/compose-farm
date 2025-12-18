@@ -61,9 +61,7 @@ async def index(request: Request) -> HTMLResponse:
             "hosts": config.hosts,
             "services": config.services,
             "config_content": config_content,
-            "config_path": str(config.config_path) if config.config_path else None,
             # State data
-            "state": deployed,
             "state_content": state_content,
             # Stats
             "running_count": running_count,
@@ -115,7 +113,6 @@ async def service_detail(request: Request, name: str) -> HTMLResponse:
             "compose_path": str(compose_path) if compose_path else None,
             "env_content": env_content,
             "env_path": str(env_path) if env_path else None,
-            "services": sorted(config.services.keys()),
         },
     )
 
