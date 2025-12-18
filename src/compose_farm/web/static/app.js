@@ -101,6 +101,89 @@ function initTerminal(elementId, taskId) {
 window.initTerminal = initTerminal;
 
 /**
+ * Initialize an interactive exec terminal
+ */
+let execTerminal = null;
+let execWs = null;
+
+function initExecTerminal(service, container, host) {
+    const containerEl = document.getElementById('exec-terminal-container');
+    const terminalEl = document.getElementById('exec-terminal');
+
+    if (!containerEl || !terminalEl) {
+        console.error('Exec terminal elements not found');
+        return;
+    }
+
+    // Show container
+    containerEl.classList.remove('hidden');
+
+    // Close existing connection
+    if (execWs) {
+        execWs.close();
+        execWs = null;
+    }
+
+    // Dispose existing terminal
+    if (execTerminal) {
+        execTerminal.dispose();
+        execTerminal = null;
+    }
+
+    // Clear container
+    terminalEl.innerHTML = '';
+
+    // Create new terminal
+    execTerminal = new Terminal({
+        convertEol: true,
+        theme: TERMINAL_THEME,
+        fontSize: 13,
+        fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+        scrollback: 5000,
+        cursorBlink: true
+    });
+
+    const fitAddon = new FitAddon.FitAddon();
+    execTerminal.loadAddon(fitAddon);
+    execTerminal.open(terminalEl);
+    fitAddon.fit();
+
+    // Handle resize
+    const resizeObserver = new ResizeObserver(() => fitAddon.fit());
+    resizeObserver.observe(containerEl);
+
+    // Connect WebSocket - include host in path
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    execWs = new WebSocket(`${protocol}//${window.location.host}/ws/exec/${service}/${container}/${host}`);
+
+    execWs.onopen = () => {
+        execTerminal.focus();
+    };
+
+    execWs.onmessage = (event) => {
+        execTerminal.write(event.data);
+    };
+
+    execWs.onclose = () => {
+        execTerminal.write('\r\n\x1b[2m[Connection closed]\x1b[0m\r\n');
+    };
+
+    execWs.onerror = (error) => {
+        execTerminal.write('\x1b[31m[WebSocket Error]\x1b[0m\r\n');
+        console.error('Exec WebSocket error:', error);
+    };
+
+    // Send keystrokes to server
+    execTerminal.onData((data) => {
+        if (execWs && execWs.readyState === WebSocket.OPEN) {
+            execWs.send(data);
+        }
+    });
+}
+
+window.initExecTerminal = initExecTerminal;
+
+/**
  * Refresh dashboard partials while preserving collapse states
  */
 function refreshDashboard() {

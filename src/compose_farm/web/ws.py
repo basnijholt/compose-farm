@@ -3,12 +3,155 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import os
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from compose_farm.web.streaming import tasks
 
 router = APIRouter()
+
+
+async def _run_exec_session(  # noqa: C901, PLR0912, PLR0915
+    websocket: WebSocket,
+    container: str,
+    host_name: str,
+) -> None:
+    """Run an interactive docker exec session over WebSocket."""
+    from compose_farm.executor import is_local
+    from compose_farm.web.app import get_config
+
+    config = get_config()
+    host = config.hosts.get(host_name)
+    if not host:
+        await websocket.send_text(f"\x1b[31mHost '{host_name}' not found\x1b[0m\r\n")
+        return
+
+    # Build exec command
+    exec_cmd = f"docker exec -it {container} /bin/sh -c 'command -v bash >/dev/null && exec bash || exec sh'"
+
+    if is_local(host):
+        # Local exec with PTY
+        import fcntl
+        import pty
+
+        master_fd, slave_fd = pty.openpty()
+
+        proc = await asyncio.create_subprocess_shell(
+            exec_cmd,
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            close_fds=True,
+        )
+        os.close(slave_fd)
+
+        # Set non-blocking
+        flags = fcntl.fcntl(master_fd, fcntl.F_GETFL)
+        fcntl.fcntl(master_fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+        loop = asyncio.get_event_loop()
+
+        async def read_output() -> None:
+            while True:
+                try:
+                    data = await loop.run_in_executor(None, lambda: os.read(master_fd, 4096))
+                    if not data:
+                        break
+                    await websocket.send_text(data.decode("utf-8", errors="replace"))
+                except (OSError, BlockingIOError):
+                    await asyncio.sleep(0.01)
+                except Exception:
+                    break
+
+        read_task = asyncio.create_task(read_output())
+
+        try:
+            while True:
+                try:
+                    msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
+                    os.write(master_fd, msg.encode())
+                except TimeoutError:
+                    if proc.returncode is not None:
+                        break
+                except WebSocketDisconnect:
+                    break
+        finally:
+            read_task.cancel()
+            os.close(master_fd)
+            if proc.returncode is None:
+                proc.terminate()
+
+    else:
+        # Remote exec via SSH with PTY
+        import asyncssh
+
+        async with asyncssh.connect(
+            host.address,
+            port=host.port,
+            username=host.user,
+            known_hosts=None,
+        ) as conn:
+            async with conn.create_process(  # type: ignore[assignment]
+                exec_cmd,
+                term_type="xterm-256color",
+                term_size=(80, 24),
+            ) as proc:
+
+                async def read_stdout() -> None:
+                    assert proc.stdout is not None
+                    while True:
+                        try:
+                            data = await proc.stdout.read(4096)
+                            if not data:
+                                break
+                            # asyncssh returns str for PTY output
+                            text = data if isinstance(data, str) else data.decode()
+                            await websocket.send_text(text)
+                        except Exception:
+                            break
+
+                read_task = asyncio.create_task(read_stdout())
+
+                try:
+                    while True:
+                        try:
+                            msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
+                            assert proc.stdin is not None
+                            proc.stdin.write(msg)
+                        except TimeoutError:
+                            if proc.returncode is not None:
+                                break
+                        except WebSocketDisconnect:
+                            break
+                finally:
+                    read_task.cancel()
+                    proc.terminate()
+
+
+@router.websocket("/ws/exec/{service}/{container}/{host}")  # type: ignore[misc]
+async def exec_websocket(
+    websocket: WebSocket,
+    service: str,  # noqa: ARG001
+    container: str,
+    host: str,
+) -> None:
+    """WebSocket endpoint for interactive container exec."""
+    await websocket.accept()
+
+    try:
+        await websocket.send_text(f"\x1b[2m[Connecting to {container} on {host}...]\x1b[0m\r\n")
+        await _run_exec_session(websocket, container, host)
+        await websocket.send_text("\r\n\x1b[2m[Disconnected]\x1b[0m\r\n")
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        with contextlib.suppress(Exception):
+            await websocket.send_text(f"\x1b[31mError: {e}\x1b[0m\r\n")
+    finally:
+        with contextlib.suppress(Exception):
+            await websocket.close()
 
 
 @router.websocket("/ws/terminal/{task_id}")  # type: ignore[misc]
