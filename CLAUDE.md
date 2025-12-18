@@ -28,6 +28,10 @@ compose_farm/
 └── traefik.py         # Traefik file-provider config generation from labels
 ```
 
+## Web UI Icons
+
+Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templates/partials/icons.html` by copying SVG paths from their site. The `action_btn`, `stat_card`, and `collapse` macros in `components.html` accept an optional `icon` parameter.
+
 ## Key Design Decisions
 
 1. **Hybrid SSH approach**: asyncssh for parallel streaming with prefixes; native `ssh -t` for raw mode (progress bars)

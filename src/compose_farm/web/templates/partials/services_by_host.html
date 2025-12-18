@@ -1,6 +1,7 @@
 {% from "partials/components.html" import collapse %}
+{% from "partials/icons.html" import layers %}
 <div id="services-by-host">
-{% call collapse("Services by Host", id="services-by-host-collapse", checked=expanded|default(true)) %}
+{% call collapse("Services by Host", id="services-by-host-collapse", checked=expanded|default(true), icon=layers()) %}
     {% for host_name, host_services in services_by_host.items() | sort %}
     <h4 class="font-semibold mt-3 mb-1">
         {{ host_name }}

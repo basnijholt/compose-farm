@@ -1,8 +1,9 @@
+{% from "partials/icons.html" import terminal %}
 <!-- Shared Terminal Component -->
 <div class="collapse collapse-arrow bg-base-100 shadow mb-4" id="terminal-collapse">
     <input type="checkbox" id="terminal-toggle" />
     <div class="collapse-title font-medium flex items-center gap-2">
-        Terminal Output
+        {{ terminal() }} Terminal Output
         <span id="terminal-spinner" class="loading loading-spinner loading-sm hidden"></span>
     </div>
     <div class="collapse-content">
