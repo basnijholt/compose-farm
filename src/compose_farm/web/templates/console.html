@@ -44,17 +44,17 @@
         <div id="console-editor" class="resize-y overflow-hidden rounded-lg" style="height: 512px; min-height: 200px;"></div>
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
+(function() {
+// IIFE to avoid let re-declaration errors on HTMX navigation
 let consoleTerminal = null;
 let consoleWs = null;
 let consoleEditor = null;
 let currentFilePath = null;
 let currentHost = null;
 
-function connectConsole() {
+window.connectConsole = function() {
     const hostSelect = document.getElementById('console-host-select');
     const host = hostSelect.value;
     const statusEl = document.getElementById('console-status');
@@ -102,7 +102,7 @@ function connectConsole() {
         if (pathInput && pathInput.value) {
             const tryLoad = () => {
                 if (consoleEditor) {
-                    loadFile();
+                    window.loadFile();
                 } else {
                     setTimeout(tryLoad, 100);
                 }
@@ -137,11 +137,11 @@ function initConsoleEditor() {
     if (!editorEl || consoleEditor) return;
 
     loadMonaco(() => {
-        consoleEditor = createEditor(editorEl, '', 'plaintext', { onSave: saveFile });
+        consoleEditor = createEditor(editorEl, '', 'plaintext', { onSave: window.saveFile });
     });
 }
 
-async function loadFile() {
+window.loadFile = async function() {
     const pathInput = document.getElementById('console-file-path');
     const path = pathInput.value.trim();
     const statusEl = document.getElementById('editor-status');
@@ -182,7 +182,7 @@ async function loadFile() {
     }
 }
 
-async function saveFile() {
+window.saveFile = async function() {
     const statusEl = document.getElementById('editor-status');
 
     if (!currentFilePath) {
@@ -222,25 +222,12 @@ async function saveFile() {
     }
 }
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
-    initConsoleEditor();
-    // Auto-connect to first host if available
-    const hostSelect = document.getElementById('console-host-select');
-    if (hostSelect && hostSelect.options.length > 0) {
-        connectConsole();
-    }
-});
-
-// Re-init after HTMX swap
-document.body.addEventListener('htmx:afterSwap', (evt) => {
-    if (evt.detail.target.id === 'main-content') {
-        // Re-init if we're on console page
-        if (window.location.pathname === '/console') {
-            consoleEditor = null;
-            initConsoleEditor();
-        }
-    }
-});
+// Initialize editor and auto-connect to first host
+initConsoleEditor();
+const hostSelect = document.getElementById('console-host-select');
+if (hostSelect && hostSelect.options.length > 0) {
+    window.connectConsole();
+}
+})();
 </script>
-{% endblock %}
+{% endblock content %}
