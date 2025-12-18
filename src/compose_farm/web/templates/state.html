@@ -1,61 +1,43 @@
 {% extends "base.html" %}
+{% from "partials/components.html" import page_header, collapse, action_btn, table %}
 {% block title %}State - Compose Farm{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl">
-    <div class="mb-6">
-        <h1 class="text-3xl font-bold">Deployment State</h1>
-        <p class="text-base-content/60 text-lg">Services tracked in <code>compose-farm-state.yaml</code></p>
-    </div>
+    {{ page_header("Deployment State", "Services tracked in <code>compose-farm-state.yaml</code>") }}
 
     <!-- Actions -->
     <div class="flex flex-wrap gap-2 mb-6">
-        <button hx-post="/api/refresh"
-                hx-swap="none"
-                class="btn btn-outline">
-            Refresh from Reality
-        </button>
+        {{ action_btn("Refresh from Reality", "/api/refresh") }}
     </div>
 
     {% include "partials/terminal.html" %}
 
-    <!-- Deployed Services -->
-    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
-        <input type="checkbox" checked />
-        <div class="collapse-title font-medium">Deployed Services ({{ state | length }})</div>
-        <div class="collapse-content">
-            {% if state %}
-            <div class="overflow-x-auto">
-                <table class="table table-zebra">
-                    <thead>
-                        <tr>
-                            <th>Service</th>
-                            <th>Running On</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for svc, host in state.items() | sort %}
-                        <tr class="hover:bg-base-300">
-                            <td><a href="/service/{{ svc }}" class="link link-primary">{{ svc }}</a></td>
-                            <td><code class="text-sm">{% if host is iterable and host is not string %}{{ host | join(', ') }}{% else %}{{ host }}{% endif %}</code></td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
+    {% call collapse("Deployed Services (" ~ (state | length) ~ ")", checked=True) %}
+        {% if state %}
+            {% call table() %}
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Running On</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for svc, host in state.items() | sort %}
+                    <tr class="hover:bg-base-300">
+                        <td><a href="/service/{{ svc }}" class="link link-primary">{{ svc }}</a></td>
+                        <td><code class="text-sm">{% if host is iterable and host is not string %}{{ host | join(', ') }}{% else %}{{ host }}{% endif %}</code></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            {% endcall %}
+        {% else %}
             <p class="text-base-content/60 italic">No services currently tracked in state file.</p>
-            {% endif %}
-        </div>
-    </div>
+        {% endif %}
+    {% endcall %}
 
-    <!-- Raw State YAML -->
-    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
-        <input type="checkbox" />
-        <div class="collapse-title font-medium">Raw State (YAML)</div>
-        <div class="collapse-content">
-            <div id="state-viewer" class="yaml-viewer" data-content="{{ state_content | e }}"></div>
-        </div>
-    </div>
+    {% call collapse("Raw State (YAML)") %}
+        <div id="state-viewer" class="yaml-viewer" data-content="{{ state_content | e }}"></div>
+    {% endcall %}
 </div>
 {% endblock %}

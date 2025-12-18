@@ -1,0 +1,52 @@
+{# Page header with title and optional subtitle #}
+{% macro page_header(title, subtitle=None) %}
+<div class="mb-6">
+    <h1 class="text-3xl font-bold">{{ title }}</h1>
+    {% if subtitle %}
+    <p class="text-base-content/60 text-lg">{{ subtitle }}</p>
+    {% endif %}
+</div>
+{% endmacro %}
+
+{# Collapsible section #}
+{% macro collapse(title, id=None, checked=False, badge=None) %}
+<div class="collapse collapse-arrow bg-base-100 shadow mb-4">
+    <input type="checkbox" {% if checked %}checked{% endif %} />
+    <div class="collapse-title font-medium">
+        {{ title }}
+        {% if badge %}<code class="text-xs ml-2 opacity-60">{{ badge }}</code>{% endif %}
+    </div>
+    <div class="collapse-content" {% if id %}id="{{ id }}"{% endif %}>
+        {{ caller() }}
+    </div>
+</div>
+{% endmacro %}
+
+{# Action button with htmx #}
+{% macro action_btn(label, url, style="outline", title=None) %}
+<button hx-post="{{ url }}"
+        hx-swap="none"
+        class="btn btn-{{ style }}"
+        {% if title %}title="{{ title }}"{% endif %}>
+    {{ label }}
+</button>
+{% endmacro %}
+
+{# Stat card for dashboard #}
+{% macro stat_card(label, value, color=None) %}
+<div class="card bg-base-100 shadow">
+    <div class="card-body items-center text-center">
+        <h2 class="card-title text-base-content/60 text-sm">{{ label }}</h2>
+        <p class="text-4xl font-bold {% if color %}text-{{ color }}{% endif %}">{{ value }}</p>
+    </div>
+</div>
+{% endmacro %}
+
+{# Data table wrapper #}
+{% macro table() %}
+<div class="overflow-x-auto">
+    <table class="table table-zebra">
+        {{ caller() }}
+    </table>
+</div>
+{% endmacro %}

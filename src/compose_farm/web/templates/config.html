@@ -1,40 +1,23 @@
 {% extends "base.html" %}
+{% from "partials/components.html" import page_header, collapse, action_btn %}
 {% block title %}Config - Compose Farm{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl">
-    <div class="mb-6">
-        <h1 class="text-3xl font-bold">Configuration</h1>
-        <p class="text-base-content/60 text-lg"><code>{{ config_path }}</code></p>
-    </div>
+    {{ page_header("Configuration", "<code>" ~ config_path ~ "</code>") }}
 
     <!-- Action Buttons -->
     <div class="flex flex-wrap gap-2 mb-6">
-        <button id="save-config-btn" class="btn btn-outline">
-            Save
-        </button>
-        <button hx-post="/api/apply"
-                hx-swap="none"
-                class="btn btn-primary">
-            Apply
-        </button>
-        <button hx-post="/api/refresh"
-                hx-swap="none"
-                class="btn btn-outline">
-            Refresh
-        </button>
+        <button id="save-config-btn" class="btn btn-outline">Save</button>
+        {{ action_btn("Apply", "/api/apply", "primary") }}
+        {{ action_btn("Refresh", "/api/refresh") }}
     </div>
 
     {% include "partials/terminal.html" %}
 
-    <!-- Config Editor -->
-    <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
-        <input type="checkbox" />
-        <div class="collapse-title font-medium">Edit <code class="text-sm ml-2">compose-farm.yaml</code></div>
-        <div class="collapse-content">
-            <div id="config-editor" class="yaml-editor" data-content="{{ config_content | e }}" data-save-url="/api/config"></div>
-        </div>
-    </div>
+    {% call collapse("Edit", badge="compose-farm.yaml") %}
+        <div id="config-editor" class="yaml-editor" data-content="{{ config_content | e }}" data-save-url="/api/config"></div>
+    {% endcall %}
 
     {% include "partials/config_tables.html" %}
 </div>
