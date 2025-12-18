@@ -63,7 +63,8 @@ async def run_cli_streaming(
         await stream_to_task(task_id, f"\x1b[2m$ {cmd_display}\x1b[0m\r\n")
 
         # Force color output even though there's no real TTY
-        env = {"FORCE_COLOR": "1", "TERM": "xterm-256color"}
+        # Set COLUMNS for Rich/Typer to format output correctly
+        env = {"FORCE_COLOR": "1", "TERM": "xterm-256color", "COLUMNS": "120"}
 
         # Ensure SSH agent is available (auto-detect if needed)
         ssh_sock = _get_ssh_auth_sock()
