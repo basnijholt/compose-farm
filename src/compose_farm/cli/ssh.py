@@ -247,10 +247,9 @@ def ssh_status(
             target += f":{host.port}"
 
         try:
-            # 10 second timeout to match previous behavior
             result = await asyncio.wait_for(
                 run_command(host, "echo ok", host_name, stream=False),
-                timeout=10.0,
+                timeout=5.0,
             )
             status = "[green]OK[/]" if result.success else "[red]Auth failed[/]"
         except TimeoutError:
