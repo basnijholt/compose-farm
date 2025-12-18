@@ -37,7 +37,9 @@
     {% endcall %}
 
     {% call collapse("Raw State (YAML)") %}
-        <div id="state-viewer" class="yaml-viewer" data-content="{{ state_content | e }}"></div>
+        <div class="editor-wrapper viewer-wrapper">
+            <div id="state-viewer" class="yaml-viewer" data-content="{{ state_content | e }}"></div>
+        </div>
     {% endcall %}
 </div>
 {% endblock %}

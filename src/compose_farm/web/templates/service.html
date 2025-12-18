@@ -6,15 +6,14 @@
 <div class="max-w-5xl">
     <div class="mb-6">
         <h1 class="text-3xl font-bold">{{ name }}</h1>
-        <p class="text-base-content/60 text-lg">
+        <div class="flex flex-wrap items-center gap-2 mt-2">
             {% if current_host %}
                 <span class="badge badge-success">Running on {{ current_host }}</span>
             {% else %}
-                <span class="badge badge-ghost">Not running</span>
+                <span class="badge badge-neutral">Not running</span>
             {% endif %}
-            <span class="mx-2">&bull;</span>
-            Configured for: {{ hosts | join(', ') }}
-        </p>
+            <span class="badge badge-outline">{{ hosts | join(', ') }}</span>
+        </div>
     </div>
 
     <!-- Action Buttons -->
@@ -34,11 +33,15 @@
     </div>
 
     {% call collapse("Compose File", badge=compose_path) %}
-        <div id="compose-editor" class="yaml-editor" data-content="{{ compose_content | e }}" data-save-url="/api/service/{{ name }}/compose"></div>
+        <div class="editor-wrapper yaml-wrapper">
+            <div id="compose-editor" class="yaml-editor" data-content="{{ compose_content | e }}" data-save-url="/api/service/{{ name }}/compose"></div>
+        </div>
     {% endcall %}
 
     {% call collapse(".env File", badge=env_path) %}
-        <div id="env-editor" class="env-editor" data-content="{{ env_content | e }}" data-save-url="/api/service/{{ name }}/env"></div>
+        <div class="editor-wrapper env-wrapper">
+            <div id="env-editor" class="env-editor" data-content="{{ env_content | e }}" data-save-url="/api/service/{{ name }}/env"></div>
+        </div>
     {% endcall %}
 
     {% include "partials/terminal.html" %}

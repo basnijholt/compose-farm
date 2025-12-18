@@ -16,7 +16,9 @@
     {% include "partials/terminal.html" %}
 
     {% call collapse("Edit", badge="compose-farm.yaml") %}
-        <div id="config-editor" class="yaml-editor" data-content="{{ config_content | e }}" data-save-url="/api/config"></div>
+        <div class="editor-wrapper yaml-wrapper">
+            <div id="config-editor" class="yaml-editor" data-content="{{ config_content | e }}" data-save-url="/api/config"></div>
+        </div>
     {% endcall %}
 
     {% include "partials/config_tables.html" %}
