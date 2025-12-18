@@ -423,9 +423,8 @@ function initPage() {
  * Attempt to reconnect to an active task from localStorage
  */
 function tryReconnectToTask() {
-    const taskKey = getTaskKey();
-    const taskId = localStorage.getItem(taskKey);
-    if (!taskId || !document.getElementById('terminal-output')) return;
+    const taskId = localStorage.getItem(getTaskKey());
+    if (!taskId) return;
 
     // Wait for xterm to be loaded
     const tryInit = (attempts) => {
@@ -435,7 +434,7 @@ function tryReconnectToTask() {
         } else if (attempts > 0) {
             setTimeout(() => tryInit(attempts - 1), 100);
         } else {
-            localStorage.removeItem(taskKey);
+            localStorage.removeItem(getTaskKey());
         }
     };
     tryInit(20);
