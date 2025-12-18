@@ -110,13 +110,3 @@ async def run_compose_streaming(
     # Build CLI args
     cli_args = [cli_cmd, service, *extra_args]
     await run_cli_streaming(config, cli_args, task_id)
-
-
-async def run_apply_streaming(config: Config, task_id: str) -> None:
-    """Run cf apply via CLI subprocess."""
-    await run_cli_streaming(config, ["apply"], task_id)
-
-
-async def run_refresh_streaming(config: Config, task_id: str) -> None:
-    """Run cf refresh via CLI subprocess."""
-    await run_cli_streaming(config, ["refresh"], task_id)
