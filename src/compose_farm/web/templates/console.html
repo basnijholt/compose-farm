@@ -44,15 +44,14 @@
         <div id="console-editor" class="resize-y overflow-hidden rounded-lg" style="height: 512px; min-height: 200px;"></div>
     </div>
 </div>
-{% endblock %}
 
-{% block scripts %}
 <script>
-let consoleTerminal = null;
-let consoleWs = null;
-let consoleEditor = null;
-let currentFilePath = null;
-let currentHost = null;
+// Use var to allow re-declaration on HTMX navigation
+var consoleTerminal = null;
+var consoleWs = null;
+var consoleEditor = null;
+var currentFilePath = null;
+var currentHost = null;
 
 function connectConsole() {
     const hostSelect = document.getElementById('console-host-select');
@@ -222,25 +221,21 @@ async function saveFile() {
     }
 }
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize editor and auto-connect to first host
+function init() {
     initConsoleEditor();
-    // Auto-connect to first host if available
     const hostSelect = document.getElementById('console-host-select');
     if (hostSelect && hostSelect.options.length > 0) {
         connectConsole();
     }
-});
+}
 
-// Re-init after HTMX swap
-document.body.addEventListener('htmx:afterSwap', (evt) => {
-    if (evt.detail.target.id === 'main-content') {
-        // Re-init if we're on console page
-        if (window.location.pathname === '/console') {
-            consoleEditor = null;
-            initConsoleEditor();
-        }
-    }
-});
+// On HTMX navigation, dependencies (app.js) are already loaded.
+// On hard refresh, this script runs before app.js, so wait for DOMContentLoaded.
+if (typeof createTerminal === 'function') {
+    init();
+} else {
+    document.addEventListener('DOMContentLoaded', init);
+}
 </script>
-{% endblock %}
+{% endblock content %}
