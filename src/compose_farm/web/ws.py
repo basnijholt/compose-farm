@@ -224,5 +224,4 @@ async def terminal_websocket(websocket: WebSocket, task_id: str) -> None:
     except WebSocketDisconnect:
         pass
     finally:
-        await asyncio.sleep(60)
         tasks.pop(task_id, None)
