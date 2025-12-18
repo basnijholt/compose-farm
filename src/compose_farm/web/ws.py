@@ -31,29 +31,24 @@ async def _bridge_websocket_to_fd(
     loop = asyncio.get_event_loop()
 
     async def read_output() -> None:
-        while True:
+        while proc.returncode is None:
             try:
                 data = await loop.run_in_executor(None, lambda: os.read(master_fd, 4096))
-                if not data:
-                    break
-                await websocket.send_text(data.decode("utf-8", errors="replace"))
-            except (OSError, BlockingIOError):
-                await asyncio.sleep(0.01)
-            except Exception:
+            except OSError:
                 break
+            if not data:
+                break
+            await websocket.send_text(data.decode("utf-8", errors="replace"))
 
     read_task = asyncio.create_task(read_output())
 
     try:
-        while True:
+        while proc.returncode is None:
             try:
                 msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
-                os.write(master_fd, msg.encode())
             except TimeoutError:
-                if proc.returncode is not None:
-                    break
-            except WebSocketDisconnect:
-                break
+                continue
+            os.write(master_fd, msg.encode())
     finally:
         read_task.cancel()
         os.close(master_fd)
@@ -66,32 +61,26 @@ async def _bridge_websocket_to_ssh(
     proc: Any,  # asyncssh.SSHClientProcess
 ) -> None:
     """Bridge WebSocket to an SSH process with PTY."""
+    assert proc.stdout is not None
+    assert proc.stdin is not None
 
     async def read_stdout() -> None:
-        assert proc.stdout is not None
-        while True:
-            try:
-                data = await proc.stdout.read(4096)
-                if not data:
-                    break
-                text = data if isinstance(data, str) else data.decode()
-                await websocket.send_text(text)
-            except Exception:
+        while proc.returncode is None:
+            data = await proc.stdout.read(4096)
+            if not data:
                 break
+            text = data if isinstance(data, str) else data.decode()
+            await websocket.send_text(text)
 
     read_task = asyncio.create_task(read_stdout())
 
     try:
-        while True:
+        while proc.returncode is None:
             try:
                 msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.1)
-                assert proc.stdin is not None
-                proc.stdin.write(msg)
             except TimeoutError:
-                if proc.returncode is not None:
-                    break
-            except WebSocketDisconnect:
-                break
+                continue
+            proc.stdin.write(msg)
     finally:
         read_task.cancel()
         proc.terminate()
@@ -192,27 +181,19 @@ async def terminal_websocket(websocket: WebSocket, task_id: str) -> None:
 
     try:
         while True:
-            output = task["output"]
-            while sent_count < len(output):
-                await websocket.send_text(output[sent_count])
+            # Send any new output
+            while sent_count < len(task["output"]):
+                await websocket.send_text(task["output"][sent_count])
                 sent_count += 1
 
             if task["status"] in ("completed", "failed"):
-                while sent_count < len(output):
-                    await websocket.send_text(output[sent_count])
-                    sent_count += 1
-
-                status_msg = (
-                    "\r\n\x1b[32m[Done]\x1b[0m\r\n"
-                    if task["status"] == "completed"
-                    else "\r\n\x1b[31m[Failed]\x1b[0m\r\n"
-                )
-                await websocket.send_text(status_msg)
+                status = "[Done]" if task["status"] == "completed" else "[Failed]"
+                color = "32" if task["status"] == "completed" else "31"
+                await websocket.send_text(f"\r\n\x1b[{color}m{status}\x1b[0m\r\n")
                 await websocket.close()
                 break
 
             await asyncio.sleep(0.05)
-
     except WebSocketDisconnect:
         pass
     finally:
