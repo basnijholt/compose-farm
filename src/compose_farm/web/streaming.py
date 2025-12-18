@@ -132,10 +132,12 @@ async def _run_cli_via_ssh(
         # Get the host for the web service
         host = config.get_host(CF_WEB_SERVICE)
 
-        # Build the remote command with nohup to survive SSH disconnect.
-        # Output streams through SSH until container dies, then nohup keeps it running.
+        # Build the remote command with SIGHUP ignored to survive SSH disconnect.
+        # - trap "" HUP: ignore SIGHUP (same as nohup, but doesn't redirect stdout)
+        # - Output streams through SSH until container dies
+        # - When SSH dies, SIGHUP is sent but ignored, command continues
         cf_cmd = f"cf {' '.join(args)} --config={config.config_path}"
-        remote_cmd = f"PATH=$HOME/.local/bin:/usr/local/bin:$PATH && nohup {cf_cmd} 2>&1"
+        remote_cmd = f"trap '' HUP; PATH=$HOME/.local/bin:/usr/local/bin:$PATH {cf_cmd}"
 
         # Show what we're doing
         await stream_to_task(
@@ -144,7 +146,7 @@ async def _run_cli_via_ssh(
         )
         await stream_to_task(
             task_id,
-            f"{GREEN}Running via SSH (nohup protects against disconnect){RESET}{CRLF}",
+            f"{GREEN}Running via SSH (SIGHUP trapped){RESET}{CRLF}",
         )
 
         # Build SSH command with TTY for proper output
@@ -174,7 +176,7 @@ async def _run_cli_via_ssh(
         exit_code = await process.wait()
 
         # Exit code 255 means SSH connection closed (container died during down)
-        # This is expected for self-updates - nohup ensures command continues
+        # This is expected for self-updates - trapped SIGHUP ensures command continues
         if exit_code == 255:  # noqa: PLR2004
             await stream_to_task(
                 task_id,
