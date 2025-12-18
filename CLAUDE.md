@@ -53,6 +53,24 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 - **NEVER merge anything into main.** Always commit directly or use fast-forward/rebase.
 - Never force push.
 
+## Releases
+
+Use `gh release create` to create releases. The tag is created automatically.
+
+```bash
+# Check current version
+git tag --sort=-v:refname | head -1
+
+# Create release (minor version bump: v0.21.1 -> v0.22.0)
+gh release create v0.22.0 --title "v0.22.0" --notes "release notes here"
+```
+
+Versioning:
+- **Patch** (v0.21.0 → v0.21.1): Bug fixes
+- **Minor** (v0.21.1 → v0.22.0): New features, non-breaking changes
+
+Write release notes manually describing what changed. Group by features and bug fixes.
+
 ## Commands Quick Reference
 
 CLI available as `cf` or `compose-farm`.
