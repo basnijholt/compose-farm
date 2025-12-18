@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
-from compose_farm.executor import is_local, run_compose_on_host
+from compose_farm.executor import is_local, run_compose_on_host, ssh_connect_kwargs
 from compose_farm.paths import find_config_path
 from compose_farm.state import load_state
 from compose_farm.web.deps import get_config, get_templates
@@ -248,12 +248,7 @@ async def _read_file_remote(host: Any, path: str) -> str:
     if path.startswith("~/"):
         cmd = f"cat ~/{shlex.quote(path[2:])}"
 
-    async with asyncssh.connect(
-        host.address,
-        port=host.port,
-        username=host.user,
-        known_hosts=None,
-    ) as conn:
+    async with asyncssh.connect(**ssh_connect_kwargs(host)) as conn:
         result = await conn.run(cmd, check=True)
         stdout = result.stdout or ""
         return stdout.decode() if isinstance(stdout, bytes) else stdout
@@ -265,12 +260,7 @@ async def _write_file_remote(host: Any, path: str, content: str) -> None:
     target_path = f"~/{path[2:]}" if path.startswith("~/") else path
     cmd = f"cat > {shlex.quote(target_path)}"
 
-    async with asyncssh.connect(
-        host.address,
-        port=host.port,
-        username=host.user,
-        known_hosts=None,
-    ) as conn:
+    async with asyncssh.connect(**ssh_connect_kwargs(host)) as conn:
         result = await conn.run(cmd, input=content, check=True)
         if result.returncode != 0:
             stderr = result.stderr.decode() if isinstance(result.stderr, bytes) else result.stderr

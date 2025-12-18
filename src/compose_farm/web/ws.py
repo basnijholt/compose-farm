@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 import asyncssh
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from compose_farm.executor import is_local
+from compose_farm.executor import is_local, ssh_connect_kwargs
 from compose_farm.web.deps import get_config
 from compose_farm.web.streaming import CRLF, DIM, GREEN, RED, RESET, _get_ssh_auth_sock, tasks
 
@@ -149,10 +149,7 @@ async def _run_remote_exec(
     agent_path = _get_ssh_auth_sock()
 
     async with asyncssh.connect(
-        host.address,
-        port=host.port,
-        username=host.user,
-        known_hosts=None,
+        **ssh_connect_kwargs(host),
         agent_forwarding=agent_forwarding,
         agent_path=agent_path,
     ) as conn:

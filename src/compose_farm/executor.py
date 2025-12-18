@@ -71,6 +71,16 @@ def is_local(host: Host) -> bool:
     return addr in _get_local_ips()
 
 
+def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
+    """Get kwargs for asyncssh.connect() from a Host config."""
+    return {
+        "host": host.address,
+        "port": host.port,
+        "username": host.user,
+        "known_hosts": None,
+    }
+
+
 async def _run_local_command(
     command: str,
     service: str,
@@ -177,12 +187,7 @@ async def _run_ssh_command(
 
     proc: asyncssh.SSHClientProcess[Any]
     try:
-        async with asyncssh.connect(  # noqa: SIM117 - conn needed before create_process
-            host.address,
-            port=host.port,
-            username=host.user,
-            known_hosts=None,
-        ) as conn:
+        async with asyncssh.connect(**ssh_connect_kwargs(host)) as conn:  # noqa: SIM117
             async with conn.create_process(command) as proc:
                 if stream:
 
