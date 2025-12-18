@@ -25,7 +25,7 @@
             <h3 class="font-semibold flex items-center gap-2">{{ terminal() }} Terminal</h3>
             <span class="text-xs opacity-50">Full shell access to selected host</span>
         </div>
-        <div id="console-terminal" class="w-full h-96 bg-base-300 rounded-lg overflow-hidden"></div>
+        <div id="console-terminal" class="w-full bg-base-300 rounded-lg overflow-hidden resize-y" style="height: 384px; min-height: 200px;"></div>
     </div>
 
     <!-- Editor -->
@@ -41,9 +41,7 @@
                 <button id="console-save-btn" class="btn btn-sm btn-primary" onclick="saveFile()">{{ save() }} Save</button>
             </div>
         </div>
-        <div class="editor-wrapper">
-            <div id="console-editor" class="h-[32rem]"></div>
-        </div>
+        <div id="console-editor" class="resize-y overflow-hidden rounded-lg" style="height: 512px; min-height: 200px;"></div>
     </div>
 </div>
 {% endblock %}
