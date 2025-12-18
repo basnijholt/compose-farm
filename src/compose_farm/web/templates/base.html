@@ -1,0 +1,64 @@
+{% from "partials/icons.html" import github, hamburger %}
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Compose Farm{% endblock %}</title>
+
+    <!-- daisyUI + Tailwind -->
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <!-- xterm.js -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="min-h-screen bg-base-200">
+    <div class="drawer lg:drawer-open">
+        <input id="drawer-toggle" type="checkbox" class="drawer-toggle" />
+
+        <!-- Main content -->
+        <div class="drawer-content flex flex-col">
+            <!-- Mobile navbar with hamburger -->
+            <header class="navbar bg-base-100 border-b border-base-300 lg:hidden">
+                <label for="drawer-toggle" class="btn btn-ghost btn-square">
+                    {{ hamburger() }}
+                </label>
+                <span class="font-semibold">Compose Farm</span>
+            </header>
+
+            <main id="main-content" class="flex-1 p-6 overflow-y-auto" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="drawer-side">
+            <label for="drawer-toggle" class="drawer-overlay" aria-label="close sidebar"></label>
+            <aside id="sidebar" class="w-64 bg-base-100 border-r border-base-300 flex flex-col min-h-screen">
+                <header class="p-4 border-b border-base-300">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        Compose Farm
+                        <a href="https://github.com/basnijholt/compose-farm" target="_blank" title="GitHub" class="opacity-50 hover:opacity-100 transition-opacity">
+                            {{ github() }}
+                        </a>
+                    </h2>
+                </header>
+                <nav class="flex-1 overflow-y-auto p-2" hx-get="/partials/sidebar" hx-trigger="load" hx-swap="innerHTML">
+                    <span class="loading loading-spinner loading-sm"></span> Loading...
+                </nav>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Scripts - HTMX first -->
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+    <script src="/static/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

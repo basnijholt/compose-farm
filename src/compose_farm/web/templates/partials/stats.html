@@ -1,0 +1,7 @@
+{% from "partials/components.html" import stat_card %}
+<div id="stats-cards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    {{ stat_card("Hosts", hosts | length) }}
+    {{ stat_card("Services", services | length) }}
+    {{ stat_card("Running", running_count, "success") }}
+    {{ stat_card("Stopped", stopped_count) }}
+</div>

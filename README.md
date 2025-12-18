@@ -350,6 +350,9 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ ps             Show status of all services.                                  │
 │ stats          Show overview statistics for hosts and services.              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Server ─────────────────────────────────────────────────────────────────────╮
+│ web            Start the web UI server.                                      │
+╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -873,6 +876,22 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 ```
 
 <!-- OUTPUT:END -->
+
+</details>
+
+**Server**
+
+<details>
+<summary>See the output of <code>cf web --help</code></summary>
+
+<!-- CODE:BASH:START -->
+<!-- echo '```yaml' -->
+<!-- export NO_COLOR=1 -->
+<!-- export TERM=dumb -->
+<!-- export TERMINAL_WIDTH=90 -->
+<!-- cf web --help -->
+<!-- echo '```' -->
+<!-- CODE:END -->
 
 </details>
 

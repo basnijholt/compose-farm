@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "partials/components.html" import page_header, collapse, stat_card, table, action_btn %}
+{% block title %}Dashboard - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl">
+    {{ page_header("Compose Farm", "Cluster overview and management") }}
+
+    <!-- Stats Cards -->
+    {% include "partials/stats.html" %}
+
+    <!-- Global Actions -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        {{ action_btn("Apply", "/api/apply", "primary", "Make reality match config") }}
+        {{ action_btn("Refresh", "/api/refresh", "outline", "Update state from reality") }}
+        <button id="save-config-btn" class="btn btn-outline">Save Config</button>
+    </div>
+
+    {% include "partials/terminal.html" %}
+
+    <!-- Config Editor -->
+    {% call collapse("Edit Config", badge="compose-farm.yaml") %}
+        <div class="editor-wrapper yaml-wrapper">
+            <div id="config-editor" class="yaml-editor" data-content="{{ config_content | e }}" data-save-url="/api/config"></div>
+        </div>
+    {% endcall %}
+
+    <!-- Pending Operations -->
+    {% include "partials/pending.html" %}
+
+    <!-- Services by Host -->
+    {% include "partials/services_by_host.html" %}
+
+    <!-- Hosts Configuration -->
+    {% call collapse("Hosts (" ~ (hosts | length) ~ ")") %}
+        {% call table() %}
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Address</th>
+                    <th>User</th>
+                    <th>Port</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for name, host in hosts.items() %}
+                <tr class="hover:bg-base-300">
+                    <td class="font-semibold">{{ name }}</td>
+                    <td><code class="text-sm">{{ host.address }}</code></td>
+                    <td><code class="text-sm">{{ host.user }}</code></td>
+                    <td><code class="text-sm">{{ host.port }}</code></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        {% endcall %}
+    {% endcall %}
+
+    <!-- State Viewer -->
+    {% call collapse("Raw State", badge="compose-farm-state.yaml") %}
+        <div class="editor-wrapper viewer-wrapper">
+            <div id="state-viewer" class="yaml-viewer" data-content="{{ state_content | e }}"></div>
+        </div>
+    {% endcall %}
+</div>
+{% endblock %}

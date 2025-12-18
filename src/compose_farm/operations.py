@@ -76,6 +76,33 @@ def get_service_paths(cfg: Config, service: str) -> list[str]:
     return paths
 
 
+async def discover_service_host(cfg: Config, service: str) -> tuple[str, str | list[str] | None]:
+    """Discover where a service is running.
+
+    For multi-host services, checks all assigned hosts in parallel.
+    For single-host, checks assigned host first, then others.
+
+    Returns (service_name, host_or_hosts_or_none).
+    """
+    assigned_hosts = cfg.get_hosts(service)
+
+    if cfg.is_multi_host(service):
+        # Check all assigned hosts in parallel
+        checks = await asyncio.gather(
+            *[check_service_running(cfg, service, h) for h in assigned_hosts]
+        )
+        running = [h for h, is_running in zip(assigned_hosts, checks, strict=True) if is_running]
+        return service, running if running else None
+
+    # Single-host: check assigned host first, then others
+    if await check_service_running(cfg, service, assigned_hosts[0]):
+        return service, assigned_hosts[0]
+    for host in cfg.hosts:
+        if host != assigned_hosts[0] and await check_service_running(cfg, service, host):
+            return service, host
+    return service, None
+
+
 async def check_service_requirements(
     cfg: Config,
     service: str,

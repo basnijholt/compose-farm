@@ -29,7 +29,6 @@ if TYPE_CHECKING:
 from compose_farm.console import console, err_console
 from compose_farm.executor import (
     CommandResult,
-    check_service_running,
     is_local,
     run_command,
 )
@@ -42,7 +41,11 @@ from compose_farm.logs import (
     merge_entries,
     write_toml,
 )
-from compose_farm.operations import check_host_compatibility, check_service_requirements
+from compose_farm.operations import (
+    check_host_compatibility,
+    check_service_requirements,
+    discover_service_host,
+)
 from compose_farm.state import get_orphaned_services, load_state, save_state
 from compose_farm.traefik import generate_traefik_config, render_traefik_config
 
@@ -52,41 +55,10 @@ from compose_farm.traefik import generate_traefik_config, render_traefik_config
 def _discover_services(cfg: Config) -> dict[str, str | list[str]]:
     """Discover running services with a progress bar."""
 
-    async def check_service(service: str) -> tuple[str, str | list[str] | None]:
-        """Check where a service is running.
-
-        For multi-host services, returns list of hosts where running.
-        For single-host, returns single host name or None.
-        """
-        assigned_hosts = cfg.get_hosts(service)
-
-        if cfg.is_multi_host(service):
-            # Multi-host: find all hosts where running (check in parallel)
-            checks = await asyncio.gather(
-                *[check_service_running(cfg, service, h) for h in assigned_hosts]
-            )
-            running_hosts = [
-                h for h, running in zip(assigned_hosts, checks, strict=True) if running
-            ]
-            return service, running_hosts if running_hosts else None
-
-        # Single-host: check assigned host first
-        assigned_host = assigned_hosts[0]
-        if await check_service_running(cfg, service, assigned_host):
-            return service, assigned_host
-        # Check other hosts
-        for host_name in cfg.hosts:
-            if host_name == assigned_host:
-                continue
-            if await check_service_running(cfg, service, host_name):
-                return service, host_name
-        return service, None
-
     async def gather_with_progress(
         progress: Progress, task_id: TaskID
     ) -> dict[str, str | list[str]]:
-        services = list(cfg.services.keys())
-        tasks = [asyncio.create_task(check_service(s)) for s in services]
+        tasks = [asyncio.create_task(discover_service_host(cfg, s)) for s in cfg.services]
         discovered: dict[str, str | list[str]] = {}
         for coro in asyncio.as_completed(tasks):
             service, host = await coro
@@ -267,7 +239,9 @@ def _check_service_requirements(
 
         return all_mount_errors, all_network_errors, all_device_errors
 
-    with progress_bar("Checking requirements", len(services)) as (progress, task_id):
+    with progress_bar(
+        "Checking requirements", len(services), initial_description="[dim]checking...[/]"
+    ) as (progress, task_id):
         return asyncio.run(gather_with_progress(progress, task_id))
 
 

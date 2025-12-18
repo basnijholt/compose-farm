@@ -1,0 +1,26 @@
+{# Container list for a service on a single host #}
+{% macro container_row(service, container, host) %}
+<div class="flex items-center gap-2 mb-2">
+    {% if container.State == "running" %}
+        <span class="badge badge-success">running</span>
+    {% elif container.State == "unknown" %}
+        <span class="badge badge-ghost"><span class="loading loading-spinner loading-xs"></span></span>
+    {% else %}
+        <span class="badge badge-warning">{{ container.State }}</span>
+    {% endif %}
+    <code class="text-sm flex-1">{{ container.Name }}</code>
+    <button class="btn btn-sm btn-outline"
+            onclick="initExecTerminal('{{ service }}', '{{ container.Name }}', '{{ host }}')">
+        Shell
+    </button>
+</div>
+{% endmacro %}
+
+{% macro host_containers(service, host, containers, show_header=False) %}
+{% if show_header %}
+<div class="font-semibold text-sm mt-3 mb-1">{{ host }}</div>
+{% endif %}
+{% for container in containers %}
+{{ container_row(service, container, host) }}
+{% endfor %}
+{% endmacro %}

@@ -1,0 +1,25 @@
+/* Editors (Monaco) - wrapper makes it resizable */
+.editor-wrapper {
+    resize: vertical;
+    overflow: hidden;
+    min-height: 150px;
+}
+
+.editor-wrapper .yaml-editor,
+.editor-wrapper .env-editor,
+.editor-wrapper .yaml-viewer {
+    height: 100%;
+    border: 1px solid oklch(var(--bc) / 0.2);
+    border-radius: 0.5rem;
+}
+
+.editor-wrapper.yaml-wrapper { height: 400px; }
+.editor-wrapper.env-wrapper { height: 250px; }
+.editor-wrapper.viewer-wrapper { height: 300px; }
+
+/* Terminal - no custom CSS needed, using h-full class in HTML */
+
+/* Prevent save button resize when text changes */
+#save-btn, #save-config-btn {
+    min-width: 5rem;
+}

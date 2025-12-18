@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import inspect
-from pathlib import Path  # noqa: TC003
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -55,12 +55,12 @@ class TestMigrationCommands:
         commands_called: list[str] = []
 
         async def mock_run_compose_step(
-            cfg: Config,  # noqa: ARG001
+            cfg: Config,
             service: str,
             command: str,
             *,
-            raw: bool,  # noqa: ARG001
-            host: str | None = None,  # noqa: ARG001
+            raw: bool,
+            host: str | None = None,
         ) -> CommandResult:
             commands_called.append(command)
             return CommandResult(

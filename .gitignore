@@ -42,3 +42,5 @@ htmlcov/
 compose-farm.yaml
 !examples/compose-farm.yaml
 coverage.xml
+.env
+homepage/

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% from "partials/components.html" import collapse, action_btn %}
+{% block title %}{{ name }} - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl">
+    <div class="mb-6">
+        <h1 class="text-3xl font-bold">{{ name }}</h1>
+        <div class="flex flex-wrap items-center gap-2 mt-2">
+            {% if current_host %}
+                <span class="badge badge-success">Running on {{ current_host }}</span>
+            {% else %}
+                <span class="badge badge-neutral">Not running</span>
+            {% endif %}
+            <span class="badge badge-outline">{{ hosts | join(', ') }}</span>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <!-- Lifecycle -->
+        {{ action_btn("Up", "/api/service/" ~ name ~ "/up", "primary", "Start service (docker compose up -d)") }}
+        {{ action_btn("Down", "/api/service/" ~ name ~ "/down", "outline", "Stop service (docker compose down)") }}
+        {{ action_btn("Restart", "/api/service/" ~ name ~ "/restart", "secondary", "Restart service (down + up)") }}
+        {{ action_btn("Update", "/api/service/" ~ name ~ "/update", "accent", "Update to latest (pull + build + down + up)") }}
+
+        <div class="divider divider-horizontal mx-0"></div>
+
+        <!-- Other -->
+        {{ action_btn("Pull", "/api/service/" ~ name ~ "/pull", "outline", "Pull latest images (no restart)") }}
+        {{ action_btn("Logs", "/api/service/" ~ name ~ "/logs", "outline", "Show recent logs") }}
+        <button id="save-btn" class="btn btn-outline">Save All</button>
+    </div>
+
+    {% call collapse("Compose File", badge=compose_path) %}
+        <div class="editor-wrapper yaml-wrapper">
+            <div id="compose-editor" class="yaml-editor" data-content="{{ compose_content | e }}" data-save-url="/api/service/{{ name }}/compose"></div>
+        </div>
+    {% endcall %}
+
+    {% call collapse(".env File", badge=env_path) %}
+        <div class="editor-wrapper env-wrapper">
+            <div id="env-editor" class="env-editor" data-content="{{ env_content | e }}" data-save-url="/api/service/{{ name }}/env"></div>
+        </div>
+    {% endcall %}
+
+    {% include "partials/terminal.html" %}
+
+    <!-- Exec Terminal -->
+    {% if current_host %}
+    {% call collapse("Container Shell", id="exec-collapse", checked=True) %}
+        <div id="containers-list" class="mb-4"
+             hx-get="/api/service/{{ name }}/containers"
+             hx-trigger="load"
+             hx-target="this"
+             hx-select="unset"
+             hx-swap="innerHTML">
+            <span class="loading loading-spinner loading-sm"></span> Loading containers...
+        </div>
+        <div id="exec-terminal-container" class="bg-[#1a1a2e] rounded-lg h-[400px] border border-white/10 hidden">
+            <div id="exec-terminal" class="h-full"></div>
+        </div>
+    {% endcall %}
+    {% endif %}
+</div>
+{% endblock %}

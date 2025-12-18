@@ -220,7 +220,16 @@ async def run_command(
     stream: bool = True,
     raw: bool = False,
 ) -> CommandResult:
-    """Run a command on a host (locally or via SSH)."""
+    """Run a command on a host (locally or via SSH).
+
+    Args:
+        host: Host configuration
+        command: Command to run
+        service: Service name (used as prefix in output)
+        stream: Whether to stream output (default True)
+        raw: Whether to use raw mode with TTY (default False)
+
+    """
     if is_local(host):
         return await _run_local_command(command, service, stream=stream, raw=raw)
     return await _run_ssh_command(host, command, service, stream=stream, raw=raw)

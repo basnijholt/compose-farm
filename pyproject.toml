@@ -48,6 +48,13 @@ dependencies = [
     "rich>=13.0.0",
 ]
 
+[project.optional-dependencies]
+web = [
+    "fastapi[standard]>=0.109.0",
+    "jinja2>=3.1.0",
+    "websockets>=12.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/basnijholt/compose-farm"
 Repository = "https://github.com/basnijholt/compose-farm"
@@ -101,7 +108,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "PLR2004", "S108", "D102", "D103"]  # relaxed docstrings + asserts in tests
+"tests/*" = ["S101", "PLR2004", "S108", "D102", "D103", "PLC0415", "ARG001", "ARG002", "TC003"]  # relaxed for tests
 
 [tool.ruff.lint.mccabe]
 max-complexity = 18
@@ -117,6 +124,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"
+disallow_untyped_decorators = false
+
+[[tool.mypy.overrides]]
+module = "compose_farm.web.*"
 disallow_untyped_decorators = false
 
 [tool.pytest.ini_options]
@@ -153,4 +164,11 @@ dev = [
     "ruff>=0.14.8",
     "types-pyyaml>=6.0.12.20250915",
     "markdown-code-runner>=0.7.0",
+    # Web deps for type checking (these ship with inline types)
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "jinja2>=3.1.0",
+    "websockets>=12.0",
+    # For FastAPI TestClient
+    "httpx>=0.28.0",
 ]

@@ -57,7 +57,9 @@ _STATS_PREVIEW_LIMIT = 3  # Max number of pending migrations to show by name
 
 
 @contextlib.contextmanager
-def progress_bar(label: str, total: int) -> Generator[tuple[Progress, TaskID], None, None]:
+def progress_bar(
+    label: str, total: int, *, initial_description: str = "[dim]connecting...[/]"
+) -> Generator[tuple[Progress, TaskID], None, None]:
     """Create a standardized progress bar with consistent styling.
 
     Yields (progress, task_id). Use progress.update(task_id, advance=1, description=...)
@@ -75,7 +77,7 @@ def progress_bar(label: str, total: int) -> Generator[tuple[Progress, TaskID], N
         console=console,
         transient=True,
     ) as progress:
-        task_id = progress.add_task("", total=total)
+        task_id = progress.add_task(initial_description, total=total)
         yield progress, task_id
 
 

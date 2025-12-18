@@ -4,8 +4,31 @@ services:
     volumes:
       - ${SSH_AUTH_SOCK}:/ssh-agent:ro
       # Compose directory (contains compose files AND compose-farm.yaml config)
-      - ${CF_COMPOSE_DIR:-/opt/compose}:${CF_COMPOSE_DIR:-/opt/compose}
+      - ${CF_COMPOSE_DIR:-/opt/stacks}:${CF_COMPOSE_DIR:-/opt/stacks}
     environment:
       - SSH_AUTH_SOCK=/ssh-agent
       # Config file path (state stored alongside it)
-      - CF_CONFIG=${CF_COMPOSE_DIR:-/opt/compose}/compose-farm.yaml
+      - CF_CONFIG=${CF_COMPOSE_DIR:-/opt/stacks}/compose-farm.yaml
+
+  web:
+    image: ghcr.io/basnijholt/compose-farm:latest
+    command: cf web --host 0.0.0.0 --port 9000
+    volumes:
+      - ${SSH_AUTH_SOCK}:/ssh-agent:ro
+      - ${CF_COMPOSE_DIR:-/opt/stacks}:${CF_COMPOSE_DIR:-/opt/stacks}
+    environment:
+      - SSH_AUTH_SOCK=/ssh-agent
+      - CF_CONFIG=${CF_COMPOSE_DIR:-/opt/stacks}/compose-farm.yaml
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.compose-farm.rule=Host(`compose-farm.${DOMAIN}`)
+      - traefik.http.routers.compose-farm.entrypoints=websecure
+      - traefik.http.routers.compose-farm-local.rule=Host(`compose-farm.local`)
+      - traefik.http.routers.compose-farm-local.entrypoints=web
+      - traefik.http.services.compose-farm.loadbalancer.server.port=9000
+    networks:
+      - mynetwork
+
+networks:
+  mynetwork:
+    external: true
