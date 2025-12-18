@@ -36,7 +36,10 @@
                 <input type="text" id="console-file-path" class="input input-sm input-bordered w-96" placeholder="Enter file path (e.g., ~/docker-compose.yaml)" value="{{ config_path }}">
                 <button class="btn btn-sm btn-outline" onclick="loadFile()">Open</button>
             </div>
-            <button id="console-save-btn" class="btn btn-sm btn-primary" onclick="saveFile()">{{ save() }} Save</button>
+            <div class="flex items-center gap-2">
+                <span id="editor-status" class="text-sm opacity-60"></span>
+                <button id="console-save-btn" class="btn btn-sm btn-primary" onclick="saveFile()">{{ save() }} Save</button>
+            </div>
         </div>
         <div class="editor-wrapper">
             <div id="console-editor" class="h-[32rem]"></div>
@@ -180,7 +183,7 @@ function getLanguageFromPath(path) {
 async function loadFile() {
     const pathInput = document.getElementById('console-file-path');
     const path = pathInput.value.trim();
-    const statusEl = document.getElementById('console-status');
+    const statusEl = document.getElementById('editor-status');
 
     if (!path) {
         statusEl.textContent = 'Enter a file path';
@@ -218,7 +221,7 @@ async function loadFile() {
 }
 
 async function saveFile() {
-    const statusEl = document.getElementById('console-status');
+    const statusEl = document.getElementById('editor-status');
 
     if (!currentFilePath) {
         statusEl.textContent = 'No file loaded';
