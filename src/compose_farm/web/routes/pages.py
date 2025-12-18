@@ -104,8 +104,10 @@ async def index(request: Request) -> HTMLResponse:
     migrations = get_services_needing_migration(config)
     not_started = get_services_not_in_state(config)
 
-    # Group services by host
-    services_by_host = group_services_by_host(deployed, config.hosts)
+    # Group services by host (filter out hosts with no running services)
+    services_by_host = {
+        h: svcs for h, svcs in group_services_by_host(deployed, config.hosts).items() if svcs
+    }
 
     # Config file content
     config_content = ""
@@ -275,8 +277,10 @@ async def services_by_host_partial(request: Request, expanded: bool = True) -> H
 
     deployed = load_state(config)
 
-    # Group services by host
-    services_by_host = group_services_by_host(deployed, config.hosts)
+    # Group services by host (filter out hosts with no running services)
+    services_by_host = {
+        h: svcs for h, svcs in group_services_by_host(deployed, config.hosts).items() if svcs
+    }
 
     return templates.TemplateResponse(
         "partials/services_by_host.html",
