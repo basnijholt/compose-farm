@@ -125,11 +125,19 @@ async def sidebar_partial(request: Request) -> HTMLResponse:
 
     state = load_state(config)
 
+    # Build service -> host mapping (empty string for multi-host services)
+    service_hosts = {
+        svc: "" if host_val == "all" or isinstance(host_val, list) else host_val
+        for svc, host_val in config.services.items()
+    }
+
     return templates.TemplateResponse(
         "partials/sidebar.html",
         {
             "request": request,
             "services": sorted(config.services.keys()),
+            "service_hosts": service_hosts,
+            "hosts": sorted(config.hosts.keys()),
             "state": state,
         },
     )

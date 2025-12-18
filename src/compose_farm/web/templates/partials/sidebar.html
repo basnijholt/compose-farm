@@ -1,4 +1,4 @@
-{% from "partials/icons.html" import home %}
+{% from "partials/icons.html" import home, search %}
 <!-- Dashboard Link -->
 <div class="mb-4">
     <ul class="menu" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
@@ -8,21 +8,38 @@
 
 <!-- Services Section -->
 <div class="mb-4">
-    <h4 class="text-xs uppercase tracking-wide text-base-content/60 px-3 py-1">
-        Services <span class="text-xs opacity-50" title="Green = tracked in state file">(state)</span>
-    </h4>
-    <ul class="menu" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
+    <h4 class="text-xs uppercase tracking-wide text-base-content/60 px-3 py-1">Services <span class="opacity-50" id="sidebar-count">({{ services | length }})</span></h4>
+    <div class="px-2 mb-2 flex flex-col gap-1">
+        <label class="input input-xs input-bordered flex items-center gap-2 bg-base-200">
+            {{ search(14) }}<input type="text" id="sidebar-filter" placeholder="Filter..." onkeyup="sidebarFilter()" />
+        </label>
+        <select id="sidebar-host-select" class="select select-xs select-bordered bg-base-200 w-full" onchange="sidebarFilter()">
+            <option value="">All hosts</option>
+            {% for h in hosts %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+        </select>
+    </div>
+    <ul class="menu menu-sm" id="sidebar-services" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
         {% for service in services %}
-        <li>
+        <li data-svc="{{ service | lower }}" data-h="{{ service_hosts.get(service, '') }}">
             <a href="/service/{{ service }}" class="flex items-center gap-2">
-                {% if service in state %}
-                    <span class="status status-success" title="In state file"></span>
-                {% else %}
-                    <span class="status status-neutral" title="Not in state file"></span>
-                {% endif %}
+                {% if service in state %}<span class="status status-success" title="In state file"></span>
+                {% else %}<span class="status status-neutral" title="Not in state file"></span>{% endif %}
                 {{ service }}
             </a>
         </li>
         {% endfor %}
     </ul>
 </div>
+<script>
+function sidebarFilter() {
+    const q = (document.getElementById('sidebar-filter')?.value || '').toLowerCase();
+    const h = document.getElementById('sidebar-host-select')?.value || '';
+    let n = 0;
+    document.querySelectorAll('#sidebar-services li').forEach(li => {
+        const show = (!q || li.dataset.svc.includes(q)) && (!h || !li.dataset.h || li.dataset.h === h);
+        li.hidden = !show;
+        if (show) n++;
+    });
+    document.getElementById('sidebar-count').textContent = '(' + n + ')';
+}
+</script>
