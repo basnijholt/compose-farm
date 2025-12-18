@@ -262,49 +262,19 @@ def _report_traefik_status(cfg: Config, services: list[str]) -> None:
         console.print("[green]✓[/] Traefik labels valid")
 
 
-def _report_mount_errors(mount_errors: list[tuple[str, str, str]]) -> None:
-    """Report mount errors grouped by service."""
+def _report_requirement_errors(errors: list[tuple[str, str, str]], category: str) -> None:
+    """Report requirement errors (mounts, networks, devices) grouped by service."""
     by_service: dict[str, list[tuple[str, str]]] = {}
-    for svc, host, path in mount_errors:
-        by_service.setdefault(svc, []).append((host, path))
+    for svc, host, item in errors:
+        by_service.setdefault(svc, []).append((host, item))
 
-    console.print(f"[red]Missing mounts[/] ({len(mount_errors)}):")
+    console.print(f"[red]Missing {category}[/] ({len(errors)}):")
     for svc, items in sorted(by_service.items()):
         host = items[0][0]
-        paths = [p for _, p in items]
+        missing = [i for _, i in items]
         console.print(f"  [cyan]{svc}[/] on [magenta]{host}[/]:")
-        for path in paths:
-            console.print(f"    [red]✗[/] {path}")
-
-
-def _report_network_errors(network_errors: list[tuple[str, str, str]]) -> None:
-    """Report network errors grouped by service."""
-    by_service: dict[str, list[tuple[str, str]]] = {}
-    for svc, host, net in network_errors:
-        by_service.setdefault(svc, []).append((host, net))
-
-    console.print(f"[red]Missing networks[/] ({len(network_errors)}):")
-    for svc, items in sorted(by_service.items()):
-        host = items[0][0]
-        networks = [n for _, n in items]
-        console.print(f"  [cyan]{svc}[/] on [magenta]{host}[/]:")
-        for net in networks:
-            console.print(f"    [red]✗[/] {net}")
-
-
-def _report_device_errors(device_errors: list[tuple[str, str, str]]) -> None:
-    """Report device errors grouped by service."""
-    by_service: dict[str, list[tuple[str, str]]] = {}
-    for svc, host, dev in device_errors:
-        by_service.setdefault(svc, []).append((host, dev))
-
-    console.print(f"[red]Missing devices[/] ({len(device_errors)}):")
-    for svc, items in sorted(by_service.items()):
-        host = items[0][0]
-        devices = [d for _, d in items]
-        console.print(f"  [cyan]{svc}[/] on [magenta]{host}[/]:")
-        for dev in devices:
-            console.print(f"    [red]✗[/] {dev}")
+        for item in missing:
+            console.print(f"    [red]✗[/] {item}")
 
 
 def _report_ssh_status(unreachable_hosts: list[str]) -> bool:
@@ -356,13 +326,13 @@ def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bo
     mount_errors, network_errors, device_errors = _check_service_requirements(cfg, svc_list)
 
     if mount_errors:
-        _report_mount_errors(mount_errors)
+        _report_requirement_errors(mount_errors, "mounts")
         has_errors = True
     if network_errors:
-        _report_network_errors(network_errors)
+        _report_requirement_errors(network_errors, "networks")
         has_errors = True
     if device_errors:
-        _report_device_errors(device_errors)
+        _report_requirement_errors(device_errors, "devices")
         has_errors = True
     if not mount_errors and not network_errors and not device_errors:
         console.print("[green]✓[/] All mounts, networks, and devices exist")
