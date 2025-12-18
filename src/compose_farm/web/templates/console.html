@@ -25,7 +25,7 @@
             <h3 class="font-semibold flex items-center gap-2">{{ terminal() }} Terminal</h3>
             <span class="text-xs opacity-50">Full shell access to selected host</span>
         </div>
-        <div id="console-terminal" class="w-full h-96 bg-base-300 rounded-lg overflow-hidden"></div>
+        <div id="console-terminal" class="w-full bg-base-300 rounded-lg overflow-hidden resize-y" style="height: 384px; min-height: 200px;"></div>
     </div>
 
     <!-- Editor -->
@@ -36,11 +36,12 @@
                 <input type="text" id="console-file-path" class="input input-sm input-bordered w-96" placeholder="Enter file path (e.g., ~/docker-compose.yaml)" value="{{ config_path }}">
                 <button class="btn btn-sm btn-outline" onclick="loadFile()">Open</button>
             </div>
-            <button id="console-save-btn" class="btn btn-sm btn-primary" onclick="saveFile()">{{ save() }} Save</button>
+            <div class="flex items-center gap-2">
+                <span id="editor-status" class="text-sm opacity-60"></span>
+                <button id="console-save-btn" class="btn btn-sm btn-primary" onclick="saveFile()">{{ save() }} Save</button>
+            </div>
         </div>
-        <div class="editor-wrapper">
-            <div id="console-editor" class="h-[32rem]"></div>
-        </div>
+        <div id="console-editor" class="resize-y overflow-hidden rounded-lg" style="height: 512px; min-height: 200px;"></div>
     </div>
 </div>
 {% endblock %}
@@ -79,10 +80,9 @@ function connectConsole() {
     statusEl.textContent = 'Connecting...';
 
     // Create WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    consoleWs = new WebSocket(`${protocol}//${window.location.host}/ws/shell/${host}`);
+    consoleWs = createWebSocket(`/ws/shell/${host}`);
 
-    // Resize callback
+    // Resize callback - createTerminal's ResizeObserver calls this on container resize
     const sendSize = (cols, rows) => {
         if (consoleWs && consoleWs.readyState === WebSocket.OPEN) {
             consoleWs.send(JSON.stringify({ type: 'resize', cols, rows }));
@@ -115,12 +115,12 @@ function connectConsole() {
 
     consoleWs.onclose = () => {
         statusEl.textContent = 'Disconnected';
-        term.write('\r\n\x1b[2m[Connection closed]\x1b[0m\r\n');
+        term.write(`${ANSI.CRLF}${ANSI.DIM}[Connection closed]${ANSI.RESET}${ANSI.CRLF}`);
     };
 
     consoleWs.onerror = (error) => {
         statusEl.textContent = 'Connection error';
-        term.write('\x1b[31m[WebSocket Error]\x1b[0m\r\n');
+        term.write(`${ANSI.RED}[WebSocket Error]${ANSI.RESET}${ANSI.CRLF}`);
         console.error('Console WebSocket error:', error);
     };
 
@@ -137,48 +137,14 @@ function initConsoleEditor() {
     if (!editorEl || consoleEditor) return;
 
     loadMonaco(() => {
-        consoleEditor = monaco.editor.create(editorEl, {
-            value: '# Select a file to edit\n# Enter a file path above and click "Open"',
-            language: 'plaintext',
-            theme: 'vs-dark',
-            minimap: { enabled: false },
-            automaticLayout: true,
-            scrollBeyondLastLine: false,
-            fontSize: 14,
-            lineNumbers: 'on',
-            wordWrap: 'on'
-        });
-
-        // Cmd+S to save
-        consoleEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveFile);
+        consoleEditor = createEditor(editorEl, '', 'plaintext', { onSave: saveFile });
     });
-}
-
-function getLanguageFromPath(path) {
-    const ext = path.split('.').pop().toLowerCase();
-    const langMap = {
-        'yaml': 'yaml', 'yml': 'yaml',
-        'json': 'json',
-        'js': 'javascript', 'mjs': 'javascript',
-        'ts': 'typescript', 'tsx': 'typescript',
-        'py': 'python',
-        'sh': 'shell', 'bash': 'shell',
-        'md': 'markdown',
-        'html': 'html', 'htm': 'html',
-        'css': 'css',
-        'sql': 'sql',
-        'toml': 'toml',
-        'ini': 'ini', 'conf': 'ini',
-        'dockerfile': 'dockerfile',
-        'env': 'plaintext'
-    };
-    return langMap[ext] || 'plaintext';
 }
 
 async function loadFile() {
     const pathInput = document.getElementById('console-file-path');
     const path = pathInput.value.trim();
-    const statusEl = document.getElementById('console-status');
+    const statusEl = document.getElementById('editor-status');
 
     if (!path) {
         statusEl.textContent = 'Enter a file path';
@@ -201,22 +167,23 @@ async function loadFile() {
             return;
         }
 
-        currentFilePath = path;
         const language = getLanguageFromPath(path);
 
         if (consoleEditor) {
             consoleEditor.setValue(data.content);
             monaco.editor.setModelLanguage(consoleEditor.getModel(), language);
+            currentFilePath = path;  // Only set after content is loaded
+            statusEl.textContent = `Loaded: ${path}`;
+        } else {
+            statusEl.textContent = 'Editor not ready';
         }
-
-        statusEl.textContent = `Loaded: ${path}`;
     } catch (e) {
         statusEl.textContent = `Error: ${e.message}`;
     }
 }
 
 async function saveFile() {
-    const statusEl = document.getElementById('console-status');
+    const statusEl = document.getElementById('editor-status');
 
     if (!currentFilePath) {
         statusEl.textContent = 'No file loaded';

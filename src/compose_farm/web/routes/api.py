@@ -6,14 +6,12 @@ import asyncio
 import contextlib
 import json
 import shlex
-from typing import TYPE_CHECKING, Annotated, Any
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Annotated, Any
 
 import asyncssh
 import yaml
-
-if TYPE_CHECKING:
-    from pathlib import Path
-
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
@@ -31,6 +29,51 @@ def _validate_yaml(content: str) -> None:
         yaml.safe_load(content)
     except yaml.YAMLError as e:
         raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}") from e
+
+
+def _backup_file(file_path: Path) -> Path | None:
+    """Create a timestamped backup of a file if it exists and content differs.
+
+    Backups are stored in a .backups directory alongside the file.
+    Returns the backup path if created, None if no backup was needed.
+    """
+    if not file_path.exists():
+        return None
+
+    # Create backup directory
+    backup_dir = file_path.parent / ".backups"
+    backup_dir.mkdir(exist_ok=True)
+
+    # Generate timestamped backup filename
+    timestamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
+    backup_name = f"{file_path.name}.{timestamp}"
+    backup_path = backup_dir / backup_name
+
+    # Copy current content to backup
+    backup_path.write_text(file_path.read_text())
+
+    # Clean up old backups (keep last 200)
+    backups = sorted(backup_dir.glob(f"{file_path.name}.*"), reverse=True)
+    for old_backup in backups[200:]:
+        old_backup.unlink()
+
+    return backup_path
+
+
+def _save_with_backup(file_path: Path, content: str) -> bool:
+    """Save content to file, creating a backup first if content changed.
+
+    Returns True if file was saved, False if content was unchanged.
+    """
+    # Check if content actually changed
+    if file_path.exists():
+        current_content = file_path.read_text()
+        if current_content == content:
+            return False  # No change, skip save
+        _backup_file(file_path)
+
+    file_path.write_text(content)
+    return True
 
 
 def _get_service_compose_path(name: str) -> Path:
@@ -186,8 +229,9 @@ async def save_compose(
     """Save compose file content."""
     compose_path = _get_service_compose_path(name)
     _validate_yaml(content)
-    compose_path.write_text(content)
-    return {"success": True, "message": "Compose file saved"}
+    saved = _save_with_backup(compose_path, content)
+    msg = "Compose file saved" if saved else "No changes to save"
+    return {"success": True, "message": msg}
 
 
 @router.put("/service/{name}/env")
@@ -196,8 +240,9 @@ async def save_env(
 ) -> dict[str, Any]:
     """Save .env file content."""
     env_path = _get_service_compose_path(name).parent / ".env"
-    env_path.write_text(content)
-    return {"success": True, "message": ".env file saved"}
+    saved = _save_with_backup(env_path, content)
+    msg = ".env file saved" if saved else "No changes to save"
+    return {"success": True, "message": msg}
 
 
 @router.put("/config")
@@ -210,15 +255,13 @@ async def save_config(
         raise HTTPException(status_code=404, detail="Config file not found")
 
     _validate_yaml(content)
-    config_path.write_text(content)
-
-    return {"success": True, "message": "Config saved"}
+    saved = _save_with_backup(config_path, content)
+    msg = "Config saved" if saved else "No changes to save"
+    return {"success": True, "message": msg}
 
 
 async def _read_file_local(path: str) -> str:
     """Read a file from the local filesystem."""
-    from pathlib import Path  # noqa: PLC0415
-
     expanded = Path(path).expanduser()
     loop = asyncio.get_event_loop()
 
@@ -228,17 +271,18 @@ async def _read_file_local(path: str) -> str:
     return await loop.run_in_executor(None, read_sync)
 
 
-async def _write_file_local(path: str, content: str) -> None:
-    """Write content to a file on the local filesystem."""
-    from pathlib import Path  # noqa: PLC0415
+async def _write_file_local(path: str, content: str) -> bool:
+    """Write content to a file on the local filesystem with backup.
 
+    Returns True if file was saved, False if content was unchanged.
+    """
     expanded = Path(path).expanduser()
     loop = asyncio.get_event_loop()
 
-    def write_sync() -> None:
-        expanded.write_text(content, encoding="utf-8")
+    def write_sync() -> bool:
+        return _save_with_backup(expanded, content)
 
-    await loop.run_in_executor(None, write_sync)
+    return await loop.run_in_executor(None, write_sync)
 
 
 async def _read_file_remote(host: Any, path: str) -> str:
@@ -278,20 +322,26 @@ async def _write_file_remote(host: Any, path: str, content: str) -> None:
             raise RuntimeError(msg)
 
 
+def _get_console_host(host: str, path: str) -> Any:
+    """Validate and return host config for console file operations."""
+    config = get_config()
+    host_config = config.hosts.get(host)
+
+    if not host_config:
+        raise HTTPException(status_code=404, detail=f"Host '{host}' not found")
+    if not path:
+        raise HTTPException(status_code=400, detail="Path is required")
+
+    return host_config
+
+
 @router.get("/console/file")
 async def read_console_file(
     host: Annotated[str, Query(description="Host name")],
     path: Annotated[str, Query(description="File path")],
 ) -> dict[str, Any]:
     """Read a file from a host for the console editor."""
-    config = get_config()
-    host_config = config.hosts.get(host)
-
-    if not host_config:
-        raise HTTPException(status_code=404, detail=f"Host '{host}' not found")
-
-    if not path:
-        raise HTTPException(status_code=400, detail="Path is required")
+    host_config = _get_console_host(host, path)
 
     try:
         if is_local(host_config):
@@ -314,21 +364,16 @@ async def write_console_file(
     content: Annotated[str, Body(media_type="text/plain")],
 ) -> dict[str, Any]:
     """Write a file to a host from the console editor."""
-    config = get_config()
-    host_config = config.hosts.get(host)
-
-    if not host_config:
-        raise HTTPException(status_code=404, detail=f"Host '{host}' not found")
-
-    if not path:
-        raise HTTPException(status_code=400, detail="Path is required")
+    host_config = _get_console_host(host, path)
 
     try:
         if is_local(host_config):
-            await _write_file_local(path, content)
+            saved = await _write_file_local(path, content)
+            msg = f"Saved: {path}" if saved else "No changes to save"
         else:
             await _write_file_remote(host_config, path, content)
-        return {"success": True, "message": f"File saved: {path}"}
+            msg = f"Saved: {path}"  # Remote doesn't track changes
+        return {"success": True, "message": msg}
     except PermissionError:
         raise HTTPException(status_code=403, detail=f"Permission denied: {path}") from None
     except Exception as e:
