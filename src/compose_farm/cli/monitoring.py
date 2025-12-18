@@ -24,39 +24,10 @@ from compose_farm.cli.common import (
 )
 from compose_farm.console import console, err_console
 from compose_farm.executor import run_command, run_on_services
-from compose_farm.state import get_services_needing_migration, load_state
+from compose_farm.state import get_services_needing_migration, group_services_by_host, load_state
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from compose_farm.config import Config
-
-
-def _group_services_by_host(
-    services: dict[str, str | list[str]],
-    hosts: Mapping[str, object],
-    all_hosts: list[str] | None = None,
-) -> dict[str, list[str]]:
-    """Group services by their assigned host(s).
-
-    For multi-host services (list or "all"), the service appears in multiple host lists.
-    """
-    by_host: dict[str, list[str]] = {h: [] for h in hosts}
-    for service, host_value in services.items():
-        if isinstance(host_value, list):
-            # Explicit list of hosts
-            for host_name in host_value:
-                if host_name in by_host:
-                    by_host[host_name].append(service)
-        elif host_value == "all" and all_hosts:
-            # "all" keyword - add to all hosts
-            for host_name in all_hosts:
-                if host_name in by_host:
-                    by_host[host_name].append(service)
-        elif host_value in by_host:
-            # Single host
-            by_host[host_value].append(service)
-    return by_host
 
 
 def _get_container_counts(cfg: Config) -> dict[str, int]:
@@ -211,8 +182,8 @@ def stats(
     pending = get_services_needing_migration(cfg)
 
     all_hosts = list(cfg.hosts.keys())
-    services_by_host = _group_services_by_host(cfg.services, cfg.hosts, all_hosts)
-    running_by_host = _group_services_by_host(state, cfg.hosts, all_hosts)
+    services_by_host = group_services_by_host(cfg.services, cfg.hosts, all_hosts)
+    running_by_host = group_services_by_host(state, cfg.hosts, all_hosts)
 
     container_counts: dict[str, int] = {}
     if live:

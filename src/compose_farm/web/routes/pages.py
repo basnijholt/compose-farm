@@ -14,6 +14,7 @@ from compose_farm.state import (
     get_service_host,
     get_services_needing_migration,
     get_services_not_in_state,
+    group_services_by_host,
     load_state,
 )
 from compose_farm.web.deps import get_config, get_templates
@@ -104,13 +105,7 @@ async def index(request: Request) -> HTMLResponse:
     not_started = get_services_not_in_state(config)
 
     # Group services by host
-    services_by_host: dict[str, list[str]] = {}
-    for svc, host in deployed.items():
-        if isinstance(host, list):
-            for h in host:
-                services_by_host.setdefault(h, []).append(svc)
-        else:
-            services_by_host.setdefault(host, []).append(svc)
+    services_by_host = group_services_by_host(deployed, config.hosts)
 
     # Config file content
     config_content = ""
@@ -281,13 +276,7 @@ async def services_by_host_partial(request: Request, expanded: bool = True) -> H
     deployed = load_state(config)
 
     # Group services by host
-    services_by_host: dict[str, list[str]] = {}
-    for svc, host in deployed.items():
-        if isinstance(host, list):
-            for h in host:
-                services_by_host.setdefault(h, []).append(svc)
-        else:
-            services_by_host.setdefault(host, []).append(svc)
+    services_by_host = group_services_by_host(deployed, config.hosts)
 
     return templates.TemplateResponse(
         "partials/services_by_host.html",
