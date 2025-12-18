@@ -6,7 +6,9 @@ import os
 from pathlib import Path
 
 # Default key paths for compose-farm SSH key
-SSH_KEY_PATH = Path.home() / ".ssh" / "compose-farm"
+# Keys are stored in a subdirectory for cleaner docker volume mounting
+SSH_KEY_DIR = Path.home() / ".ssh" / "compose-farm"
+SSH_KEY_PATH = SSH_KEY_DIR / "id_ed25519"
 SSH_PUBKEY_PATH = SSH_KEY_PATH.with_suffix(".pub")
 
 

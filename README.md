@@ -190,25 +190,31 @@ cf ssh setup
 cf ssh status
 ```
 
-This creates `~/.ssh/compose-farm` (ED25519, no passphrase) and copies the public key to each host's `authorized_keys`. Compose Farm tries the SSH agent first, then falls back to this key.
+This creates `~/.ssh/compose-farm/id_ed25519` (ED25519, no passphrase) and copies the public key to each host's `authorized_keys`. Compose Farm tries the SSH agent first, then falls back to this key.
 
 <details><summary>🐳 Docker volume options for SSH keys</summary>
 
-When running in Docker, mount a volume to persist the SSH keys:
+When running in Docker, mount a volume to persist the SSH keys. Choose ONE option and use it for both `cf` and `web` services:
 
-**Option 1: Named volume (default)**
-```yaml
-volumes:
-  - cf-ssh:/root/.ssh
-```
-
-**Option 2: Host path (easier to backup/inspect)**
+**Option 1: Host path (default)** - keys at `~/.ssh/compose-farm/id_ed25519`
 ```yaml
 volumes:
   - ~/.ssh/compose-farm:/root/.ssh
 ```
 
-Run `cf ssh setup` once after starting the container (while the SSH agent still works), and the keys will persist across restarts.
+**Option 2: Named volume** - managed by Docker
+```yaml
+volumes:
+  - cf-ssh:/root/.ssh
+```
+
+Run setup once after starting the container (while the SSH agent still works):
+
+```bash
+docker compose exec web cf ssh setup
+```
+
+The keys will persist across restarts.
 
 </details>
 
