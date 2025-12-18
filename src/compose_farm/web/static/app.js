@@ -501,7 +501,7 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         });
     }
 
-    const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6' };
+    const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6', app: '#a855f7' };
     let commands = [];
     let filtered = [];
     let selected = 0;
@@ -522,8 +522,8 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         const actions = [
             cmd('action', 'Apply', 'Make reality match config', dashboardAction('apply'), icons.check),
             cmd('action', 'Refresh', 'Update state from reality', dashboardAction('refresh'), icons.refresh_cw),
-            cmd('nav', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
-            cmd('nav', 'Console', 'Go to console', nav('/console'), icons.terminal),
+            cmd('app', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
+            cmd('app', 'Console', 'Go to console', nav('/console'), icons.terminal),
         ];
 
         // Add service-specific actions if on a service page
