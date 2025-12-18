@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
-from fastapi.testclient import TestClient
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
@@ -98,13 +97,3 @@ def mock_config(
     # (cache_clear happens after monkeypatch cleanup via addfinalizier)
     monkeypatch.undo()
     original_get_config.cache_clear()
-
-
-@pytest.fixture
-def client(mock_config: Config) -> Generator[TestClient, None, None]:
-    """Create a FastAPI test client with mocked config."""
-    from compose_farm.web.app import create_app
-
-    app = create_app()
-    with TestClient(app) as test_client:
-        yield test_client
