@@ -46,15 +46,14 @@
 </div>
 
 <script>
-(function() {
-// IIFE to avoid let re-declaration errors on HTMX navigation
-let consoleTerminal = null;
-let consoleWs = null;
-let consoleEditor = null;
-let currentFilePath = null;
-let currentHost = null;
+// Use var to allow re-declaration on HTMX navigation
+var consoleTerminal = null;
+var consoleWs = null;
+var consoleEditor = null;
+var currentFilePath = null;
+var currentHost = null;
 
-window.connectConsole = function() {
+function connectConsole() {
     const hostSelect = document.getElementById('console-host-select');
     const host = hostSelect.value;
     const statusEl = document.getElementById('console-status');
@@ -102,7 +101,7 @@ window.connectConsole = function() {
         if (pathInput && pathInput.value) {
             const tryLoad = () => {
                 if (consoleEditor) {
-                    window.loadFile();
+                    loadFile();
                 } else {
                     setTimeout(tryLoad, 100);
                 }
@@ -137,11 +136,11 @@ function initConsoleEditor() {
     if (!editorEl || consoleEditor) return;
 
     loadMonaco(() => {
-        consoleEditor = createEditor(editorEl, '', 'plaintext', { onSave: window.saveFile });
+        consoleEditor = createEditor(editorEl, '', 'plaintext', { onSave: saveFile });
     });
 }
 
-window.loadFile = async function() {
+async function loadFile() {
     const pathInput = document.getElementById('console-file-path');
     const path = pathInput.value.trim();
     const statusEl = document.getElementById('editor-status');
@@ -182,7 +181,7 @@ window.loadFile = async function() {
     }
 }
 
-window.saveFile = async function() {
+async function saveFile() {
     const statusEl = document.getElementById('editor-status');
 
     if (!currentFilePath) {
@@ -223,11 +222,20 @@ window.saveFile = async function() {
 }
 
 // Initialize editor and auto-connect to first host
-initConsoleEditor();
-const hostSelect = document.getElementById('console-host-select');
-if (hostSelect && hostSelect.options.length > 0) {
-    window.connectConsole();
+function init() {
+    initConsoleEditor();
+    const hostSelect = document.getElementById('console-host-select');
+    if (hostSelect && hostSelect.options.length > 0) {
+        connectConsole();
+    }
 }
-})();
+
+// On HTMX navigation, dependencies (app.js) are already loaded.
+// On hard refresh, this script runs before app.js, so wait for DOMContentLoaded.
+if (typeof createTerminal === 'function') {
+    init();
+} else {
+    document.addEventListener('DOMContentLoaded', init);
+}
 </script>
 {% endblock content %}
