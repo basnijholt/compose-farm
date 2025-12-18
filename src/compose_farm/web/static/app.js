@@ -549,14 +549,19 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     let selected = 0;
 
     const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
-    const nav = (url) => () => htmx.ajax('GET', url, {target: '#main-content', select: '#main-content', swap: 'outerHTML', pushUrl: url});
+    const nav = (url) => () => {
+        htmx.ajax('GET', url, {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
+            history.pushState({}, '', url);
+        });
+    };
     // Navigate to dashboard and trigger action (or just POST if already on dashboard)
     const dashboardAction = (endpoint) => () => {
         if (window.location.pathname === '/') {
             htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
         } else {
             // Navigate via HTMX, then trigger action after swap
-            htmx.ajax('GET', '/', {target: '#main-content', select: '#main-content', swap: 'outerHTML', pushUrl: '/'}).then(() => {
+            htmx.ajax('GET', '/', {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
+                history.pushState({}, '', '/');
                 htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
             });
         }
