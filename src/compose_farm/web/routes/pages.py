@@ -13,7 +13,7 @@ from compose_farm.state import (
     get_services_not_in_state,
     load_state,
 )
-from compose_farm.web.app import get_config, get_templates
+from compose_farm.web.deps import get_config, get_templates
 
 router = APIRouter()
 

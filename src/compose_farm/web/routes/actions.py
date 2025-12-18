@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
-from compose_farm.web.app import get_config
+from compose_farm.web.deps import get_config
 from compose_farm.web.streaming import run_cli_streaming, run_compose_streaming, tasks
 
 router = APIRouter(tags=["actions"])

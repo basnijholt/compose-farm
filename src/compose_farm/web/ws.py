@@ -17,7 +17,7 @@ import asyncssh
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from compose_farm.executor import is_local
-from compose_farm.web.app import get_config
+from compose_farm.web.deps import get_config
 from compose_farm.web.streaming import CRLF, DIM, GREEN, RED, RESET, tasks
 
 if TYPE_CHECKING:
@@ -149,7 +149,7 @@ async def _run_remote_exec(websocket: WebSocket, host: Host, exec_cmd: str) -> N
         username=host.user,
         known_hosts=None,
     ) as conn:
-        proc = await conn.create_process(
+        proc: asyncssh.SSHClientProcess[Any] = await conn.create_process(
             exec_cmd,
             term_type="xterm-256color",
             term_size=(80, 24),

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 from compose_farm.executor import run_compose_on_host
 from compose_farm.state import load_state
-from compose_farm.web.app import get_config, get_templates, reload_config
+from compose_farm.web.deps import get_config, get_templates, reload_config
 
 router = APIRouter(tags=["api"])
 
