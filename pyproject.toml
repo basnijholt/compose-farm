@@ -109,7 +109,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "PLR2004", "S108", "D102", "D103"]  # relaxed docstrings + asserts in tests
+"tests/*" = ["S101", "PLR2004", "S108", "D102", "D103", "PLC0415", "ARG001", "ARG002", "TC003"]  # relaxed for tests
 "src/compose_farm/web/*" = ["PLC0415", "SIM117", "FAST002", "TC003"]  # lazy imports, nested async context managers
 
 [tool.ruff.lint.mccabe]
