@@ -152,7 +152,16 @@ async def _run_ssh_command(
     """Run a command on a remote host via SSH with streaming output."""
     if raw:
         # Use native ssh with TTY for proper progress bar rendering
-        ssh_args = ["ssh", "-t"]
+        ssh_args = [
+            "ssh",
+            "-tt",  # Force TTY allocation even without stdin TTY
+            "-o",
+            "StrictHostKeyChecking=no",  # Match asyncssh known_hosts=None behavior
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "LogLevel=ERROR",  # Suppress warnings about known_hosts
+        ]
         if host.port != _DEFAULT_SSH_PORT:
             ssh_args.extend(["-p", str(host.port)])
         ssh_args.extend([f"{host.user}@{host.address}", command])
