@@ -156,7 +156,7 @@ def get_services(
     unknown = [svc for svc in resolved if svc not in config.services]
     if unknown:
         for svc in unknown:
-            err_console.print(f"[red]✗[/] Unknown service: [cyan]{svc}[/]")
+            err_console.print(f"[red]✗[/] Service [cyan]{svc}[/] not found in config")
         err_console.print("[dim]Hint: Add the service to compose-farm.yaml or use --all[/]")
         raise typer.Exit(1)
 
@@ -247,7 +247,7 @@ def maybe_regenerate_traefik(
 def validate_host(cfg: Config, host: str) -> None:
     """Validate that a host exists in config. Exits with error if not found."""
     if host not in cfg.hosts:
-        err_console.print(f"[red]✗[/] Host '{host}' not found in config")
+        err_console.print(f"[red]✗[/] Host [magenta]{host}[/] not found in config")
         raise typer.Exit(1)
 
 
@@ -256,7 +256,7 @@ def validate_hosts(cfg: Config, hosts: list[str]) -> None:
     invalid = [h for h in hosts if h not in cfg.hosts]
     if invalid:
         for h in invalid:
-            err_console.print(f"[red]✗[/] Host '{h}' not found in config")
+            err_console.print(f"[red]✗[/] Host [magenta]{h}[/] not found in config")
         raise typer.Exit(1)
 
 

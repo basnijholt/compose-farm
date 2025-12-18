@@ -465,7 +465,7 @@ def check(
         invalid = [s for s in svc_list if s not in cfg.services]
         if invalid:
             for svc in invalid:
-                err_console.print(f"[red]✗[/] Service '{svc}' not found in config")
+                err_console.print(f"[red]✗[/] Service [cyan]{svc}[/] not found in config")
             raise typer.Exit(1)
         show_host_compat = True
     else:
