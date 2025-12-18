@@ -43,6 +43,10 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 7. **State tracking**: Tracks where services are deployed for auto-migration
 8. **Pre-flight checks**: Verifies NFS mounts and Docker networks exist before starting/migrating
 
+## Code Style
+
+- **Imports at top level**: Never add imports inside functions unless they are explicitly marked with `# noqa: PLC0415` and a comment explaining it speeds up CLI startup. Heavy modules like `pydantic`, `yaml`, and `rich.table` are lazily imported to keep `cf --help` fast.
+
 ## Communication Notes
 
 - Clarify ambiguous wording (e.g., homophones like "right"/"write", "their"/"there").
