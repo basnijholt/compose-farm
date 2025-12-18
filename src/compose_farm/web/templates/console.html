@@ -141,7 +141,7 @@ function initConsoleEditor() {
 
     loadMonaco(() => {
         consoleEditor = monaco.editor.create(editorEl, {
-            value: '# Select a file to edit\n# Enter a file path above and click "Open"',
+            value: '',
             language: 'plaintext',
             theme: 'vs-dark',
             minimap: { enabled: false },
@@ -206,15 +206,16 @@ async function loadFile() {
             return;
         }
 
-        currentFilePath = path;
         const language = getLanguageFromPath(path);
 
         if (consoleEditor) {
             consoleEditor.setValue(data.content);
             monaco.editor.setModelLanguage(consoleEditor.getModel(), language);
+            currentFilePath = path;  // Only set after content is loaded
+            statusEl.textContent = `Loaded: ${path}`;
+        } else {
+            statusEl.textContent = 'Editor not ready';
         }
-
-        statusEl.textContent = `Loaded: ${path}`;
     } catch (e) {
         statusEl.textContent = `Error: ${e.message}`;
     }
