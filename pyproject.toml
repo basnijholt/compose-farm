@@ -79,6 +79,9 @@ version-file = "src/compose_farm/_version.py"
 [tool.hatch.build.targets.wheel]
 packages = ["src/compose_farm"]
 
+[tool.hatch.build.hooks.custom]
+# Vendors CDN assets (JS/CSS) into the wheel for offline use
+
 [tool.ruff]
 target-version = "py311"
 line-length = 100
