@@ -33,6 +33,45 @@ const TERMINAL_THEME = {
 };
 
 /**
+ * Create a terminal with fit addon and resize observer
+ * @param {HTMLElement} container - Container element
+ * @param {object} extraOptions - Additional terminal options
+ * @returns {{term: Terminal, fitAddon: FitAddon}}
+ */
+function createTerminal(container, extraOptions = {}) {
+    container.innerHTML = '';
+
+    const term = new Terminal({
+        convertEol: true,
+        theme: TERMINAL_THEME,
+        fontSize: 13,
+        fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+        scrollback: 5000,
+        ...extraOptions
+    });
+
+    const fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(container);
+    fitAddon.fit();
+
+    window.addEventListener('resize', () => fitAddon.fit());
+    new ResizeObserver(() => fitAddon.fit()).observe(container);
+
+    return { term, fitAddon };
+}
+
+/**
+ * Create WebSocket connection with standard handlers
+ * @param {string} path - WebSocket path
+ * @returns {WebSocket}
+ */
+function createWebSocket(path) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return new WebSocket(`${protocol}//${window.location.host}${path}`);
+}
+
+/**
  * Initialize a terminal and connect to WebSocket for streaming
  */
 function initTerminal(elementId, taskId) {
@@ -42,62 +81,25 @@ function initTerminal(elementId, taskId) {
         return;
     }
 
-    container.innerHTML = '';
-
-    const term = new Terminal({
-        convertEol: true,
-        theme: TERMINAL_THEME,
-        fontSize: 13,
-        fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
-        scrollback: 5000
-    });
-
-    // Fit addon
-    const fitAddon = new FitAddon.FitAddon();
-    term.loadAddon(fitAddon);
-
-    // Open terminal
-    term.open(container);
-    fitAddon.fit();
-
-    // Handle window and container resize
-    window.addEventListener('resize', () => fitAddon.fit());
-
-    // Refit when container is manually resized (drag handle)
-    const resizeObserver = new ResizeObserver(() => fitAddon.fit());
-    resizeObserver.observe(container);
-
-    // Connect WebSocket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/terminal/${taskId}`);
+    const { term, fitAddon } = createTerminal(container);
+    const ws = createWebSocket(`/ws/terminal/${taskId}`);
 
     ws.onopen = () => {
         term.write('\x1b[2m[Connected]\x1b[0m\r\n');
         setTerminalLoading(true);
     };
-
-    ws.onmessage = (event) => {
-        term.write(event.data);
-    };
-
-    ws.onclose = () => {
-        // Terminal already shows [Done] or [Failed] from server
-        setTerminalLoading(false);
-    };
-
+    ws.onmessage = (event) => term.write(event.data);
+    ws.onclose = () => setTerminalLoading(false);
     ws.onerror = (error) => {
         term.write('\x1b[31m[WebSocket Error]\x1b[0m\r\n');
         console.error('WebSocket error:', error);
         setTerminalLoading(false);
     };
 
-    // Store reference
     terminals[taskId] = { term, ws, fitAddon };
-
     return { term, ws };
 }
 
-// Export for global use
 window.initTerminal = initTerminal;
 
 /**
@@ -115,81 +117,35 @@ function initExecTerminal(service, container, host) {
         return;
     }
 
-    // Show container
     containerEl.classList.remove('hidden');
 
-    // Close existing connection
-    if (execWs) {
-        execWs.close();
-        execWs = null;
-    }
+    // Clean up existing
+    if (execWs) { execWs.close(); execWs = null; }
+    if (execTerminal) { execTerminal.dispose(); execTerminal = null; }
 
-    // Dispose existing terminal
-    if (execTerminal) {
-        execTerminal.dispose();
-        execTerminal = null;
-    }
+    const { term, fitAddon } = createTerminal(terminalEl, { cursorBlink: true });
+    execTerminal = term;
 
-    // Clear container
-    terminalEl.innerHTML = '';
-
-    // Create new terminal
-    execTerminal = new Terminal({
-        convertEol: true,
-        theme: TERMINAL_THEME,
-        fontSize: 13,
-        fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
-        scrollback: 5000,
-        cursorBlink: true
-    });
-
-    const fitAddon = new FitAddon.FitAddon();
-    execTerminal.loadAddon(fitAddon);
-    execTerminal.open(terminalEl);
-    fitAddon.fit();
-
-    // Send terminal size to server
     const sendSize = () => {
         if (execWs && execWs.readyState === WebSocket.OPEN) {
-            execWs.send(JSON.stringify({
-                type: 'resize',
-                cols: execTerminal.cols,
-                rows: execTerminal.rows
-            }));
+            execWs.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
         }
     };
 
-    // Handle resize
-    const resizeObserver = new ResizeObserver(() => {
-        fitAddon.fit();
-        sendSize();
-    });
-    resizeObserver.observe(containerEl);
+    // Additional resize observer for size messages
+    new ResizeObserver(() => { fitAddon.fit(); sendSize(); }).observe(containerEl);
 
-    // Connect WebSocket - include host in path
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    execWs = new WebSocket(`${protocol}//${window.location.host}/ws/exec/${service}/${container}/${host}`);
+    execWs = createWebSocket(`/ws/exec/${service}/${container}/${host}`);
 
-    execWs.onopen = () => {
-        sendSize();  // Send initial size
-        execTerminal.focus();
-    };
-
-    execWs.onmessage = (event) => {
-        execTerminal.write(event.data);
-    };
-
-    execWs.onclose = () => {
-        execTerminal.write('\r\n\x1b[2m[Connection closed]\x1b[0m\r\n');
-    };
-
+    execWs.onopen = () => { sendSize(); term.focus(); };
+    execWs.onmessage = (event) => term.write(event.data);
+    execWs.onclose = () => term.write('\r\n\x1b[2m[Connection closed]\x1b[0m\r\n');
     execWs.onerror = (error) => {
-        execTerminal.write('\x1b[31m[WebSocket Error]\x1b[0m\r\n');
+        term.write('\x1b[31m[WebSocket Error]\x1b[0m\r\n');
         console.error('Exec WebSocket error:', error);
     };
 
-    // Send keystrokes to server
-    execTerminal.onData((data) => {
+    term.onData((data) => {
         if (execWs && execWs.readyState === WebSocket.OPEN) {
             execWs.send(data);
         }
