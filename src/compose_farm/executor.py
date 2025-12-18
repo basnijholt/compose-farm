@@ -108,13 +108,13 @@ async def _run_local_command(
                 *,
                 is_stderr: bool = False,
             ) -> None:
+                out = err_console if is_stderr else console
                 while True:
                     line = await reader.readline()
                     if not line:
                         break
                     text = line.decode()
                     if text.strip():  # Skip empty lines
-                        out = err_console if is_stderr else console
                         out.print(f"[cyan]\\[{prefix}][/] {escape(text)}", end="")
 
             await asyncio.gather(
@@ -183,9 +183,9 @@ async def _run_ssh_command(
                         *,
                         is_stderr: bool = False,
                     ) -> None:
+                        out = err_console if is_stderr else console
                         async for line in reader:
                             if line.strip():  # Skip empty lines
-                                out = err_console if is_stderr else console
                                 out.print(f"[cyan]\\[{prefix}][/] {escape(line)}", end="")
 
                     await asyncio.gather(
