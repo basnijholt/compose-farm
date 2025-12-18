@@ -6,7 +6,7 @@ RUN apk add --no-cache openssh-client
 
 # Install compose-farm from PyPI
 ARG VERSION
-RUN uv tool install compose-farm${VERSION:+==$VERSION}
+RUN uv tool install "compose-farm[web]${VERSION:+==$VERSION}"
 
 # Add uv tool bin to PATH
 ENV PATH="/root/.local/bin:$PATH"
