@@ -25,7 +25,9 @@
             <h3 class="font-semibold flex items-center gap-2">{{ terminal() }} Terminal</h3>
             <span class="text-xs opacity-50">Full shell access to selected host</span>
         </div>
-        <div id="console-terminal" class="w-full bg-base-300 rounded-lg overflow-hidden resize-y" style="height: 384px; min-height: 200px;"></div>
+        <div id="console-terminal-container" class="w-full bg-base-300 rounded-lg overflow-hidden resize-y" style="height: 384px; min-height: 200px;">
+            <div id="console-terminal" class="h-full"></div>
+        </div>
     </div>
 
     <!-- Editor -->
@@ -49,6 +51,7 @@
 {% block scripts %}
 <script>
 let consoleTerminal = null;
+let consoleFitAddon = null;
 let consoleWs = null;
 let consoleEditor = null;
 let currentFilePath = null;
@@ -58,6 +61,7 @@ function connectConsole() {
     const hostSelect = document.getElementById('console-host-select');
     const host = hostSelect.value;
     const statusEl = document.getElementById('console-status');
+    const containerEl = document.getElementById('console-terminal-container');
     const terminalEl = document.getElementById('console-terminal');
 
     if (!host) {
@@ -75,6 +79,7 @@ function connectConsole() {
     if (consoleTerminal) {
         consoleTerminal.dispose();
         consoleTerminal = null;
+        consoleFitAddon = null;
     }
 
     statusEl.textContent = 'Connecting...';
@@ -91,8 +96,17 @@ function connectConsole() {
     };
 
     // Create terminal with resize callback
-    const { term } = createTerminal(terminalEl, { cursorBlink: true }, sendSize);
+    const { term, fitAddon } = createTerminal(terminalEl, { cursorBlink: true }, sendSize);
     consoleTerminal = term;
+    consoleFitAddon = fitAddon;
+
+    // Also observe the outer container for resize handle drags
+    new ResizeObserver(() => {
+        if (consoleFitAddon && consoleTerminal) {
+            consoleFitAddon.fit();
+            sendSize(consoleTerminal.cols, consoleTerminal.rows);
+        }
+    }).observe(containerEl);
 
     consoleWs.onopen = () => {
         statusEl.textContent = `Connected to ${host}`;
