@@ -15,7 +15,7 @@ import typer
 
 from compose_farm.cli.app import app
 from compose_farm.console import console, err_console
-from compose_farm.paths import config_search_paths, default_config_path
+from compose_farm.paths import config_search_paths, default_config_path, find_config_path
 
 config_app = typer.Typer(
     name="config",
@@ -76,18 +76,8 @@ def _get_config_file(path: Path | None) -> Path | None:
     if path:
         return path.expanduser().resolve()
 
-    # Check environment variable
-    if env_path := os.environ.get("CF_CONFIG"):
-        p = Path(env_path)
-        if p.exists():
-            return p.resolve()
-
-    # Check standard locations
-    for p in config_search_paths():
-        if p.exists():
-            return p.resolve()
-
-    return None
+    config_path = find_config_path()
+    return config_path.resolve() if config_path else None
 
 
 @config_app.command("init")

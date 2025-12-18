@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import getpass
-import os
 from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
-from .paths import xdg_config_home
+from .paths import config_search_paths, find_config_path
 
 
 class Host(BaseModel):
@@ -150,24 +149,10 @@ def load_config(path: Path | None = None) -> Config:
     3. ./compose-farm.yaml
     4. $XDG_CONFIG_HOME/compose-farm/compose-farm.yaml (defaults to ~/.config)
     """
-    search_paths = [
-        Path("compose-farm.yaml"),
-        xdg_config_home() / "compose-farm" / "compose-farm.yaml",
-    ]
-
-    if path:
-        config_path = path
-    elif env_path := os.environ.get("CF_CONFIG"):
-        config_path = Path(env_path)
-    else:
-        config_path = None
-        for p in search_paths:
-            if p.exists():
-                config_path = p
-                break
+    config_path = path or find_config_path()
 
     if config_path is None or not config_path.exists():
-        msg = f"Config file not found. Searched: {', '.join(str(p) for p in search_paths)}"
+        msg = f"Config file not found. Searched: {', '.join(str(p) for p in config_search_paths())}"
         raise FileNotFoundError(msg)
 
     if config_path.is_dir():

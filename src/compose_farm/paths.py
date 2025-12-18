@@ -19,3 +19,15 @@ def default_config_path() -> Path:
 def config_search_paths() -> list[Path]:
     """Get search paths for config files."""
     return [Path("compose-farm.yaml"), default_config_path()]
+
+
+def find_config_path() -> Path | None:
+    """Find the config file path, checking CF_CONFIG env var and search paths."""
+    if env_path := os.environ.get("CF_CONFIG"):
+        p = Path(env_path)
+        if p.exists() and p.is_file():
+            return p
+    for p in config_search_paths():
+        if p.exists() and p.is_file():
+            return p
+    return None

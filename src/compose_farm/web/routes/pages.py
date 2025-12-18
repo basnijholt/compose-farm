@@ -5,7 +5,9 @@ from __future__ import annotations
 import yaml
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
+from pydantic import ValidationError
 
+from compose_farm.paths import find_config_path
 from compose_farm.state import (
     get_orphaned_services,
     get_service_host,
@@ -21,8 +23,40 @@ router = APIRouter()
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
     """Dashboard page - combined view of all cluster info."""
-    config = get_config()
     templates = get_templates()
+
+    # Try to load config, handle errors gracefully
+    config_error = None
+    try:
+        config = get_config()
+    except (ValidationError, FileNotFoundError) as e:
+        # Extract error message
+        if isinstance(e, ValidationError):
+            config_error = "; ".join(err.get("msg", str(err)) for err in e.errors())
+        else:
+            config_error = str(e)
+
+        # Read raw config content for the editor
+        config_path = find_config_path()
+        config_content = config_path.read_text() if config_path else ""
+
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "config_error": config_error,
+                "hosts": {},
+                "services": {},
+                "config_content": config_content,
+                "state_content": "",
+                "running_count": 0,
+                "stopped_count": 0,
+                "orphaned": [],
+                "migrations": [],
+                "not_started": [],
+                "services_by_host": {},
+            },
+        )
 
     # Get state
     deployed = load_state(config)
@@ -57,6 +91,7 @@ async def index(request: Request) -> HTMLResponse:
         "index.html",
         {
             "request": request,
+            "config_error": None,
             # Config data
             "hosts": config.hosts,
             "services": config.services,
@@ -141,6 +176,23 @@ async def sidebar_partial(request: Request) -> HTMLResponse:
             "state": state,
         },
     )
+
+
+@router.get("/partials/config-error", response_class=HTMLResponse)
+async def config_error_partial(request: Request) -> HTMLResponse:
+    """Config error banner partial."""
+    templates = get_templates()
+    try:
+        get_config()
+        return HTMLResponse("")  # No error
+    except (ValidationError, FileNotFoundError) as e:
+        if isinstance(e, ValidationError):
+            error = "; ".join(err.get("msg", str(err)) for err in e.errors())
+        else:
+            error = str(e)
+        return templates.TemplateResponse(
+            "partials/config_error.html", {"request": request, "config_error": error}
+        )
 
 
 @router.get("/partials/stats", response_class=HTMLResponse)

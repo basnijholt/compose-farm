@@ -19,8 +19,15 @@
 
     {% include "partials/terminal.html" %}
 
+    <!-- Config Error Banner -->
+    <div id="config-error">
+    {% if config_error %}
+        {% include "partials/config_error.html" %}
+    {% endif %}
+    </div>
+
     <!-- Config Editor -->
-    {% call collapse("Edit Config", badge="compose-farm.yaml", icon=settings()) %}
+    {% call collapse("Edit Config", badge="compose-farm.yaml", icon=settings(), checked=config_error) %}
         <div class="editor-wrapper yaml-wrapper">
             <div id="config-editor" class="yaml-editor" data-content="{{ config_content | e }}" data-save-url="/api/config"></div>
         </div>

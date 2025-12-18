@@ -7,13 +7,15 @@ import json
 from typing import TYPE_CHECKING, Annotated, Any
 
 import yaml
-from fastapi import APIRouter, Body, HTTPException
-from fastapi.responses import HTMLResponse
 
 if TYPE_CHECKING:
     from pathlib import Path
 
+from fastapi import APIRouter, Body, HTTPException
+from fastapi.responses import HTMLResponse
+
 from compose_farm.executor import run_compose_on_host
+from compose_farm.paths import find_config_path
 from compose_farm.state import load_state
 from compose_farm.web.deps import get_config, get_templates
 
@@ -200,12 +202,11 @@ async def save_config(
     content: Annotated[str, Body(media_type="text/plain")],
 ) -> dict[str, Any]:
     """Save compose-farm.yaml config file."""
-    config = get_config()
-
-    if not config.config_path:
-        raise HTTPException(status_code=404, detail="Config path not set")
+    config_path = find_config_path()
+    if not config_path:
+        raise HTTPException(status_code=404, detail="Config file not found")
 
     _validate_yaml(content)
-    config.config_path.write_text(content)
+    config_path.write_text(content)
 
     return {"success": True, "message": "Config saved"}
