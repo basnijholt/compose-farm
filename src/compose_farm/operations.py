@@ -10,7 +10,7 @@ import asyncio
 from typing import TYPE_CHECKING, NamedTuple
 
 from .compose import parse_devices, parse_external_networks, parse_host_volumes
-from .console import console, err_console
+from .console import console, err_console, print_error, print_success, print_warning
 from .executor import (
     CommandResult,
     check_networks_exist,
@@ -145,9 +145,7 @@ async def _cleanup_and_rollback(
     raw: bool = False,
 ) -> None:
     """Clean up failed start and attempt rollback to old host if it was running."""
-    err_console.print(
-        f"{prefix} [yellow]![/] Cleaning up failed start on [magenta]{target_host}[/]"
-    )
+    print_warning(f"{prefix} Cleaning up failed start on [magenta]{target_host}[/]")
     await run_compose(cfg, service, "down", raw=raw)
 
     if not was_running:
@@ -156,12 +154,12 @@ async def _cleanup_and_rollback(
         )
         return
 
-    err_console.print(f"{prefix} [yellow]![/] Rolling back to [magenta]{current_host}[/]...")
+    print_warning(f"{prefix} Rolling back to [magenta]{current_host}[/]...")
     rollback_result = await run_compose_on_host(cfg, service, current_host, "up -d", raw=raw)
     if rollback_result.success:
-        console.print(f"{prefix} [green]✓[/] Rollback succeeded on [magenta]{current_host}[/]")
+        print_success(f"{prefix} Rollback succeeded on [magenta]{current_host}[/]")
     else:
-        err_console.print(f"{prefix} [red]✗[/] Rollback failed - service is down")
+        print_error(f"{prefix} Rollback failed - service is down")
 
 
 def _report_preflight_failures(
@@ -170,17 +168,15 @@ def _report_preflight_failures(
     preflight: PreflightResult,
 ) -> None:
     """Report pre-flight check failures."""
-    err_console.print(
-        f"[cyan]\\[{service}][/] [red]✗[/] Cannot start on [magenta]{target_host}[/]:"
-    )
+    print_error(f"[cyan]\\[{service}][/] Cannot start on [magenta]{target_host}[/]:")
     for path in preflight.missing_paths:
-        err_console.print(f"  [red]✗[/] missing path: {path}")
+        print_error(f"  missing path: {path}")
     for net in preflight.missing_networks:
-        err_console.print(f"  [red]✗[/] missing network: {net}")
+        print_error(f"  missing network: {net}")
     if preflight.missing_networks:
         err_console.print(f"  [dim]Hint: cf init-network {target_host}[/]")
     for dev in preflight.missing_devices:
-        err_console.print(f"  [red]✗[/] missing device: {dev}")
+        print_error(f"  missing device: {dev}")
 
 
 async def _up_multi_host_service(
@@ -252,8 +248,8 @@ async def _migrate_service(
     for cmd, label in [("pull --ignore-buildable", "Pull"), ("build", "Build")]:
         result = await _run_compose_step(cfg, service, cmd, raw=raw)
         if not result.success:
-            err_console.print(
-                f"{prefix} [red]✗[/] {label} failed on [magenta]{target_host}[/], "
+            print_error(
+                f"{prefix} {label} failed on [magenta]{target_host}[/], "
                 "leaving service on current host"
             )
             return result
@@ -293,9 +289,8 @@ async def _up_single_service(
                 return failure
             did_migration = True
         else:
-            err_console.print(
-                f"{prefix} [yellow]![/] was on "
-                f"[magenta]{current_host}[/] (not in config), skipping down"
+            print_warning(
+                f"{prefix} was on [magenta]{current_host}[/] (not in config), skipping down"
             )
 
     # Start on target host
@@ -391,9 +386,7 @@ async def stop_orphaned_services(cfg: Config) -> list[CommandResult]:
         for host in host_list:
             # Skip hosts no longer in config
             if host not in cfg.hosts:
-                console.print(
-                    f"  [yellow]![/] {service}@{host}: host no longer in config, skipping"
-                )
+                print_warning(f"{service}@{host}: host no longer in config, skipping")
                 results.append(
                     CommandResult(
                         service=f"{service}@{host}",
@@ -413,11 +406,11 @@ async def stop_orphaned_services(cfg: Config) -> list[CommandResult]:
                 result = await task
                 results.append(result)
                 if result.success:
-                    console.print(f"  [green]✓[/] {service}@{host}: stopped")
+                    print_success(f"{service}@{host}: stopped")
                 else:
-                    console.print(f"  [red]✗[/] {service}@{host}: {result.stderr or 'failed'}")
+                    print_error(f"{service}@{host}: {result.stderr or 'failed'}")
             except Exception as e:
-                console.print(f"  [red]✗[/] {service}@{host}: {e}")
+                print_error(f"{service}@{host}: {e}")
                 results.append(
                     CommandResult(
                         service=f"{service}@{host}",

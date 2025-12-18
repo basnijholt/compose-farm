@@ -22,12 +22,19 @@ from compose_farm.cli.common import (
     run_async,
     run_parallel_with_progress,
     validate_hosts,
+    validate_services,
 )
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
 
-from compose_farm.console import console, err_console
+from compose_farm.console import (
+    MSG_DRY_RUN,
+    console,
+    print_error,
+    print_success,
+    print_warning,
+)
 from compose_farm.executor import (
     CommandResult,
     is_local,
@@ -222,7 +229,7 @@ def _report_config_status(cfg: Config) -> bool:
             console.print(f"  [red]-[/] [cyan]{name}[/]")
 
     if not unmanaged and not missing_from_disk:
-        console.print("[green]✓[/] Config matches disk")
+        print_success("Config matches disk")
 
     return bool(missing_from_disk)
 
@@ -234,11 +241,10 @@ def _report_orphaned_services(cfg: Config) -> bool:
     if orphaned:
         console.print("\n[yellow]Orphaned services[/] (in state but not in config):")
         console.print(
-            "[dim]Run 'cf apply' to stop them, or 'cf down --orphaned' for just orphans.[/]"
+            "[dim]Run [bold]cf apply[/bold] to stop them, or [bold]cf down --orphaned[/bold] for just orphans.[/]"
         )
         for name, hosts in sorted(orphaned.items()):
-            host_str = ", ".join(hosts) if isinstance(hosts, list) else hosts
-            console.print(f"  [yellow]![/] [cyan]{name}[/] on [magenta]{host_str}[/]")
+            console.print(f"  [yellow]![/] [cyan]{name}[/] on [magenta]{format_host(hosts)}[/]")
         return True
 
     return False
@@ -254,9 +260,9 @@ def _report_traefik_status(cfg: Config, services: list[str]) -> None:
     if warnings:
         console.print(f"\n[yellow]Traefik issues[/] ({len(warnings)}):")
         for warning in warnings:
-            console.print(f"  [yellow]![/] {warning}")
+            print_warning(warning)
     else:
-        console.print("[green]✓[/] Traefik labels valid")
+        print_success("Traefik labels valid")
 
 
 def _report_requirement_errors(errors: list[tuple[str, str, str]], category: str) -> None:
@@ -279,9 +285,9 @@ def _report_ssh_status(unreachable_hosts: list[str]) -> bool:
     if unreachable_hosts:
         console.print(f"[red]Unreachable hosts[/] ({len(unreachable_hosts)}):")
         for host in sorted(unreachable_hosts):
-            console.print(f"  [red]✗[/] [magenta]{host}[/]")
+            print_error(f"[magenta]{host}[/]")
         return True
-    console.print("[green]✓[/] All hosts reachable")
+    print_success("All hosts reachable")
     return False
 
 
@@ -332,7 +338,7 @@ def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bo
         _report_requirement_errors(device_errors, "devices")
         has_errors = True
     if not mount_errors and not network_errors and not device_errors:
-        console.print("[green]✓[/] All mounts, networks, and devices exist")
+        print_success("All mounts, networks, and devices exist")
 
     if show_host_compat:
         for service in svc_list:
@@ -369,7 +375,7 @@ def traefik_file(
     try:
         dynamic, warnings = generate_traefik_config(cfg, svc_list)
     except (FileNotFoundError, ValueError) as exc:
-        err_console.print(f"[red]✗[/] {exc}")
+        print_error(str(exc))
         raise typer.Exit(1) from exc
 
     rendered = render_traefik_config(dynamic)
@@ -377,12 +383,12 @@ def traefik_file(
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(rendered)
-        console.print(f"[green]✓[/] Traefik config written to {output}")
+        print_success(f"Traefik config written to {output}")
     else:
         console.print(rendered)
 
     for warning in warnings:
-        err_console.print(f"[yellow]![/] {warning}")
+        print_warning(warning)
 
 
 @app.command(rich_help_panel="Configuration")
@@ -421,24 +427,24 @@ def refresh(
     if state_changed:
         _report_sync_changes(added, removed, changed, discovered, current_state)
     else:
-        console.print("[green]✓[/] State is already in sync.")
+        print_success("State is already in sync.")
 
     if dry_run:
-        console.print("\n[dim](dry-run: no changes made)[/]")
+        console.print(f"\n{MSG_DRY_RUN}")
         return
 
     # Update state file
     if state_changed:
         save_state(cfg, discovered)
-        console.print(f"\n[green]✓[/] State updated: {len(discovered)} services tracked.")
+        print_success(f"State updated: {len(discovered)} services tracked.")
 
     # Capture image digests for running services
     if discovered:
         try:
             path = _snapshot_services(cfg, list(discovered.keys()), log_path)
-            console.print(f"[green]✓[/] Digests written to {path}")
+            print_success(f"Digests written to {path}")
         except RuntimeError as exc:
-            err_console.print(f"[yellow]![/] {exc}")
+            print_warning(str(exc))
 
 
 @app.command(rich_help_panel="Configuration")
@@ -462,11 +468,7 @@ def check(
     # Determine which services to check and whether to show host compatibility
     if services:
         svc_list = list(services)
-        invalid = [s for s in svc_list if s not in cfg.services]
-        if invalid:
-            for svc in invalid:
-                err_console.print(f"[red]✗[/] Service [cyan]{svc}[/] not found in config")
-            raise typer.Exit(1)
+        validate_services(cfg, svc_list)
         show_host_compat = True
     else:
         svc_list = list(cfg.services.keys())
@@ -541,9 +543,8 @@ def init_network(
         if result.success:
             console.print(f"[cyan]\\[{host_name}][/] [green]✓[/] Created network '{network}'")
         else:
-            err_console.print(
-                f"[cyan]\\[{host_name}][/] [red]✗[/] Failed to create network: "
-                f"{result.stderr.strip()}"
+            print_error(
+                f"[cyan]\\[{host_name}][/] Failed to create network: {result.stderr.strip()}"
             )
 
         return result

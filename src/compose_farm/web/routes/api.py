@@ -263,12 +263,7 @@ async def save_config(
 async def _read_file_local(path: str) -> str:
     """Read a file from the local filesystem."""
     expanded = Path(path).expanduser()
-    loop = asyncio.get_event_loop()
-
-    def read_sync() -> str:
-        return expanded.read_text(encoding="utf-8")
-
-    return await loop.run_in_executor(None, read_sync)
+    return await asyncio.to_thread(expanded.read_text, encoding="utf-8")
 
 
 async def _write_file_local(path: str, content: str) -> bool:
@@ -277,12 +272,7 @@ async def _write_file_local(path: str, content: str) -> bool:
     Returns True if file was saved, False if content was unchanged.
     """
     expanded = Path(path).expanduser()
-    loop = asyncio.get_event_loop()
-
-    def write_sync() -> bool:
-        return _save_with_backup(expanded, content)
-
-    return await loop.run_in_executor(None, write_sync)
+    return await asyncio.to_thread(_save_with_backup, expanded, content)
 
 
 async def _read_file_remote(host: Any, path: str) -> str:

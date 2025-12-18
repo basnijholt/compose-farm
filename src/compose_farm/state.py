@@ -37,6 +37,15 @@ def group_services_by_host(
     return by_host
 
 
+def group_running_services_by_host(
+    state: dict[str, str | list[str]],
+    hosts: Mapping[str, object],
+) -> dict[str, list[str]]:
+    """Group running services by host, filtering out hosts with no services."""
+    by_host = group_services_by_host(state, hosts)
+    return {h: svcs for h, svcs in by_host.items() if svcs}
+
+
 def load_state(config: Config) -> dict[str, str | list[str]]:
     """Load the current deployment state.
 

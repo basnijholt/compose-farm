@@ -18,7 +18,15 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from compose_farm.console import console, err_console
+from compose_farm.console import (
+    MSG_HOST_NOT_FOUND,
+    MSG_SERVICE_NOT_FOUND,
+    console,
+    print_error,
+    print_hint,
+    print_success,
+    print_warning,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Generator
@@ -128,7 +136,7 @@ def load_config_or_exit(config_path: Path | None) -> Config:
     try:
         return load_config(config_path)
     except FileNotFoundError as e:
-        err_console.print(f"[red]✗[/] {e}")
+        print_error(str(e))
         raise typer.Exit(1) from e
 
 
@@ -146,19 +154,16 @@ def get_services(
     if all_services:
         return list(config.services.keys()), config
     if not services:
-        err_console.print("[red]✗[/] Specify services or use --all")
+        print_error("Specify services or use [bold]--all[/]")
         raise typer.Exit(1)
 
     # Resolve "." to current directory name
     resolved = [Path.cwd().name if svc == "." else svc for svc in services]
 
     # Validate all services exist in config
-    unknown = [svc for svc in resolved if svc not in config.services]
-    if unknown:
-        for svc in unknown:
-            err_console.print(f"[red]✗[/] Service [cyan]{svc}[/] not found in config")
-        err_console.print("[dim]Hint: Add the service to compose-farm.yaml or use --all[/]")
-        raise typer.Exit(1)
+    validate_services(
+        config, resolved, hint="Add the service to compose-farm.yaml or use [bold]--all[/]"
+    )
 
     return resolved, config
 
@@ -182,21 +187,19 @@ def report_results(results: list[CommandResult]) -> None:
         console.print()  # Blank line before summary
         if failed:
             for r in failed:
-                err_console.print(
-                    f"[red]✗[/] [cyan]{r.service}[/] failed with exit code {r.exit_code}"
-                )
+                print_error(f"[cyan]{r.service}[/] failed with exit code {r.exit_code}")
             console.print()
             console.print(
                 f"[green]✓[/] {len(succeeded)}/{len(results)} services succeeded, "
                 f"[red]✗[/] {len(failed)} failed"
             )
         else:
-            console.print(f"[green]✓[/] All {len(results)} services succeeded")
+            print_success(f"All {len(results)} services succeeded")
 
     elif failed:
         # Single service failed
         r = failed[0]
-        err_console.print(f"[red]✗[/] [cyan]{r.service}[/] failed with exit code {r.exit_code}")
+        print_error(f"[cyan]{r.service}[/] failed with exit code {r.exit_code}")
 
     if failed:
         raise typer.Exit(1)
@@ -236,18 +239,29 @@ def maybe_regenerate_traefik(
             cfg.traefik_file.parent.mkdir(parents=True, exist_ok=True)
             cfg.traefik_file.write_text(new_content)
             console.print()  # Ensure we're on a new line after streaming output
-            console.print(f"[green]✓[/] Traefik config updated: {cfg.traefik_file}")
+            print_success(f"Traefik config updated: {cfg.traefik_file}")
 
         for warning in warnings:
-            err_console.print(f"[yellow]![/] {warning}")
+            print_warning(warning)
     except (FileNotFoundError, ValueError) as exc:
-        err_console.print(f"[yellow]![/] Failed to update traefik config: {exc}")
+        print_warning(f"Failed to update traefik config: {exc}")
+
+
+def validate_services(cfg: Config, services: list[str], *, hint: str | None = None) -> None:
+    """Validate that all services exist in config. Exits with error if any not found."""
+    invalid = [s for s in services if s not in cfg.services]
+    if invalid:
+        for svc in invalid:
+            print_error(MSG_SERVICE_NOT_FOUND.format(name=svc))
+        if hint:
+            print_hint(hint)
+        raise typer.Exit(1)
 
 
 def validate_host(cfg: Config, host: str) -> None:
     """Validate that a host exists in config. Exits with error if not found."""
     if host not in cfg.hosts:
-        err_console.print(f"[red]✗[/] Host [magenta]{host}[/] not found in config")
+        print_error(MSG_HOST_NOT_FOUND.format(name=host))
         raise typer.Exit(1)
 
 
@@ -256,7 +270,7 @@ def validate_hosts(cfg: Config, hosts: list[str]) -> None:
     invalid = [h for h in hosts if h not in cfg.hosts]
     if invalid:
         for h in invalid:
-            err_console.print(f"[red]✗[/] Host [magenta]{h}[/] not found in config")
+            print_error(MSG_HOST_NOT_FOUND.format(name=h))
         raise typer.Exit(1)
 
 
@@ -265,8 +279,8 @@ def validate_host_for_service(cfg: Config, service: str, host: str) -> None:
     validate_host(cfg, host)
     allowed_hosts = cfg.get_hosts(service)
     if host not in allowed_hosts:
-        err_console.print(
-            f"[red]✗[/] Service '{service}' is not configured for host '{host}' "
+        print_error(
+            f"Service [cyan]{service}[/] is not configured for host [magenta]{host}[/] "
             f"(configured: {', '.join(allowed_hosts)})"
         )
         raise typer.Exit(1)

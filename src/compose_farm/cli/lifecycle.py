@@ -23,7 +23,7 @@ from compose_farm.cli.common import (
     run_async,
     run_host_operation,
 )
-from compose_farm.console import console, err_console
+from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success
 from compose_farm.executor import run_on_services, run_sequential_on_services
 from compose_farm.operations import stop_orphaned_services, up_services
 from compose_farm.state import (
@@ -75,14 +75,16 @@ def down(
     # Handle --orphaned flag
     if orphaned:
         if services or all_services or host:
-            err_console.print("[red]✗[/] Cannot use --orphaned with services, --all, or --host")
+            print_error(
+                "Cannot combine [bold]--orphaned[/] with services, [bold]--all[/], or [bold]--host[/]"
+            )
             raise typer.Exit(1)
 
         cfg = load_config_or_exit(config)
         orphaned_services = get_orphaned_services(cfg)
 
         if not orphaned_services:
-            console.print("[green]✓[/] No orphaned services to stop")
+            print_success("No orphaned services to stop")
             return
 
         console.print(
@@ -239,7 +241,7 @@ def apply(
     has_refresh = bool(to_refresh)
 
     if not has_orphans and not has_migrations and not has_missing and not has_refresh:
-        console.print("[green]✓[/] Nothing to apply - reality matches config")
+        print_success("Nothing to apply - reality matches config")
         return
 
     # Report what will be done
@@ -253,7 +255,7 @@ def apply(
         _report_pending_refresh(cfg, to_refresh)
 
     if dry_run:
-        console.print("\n[dim](dry-run: no changes made)[/]")
+        console.print(f"\n{MSG_DRY_RUN}")
         return
 
     # Execute changes

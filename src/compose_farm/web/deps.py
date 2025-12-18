@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
@@ -30,3 +31,10 @@ def get_config() -> Config:
 def get_templates() -> Jinja2Templates:
     """Get Jinja2 templates instance."""
     return Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+def extract_config_error(exc: Exception) -> str:
+    """Extract a user-friendly error message from a config exception."""
+    if isinstance(exc, ValidationError):
+        return "; ".join(err.get("msg", str(err)) for err in exc.errors())
+    return str(exc)
