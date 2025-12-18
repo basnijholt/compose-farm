@@ -123,8 +123,8 @@ async def _run_cli_via_ssh(
             f"{GREEN}Running via SSH (self-update protection){RESET}{CRLF}",
         )
 
-        # Build SSH command using shared helper
-        ssh_args = build_ssh_command(host, remote_cmd)
+        # Build SSH command using shared helper (tty=True for progress bars)
+        ssh_args = build_ssh_command(host, remote_cmd, tty=True)
 
         # Set up environment with SSH agent
         env = {**os.environ, "FORCE_COLOR": "1", "TERM": "xterm-256color"}
