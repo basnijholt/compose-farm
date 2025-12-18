@@ -149,8 +149,14 @@ def _check_ssh_connectivity(cfg: Config) -> list[str]:
 
     async def check_host(host_name: str) -> tuple[str, bool]:
         host = cfg.hosts[host_name]
-        result = await run_command(host, "echo ok", host_name, stream=False)
-        return host_name, result.success
+        try:
+            result = await asyncio.wait_for(
+                run_command(host, "echo ok", host_name, stream=False),
+                timeout=5.0,
+            )
+            return host_name, result.success
+        except TimeoutError:
+            return host_name, False
 
     results = run_parallel_with_progress(
         "Checking SSH connectivity",

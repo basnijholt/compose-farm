@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import subprocess
 from typing import Annotated
 
@@ -10,6 +11,7 @@ import typer
 from compose_farm.cli.app import app
 from compose_farm.cli.common import ConfigOption, load_config_or_exit
 from compose_farm.console import console, err_console
+from compose_farm.executor import run_command
 from compose_farm.ssh_keys import (
     SSH_KEY_PATH,
     SSH_PUBKEY_PATH,
@@ -192,7 +194,7 @@ def ssh_setup(
 
 
 @ssh_app.command("status")
-def ssh_status(  # noqa: PLR0912 - branches are clear and readable
+def ssh_status(
     config: ConfigOption = None,
 ) -> None:
     """Show SSH key status and host connectivity."""
@@ -237,45 +239,34 @@ def ssh_status(  # noqa: PLR0912 - branches are clear and readable
     table.add_column("Address")
     table.add_column("Status")
 
-    for host_name, host in remote_hosts.items():
+    async def check_host(host_name: str) -> tuple[str, str, str]:
+        """Check connectivity to a single host."""
+        host = remote_hosts[host_name]
         target = f"{host.user}@{host.address}"
         if host.port != _DEFAULT_SSH_PORT:
             target += f":{host.port}"
 
-        # Test connectivity with a simple command
-        cmd = [
-            "ssh",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "BatchMode=yes",  # Fail immediately if password required
-            "-o",
-            "ConnectTimeout=5",
-        ]
-
-        # Add key file if it exists
-        if key_exists():
-            cmd.extend(["-i", str(SSH_KEY_PATH)])
-
-        if host.port != _DEFAULT_SSH_PORT:
-            cmd.extend(["-p", str(host.port)])
-
-        cmd.extend([f"{host.user}@{host.address}", "echo ok"])
-
         try:
-            result = subprocess.run(
-                cmd, check=False, capture_output=True, timeout=10, env=get_ssh_env()
+            result = await asyncio.wait_for(
+                run_command(host, "echo ok", host_name, stream=False),
+                timeout=5.0,
             )
-            if result.returncode == 0:
-                table.add_row(host_name, target, "[green]OK[/]")
-            else:
-                table.add_row(host_name, target, "[red]Auth failed[/]")
-        except subprocess.TimeoutExpired:
-            table.add_row(host_name, target, "[red]Timeout[/]")
+            status = "[green]OK[/]" if result.success else "[red]Auth failed[/]"
+        except TimeoutError:
+            status = "[red]Timeout (5s)[/]"
         except Exception as e:
-            table.add_row(host_name, target, f"[red]Error: {e}[/]")
+            status = f"[red]Error: {e}[/]"
+
+        return host_name, target, status
+
+    async def check_all_hosts() -> list[tuple[str, str, str]]:
+        """Check all hosts in parallel."""
+        tasks = [check_host(name) for name in remote_hosts]
+        return await asyncio.gather(*tasks)
+
+    results = asyncio.run(check_all_hosts())
+    for host_name, target, status in results:
+        table.add_row(host_name, target, status)
 
     console.print(table)
 
