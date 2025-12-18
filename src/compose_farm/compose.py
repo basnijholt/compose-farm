@@ -7,14 +7,14 @@ from __future__ import annotations
 
 import os
 import re
+import stat
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from .config import Config
 
 # Port parsing constants
@@ -141,23 +141,42 @@ def _resolve_host_path(host_path: str, compose_dir: Path) -> str | None:
     return None  # Named volume
 
 
+def _is_socket(path: str) -> bool:
+    """Check if a path is a socket (e.g., SSH agent socket)."""
+    try:
+        return stat.S_ISSOCK(Path(path).stat().st_mode)
+    except (FileNotFoundError, PermissionError, OSError):
+        return False
+
+
 def _parse_volume_item(
     item: str | dict[str, Any],
     env: dict[str, str],
     compose_dir: Path,
 ) -> str | None:
-    """Parse a single volume item and return host path if it's a bind mount."""
+    """Parse a single volume item and return host path if it's a bind mount.
+
+    Skips socket paths (e.g., SSH_AUTH_SOCK) since they're machine-local
+    and shouldn't be validated on remote hosts.
+    """
+    host_path: str | None = None
+
     if isinstance(item, str):
         interpolated = _interpolate(item, env)
         parts = interpolated.split(":")
         if len(parts) >= _MIN_VOLUME_PARTS:
-            return _resolve_host_path(parts[0], compose_dir)
+            host_path = _resolve_host_path(parts[0], compose_dir)
     elif isinstance(item, dict) and item.get("type") == "bind":
         source = item.get("source")
         if source:
             interpolated = _interpolate(str(source), env)
-            return _resolve_host_path(interpolated, compose_dir)
-    return None
+            host_path = _resolve_host_path(interpolated, compose_dir)
+
+    # Skip sockets - they're machine-local (e.g., SSH agent)
+    if host_path and _is_socket(host_path):
+        return None
+
+    return host_path
 
 
 def parse_host_volumes(config: Config, service: str) -> list[str]:
