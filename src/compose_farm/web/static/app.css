@@ -1,10 +1,9 @@
-/* Sidebar inputs - remove focus outline (DaisyUI 5 uses outline + outline-offset + box-shadow) */
+/* Sidebar inputs - remove focus outline (DaisyUI 5 uses outline + outline-offset) */
 #sidebar .input:focus,
 #sidebar .input:focus-within,
 #sidebar .select:focus {
     outline: none;
     outline-offset: 0;
-    box-shadow: none;
 }
 
 /* Editors (Monaco) - wrapper makes it resizable */
