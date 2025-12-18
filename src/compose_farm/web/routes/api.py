@@ -305,7 +305,9 @@ async def _read_file_remote(host: Any, path: str) -> str:
 
 async def _write_file_remote(host: Any, path: str, content: str) -> None:
     """Write content to a file on a remote host via SSH."""
-    cmd = f"cat > {shlex.quote(path)}"
+    # Expand ~ on remote by using shell
+    target_path = f"~/{path[2:]}" if path.startswith("~/") else path
+    cmd = f"cat > {shlex.quote(target_path)}"
 
     async with asyncssh.connect(
         host.address,
