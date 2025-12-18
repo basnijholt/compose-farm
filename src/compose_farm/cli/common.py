@@ -154,14 +154,16 @@ def get_services(
     if all_services:
         return list(config.services.keys()), config
     if not services:
-        print_error("Specify services or use --all")
+        print_error("Specify services or use [bold]--all[/]")
         raise typer.Exit(1)
 
     # Resolve "." to current directory name
     resolved = [Path.cwd().name if svc == "." else svc for svc in services]
 
     # Validate all services exist in config
-    validate_services(config, resolved, hint="Add the service to compose-farm.yaml or use --all")
+    validate_services(
+        config, resolved, hint="Add the service to compose-farm.yaml or use [bold]--all[/]"
+    )
 
     return resolved, config
 

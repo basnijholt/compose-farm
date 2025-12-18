@@ -241,7 +241,7 @@ def _report_orphaned_services(cfg: Config) -> bool:
     if orphaned:
         console.print("\n[yellow]Orphaned services[/] (in state but not in config):")
         console.print(
-            "[dim]Run 'cf apply' to stop them, or 'cf down --orphaned' for just orphans.[/]"
+            "[dim]Run [bold]cf apply[/bold] to stop them, or [bold]cf down --orphaned[/bold] for just orphans.[/]"
         )
         for name, hosts in sorted(orphaned.items()):
             console.print(f"  [yellow]![/] [cyan]{name}[/] on [magenta]{format_host(hosts)}[/]")
