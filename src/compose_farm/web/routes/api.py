@@ -9,10 +9,10 @@ from typing import Any
 
 import yaml
 from fastapi import APIRouter, Body, HTTPException
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse
 
 from compose_farm.executor import run_compose_on_host
-from compose_farm.state import get_service_host, load_state
+from compose_farm.state import load_state
 from compose_farm.web.app import get_config, get_templates, reload_config
 
 router = APIRouter(tags=["api"])
@@ -106,52 +106,6 @@ async def _get_container_states(
     return containers
 
 
-@router.get("/services")
-async def list_services() -> list[dict[str, Any]]:
-    """List all services with their status."""
-    config = get_config()
-    deployed = load_state(config)
-
-    services = []
-    for name in sorted(config.services.keys()):
-        hosts = config.get_hosts(name)
-        current_host = deployed.get(name)
-        compose_path = config.get_compose_path(name)
-
-        services.append(
-            {
-                "name": name,
-                "configured_hosts": hosts,
-                "current_host": current_host,
-                "running": current_host is not None,
-                "compose_path": str(compose_path) if compose_path else None,
-            }
-        )
-
-    return services
-
-
-@router.get("/service/{name}")
-async def get_service(name: str) -> dict[str, Any]:
-    """Get service details."""
-    config = get_config()
-
-    if name not in config.services:
-        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
-
-    hosts = config.get_hosts(name)
-    current_host = get_service_host(config, name)
-    compose_path = config.get_compose_path(name)
-
-    return {
-        "name": name,
-        "configured_hosts": hosts,
-        "current_host": current_host,
-        "running": current_host is not None,
-        "compose_path": str(compose_path) if compose_path else None,
-    }
-
-
 def _render_containers(
     service: str, host: str, containers: list[dict[str, Any]], *, show_header: bool = False
 ) -> str:
@@ -218,15 +172,6 @@ async def get_containers(name: str, host: str | None = None) -> HTMLResponse:
     return HTMLResponse("".join(html_parts))
 
 
-@router.get("/service/{name}/compose", response_class=PlainTextResponse)
-async def get_compose(name: str) -> str:
-    """Get compose file content."""
-    compose_path = _get_service_compose_path(name)
-    if not compose_path.exists():
-        raise HTTPException(status_code=404, detail="Compose file not found")
-    return compose_path.read_text()
-
-
 @router.put("/service/{name}/compose")
 async def save_compose(
     name: str, content: str = Body(..., media_type="text/plain")
@@ -238,26 +183,12 @@ async def save_compose(
     return {"success": True, "message": "Compose file saved"}
 
 
-@router.get("/service/{name}/env", response_class=PlainTextResponse)
-async def get_env(name: str) -> str:
-    """Get .env file content."""
-    env_path = _get_service_compose_path(name).parent / ".env"
-    return env_path.read_text() if env_path.exists() else ""
-
-
 @router.put("/service/{name}/env")
 async def save_env(name: str, content: str = Body(..., media_type="text/plain")) -> dict[str, Any]:
     """Save .env file content."""
     env_path = _get_service_compose_path(name).parent / ".env"
     env_path.write_text(content)
     return {"success": True, "message": ".env file saved"}
-
-
-@router.get("/config")
-async def get_config_route() -> dict[str, Any]:
-    """Get current configuration."""
-    config = get_config()
-    return config.model_dump(mode="json")
 
 
 @router.put("/config")
@@ -275,10 +206,3 @@ async def save_config(
     reload_config()
 
     return {"success": True, "message": "Config saved"}
-
-
-@router.get("/state")
-async def get_state() -> dict[str, Any]:
-    """Get current deployment state."""
-    config = get_config()
-    return load_state(config)
