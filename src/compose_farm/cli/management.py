@@ -8,7 +8,6 @@ from pathlib import Path  # noqa: TC003
 from typing import TYPE_CHECKING, Annotated
 
 import typer
-from rich.progress import Progress, TaskID  # noqa: TC002
 
 from compose_farm.cli.app import app
 from compose_farm.cli.common import (
@@ -20,8 +19,8 @@ from compose_farm.cli.common import (
     format_host,
     get_services,
     load_config_or_exit,
-    progress_bar,
     run_async,
+    run_parallel_with_progress,
 )
 
 if TYPE_CHECKING:
@@ -55,21 +54,13 @@ from compose_farm.traefik import generate_traefik_config, render_traefik_config
 
 def _discover_services(cfg: Config) -> dict[str, str | list[str]]:
     """Discover running services with a progress bar."""
-
-    async def gather_with_progress(
-        progress: Progress, task_id: TaskID
-    ) -> dict[str, str | list[str]]:
-        tasks = [asyncio.create_task(discover_service_host(cfg, s)) for s in cfg.services]
-        discovered: dict[str, str | list[str]] = {}
-        for coro in asyncio.as_completed(tasks):
-            service, host = await coro
-            if host is not None:
-                discovered[service] = host
-            progress.update(task_id, advance=1, description=f"[cyan]{service}[/]")
-        return discovered
-
-    with progress_bar("Discovering", len(cfg.services)) as (progress, task_id):
-        return asyncio.run(gather_with_progress(progress, task_id))
+    results = run_parallel_with_progress(
+        "Discovering",
+        list(cfg.services),
+        lambda s: discover_service_host(cfg, s),
+        get_description=lambda r: f"[cyan]{r[0]}[/]",
+    )
+    return {svc: host for svc, host in results if host is not None}
 
 
 def _snapshot_services(
@@ -78,36 +69,23 @@ def _snapshot_services(
     log_path: Path | None,
 ) -> Path:
     """Capture image digests with a progress bar."""
-
-    async def collect_service(service: str, now: datetime) -> list[SnapshotEntry]:
-        try:
-            return await collect_service_entries(cfg, service, now=now)
-        except RuntimeError:
-            return []
-
-    async def gather_with_progress(
-        progress: Progress, task_id: TaskID, now: datetime, svc_list: list[str]
-    ) -> list[SnapshotEntry]:
-        # Map tasks to service names so we can update description
-        task_to_service = {asyncio.create_task(collect_service(s, now)): s for s in svc_list}
-        all_entries: list[SnapshotEntry] = []
-        for coro in asyncio.as_completed(list(task_to_service.keys())):
-            entries = await coro
-            all_entries.extend(entries)
-            # Find which service just completed (by checking done tasks)
-            for t, svc in task_to_service.items():
-                if t.done() and not hasattr(t, "_reported"):
-                    t._reported = True  # type: ignore[attr-defined]
-                    progress.update(task_id, advance=1, description=f"[cyan]{svc}[/]")
-                    break
-        return all_entries
-
     effective_log_path = log_path or DEFAULT_LOG_PATH
     now_dt = datetime.now(UTC)
     now_iso = isoformat(now_dt)
 
-    with progress_bar("Capturing", len(services)) as (progress, task_id):
-        snapshot_entries = asyncio.run(gather_with_progress(progress, task_id, now_dt, services))
+    async def collect_service(service: str) -> tuple[str, list[SnapshotEntry]]:
+        try:
+            return service, await collect_service_entries(cfg, service, now=now_dt)
+        except RuntimeError:
+            return service, []
+
+    results = run_parallel_with_progress(
+        "Capturing",
+        services,
+        collect_service,
+        get_description=lambda r: f"[cyan]{r[0]}[/]",
+    )
+    snapshot_entries = [entry for _, entries in results for entry in entries]
 
     if not snapshot_entries:
         msg = "No image digests were captured"
@@ -168,18 +146,13 @@ def _check_ssh_connectivity(cfg: Config) -> list[str]:
         result = await run_command(host, "echo ok", host_name, stream=False)
         return host_name, result.success
 
-    async def gather_with_progress(progress: Progress, task_id: TaskID) -> list[str]:
-        tasks = [asyncio.create_task(check_host(h)) for h in remote_hosts]
-        unreachable: list[str] = []
-        for coro in asyncio.as_completed(tasks):
-            host_name, success = await coro
-            if not success:
-                unreachable.append(host_name)
-            progress.update(task_id, advance=1, description=f"[cyan]{host_name}[/]")
-        return unreachable
-
-    with progress_bar("Checking SSH connectivity", len(remote_hosts)) as (progress, task_id):
-        return asyncio.run(gather_with_progress(progress, task_id))
+    results = run_parallel_with_progress(
+        "Checking SSH connectivity",
+        remote_hosts,
+        check_host,
+        get_description=lambda r: f"[cyan]{r[0]}[/]",
+    )
+    return [host for host, success in results if not success]
 
 
 def _check_service_requirements(
@@ -216,27 +189,22 @@ def _check_service_requirements(
 
         return service, mount_errors, network_errors, device_errors
 
-    async def gather_with_progress(
-        progress: Progress, task_id: TaskID
-    ) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]], list[tuple[str, str, str]]]:
-        tasks = [asyncio.create_task(check_service(s)) for s in services]
-        all_mount_errors: list[tuple[str, str, str]] = []
-        all_network_errors: list[tuple[str, str, str]] = []
-        all_device_errors: list[tuple[str, str, str]] = []
+    results = run_parallel_with_progress(
+        "Checking requirements",
+        services,
+        check_service,
+        get_description=lambda r: f"[cyan]{r[0]}[/]",
+    )
 
-        for coro in asyncio.as_completed(tasks):
-            service, mount_errs, net_errs, dev_errs = await coro
-            all_mount_errors.extend(mount_errs)
-            all_network_errors.extend(net_errs)
-            all_device_errors.extend(dev_errs)
-            progress.update(task_id, advance=1, description=f"[cyan]{service}[/]")
+    all_mount_errors: list[tuple[str, str, str]] = []
+    all_network_errors: list[tuple[str, str, str]] = []
+    all_device_errors: list[tuple[str, str, str]] = []
+    for _, mount_errs, net_errs, dev_errs in results:
+        all_mount_errors.extend(mount_errs)
+        all_network_errors.extend(net_errs)
+        all_device_errors.extend(dev_errs)
 
-        return all_mount_errors, all_network_errors, all_device_errors
-
-    with progress_bar(
-        "Checking requirements", len(services), initial_description="[dim]checking...[/]"
-    ) as (progress, task_id):
-        return asyncio.run(gather_with_progress(progress, task_id))
+    return all_mount_errors, all_network_errors, all_device_errors
 
 
 def _report_config_status(cfg: Config) -> bool:

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 from typing import TYPE_CHECKING, Annotated
 
 import typer
-from rich.progress import Progress, TaskID  # noqa: TC002
 from rich.table import Table
 
 from compose_farm.cli.app import app
@@ -19,9 +17,9 @@ from compose_farm.cli.common import (
     ServicesArg,
     get_services,
     load_config_or_exit,
-    progress_bar,
     report_results,
     run_async,
+    run_parallel_with_progress,
 )
 from compose_farm.console import console, err_console
 from compose_farm.executor import run_command, run_on_services
@@ -72,18 +70,13 @@ def _get_container_counts(cfg: Config) -> dict[str, int]:
                 count = int(result.stdout.strip())
         return host_name, count
 
-    async def gather_with_progress(progress: Progress, task_id: TaskID) -> dict[str, int]:
-        hosts = list(cfg.hosts.keys())
-        tasks = [asyncio.create_task(get_count(h)) for h in hosts]
-        results: dict[str, int] = {}
-        for coro in asyncio.as_completed(tasks):
-            host_name, count = await coro
-            results[host_name] = count
-            progress.update(task_id, advance=1, description=f"[cyan]{host_name}[/]")
-        return results
-
-    with progress_bar("Querying hosts", len(cfg.hosts)) as (progress, task_id):
-        return asyncio.run(gather_with_progress(progress, task_id))
+    results = run_parallel_with_progress(
+        "Querying hosts",
+        list(cfg.hosts.keys()),
+        get_count,
+        get_description=lambda r: f"[cyan]{r[0]}[/]",
+    )
+    return dict(results)
 
 
 def _build_host_table(

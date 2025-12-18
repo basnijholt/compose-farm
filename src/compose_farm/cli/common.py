@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from compose_farm.executor import CommandResult
 
 _T = TypeVar("_T")
+_R = TypeVar("_R")
 
 
 # --- Shared CLI Options ---
@@ -86,6 +87,38 @@ def progress_bar(
     ) as progress:
         task_id = progress.add_task(initial_description, total=total)
         yield progress, task_id
+
+
+def run_parallel_with_progress(
+    label: str,
+    items: list[_T],
+    async_fn: Callable[[_T], Coroutine[None, None, _R]],
+    get_description: Callable[[_R], str] = lambda r: f"[cyan]{r}[/]",
+) -> list[_R]:
+    """Run async tasks in parallel with a progress bar.
+
+    Args:
+        label: Progress bar label (e.g., "Discovering", "Querying hosts")
+        items: List of items to process
+        async_fn: Async function to call for each item, returns result
+        get_description: Function to extract description from result for progress bar
+
+    Returns:
+        List of results from async_fn in completion order.
+
+    """
+
+    async def gather() -> list[_R]:
+        with progress_bar(label, len(items)) as (progress, task_id):
+            tasks = [asyncio.create_task(async_fn(item)) for item in items]
+            results: list[_R] = []
+            for coro in asyncio.as_completed(tasks):
+                result = await coro
+                results.append(result)
+                progress.update(task_id, advance=1, description=get_description(result))
+            return results
+
+    return asyncio.run(gather())
 
 
 def load_config_or_exit(config_path: Path | None) -> Config:
