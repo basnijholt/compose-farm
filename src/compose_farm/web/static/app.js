@@ -123,9 +123,8 @@ window.createWebSocket = createWebSocket;
 
 /**
  * Initialize a terminal and connect to WebSocket for streaming
- * @param {boolean} isReconnect - Whether this is a reconnection attempt
  */
-function initTerminal(elementId, taskId, isReconnect = false) {
+function initTerminal(elementId, taskId) {
     const container = document.getElementById(elementId);
     if (!container) {
         console.error('Terminal container not found:', elementId);
@@ -135,36 +134,22 @@ function initTerminal(elementId, taskId, isReconnect = false) {
     const { term, fitAddon } = createTerminal(container);
     const ws = createWebSocket(`/ws/terminal/${taskId}`);
 
-    // Track whether task completed (vs error/disconnect)
-    let taskCompleted = false;
-
     ws.onopen = () => {
-        const msg = isReconnect ? '[Reconnected]' : '[Connected]';
-        term.write(`${ANSI.DIM}${msg}${ANSI.RESET}${ANSI.CRLF}`);
+        term.write(`${ANSI.DIM}[Connected]${ANSI.RESET}${ANSI.CRLF}`);
         setTerminalLoading(true);
-        // Store task ID for reconnection
         localStorage.setItem(ACTIVE_TASK_KEY, taskId);
     };
     ws.onmessage = (event) => {
         term.write(event.data);
-        // Check if task completed (server sends [Done] or [Failed])
         if (event.data.includes('[Done]') || event.data.includes('[Failed]')) {
-            taskCompleted = true;
             localStorage.removeItem(ACTIVE_TASK_KEY);
         }
     };
-    ws.onclose = () => {
-        setTerminalLoading(false);
-        // Only clear if task completed normally; keep for reconnection otherwise
-        if (taskCompleted) {
-            localStorage.removeItem(ACTIVE_TASK_KEY);
-        }
-    };
+    ws.onclose = () => setTerminalLoading(false);
     ws.onerror = (error) => {
         term.write(`${ANSI.RED}[WebSocket Error]${ANSI.RESET}${ANSI.CRLF}`);
         console.error('WebSocket error:', error);
         setTerminalLoading(false);
-        // Clear on error (task may not exist anymore)
         localStorage.removeItem(ACTIVE_TASK_KEY);
     };
 
@@ -437,21 +422,16 @@ function initPage() {
  */
 function tryReconnectToTask() {
     const taskId = localStorage.getItem(ACTIVE_TASK_KEY);
-    if (!taskId) return;
-
-    // Only reconnect on dashboard where terminal exists
-    const container = document.getElementById('terminal-output');
-    if (!container) return;
+    if (!taskId || !document.getElementById('terminal-output')) return;
 
     // Wait for xterm to be loaded
     const tryInit = (attempts) => {
         if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
             expandTerminal();
-            initTerminal('terminal-output', taskId, true);
+            initTerminal('terminal-output', taskId);
         } else if (attempts > 0) {
             setTimeout(() => tryInit(attempts - 1), 100);
         } else {
-            // xterm failed to load, clear the stored task
             localStorage.removeItem(ACTIVE_TASK_KEY);
         }
     };
