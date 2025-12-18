@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
+from compose_farm.paths import find_config_path
 from compose_farm.state import (
     get_orphaned_services,
     get_service_host,
@@ -35,21 +36,9 @@ async def index(request: Request) -> HTMLResponse:
         else:
             config_error = str(e)
 
-        # Read raw config content for the editor (find path manually)
-        import os  # noqa: PLC0415
-        from pathlib import Path  # noqa: PLC0415
-
-        from compose_farm.paths import xdg_config_home  # noqa: PLC0415
-
-        config_content = ""
-        for p in [
-            Path(os.environ.get("CF_CONFIG", "")),
-            Path("compose-farm.yaml"),
-            xdg_config_home() / "compose-farm" / "compose-farm.yaml",
-        ]:
-            if p.exists() and p.is_file():
-                config_content = p.read_text()
-                break
+        # Read raw config content for the editor
+        config_path = find_config_path()
+        config_content = config_path.read_text() if config_path else ""
 
         return templates.TemplateResponse(
             "index.html",
