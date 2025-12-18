@@ -23,6 +23,43 @@ LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
 _DEFAULT_SSH_PORT = 22
 
 
+def build_ssh_command(host: Host, command: str, *, tty: bool = False) -> list[str]:
+    """Build SSH command args for executing a command on a remote host.
+
+    Args:
+        host: Host configuration with address, port, user
+        command: Command to run on the remote host
+        tty: Whether to allocate a TTY (for interactive/progress bar commands)
+
+    Returns:
+        List of command args suitable for subprocess
+
+    """
+    ssh_args = [
+        "ssh",
+        "-o",
+        "StrictHostKeyChecking=no",
+        "-o",
+        "UserKnownHostsFile=/dev/null",
+        "-o",
+        "LogLevel=ERROR",
+    ]
+    if tty:
+        ssh_args.insert(1, "-tt")  # Force TTY allocation
+
+    key_path = get_key_path()
+    if key_path:
+        ssh_args.extend(["-i", str(key_path)])
+
+    if host.port != _DEFAULT_SSH_PORT:
+        ssh_args.extend(["-p", str(host.port)])
+
+    ssh_args.append(f"{host.user}@{host.address}")
+    ssh_args.append(command)
+
+    return ssh_args
+
+
 @lru_cache(maxsize=1)
 def _get_local_ips() -> frozenset[str]:
     """Get all IP addresses of the current machine."""
@@ -172,23 +209,7 @@ async def _run_ssh_command(
     """Run a command on a remote host via SSH with streaming output."""
     if raw:
         # Use native ssh with TTY for proper progress bar rendering
-        ssh_args = [
-            "ssh",
-            "-tt",  # Force TTY allocation even without stdin TTY
-            "-o",
-            "StrictHostKeyChecking=no",  # Match asyncssh known_hosts=None behavior
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "LogLevel=ERROR",  # Suppress warnings about known_hosts
-        ]
-        # Add key file if it exists (fallback for when agent is unavailable)
-        key_path = get_key_path()
-        if key_path:
-            ssh_args.extend(["-i", str(key_path)])
-        if host.port != _DEFAULT_SSH_PORT:
-            ssh_args.extend(["-p", str(host.port)])
-        ssh_args.extend([f"{host.user}@{host.address}", command])
+        ssh_args = build_ssh_command(host, command, tty=True)
         # Run in thread to avoid blocking the event loop
         # Use get_ssh_env() to auto-detect SSH agent socket
         result = await asyncio.to_thread(subprocess.run, ssh_args, check=False, env=get_ssh_env())
