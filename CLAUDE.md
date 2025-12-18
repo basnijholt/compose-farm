@@ -60,6 +60,7 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 ## Pull Requests
 
 - Never include unchecked checklists (e.g., `- [ ] ...`) in PR descriptions. Either omit the checklist or use checked items.
+- **NEVER run `gh pr merge`**. PRs are merged via the GitHub UI, not the CLI.
 
 ## Releases
 
