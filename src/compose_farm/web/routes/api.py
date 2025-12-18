@@ -320,20 +320,26 @@ async def _write_file_remote(host: Any, path: str, content: str) -> None:
             raise RuntimeError(msg)
 
 
+def _get_console_host(host: str, path: str) -> Any:
+    """Validate and return host config for console file operations."""
+    config = get_config()
+    host_config = config.hosts.get(host)
+
+    if not host_config:
+        raise HTTPException(status_code=404, detail=f"Host '{host}' not found")
+    if not path:
+        raise HTTPException(status_code=400, detail="Path is required")
+
+    return host_config
+
+
 @router.get("/console/file")
 async def read_console_file(
     host: Annotated[str, Query(description="Host name")],
     path: Annotated[str, Query(description="File path")],
 ) -> dict[str, Any]:
     """Read a file from a host for the console editor."""
-    config = get_config()
-    host_config = config.hosts.get(host)
-
-    if not host_config:
-        raise HTTPException(status_code=404, detail=f"Host '{host}' not found")
-
-    if not path:
-        raise HTTPException(status_code=400, detail="Path is required")
+    host_config = _get_console_host(host, path)
 
     try:
         if is_local(host_config):
@@ -356,14 +362,7 @@ async def write_console_file(
     content: Annotated[str, Body(media_type="text/plain")],
 ) -> dict[str, Any]:
     """Write a file to a host from the console editor."""
-    config = get_config()
-    host_config = config.hosts.get(host)
-
-    if not host_config:
-        raise HTTPException(status_code=404, detail=f"Host '{host}' not found")
-
-    if not path:
-        raise HTTPException(status_code=400, detail="Path is required")
+    host_config = _get_console_host(host, path)
 
     try:
         if is_local(host_config):
