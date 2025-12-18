@@ -45,9 +45,10 @@ const TERMINAL_THEME = {
  * Create a terminal with fit addon and resize observer
  * @param {HTMLElement} container - Container element
  * @param {object} extraOptions - Additional terminal options
+ * @param {function} onResize - Optional callback called with (cols, rows) after resize
  * @returns {{term: Terminal, fitAddon: FitAddon}}
  */
-function createTerminal(container, extraOptions = {}) {
+function createTerminal(container, extraOptions = {}, onResize = null) {
     container.innerHTML = '';
 
     const term = new Terminal({
@@ -64,8 +65,15 @@ function createTerminal(container, extraOptions = {}) {
     term.open(container);
     fitAddon.fit();
 
-    window.addEventListener('resize', () => fitAddon.fit());
-    new ResizeObserver(() => fitAddon.fit()).observe(container);
+    const handleResize = () => {
+        fitAddon.fit();
+        if (onResize) {
+            onResize(term.cols, term.rows);
+        }
+    };
+
+    window.addEventListener('resize', handleResize);
+    new ResizeObserver(handleResize).observe(container);
 
     return { term, fitAddon };
 }
@@ -132,21 +140,20 @@ function initExecTerminal(service, container, host) {
     if (execWs) { execWs.close(); execWs = null; }
     if (execTerminal) { execTerminal.dispose(); execTerminal = null; }
 
-    const { term, fitAddon } = createTerminal(terminalEl, { cursorBlink: true });
-    execTerminal = term;
+    // Create WebSocket first so resize callback can use it
+    execWs = createWebSocket(`/ws/exec/${service}/${container}/${host}`);
 
-    const sendSize = () => {
+    // Resize callback sends size to WebSocket
+    const sendSize = (cols, rows) => {
         if (execWs && execWs.readyState === WebSocket.OPEN) {
-            execWs.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+            execWs.send(JSON.stringify({ type: 'resize', cols, rows }));
         }
     };
 
-    // Additional resize observer for size messages
-    new ResizeObserver(() => { fitAddon.fit(); sendSize(); }).observe(containerEl);
+    const { term } = createTerminal(terminalEl, { cursorBlink: true }, sendSize);
+    execTerminal = term;
 
-    execWs = createWebSocket(`/ws/exec/${service}/${container}/${host}`);
-
-    execWs.onopen = () => { sendSize(); term.focus(); };
+    execWs.onopen = () => { sendSize(term.cols, term.rows); term.focus(); };
     execWs.onmessage = (event) => term.write(event.data);
     execWs.onclose = () => term.write(`${ANSI.CRLF}${ANSI.DIM}[Connection closed]${ANSI.RESET}${ANSI.CRLF}`);
     execWs.onerror = (error) => {
