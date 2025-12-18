@@ -437,23 +437,30 @@ function tryReconnectToTask() {
     tryInit(20);
 }
 
+// Play intro animation on command palette button
+function playFabIntro() {
+    const fab = document.getElementById('cmd-fab');
+    if (!fab) return;
+    setTimeout(() => {
+        fab.style.setProperty('--cmd-pos', '0');
+        fab.style.setProperty('--cmd-opacity', '1');
+        fab.style.setProperty('--cmd-blur', '30');
+        setTimeout(() => {
+            fab.style.removeProperty('--cmd-pos');
+            fab.style.removeProperty('--cmd-opacity');
+            fab.style.removeProperty('--cmd-blur');
+        }, 3000);
+    }, 500);
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     initPage();
     initKeyboardShortcuts();
+    playFabIntro();
 
     // Try to reconnect to any active task
     tryReconnectToTask();
-
-    // Handle ?action= parameter (from command palette navigation)
-    const params = new URLSearchParams(window.location.search);
-    const action = params.get('action');
-    if (action && window.location.pathname === '/') {
-        // Clear the URL parameter
-        history.replaceState({}, '', '/');
-        // Trigger the action
-        htmx.ajax('POST', `/api/${action}`, {swap: 'none'});
-    }
 });
 
 // Re-initialize after HTMX swaps main content
@@ -542,13 +549,16 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     let selected = 0;
 
     const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
-    const nav = (url) => () => window.location.href = url;
+    const nav = (url) => () => htmx.ajax('GET', url, {target: '#main-content', select: '#main-content', swap: 'outerHTML', pushUrl: url});
     // Navigate to dashboard and trigger action (or just POST if already on dashboard)
     const dashboardAction = (endpoint) => () => {
         if (window.location.pathname === '/') {
             htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
         } else {
-            window.location.href = `/?action=${endpoint}`;
+            // Navigate via HTMX, then trigger action after swap
+            htmx.ajax('GET', '/', {target: '#main-content', select: '#main-content', swap: 'outerHTML', pushUrl: '/'}).then(() => {
+                htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
+            });
         }
     };
     const cmd = (type, name, desc, action, icon = null) => ({ type, name, desc, action, icon });
