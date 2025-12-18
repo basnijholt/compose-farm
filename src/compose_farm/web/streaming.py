@@ -6,15 +6,14 @@ import asyncio
 import os
 from typing import TYPE_CHECKING, Any
 
-from compose_farm.ssh_keys import get_key_path, get_ssh_auth_sock
+from compose_farm.executor import build_ssh_command
+from compose_farm.ssh_keys import get_ssh_auth_sock
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
 
 # Environment variable to identify the web service (for self-update detection)
 CF_WEB_SERVICE = os.environ.get("CF_WEB_SERVICE", "")
-
-_DEFAULT_SSH_PORT = 22
 
 # ANSI escape codes for terminal output
 RED = "\x1b[31m"
@@ -122,26 +121,8 @@ async def _run_cli_via_ssh(
             f"{GREEN}Running via SSH (self-update protection){RESET}{CRLF}",
         )
 
-        # Build SSH command
-        ssh_args = [
-            "ssh",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "LogLevel=ERROR",
-        ]
-
-        # Add key file if available
-        key_path = get_key_path()
-        if key_path:
-            ssh_args.extend(["-i", str(key_path)])
-
-        if host.port != _DEFAULT_SSH_PORT:
-            ssh_args.extend(["-p", str(host.port)])
-
-        ssh_args.extend([f"{host.user}@{host.address}", remote_cmd])
+        # Build SSH command using shared helper
+        ssh_args = build_ssh_command(host, remote_cmd)
 
         # Set up environment with SSH agent
         env = {**os.environ, "FORCE_COLOR": "1", "TERM": "xterm-256color"}
