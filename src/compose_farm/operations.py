@@ -178,7 +178,7 @@ def _report_preflight_failures(
     for net in preflight.missing_networks:
         err_console.print(f"  [red]✗[/] missing network: {net}")
     if preflight.missing_networks:
-        err_console.print(f"  [dim]hint: cf init-network {target_host}[/]")
+        err_console.print(f"  [dim]Hint: cf init-network {target_host}[/]")
     for dev in preflight.missing_devices:
         err_console.print(f"  [red]✗[/] missing device: {dev}")
 

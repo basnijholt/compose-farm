@@ -8,7 +8,6 @@ from pathlib import Path  # noqa: TC003
 from typing import TYPE_CHECKING, Annotated
 
 import typer
-from rich.progress import Progress, TaskID  # noqa: TC002
 
 from compose_farm.cli.app import app
 from compose_farm.cli.common import (
@@ -17,10 +16,12 @@ from compose_farm.cli.common import (
     ConfigOption,
     LogPathOption,
     ServicesArg,
+    format_host,
     get_services,
     load_config_or_exit,
-    progress_bar,
     run_async,
+    run_parallel_with_progress,
+    validate_hosts,
 )
 
 if TYPE_CHECKING:
@@ -54,21 +55,12 @@ from compose_farm.traefik import generate_traefik_config, render_traefik_config
 
 def _discover_services(cfg: Config) -> dict[str, str | list[str]]:
     """Discover running services with a progress bar."""
-
-    async def gather_with_progress(
-        progress: Progress, task_id: TaskID
-    ) -> dict[str, str | list[str]]:
-        tasks = [asyncio.create_task(discover_service_host(cfg, s)) for s in cfg.services]
-        discovered: dict[str, str | list[str]] = {}
-        for coro in asyncio.as_completed(tasks):
-            service, host = await coro
-            if host is not None:
-                discovered[service] = host
-            progress.update(task_id, advance=1, description=f"[cyan]{service}[/]")
-        return discovered
-
-    with progress_bar("Discovering", len(cfg.services)) as (progress, task_id):
-        return asyncio.run(gather_with_progress(progress, task_id))
+    results = run_parallel_with_progress(
+        "Discovering",
+        list(cfg.services),
+        lambda s: discover_service_host(cfg, s),
+    )
+    return {svc: host for svc, host in results if host is not None}
 
 
 def _snapshot_services(
@@ -77,36 +69,22 @@ def _snapshot_services(
     log_path: Path | None,
 ) -> Path:
     """Capture image digests with a progress bar."""
-
-    async def collect_service(service: str, now: datetime) -> list[SnapshotEntry]:
-        try:
-            return await collect_service_entries(cfg, service, now=now)
-        except RuntimeError:
-            return []
-
-    async def gather_with_progress(
-        progress: Progress, task_id: TaskID, now: datetime, svc_list: list[str]
-    ) -> list[SnapshotEntry]:
-        # Map tasks to service names so we can update description
-        task_to_service = {asyncio.create_task(collect_service(s, now)): s for s in svc_list}
-        all_entries: list[SnapshotEntry] = []
-        for coro in asyncio.as_completed(list(task_to_service.keys())):
-            entries = await coro
-            all_entries.extend(entries)
-            # Find which service just completed (by checking done tasks)
-            for t, svc in task_to_service.items():
-                if t.done() and not hasattr(t, "_reported"):
-                    t._reported = True  # type: ignore[attr-defined]
-                    progress.update(task_id, advance=1, description=f"[cyan]{svc}[/]")
-                    break
-        return all_entries
-
     effective_log_path = log_path or DEFAULT_LOG_PATH
     now_dt = datetime.now(UTC)
     now_iso = isoformat(now_dt)
 
-    with progress_bar("Capturing", len(services)) as (progress, task_id):
-        snapshot_entries = asyncio.run(gather_with_progress(progress, task_id, now_dt, services))
+    async def collect_service(service: str) -> tuple[str, list[SnapshotEntry]]:
+        try:
+            return service, await collect_service_entries(cfg, service, now=now_dt)
+        except RuntimeError:
+            return service, []
+
+    results = run_parallel_with_progress(
+        "Capturing",
+        services,
+        collect_service,
+    )
+    snapshot_entries = [entry for _, entries in results for entry in entries]
 
     if not snapshot_entries:
         msg = "No image digests were captured"
@@ -117,13 +95,6 @@ def _snapshot_services(
     meta = {"generated_at": now_iso, "compose_dir": str(cfg.compose_dir)}
     write_toml(effective_log_path, meta=meta, entries=merged_entries)
     return effective_log_path
-
-
-def _format_host(host: str | list[str]) -> str:
-    """Format a host value for display."""
-    if isinstance(host, list):
-        return ", ".join(host)
-    return host
 
 
 def _report_sync_changes(
@@ -137,14 +108,14 @@ def _report_sync_changes(
     if added:
         console.print(f"\nNew services found ({len(added)}):")
         for service in sorted(added):
-            host_str = _format_host(discovered[service])
+            host_str = format_host(discovered[service])
             console.print(f"  [green]+[/] [cyan]{service}[/] on [magenta]{host_str}[/]")
 
     if changed:
         console.print(f"\nServices on different hosts ({len(changed)}):")
         for service, old_host, new_host in sorted(changed):
-            old_str = _format_host(old_host)
-            new_str = _format_host(new_host)
+            old_str = format_host(old_host)
+            new_str = format_host(new_host)
             console.print(
                 f"  [yellow]~[/] [cyan]{service}[/]: [magenta]{old_str}[/] → [magenta]{new_str}[/]"
             )
@@ -152,7 +123,7 @@ def _report_sync_changes(
     if removed:
         console.print(f"\nServices no longer running ({len(removed)}):")
         for service in sorted(removed):
-            host_str = _format_host(current_state[service])
+            host_str = format_host(current_state[service])
             console.print(f"  [red]-[/] [cyan]{service}[/] (was on [magenta]{host_str}[/])")
 
 
@@ -174,18 +145,12 @@ def _check_ssh_connectivity(cfg: Config) -> list[str]:
         result = await run_command(host, "echo ok", host_name, stream=False)
         return host_name, result.success
 
-    async def gather_with_progress(progress: Progress, task_id: TaskID) -> list[str]:
-        tasks = [asyncio.create_task(check_host(h)) for h in remote_hosts]
-        unreachable: list[str] = []
-        for coro in asyncio.as_completed(tasks):
-            host_name, success = await coro
-            if not success:
-                unreachable.append(host_name)
-            progress.update(task_id, advance=1, description=f"[cyan]{host_name}[/]")
-        return unreachable
-
-    with progress_bar("Checking SSH connectivity", len(remote_hosts)) as (progress, task_id):
-        return asyncio.run(gather_with_progress(progress, task_id))
+    results = run_parallel_with_progress(
+        "Checking SSH connectivity",
+        remote_hosts,
+        check_host,
+    )
+    return [host for host, success in results if not success]
 
 
 def _check_service_requirements(
@@ -222,27 +187,21 @@ def _check_service_requirements(
 
         return service, mount_errors, network_errors, device_errors
 
-    async def gather_with_progress(
-        progress: Progress, task_id: TaskID
-    ) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]], list[tuple[str, str, str]]]:
-        tasks = [asyncio.create_task(check_service(s)) for s in services]
-        all_mount_errors: list[tuple[str, str, str]] = []
-        all_network_errors: list[tuple[str, str, str]] = []
-        all_device_errors: list[tuple[str, str, str]] = []
+    results = run_parallel_with_progress(
+        "Checking requirements",
+        services,
+        check_service,
+    )
 
-        for coro in asyncio.as_completed(tasks):
-            service, mount_errs, net_errs, dev_errs = await coro
-            all_mount_errors.extend(mount_errs)
-            all_network_errors.extend(net_errs)
-            all_device_errors.extend(dev_errs)
-            progress.update(task_id, advance=1, description=f"[cyan]{service}[/]")
+    all_mount_errors: list[tuple[str, str, str]] = []
+    all_network_errors: list[tuple[str, str, str]] = []
+    all_device_errors: list[tuple[str, str, str]] = []
+    for _, mount_errs, net_errs, dev_errs in results:
+        all_mount_errors.extend(mount_errs)
+        all_network_errors.extend(net_errs)
+        all_device_errors.extend(dev_errs)
 
-        return all_mount_errors, all_network_errors, all_device_errors
-
-    with progress_bar(
-        "Checking requirements", len(services), initial_description="[dim]checking...[/]"
-    ) as (progress, task_id):
-        return asyncio.run(gather_with_progress(progress, task_id))
+    return all_mount_errors, all_network_errors, all_device_errors
 
 
 def _report_config_status(cfg: Config) -> bool:
@@ -300,49 +259,19 @@ def _report_traefik_status(cfg: Config, services: list[str]) -> None:
         console.print("[green]✓[/] Traefik labels valid")
 
 
-def _report_mount_errors(mount_errors: list[tuple[str, str, str]]) -> None:
-    """Report mount errors grouped by service."""
+def _report_requirement_errors(errors: list[tuple[str, str, str]], category: str) -> None:
+    """Report requirement errors (mounts, networks, devices) grouped by service."""
     by_service: dict[str, list[tuple[str, str]]] = {}
-    for svc, host, path in mount_errors:
-        by_service.setdefault(svc, []).append((host, path))
+    for svc, host, item in errors:
+        by_service.setdefault(svc, []).append((host, item))
 
-    console.print(f"[red]Missing mounts[/] ({len(mount_errors)}):")
+    console.print(f"[red]Missing {category}[/] ({len(errors)}):")
     for svc, items in sorted(by_service.items()):
         host = items[0][0]
-        paths = [p for _, p in items]
+        missing = [i for _, i in items]
         console.print(f"  [cyan]{svc}[/] on [magenta]{host}[/]:")
-        for path in paths:
-            console.print(f"    [red]✗[/] {path}")
-
-
-def _report_network_errors(network_errors: list[tuple[str, str, str]]) -> None:
-    """Report network errors grouped by service."""
-    by_service: dict[str, list[tuple[str, str]]] = {}
-    for svc, host, net in network_errors:
-        by_service.setdefault(svc, []).append((host, net))
-
-    console.print(f"[red]Missing networks[/] ({len(network_errors)}):")
-    for svc, items in sorted(by_service.items()):
-        host = items[0][0]
-        networks = [n for _, n in items]
-        console.print(f"  [cyan]{svc}[/] on [magenta]{host}[/]:")
-        for net in networks:
-            console.print(f"    [red]✗[/] {net}")
-
-
-def _report_device_errors(device_errors: list[tuple[str, str, str]]) -> None:
-    """Report device errors grouped by service."""
-    by_service: dict[str, list[tuple[str, str]]] = {}
-    for svc, host, dev in device_errors:
-        by_service.setdefault(svc, []).append((host, dev))
-
-    console.print(f"[red]Missing devices[/] ({len(device_errors)}):")
-    for svc, items in sorted(by_service.items()):
-        host = items[0][0]
-        devices = [d for _, d in items]
-        console.print(f"  [cyan]{svc}[/] on [magenta]{host}[/]:")
-        for dev in devices:
-            console.print(f"    [red]✗[/] {dev}")
+        for item in missing:
+            console.print(f"    [red]✗[/] {item}")
 
 
 def _report_ssh_status(unreachable_hosts: list[str]) -> bool:
@@ -394,13 +323,13 @@ def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bo
     mount_errors, network_errors, device_errors = _check_service_requirements(cfg, svc_list)
 
     if mount_errors:
-        _report_mount_errors(mount_errors)
+        _report_requirement_errors(mount_errors, "mounts")
         has_errors = True
     if network_errors:
-        _report_network_errors(network_errors)
+        _report_requirement_errors(network_errors, "networks")
         has_errors = True
     if device_errors:
-        _report_device_errors(device_errors)
+        _report_requirement_errors(device_errors, "devices")
         has_errors = True
     if not mount_errors and not network_errors and not device_errors:
         console.print("[green]✓[/] All mounts, networks, and devices exist")
@@ -536,7 +465,7 @@ def check(
         invalid = [s for s in svc_list if s not in cfg.services]
         if invalid:
             for svc in invalid:
-                err_console.print(f"[red]✗[/] Service '{svc}' not found in config")
+                err_console.print(f"[red]✗[/] Service [cyan]{svc}[/] not found in config")
             raise typer.Exit(1)
         show_host_compat = True
     else:
@@ -587,11 +516,7 @@ def init_network(
     cfg = load_config_or_exit(config)
 
     target_hosts = list(hosts) if hosts else list(cfg.hosts.keys())
-    invalid = [h for h in target_hosts if h not in cfg.hosts]
-    if invalid:
-        for h in invalid:
-            err_console.print(f"[red]✗[/] Host '{h}' not found in config")
-        raise typer.Exit(1)
+    validate_hosts(cfg, target_hosts)
 
     async def create_network_on_host(host_name: str) -> CommandResult:
         host = cfg.hosts[host_name]

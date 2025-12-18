@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 from typing import TYPE_CHECKING, Annotated
 
 import typer
-from rich.progress import Progress, TaskID  # noqa: TC002
 from rich.table import Table
 
 from compose_farm.cli.app import app
@@ -19,45 +17,17 @@ from compose_farm.cli.common import (
     ServicesArg,
     get_services,
     load_config_or_exit,
-    progress_bar,
     report_results,
     run_async,
+    run_parallel_with_progress,
+    validate_host,
 )
 from compose_farm.console import console, err_console
 from compose_farm.executor import run_command, run_on_services
-from compose_farm.state import get_services_needing_migration, load_state
+from compose_farm.state import get_services_needing_migration, group_services_by_host, load_state
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from compose_farm.config import Config
-
-
-def _group_services_by_host(
-    services: dict[str, str | list[str]],
-    hosts: Mapping[str, object],
-    all_hosts: list[str] | None = None,
-) -> dict[str, list[str]]:
-    """Group services by their assigned host(s).
-
-    For multi-host services (list or "all"), the service appears in multiple host lists.
-    """
-    by_host: dict[str, list[str]] = {h: [] for h in hosts}
-    for service, host_value in services.items():
-        if isinstance(host_value, list):
-            # Explicit list of hosts
-            for host_name in host_value:
-                if host_name in by_host:
-                    by_host[host_name].append(service)
-        elif host_value == "all" and all_hosts:
-            # "all" keyword - add to all hosts
-            for host_name in all_hosts:
-                if host_name in by_host:
-                    by_host[host_name].append(service)
-        elif host_value in by_host:
-            # Single host
-            by_host[host_value].append(service)
-    return by_host
 
 
 def _get_container_counts(cfg: Config) -> dict[str, int]:
@@ -72,18 +42,12 @@ def _get_container_counts(cfg: Config) -> dict[str, int]:
                 count = int(result.stdout.strip())
         return host_name, count
 
-    async def gather_with_progress(progress: Progress, task_id: TaskID) -> dict[str, int]:
-        hosts = list(cfg.hosts.keys())
-        tasks = [asyncio.create_task(get_count(h)) for h in hosts]
-        results: dict[str, int] = {}
-        for coro in asyncio.as_completed(tasks):
-            host_name, count = await coro
-            results[host_name] = count
-            progress.update(task_id, advance=1, description=f"[cyan]{host_name}[/]")
-        return results
-
-    with progress_bar("Querying hosts", len(cfg.hosts)) as (progress, task_id):
-        return asyncio.run(gather_with_progress(progress, task_id))
+    results = run_parallel_with_progress(
+        "Querying hosts",
+        list(cfg.hosts.keys()),
+        get_count,
+    )
+    return dict(results)
 
 
 def _build_host_table(
@@ -171,9 +135,7 @@ def logs(
 
     # Determine service list based on options
     if host is not None:
-        if host not in cfg.hosts:
-            err_console.print(f"[red]✗[/] Host '{host}' not found in config")
-            raise typer.Exit(1)
+        validate_host(cfg, host)
         # Include services where host is in the list of configured hosts
         svc_list = [s for s in cfg.services if host in cfg.get_hosts(s)]
         if not svc_list:
@@ -220,8 +182,8 @@ def stats(
     pending = get_services_needing_migration(cfg)
 
     all_hosts = list(cfg.hosts.keys())
-    services_by_host = _group_services_by_host(cfg.services, cfg.hosts, all_hosts)
-    running_by_host = _group_services_by_host(state, cfg.hosts, all_hosts)
+    services_by_host = group_services_by_host(cfg.services, cfg.hosts, all_hosts)
+    running_by_host = group_services_by_host(state, cfg.hosts, all_hosts)
 
     container_counts: dict[str, int] = {}
     if live:

@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 import asyncssh
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from compose_farm.executor import is_local
+from compose_farm.executor import is_local, ssh_connect_kwargs
 from compose_farm.web.deps import get_config
 from compose_farm.web.streaming import (
     CRLF,
@@ -25,7 +25,6 @@ from compose_farm.web.streaming import (
     RED,
     RESET,
     _get_ssh_auth_sock,
-    get_ssh_client_keys,
     tasks,
 )
 
@@ -130,6 +129,14 @@ async def _bridge_websocket_to_ssh(
         proc.terminate()
 
 
+def _make_controlling_tty(slave_fd: int) -> None:
+    """Set up the slave PTY as the controlling terminal for the child process."""
+    # Create a new session
+    os.setsid()
+    # Make the slave fd the controlling terminal
+    fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
+
+
 async def _run_local_exec(websocket: WebSocket, exec_cmd: str) -> None:
     """Run docker exec locally with PTY."""
     master_fd, slave_fd = pty.openpty()
@@ -140,6 +147,8 @@ async def _run_local_exec(websocket: WebSocket, exec_cmd: str) -> None:
         stdout=slave_fd,
         stderr=slave_fd,
         close_fds=True,
+        preexec_fn=lambda: _make_controlling_tty(slave_fd),
+        start_new_session=False,  # We handle setsid in preexec_fn
     )
     os.close(slave_fd)
 
@@ -156,17 +165,12 @@ async def _run_remote_exec(
     """Run docker exec on remote host via SSH with PTY."""
     # Get SSH agent socket for authentication
     agent_path = _get_ssh_auth_sock()
-    # Get client keys as fallback for when agent is unavailable
-    client_keys = get_ssh_client_keys()
+    # Note: ssh_connect_kwargs includes client_keys fallback for when agent is unavailable
 
     async with asyncssh.connect(
-        host.address,
-        port=host.port,
-        username=host.user,
-        known_hosts=None,
+        **ssh_connect_kwargs(host),
         agent_forwarding=agent_forwarding,
         agent_path=agent_path,
-        client_keys=client_keys,
     ) as conn:
         proc: asyncssh.SSHClientProcess[Any] = await conn.create_process(
             exec_cmd,
