@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from compose_farm.config import Host
 from compose_farm.executor import ssh_connect_kwargs
@@ -19,21 +19,17 @@ from compose_farm.ssh_keys import (
 class TestGetSshAuthSock:
     """Tests for get_ssh_auth_sock function."""
 
-    def test_returns_env_var_when_socket_exists(self, tmp_path: Path) -> None:
+    def test_returns_env_var_when_socket_exists(self) -> None:
         """Return SSH_AUTH_SOCK env var if the socket exists."""
-        sock_path = tmp_path / "agent.sock"
-        # Create a unix socket
-        import socket
+        mock_path = MagicMock()
+        mock_path.is_socket.return_value = True
 
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.bind(str(sock_path))
-        try:
-            with patch.dict(os.environ, {"SSH_AUTH_SOCK": str(sock_path)}):
-                result = get_ssh_auth_sock()
-                assert result == str(sock_path)
-        finally:
-            s.close()
-            sock_path.unlink()
+        with (
+            patch.dict(os.environ, {"SSH_AUTH_SOCK": "/tmp/agent.sock"}),
+            patch("compose_farm.ssh_keys.Path", return_value=mock_path),
+        ):
+            result = get_ssh_auth_sock()
+            assert result == "/tmp/agent.sock"
 
     def test_returns_none_when_env_var_not_socket(self, tmp_path: Path) -> None:
         """Return None if SSH_AUTH_SOCK points to non-socket."""
@@ -49,63 +45,53 @@ class TestGetSshAuthSock:
 
     def test_finds_agent_in_ssh_agent_dir(self, tmp_path: Path) -> None:
         """Find agent socket in ~/.ssh/agent/ directory."""
-        import socket
-
-        # Create agent directory structure
+        # Create agent directory structure with a regular file
         agent_dir = tmp_path / ".ssh" / "agent"
         agent_dir.mkdir(parents=True)
         sock_path = agent_dir / "s.12345.sshd.67890"
+        sock_path.touch()  # Create as regular file
 
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.bind(str(sock_path))
-        try:
-            with patch.dict(os.environ, {}, clear=False):
-                # Remove SSH_AUTH_SOCK if present
-                os.environ.pop("SSH_AUTH_SOCK", None)
-                with patch("compose_farm.ssh_keys.Path.home", return_value=tmp_path):
-                    result = get_ssh_auth_sock()
-                    assert result == str(sock_path)
-        finally:
-            s.close()
-            sock_path.unlink()
+        with (
+            patch.dict(os.environ, {}, clear=False),
+            patch("compose_farm.ssh_keys.Path.home", return_value=tmp_path),
+            patch.object(Path, "is_socket", return_value=True),
+        ):
+            os.environ.pop("SSH_AUTH_SOCK", None)
+            result = get_ssh_auth_sock()
+            assert result == str(sock_path)
 
     def test_returns_none_when_no_agent_found(self, tmp_path: Path) -> None:
         """Return None when no SSH agent socket is found."""
-        with patch.dict(os.environ, {}, clear=False):
+        with (
+            patch.dict(os.environ, {}, clear=False),
+            patch("compose_farm.ssh_keys.Path.home", return_value=tmp_path),
+        ):
             os.environ.pop("SSH_AUTH_SOCK", None)
-            with patch("compose_farm.ssh_keys.Path.home", return_value=tmp_path):
-                result = get_ssh_auth_sock()
-                assert result is None
+            result = get_ssh_auth_sock()
+            assert result is None
 
 
 class TestGetSshEnv:
     """Tests for get_ssh_env function."""
 
-    def test_returns_env_with_ssh_auth_sock(self, tmp_path: Path) -> None:
+    def test_returns_env_with_ssh_auth_sock(self) -> None:
         """Return env dict with SSH_AUTH_SOCK set."""
-        import socket
-
-        sock_path = tmp_path / "agent.sock"
-        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.bind(str(sock_path))
-        try:
-            with patch.dict(os.environ, {"SSH_AUTH_SOCK": str(sock_path)}):
-                result = get_ssh_env()
-                assert result["SSH_AUTH_SOCK"] == str(sock_path)
-                # Should include other env vars too
-                assert "PATH" in result or len(result) > 1
-        finally:
-            s.close()
-            sock_path.unlink()
+        with patch("compose_farm.ssh_keys.get_ssh_auth_sock", return_value="/tmp/agent.sock"):
+            result = get_ssh_env()
+            assert result["SSH_AUTH_SOCK"] == "/tmp/agent.sock"
+            # Should include other env vars too
+            assert "PATH" in result or len(result) > 1
 
     def test_returns_env_without_ssh_auth_sock_when_none(self, tmp_path: Path) -> None:
         """Return env without SSH_AUTH_SOCK when no agent found."""
-        with patch.dict(os.environ, {}, clear=False):
+        with (
+            patch.dict(os.environ, {}, clear=False),
+            patch("compose_farm.ssh_keys.Path.home", return_value=tmp_path),
+        ):
             os.environ.pop("SSH_AUTH_SOCK", None)
-            with patch("compose_farm.ssh_keys.Path.home", return_value=tmp_path):
-                result = get_ssh_env()
-                # SSH_AUTH_SOCK should not be set if no agent found
-                assert result.get("SSH_AUTH_SOCK") is None
+            result = get_ssh_env()
+            # SSH_AUTH_SOCK should not be set if no agent found
+            assert result.get("SSH_AUTH_SOCK") is None
 
 
 class TestKeyExists:
