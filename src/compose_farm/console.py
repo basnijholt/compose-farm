@@ -12,7 +12,6 @@ err_console = Console(stderr=True, highlight=False)
 MSG_SERVICE_NOT_FOUND = "Service [cyan]{name}[/] not found in config"
 MSG_HOST_NOT_FOUND = "Host [magenta]{name}[/] not found in config"
 MSG_CONFIG_NOT_FOUND = "Config file not found"
-MSG_COMPOSE_NOT_FOUND = "Compose file not found: {path}"
 MSG_DRY_RUN = "[dim](dry-run: no changes made)[/]"
 
 
