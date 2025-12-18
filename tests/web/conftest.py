@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -73,9 +72,7 @@ deployed:
 
 
 @pytest.fixture
-def mock_config(
-    config_file: Path, monkeypatch: pytest.MonkeyPatch
-) -> Generator[Config, None, None]:
+def mock_config(config_file: Path, monkeypatch: pytest.MonkeyPatch) -> Config:
     """Patch get_config to return a test config."""
     from compose_farm.config import load_config
     from compose_farm.web import deps as web_deps
@@ -83,17 +80,8 @@ def mock_config(
 
     config = load_config(config_file)
 
-    # Save original and clear cache before patching
-    original_get_config = web_deps.get_config
-    original_get_config.cache_clear()
-
     # Patch in all modules that import get_config
     monkeypatch.setattr(web_deps, "get_config", lambda: config)
     monkeypatch.setattr(web_api, "get_config", lambda: config)
 
-    yield config
-
-    # monkeypatch auto-restores, then clear cache
-    # (cache_clear happens after monkeypatch cleanup via addfinalizier)
-    monkeypatch.undo()
-    original_get_config.cache_clear()
+    return config

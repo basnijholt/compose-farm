@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 from compose_farm.executor import run_compose_on_host
 from compose_farm.state import load_state
-from compose_farm.web.deps import get_config, get_templates, reload_config
+from compose_farm.web.deps import get_config, get_templates
 
 router = APIRouter(tags=["api"])
 
@@ -207,6 +207,5 @@ async def save_config(
 
     _validate_yaml(content)
     config.config_path.write_text(content)
-    reload_config()
 
     return {"success": True, "message": "Config saved"}

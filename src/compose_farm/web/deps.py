@@ -6,7 +6,6 @@ between app.py and route modules.
 
 from __future__ import annotations
 
-from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -21,18 +20,11 @@ TEMPLATES_DIR = WEB_DIR / "templates"
 STATIC_DIR = WEB_DIR / "static"
 
 
-@lru_cache
 def get_config() -> Config:
-    """Load config once per process (cached)."""
+    """Load config from disk (always fresh)."""
     from compose_farm.config import load_config  # noqa: PLC0415
 
     return load_config()
-
-
-def reload_config() -> Config:
-    """Clear config cache and reload from disk."""
-    get_config.cache_clear()
-    return get_config()
 
 
 def get_templates() -> Jinja2Templates:
