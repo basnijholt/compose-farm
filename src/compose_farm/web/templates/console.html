@@ -138,44 +138,8 @@ function initConsoleEditor() {
     if (!editorEl || consoleEditor) return;
 
     loadMonaco(() => {
-        consoleEditor = monaco.editor.create(editorEl, {
-            value: '',
-            language: 'plaintext',
-            theme: 'vs-dark',
-            minimap: { enabled: false },
-            automaticLayout: true,
-            scrollBeyondLastLine: false,
-            fontSize: 14,
-            lineNumbers: 'on',
-            wordWrap: 'on'
-        });
-
-        // Cmd+S to save
-        consoleEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-            saveFile();
-        });
+        consoleEditor = createEditor(editorEl, '', 'plaintext', { onSave: saveFile });
     });
-}
-
-function getLanguageFromPath(path) {
-    const ext = path.split('.').pop().toLowerCase();
-    const langMap = {
-        'yaml': 'yaml', 'yml': 'yaml',
-        'json': 'json',
-        'js': 'javascript', 'mjs': 'javascript',
-        'ts': 'typescript', 'tsx': 'typescript',
-        'py': 'python',
-        'sh': 'shell', 'bash': 'shell',
-        'md': 'markdown',
-        'html': 'html', 'htm': 'html',
-        'css': 'css',
-        'sql': 'sql',
-        'toml': 'toml',
-        'ini': 'ini', 'conf': 'ini',
-        'dockerfile': 'dockerfile',
-        'env': 'plaintext'
-    };
-    return langMap[ext] || 'plaintext';
 }
 
 async function loadFile() {
@@ -258,16 +222,6 @@ async function saveFile() {
         statusEl.textContent = `Error: ${e.message}`;
     }
 }
-
-// Global Cmd+S handler for console page
-document.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-        e.preventDefault();
-        if (currentFilePath) {
-            saveFile();
-        }
-    }
-});
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {

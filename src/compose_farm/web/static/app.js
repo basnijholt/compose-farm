@@ -17,6 +17,35 @@ const editors = {};
 let monacoLoaded = false;
 let monacoLoading = false;
 
+// Language detection from file path
+const LANGUAGE_MAP = {
+    'yaml': 'yaml', 'yml': 'yaml',
+    'json': 'json',
+    'js': 'javascript', 'mjs': 'javascript',
+    'ts': 'typescript', 'tsx': 'typescript',
+    'py': 'python',
+    'sh': 'shell', 'bash': 'shell',
+    'md': 'markdown',
+    'html': 'html', 'htm': 'html',
+    'css': 'css',
+    'sql': 'sql',
+    'toml': 'toml',
+    'ini': 'ini', 'conf': 'ini',
+    'dockerfile': 'dockerfile',
+    'env': 'plaintext'
+};
+
+/**
+ * Get Monaco language from file path
+ * @param {string} path - File path
+ * @returns {string} Monaco language identifier
+ */
+function getLanguageFromPath(path) {
+    const ext = path.split('.').pop().toLowerCase();
+    return LANGUAGE_MAP[ext] || 'plaintext';
+}
+window.getLanguageFromPath = getLanguageFromPath;
+
 // Terminal color theme (dark mode matching PicoCSS)
 const TERMINAL_THEME = {
     background: '#1a1a2e',
@@ -223,10 +252,16 @@ function loadMonaco(callback) {
  * @param {HTMLElement} container - Container element
  * @param {string} content - Initial content
  * @param {string} language - Editor language (yaml, plaintext, etc.)
- * @param {boolean} readonly - Whether editor is read-only
+ * @param {object} opts - Options: { readonly, onSave }
  * @returns {object} Monaco editor instance
  */
-function createEditor(container, content, language, readonly = false) {
+function createEditor(container, content, language, opts = {}) {
+    // Support legacy boolean readonly parameter
+    if (typeof opts === 'boolean') {
+        opts = { readonly: opts };
+    }
+    const { readonly = false, onSave = null } = opts;
+
     const options = {
         value: content,
         language: language,
@@ -249,12 +284,17 @@ function createEditor(container, content, language, readonly = false) {
     // Add Command+S / Ctrl+S handler for editable editors
     if (!readonly) {
         editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
-            saveAllEditors();
+            if (onSave) {
+                onSave(editor);
+            } else {
+                saveAllEditors();
+            }
         });
     }
 
     return editor;
 }
+window.createEditor = createEditor;
 
 /**
  * Initialize all Monaco editors on the page
