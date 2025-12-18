@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
@@ -10,7 +11,6 @@ from fastapi.staticfiles import StaticFiles
 
 from compose_farm.web.deps import STATIC_DIR, get_config
 from compose_farm.web.routes import actions, api, pages
-from compose_farm.web.ws import router as ws_router
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -39,6 +39,11 @@ def create_app() -> FastAPI:
     app.include_router(pages.router)
     app.include_router(api.router, prefix="/api")
     app.include_router(actions.router, prefix="/api")
-    app.include_router(ws_router)
+
+    # WebSocket routes use Unix-only modules (fcntl, pty)
+    if sys.platform != "win32":
+        from compose_farm.web.ws import router as ws_router  # noqa: PLC0415
+
+        app.include_router(ws_router)
 
     return app

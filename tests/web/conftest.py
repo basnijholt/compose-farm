@@ -78,17 +78,17 @@ def mock_config(
 ) -> Generator[Config, None, None]:
     """Patch get_config to return a test config."""
     from compose_farm.config import load_config
-    from compose_farm.web import app as web_app
+    from compose_farm.web import deps as web_deps
     from compose_farm.web.routes import api as web_api
 
     config = load_config(config_file)
 
     # Save original and clear cache before patching
-    original_get_config = web_app.get_config
+    original_get_config = web_deps.get_config
     original_get_config.cache_clear()
 
     # Patch in all modules that import get_config
-    monkeypatch.setattr(web_app, "get_config", lambda: config)
+    monkeypatch.setattr(web_deps, "get_config", lambda: config)
     monkeypatch.setattr(web_api, "get_config", lambda: config)
 
     yield config
