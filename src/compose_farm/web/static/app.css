@@ -1,12 +1,9 @@
-/* Sidebar inputs - remove double border on focus */
+/* Sidebar inputs - remove focus outline (DaisyUI 5 uses outline for focus) */
 #sidebar .input:focus,
 #sidebar .input:focus-visible,
-#sidebar .input:focus-within,
 #sidebar .select:focus,
 #sidebar .select:focus-visible {
-    outline: none !important;
-    box-shadow: none !important;
-    border-color: oklch(var(--bc) / 0.2) !important;
+    outline: none;
 }
 
 /* Editors (Monaco) - wrapper makes it resizable */
