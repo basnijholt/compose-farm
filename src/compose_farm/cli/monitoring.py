@@ -156,11 +156,48 @@ def logs(
 
 @app.command(rich_help_panel="Monitoring")
 def ps(
+    services: ServicesArg = None,
+    all_services: AllOption = False,
+    host: HostOption = None,
     config: ConfigOption = None,
 ) -> None:
-    """Show status of all services."""
+    """Show status of services.
+
+    Without arguments: shows all services (same as --all).
+    With service names: shows only those services.
+    With --host: shows services on that host.
+    """
+    if services and all_services:
+        print_error("Cannot combine service names and [bold]--all[/]")
+        raise typer.Exit(1)
+    if services and host is not None:
+        print_error("Cannot combine service names and [bold]--host[/]")
+        raise typer.Exit(1)
+    if all_services and host is not None:
+        print_error("Cannot combine [bold]--all[/] and [bold]--host[/]")
+        raise typer.Exit(1)
+
     cfg = load_config_or_exit(config)
-    results = run_async(run_on_services(cfg, list(cfg.services.keys()), "ps"))
+
+    # Determine service list
+    if host is not None:
+        validate_host(cfg, host)
+        svc_list = [s for s in cfg.services if host in cfg.get_hosts(s)]
+        if not svc_list:
+            print_warning(f"No services configured for host [magenta]{host}[/]")
+            return
+    elif services:
+        # Validate services exist
+        missing = [s for s in services if s not in cfg.services]
+        if missing:
+            print_error(f"Unknown services: {', '.join(missing)}")
+            raise typer.Exit(1)
+        svc_list = list(services)
+    else:
+        # Default: show all services
+        svc_list = list(cfg.services.keys())
+
+    results = run_async(run_on_services(cfg, svc_list, "ps"))
     report_results(results)
 
 
