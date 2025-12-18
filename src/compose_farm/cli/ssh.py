@@ -253,7 +253,7 @@ def ssh_status(
             )
             status = "[green]OK[/]" if result.success else "[red]Auth failed[/]"
         except TimeoutError:
-            status = "[red]Timeout[/]"
+            status = "[red]Timeout (5s)[/]"
         except Exception as e:
             status = f"[red]Error: {e}[/]"
 
