@@ -20,20 +20,60 @@ router = APIRouter()
 
 @router.get("/", response_class=HTMLResponse)  # type: ignore[misc]
 async def index(request: Request) -> HTMLResponse:
-    """Dashboard page."""
+    """Dashboard page - combined view of all cluster info."""
     config = get_config()
     templates = get_templates()
 
-    # Get state (load_state returns the deployed dict directly)
+    # Get state
     deployed = load_state(config)
+
+    # Stats
+    running_count = len(deployed)
+    stopped_count = len(config.services) - running_count
+
+    # Pending operations
+    orphaned = get_orphaned_services(config)
+    migrations = get_services_needing_migration(config)
+    not_started = get_services_not_in_state(config)
+
+    # Group services by host
+    services_by_host: dict[str, list[str]] = {}
+    for svc, host in deployed.items():
+        if isinstance(host, list):
+            for h in host:
+                services_by_host.setdefault(h, []).append(svc)
+        else:
+            services_by_host.setdefault(host, []).append(svc)
+
+    # Config file content
+    config_content = ""
+    if config.config_path and config.config_path.exists():
+        config_content = config.config_path.read_text()
+
+    # State file content
+    state_content = yaml.dump({"deployed": deployed}, default_flow_style=False, sort_keys=False)
 
     return templates.TemplateResponse(
         "index.html",
         {
             "request": request,
-            "config": config,
+            # Config data
+            "hosts": config.hosts,
+            "services": config.services,
+            "config_content": config_content,
+            "config_path": str(config.config_path) if config.config_path else None,
+            # State data
             "state": deployed,
-            "services": sorted(config.services.keys()),
+            "state_content": state_content,
+            # Stats
+            "running_count": running_count,
+            "stopped_count": stopped_count,
+            # Pending operations
+            "orphaned": orphaned,
+            "migrations": migrations,
+            "not_started": not_started,
+            # Services by host
+            "services_by_host": services_by_host,
         },
     )
 

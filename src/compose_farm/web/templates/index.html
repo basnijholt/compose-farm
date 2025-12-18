@@ -1,45 +1,120 @@
 {% extends "base.html" %}
-{% from "partials/components.html" import page_header, collapse, stat_card, table %}
+{% from "partials/components.html" import page_header, collapse, stat_card, table, action_btn %}
 {% block title %}Dashboard - Compose Farm{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl">
-    {{ page_header("Dashboard", "Compose Farm cluster overview") }}
+    {{ page_header("Compose Farm", "Cluster overview and management") }}
 
-    <!-- Quick Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {{ stat_card("Hosts", config.hosts | length) }}
-        {{ stat_card("Services", config.services | length) }}
-        {{ stat_card("Deployed", state | length, "success") }}
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {{ stat_card("Hosts", hosts | length) }}
+        {{ stat_card("Services", services | length) }}
+        {{ stat_card("Running", running_count, "success") }}
+        {{ stat_card("Stopped", stopped_count) }}
     </div>
 
-    {% call collapse("Hosts", checked=True) %}
+    <!-- Global Actions -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        {{ action_btn("Apply", "/api/apply", "primary", "Make reality match config") }}
+        {{ action_btn("Refresh", "/api/refresh", "outline", "Update state from reality") }}
+        <button id="save-config-btn" class="btn btn-outline">Save Config</button>
+    </div>
+
+    {% include "partials/terminal.html" %}
+
+    <!-- Config Editor -->
+    {% call collapse("Edit Config", badge="compose-farm.yaml") %}
+        <div class="editor-wrapper yaml-wrapper">
+            <div id="config-editor" class="yaml-editor" data-content="{{ config_content | e }}" data-save-url="/api/config"></div>
+        </div>
+    {% endcall %}
+
+    <!-- Pending Operations -->
+    {% if orphaned or migrations or not_started %}
+    {% call collapse("Pending Operations", checked=True) %}
+        {% if orphaned %}
+        <h4 class="font-semibold mt-2 mb-1">Orphaned Services (will be stopped)</h4>
+        <ul class="list-disc list-inside mb-4">
+            {% for svc, host in orphaned.items() %}
+            <li><a href="/service/{{ svc }}" class="badge badge-warning hover:badge-primary">{{ svc }}</a> on {{ host }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if migrations %}
+        <h4 class="font-semibold mt-2 mb-1">Services Needing Migration</h4>
+        <ul class="list-disc list-inside mb-4">
+            {% for svc in migrations %}
+            <li><a href="/service/{{ svc }}" class="badge badge-info hover:badge-primary">{{ svc }}</a></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if not_started %}
+        <h4 class="font-semibold mt-2 mb-1">Services Not Started</h4>
+        <ul class="menu menu-horizontal bg-base-200 rounded-box mb-2">
+            {% for svc in not_started | sort %}
+            <li><a href="/service/{{ svc }}">{{ svc }}</a></li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+    {% endcall %}
+    {% else %}
+    <div role="alert" class="alert alert-success mb-4">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        <span>All services are in sync with configuration.</span>
+    </div>
+    {% endif %}
+
+    <!-- Services by Host -->
+    {% call collapse("Services by Host", checked=True) %}
+        {% for host_name, host_services in services_by_host.items() | sort %}
+        <h4 class="font-semibold mt-3 mb-1">
+            {{ host_name }}
+            {% if host_name in hosts %}
+            <code class="text-xs ml-2 opacity-60">{{ hosts[host_name].address }}</code>
+            {% endif %}
+        </h4>
+        <ul class="menu menu-horizontal bg-base-200 rounded-box mb-2">
+            {% for svc in host_services | sort %}
+            <li><a href="/service/{{ svc }}">{{ svc }}</a></li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-base-content/60 italic">No services currently running.</p>
+        {% endfor %}
+    {% endcall %}
+
+    <!-- Hosts Configuration -->
+    {% call collapse("Hosts (" ~ (hosts | length) ~ ")") %}
         {% call table() %}
             <thead>
                 <tr>
                     <th>Name</th>
                     <th>Address</th>
-                    <th>Services</th>
+                    <th>User</th>
+                    <th>Port</th>
                 </tr>
             </thead>
             <tbody>
-                {% for name, host in config.hosts.items() %}
+                {% for name, host in hosts.items() %}
                 <tr class="hover:bg-base-300">
                     <td class="font-semibold">{{ name }}</td>
                     <td><code class="text-sm">{{ host.address }}</code></td>
-                    <td>
-                        {% set count = [] %}
-                        {% for svc, svc_host in state.items() %}
-                            {% if svc_host == name or (svc_host is iterable and svc_host is not string and name in svc_host) %}
-                                {% if count.append(1) %}{% endif %}
-                            {% endif %}
-                        {% endfor %}
-                        {{ count | length }}
-                    </td>
+                    <td><code class="text-sm">{{ host.user }}</code></td>
+                    <td><code class="text-sm">{{ host.port }}</code></td>
                 </tr>
                 {% endfor %}
             </tbody>
         {% endcall %}
+    {% endcall %}
+
+    <!-- State Viewer -->
+    {% call collapse("Raw State", badge="compose-farm-state.yaml") %}
+        <div class="editor-wrapper viewer-wrapper">
+            <div id="state-viewer" class="yaml-viewer" data-content="{{ state_content | e }}"></div>
+        </div>
     {% endcall %}
 </div>
 {% endblock %}
