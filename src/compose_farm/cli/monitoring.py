@@ -22,7 +22,7 @@ from compose_farm.cli.common import (
     run_parallel_with_progress,
     validate_host,
 )
-from compose_farm.console import console, err_console
+from compose_farm.console import console, print_error, print_warning
 from compose_farm.executor import run_command, run_on_services
 from compose_farm.state import get_services_needing_migration, group_services_by_host, load_state
 
@@ -128,7 +128,7 @@ def logs(
 ) -> None:
     """Show service logs."""
     if all_services and host is not None:
-        err_console.print("[red]✗[/] Cannot use --all and --host together")
+        print_error("Cannot combine [bold]--all[/] and [bold]--host[/]")
         raise typer.Exit(1)
 
     cfg = load_config_or_exit(config)
@@ -139,7 +139,7 @@ def logs(
         # Include services where host is in the list of configured hosts
         svc_list = [s for s in cfg.services if host in cfg.get_hosts(s)]
         if not svc_list:
-            err_console.print(f"[yellow]![/] No services configured for host '{host}'")
+            print_warning(f"No services configured for host [magenta]{host}[/]")
             return
     else:
         svc_list, cfg = get_services(services or [], all_services, config)

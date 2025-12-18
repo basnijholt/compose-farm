@@ -14,7 +14,7 @@ from typing import Annotated
 import typer
 
 from compose_farm.cli.app import app
-from compose_farm.console import console, err_console
+from compose_farm.console import MSG_CONFIG_NOT_FOUND, console, print_error, print_success
 from compose_farm.paths import config_search_paths, default_config_path, find_config_path
 
 config_app = typer.Typer(
@@ -66,8 +66,8 @@ def _generate_template() -> str:
         template_file = resources.files("compose_farm") / "example-config.yaml"
         return template_file.read_text(encoding="utf-8")
     except FileNotFoundError as e:
-        err_console.print("[red]✗[/] Example config template is missing from the package.")
-        err_console.print("Reinstall compose-farm or report this issue.")
+        print_error("Example config template is missing from the package")
+        console.print("Reinstall compose-farm or report this issue.")
         raise typer.Exit(1) from e
 
 
@@ -124,7 +124,7 @@ def config_init(
     template_content = _generate_template()
     target_path.write_text(template_content, encoding="utf-8")
 
-    console.print(f"[green]✓[/] Config file created at: {target_path}")
+    print_success(f"Config file created at: {target_path}")
     console.print("\n[dim]Edit the file to customize your settings:[/dim]")
     console.print("  [cyan]cf config edit[/cyan]")
 
@@ -153,21 +153,21 @@ def config_edit(
     try:
         editor_cmd = shlex.split(editor, posix=os.name != "nt")
     except ValueError as e:
-        err_console.print("[red]✗[/] Invalid editor command. Check $EDITOR/$VISUAL.")
+        print_error("Invalid editor command. Check [bold]$EDITOR[/]/[bold]$VISUAL[/]")
         raise typer.Exit(1) from e
 
     if not editor_cmd:
-        err_console.print("[red]✗[/] Editor command is empty.")
+        print_error("Editor command is empty")
         raise typer.Exit(1)
 
     try:
         subprocess.run([*editor_cmd, str(config_file)], check=True)
     except FileNotFoundError:
-        err_console.print(f"[red]✗[/] Editor '{editor_cmd[0]}' not found.")
-        err_console.print("Set $EDITOR environment variable to your preferred editor.")
+        print_error(f"Editor [cyan]{editor_cmd[0]}[/] not found")
+        console.print("Set [bold]$EDITOR[/] environment variable to your preferred editor.")
         raise typer.Exit(1) from None
     except subprocess.CalledProcessError as e:
-        err_console.print(f"[red]✗[/] Editor exited with error code {e.returncode}")
+        print_error(f"Editor exited with error code {e.returncode}")
         raise typer.Exit(e.returncode) from None
 
 
@@ -226,7 +226,7 @@ def config_validate(
     config_file = _get_config_file(path)
 
     if config_file is None:
-        err_console.print("[red]✗[/] No config file found")
+        print_error(MSG_CONFIG_NOT_FOUND)
         raise typer.Exit(1)
 
     # Lazy import: pydantic adds ~50ms to startup, only load when actually needed
@@ -235,13 +235,13 @@ def config_validate(
     try:
         cfg = load_config(config_file)
     except FileNotFoundError as e:
-        err_console.print(f"[red]✗[/] {e}")
+        print_error(str(e))
         raise typer.Exit(1) from e
     except Exception as e:
-        err_console.print(f"[red]✗[/] Invalid config: {e}")
+        print_error(f"Invalid config: {e}")
         raise typer.Exit(1) from e
 
-    console.print(f"[green]✓[/] Valid config: {config_file}")
+    print_success(f"Valid config: {config_file}")
     console.print(f"  Hosts: {len(cfg.hosts)}")
     console.print(f"  Services: {len(cfg.services)}")
 
@@ -268,11 +268,11 @@ def config_symlink(
     target_path = (target or Path("compose-farm.yaml")).expanduser().resolve()
 
     if not target_path.exists():
-        err_console.print(f"[red]✗[/] Target config file not found: {target_path}")
+        print_error(f"Target config file not found: {target_path}")
         raise typer.Exit(1)
 
     if not target_path.is_file():
-        err_console.print(f"[red]✗[/] Target is not a file: {target_path}")
+        print_error(f"Target is not a file: {target_path}")
         raise typer.Exit(1)
 
     symlink_path = default_config_path()
@@ -282,7 +282,7 @@ def config_symlink(
         if symlink_path.is_symlink():
             current_target = symlink_path.resolve() if symlink_path.exists() else None
             if current_target == target_path:
-                console.print(f"[green]✓[/] Symlink already points to: {target_path}")
+                print_success(f"Symlink already points to: {target_path}")
                 return
             # Update existing symlink
             if not force:
@@ -294,8 +294,8 @@ def config_symlink(
             symlink_path.unlink()
         else:
             # Regular file exists
-            err_console.print(f"[red]✗[/] A regular file exists at: {symlink_path}")
-            err_console.print("    Back it up or remove it first, then retry.")
+            print_error(f"A regular file exists at: {symlink_path}")
+            console.print("    Back it up or remove it first, then retry.")
             raise typer.Exit(1)
 
     # Create parent directories
@@ -304,7 +304,7 @@ def config_symlink(
     # Create symlink with absolute path
     symlink_path.symlink_to(target_path)
 
-    console.print("[green]✓[/] Created symlink:")
+    print_success("Created symlink:")
     console.print(f"    {symlink_path}")
     console.print(f"    -> {target_path}")
 

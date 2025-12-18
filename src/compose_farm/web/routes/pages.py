@@ -14,10 +14,14 @@ from compose_farm.state import (
     get_service_host,
     get_services_needing_migration,
     get_services_not_in_state,
-    group_services_by_host,
     load_state,
 )
-from compose_farm.web.deps import get_config, get_templates
+from compose_farm.web.deps import (
+    extract_config_error,
+    get_config,
+    get_running_services_by_host,
+    get_templates,
+)
 
 router = APIRouter()
 
@@ -64,11 +68,7 @@ async def index(request: Request) -> HTMLResponse:
     try:
         config = get_config()
     except (ValidationError, FileNotFoundError) as e:
-        # Extract error message
-        if isinstance(e, ValidationError):
-            config_error = "; ".join(err.get("msg", str(err)) for err in e.errors())
-        else:
-            config_error = str(e)
+        config_error = extract_config_error(e)
 
         # Read raw config content for the editor
         config_path = find_config_path()
@@ -105,9 +105,7 @@ async def index(request: Request) -> HTMLResponse:
     not_started = get_services_not_in_state(config)
 
     # Group services by host (filter out hosts with no running services)
-    services_by_host = {
-        h: svcs for h, svcs in group_services_by_host(deployed, config.hosts).items() if svcs
-    }
+    services_by_host = get_running_services_by_host(deployed, config.hosts)
 
     # Config file content
     config_content = ""
@@ -216,10 +214,7 @@ async def config_error_partial(request: Request) -> HTMLResponse:
         get_config()
         return HTMLResponse("")  # No error
     except (ValidationError, FileNotFoundError) as e:
-        if isinstance(e, ValidationError):
-            error = "; ".join(err.get("msg", str(err)) for err in e.errors())
-        else:
-            error = str(e)
+        error = extract_config_error(e)
         return templates.TemplateResponse(
             "partials/config_error.html", {"request": request, "config_error": error}
         )
@@ -276,11 +271,7 @@ async def services_by_host_partial(request: Request, expanded: bool = True) -> H
     templates = get_templates()
 
     deployed = load_state(config)
-
-    # Group services by host (filter out hosts with no running services)
-    services_by_host = {
-        h: svcs for h, svcs in group_services_by_host(deployed, config.hosts).items() if svcs
-    }
+    services_by_host = get_running_services_by_host(deployed, config.hosts)
 
     return templates.TemplateResponse(
         "partials/services_by_host.html",
