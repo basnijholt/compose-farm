@@ -1,6 +1,7 @@
 services:
   cf:
     image: ghcr.io/basnijholt/compose-farm:latest
+    restart: unless-stopped
     volumes:
       - ${SSH_AUTH_SOCK}:/ssh-agent:ro
       # Compose directory (contains compose files AND compose-farm.yaml config)
@@ -12,6 +13,7 @@ services:
 
   web:
     image: ghcr.io/basnijholt/compose-farm:latest
+    restart: unless-stopped
     command: web --host 0.0.0.0 --port 9000
     volumes:
       - ${SSH_AUTH_SOCK}:/ssh-agent:ro
