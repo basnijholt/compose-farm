@@ -136,3 +136,75 @@ async def sidebar_partial(request: Request) -> HTMLResponse:
             "state": state,
         },
     )
+
+
+@router.get("/partials/stats", response_class=HTMLResponse)  # type: ignore[misc]
+async def stats_partial(request: Request) -> HTMLResponse:
+    """Stats cards partial."""
+    config = get_config()
+    templates = get_templates()
+
+    deployed = load_state(config)
+    running_count = len(deployed)
+    stopped_count = len(config.services) - running_count
+
+    return templates.TemplateResponse(
+        "partials/stats.html",
+        {
+            "request": request,
+            "hosts": config.hosts,
+            "services": config.services,
+            "running_count": running_count,
+            "stopped_count": stopped_count,
+        },
+    )
+
+
+@router.get("/partials/pending", response_class=HTMLResponse)  # type: ignore[misc]
+async def pending_partial(request: Request, expanded: bool = True) -> HTMLResponse:
+    """Pending operations partial."""
+    config = get_config()
+    templates = get_templates()
+
+    orphaned = get_orphaned_services(config)
+    migrations = get_services_needing_migration(config)
+    not_started = get_services_not_in_state(config)
+
+    return templates.TemplateResponse(
+        "partials/pending.html",
+        {
+            "request": request,
+            "orphaned": orphaned,
+            "migrations": migrations,
+            "not_started": not_started,
+            "expanded": expanded,
+        },
+    )
+
+
+@router.get("/partials/services-by-host", response_class=HTMLResponse)  # type: ignore[misc]
+async def services_by_host_partial(request: Request, expanded: bool = True) -> HTMLResponse:
+    """Services by host partial."""
+    config = get_config()
+    templates = get_templates()
+
+    deployed = load_state(config)
+
+    # Group services by host
+    services_by_host: dict[str, list[str]] = {}
+    for svc, host in deployed.items():
+        if isinstance(host, list):
+            for h in host:
+                services_by_host.setdefault(h, []).append(svc)
+        else:
+            services_by_host.setdefault(host, []).append(svc)
+
+    return templates.TemplateResponse(
+        "partials/services_by_host.html",
+        {
+            "request": request,
+            "hosts": config.hosts,
+            "services_by_host": services_by_host,
+            "expanded": expanded,
+        },
+    )

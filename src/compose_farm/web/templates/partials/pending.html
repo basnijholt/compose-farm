@@ -1,0 +1,38 @@
+{% from "partials/components.html" import collapse %}
+<div id="pending-operations">
+{% if orphaned or migrations or not_started %}
+{% call collapse("Pending Operations", id="pending-collapse", checked=expanded|default(true)) %}
+    {% if orphaned %}
+    <h4 class="font-semibold mt-2 mb-1">Orphaned Services (will be stopped)</h4>
+    <ul class="list-disc list-inside mb-4">
+        {% for svc, host in orphaned.items() %}
+        <li><a href="/service/{{ svc }}" class="badge badge-warning hover:badge-primary">{{ svc }}</a> on {{ host }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if migrations %}
+    <h4 class="font-semibold mt-2 mb-1">Services Needing Migration</h4>
+    <ul class="list-disc list-inside mb-4">
+        {% for svc in migrations %}
+        <li><a href="/service/{{ svc }}" class="badge badge-info hover:badge-primary">{{ svc }}</a></li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if not_started %}
+    <h4 class="font-semibold mt-2 mb-1">Services Not Started</h4>
+    <ul class="menu menu-horizontal bg-base-200 rounded-box mb-2">
+        {% for svc in not_started | sort %}
+        <li><a href="/service/{{ svc }}">{{ svc }}</a></li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+{% endcall %}
+{% else %}
+<div role="alert" class="alert alert-success mb-4">
+    <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+    <span>All services are in sync with configuration.</span>
+</div>
+{% endif %}
+</div>
