@@ -23,3 +23,33 @@
 #save-btn, #save-config-btn {
     min-width: 5rem;
 }
+
+/* Rainbow hover effect for headers */
+.rainbow-hover {
+    transition: color 0.3s;
+}
+
+.rainbow-hover:hover {
+    background: linear-gradient(
+        90deg,
+        #e07070,
+        #e0a070,
+        #d0d070,
+        #70c080,
+        #7090d0,
+        #9080b0,
+        #b080a0,
+        #e07070
+    );
+    background-size: 16em 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: rainbow 4s linear infinite;
+}
+
+@keyframes rainbow {
+    to {
+        background-position: 16em center;
+    }
+}

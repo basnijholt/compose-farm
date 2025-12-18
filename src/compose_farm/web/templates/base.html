@@ -27,7 +27,7 @@
                 <label for="drawer-toggle" class="btn btn-ghost btn-square">
                     {{ hamburger() }}
                 </label>
-                <span class="font-semibold">Compose Farm</span>
+                <span class="font-semibold rainbow-hover">Compose Farm</span>
             </header>
 
             <main id="main-content" class="flex-1 p-6 overflow-y-auto" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
@@ -41,7 +41,7 @@
             <aside id="sidebar" class="w-64 bg-base-100 border-r border-base-300 flex flex-col min-h-screen">
                 <header class="p-4 border-b border-base-300">
                     <h2 class="text-lg font-semibold flex items-center gap-2">
-                        Compose Farm
+                        <span class="rainbow-hover">Compose Farm</span>
                         <a href="https://github.com/basnijholt/compose-farm" target="_blank" title="GitHub" class="opacity-50 hover:opacity-100 transition-opacity">
                             {{ github() }}
                         </a>
