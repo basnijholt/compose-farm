@@ -54,56 +54,14 @@
     }
 }
 
-/* Command palette FAB - rainbow glow effect (based on CodePen by @LukyVj) */
-@property --cmd-bg-position {
-    syntax: "<number>";
-    inherits: true;
-    initial-value: 100;
-}
-
-@property --cmd-after-blur {
-    syntax: "<number>";
-    inherits: true;
-    initial-value: 10;
-}
-
-@property --cmd-scale {
-    syntax: "<number>";
-    inherits: true;
-    initial-value: 1;
-}
-
-@property --cmd-before-opacity {
-    syntax: "<number>";
-    inherits: true;
-    initial-value: 0.3;
-}
-
-:root {
-    --cmd-color-white: hsl(0, 0%, 100%);
-    --cmd-color-cyan: hsl(180, 100%, 50%);
-    --cmd-color-blue: hsl(240, 100%, 50%);
-    --cmd-color-purple: hsl(270, 100%, 50%);
-    --cmd-color-pink: hsl(330, 40%, 70%);
-    --cmd-color-red: hsl(0, 100%, 50%);
-    --cmd-color-yellow: hsl(60, 100%, 50%);
-    --cmd-color-lime: hsl(90, 100%, 75%);
-}
-
-@supports (color: color(display-p3 0 0 0)) {
-    :root {
-        --cmd-color-white: color(display-p3 1 1 1);
-        --cmd-color-cyan: color(display-p3 0 1 1);
-        --cmd-color-blue: color(display-p3 0 0 1);
-        --cmd-color-purple: color(display-p3 0.5 0 1);
-        --cmd-color-pink: color(display-p3 1 0.4 0.7);
-        --cmd-color-red: color(display-p3 1 0 0);
-        --cmd-color-yellow: color(display-p3 1 1 0);
-        --cmd-color-lime: color(display-p3 0.75 1 0);
-    }
-}
+/* Command palette FAB - rainbow glow effect */
+@property --cmd-pos { syntax: "<number>"; inherits: true; initial-value: 100; }
+@property --cmd-blur { syntax: "<number>"; inherits: true; initial-value: 10; }
+@property --cmd-scale { syntax: "<number>"; inherits: true; initial-value: 1; }
+@property --cmd-opacity { syntax: "<number>"; inherits: true; initial-value: 0.3; }
 
 #cmd-fab {
+    --g: linear-gradient(to right, #fff, #fff, #0ff, #00f, #8000ff, #e066a3, #f00, #ff0, #bfff80, #fff, #fff);
     all: unset;
     position: fixed;
     bottom: 1.5rem;
@@ -111,39 +69,20 @@
     z-index: 50;
     cursor: pointer;
     transform: scale(var(--cmd-scale));
-    transition:
-        --cmd-bg-position 3s ease,
-        --cmd-after-blur 0.3s ease,
-        --cmd-before-opacity 0.3s ease,
-        --cmd-scale 0.2s cubic-bezier(.76, -0.25, .51, 1.13);
+    transition: --cmd-pos 3s, --cmd-blur 0.3s, --cmd-opacity 0.3s, --cmd-scale 0.2s cubic-bezier(.76,-.25,.51,1.13);
 }
 
 .cmd-fab-inner {
-    --cmd-border-width: 1.5;
-    --cmd-gradient: linear-gradient(
-        to right,
-        var(--cmd-color-white),
-        var(--cmd-color-white),
-        var(--cmd-color-cyan),
-        var(--cmd-color-blue),
-        var(--cmd-color-purple),
-        var(--cmd-color-pink),
-        var(--cmd-color-red),
-        var(--cmd-color-yellow),
-        var(--cmd-color-lime),
-        var(--cmd-color-white),
-        var(--cmd-color-white)
-    );
     display: block;
     padding: 0.6em 1em;
-    background: hsl(0, 0%, 0%);
+    background: #000;
     border-radius: 8px;
     font-size: 14px;
     position: relative;
 }
 
 .cmd-fab-inner > span {
-    background: var(--cmd-gradient) no-repeat calc(var(--cmd-bg-position) * 1%) 0% / 900%;
+    background: var(--g) no-repeat calc(var(--cmd-pos) * 1%) 0 / 900%;
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -151,51 +90,28 @@
     font-weight: 600;
 }
 
-/* Gradient border */
-.cmd-fab-inner::before {
+.cmd-fab-inner::before, .cmd-fab-inner::after {
     content: "";
-    display: block;
     position: absolute;
-    width: calc(100% + calc(var(--cmd-border-width) * 2px));
-    height: calc(100% + calc(var(--cmd-border-width) * 2px));
-    background: var(--cmd-gradient) no-repeat calc(var(--cmd-bg-position) * 1%) 0% / 900%;
-    border-radius: 9px;
-    z-index: -1;
-    top: calc(var(--cmd-border-width) * -1px);
-    left: calc(var(--cmd-border-width) * -1px);
-    opacity: var(--cmd-before-opacity);
-}
-
-/* Blurred glow */
-.cmd-fab-inner::after {
-    display: block;
-    position: absolute;
-    content: "";
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(to right, rgb(0 0 0), rgb(0 0 0)) no-repeat calc(var(--cmd-bg-position) * 1%) 0% / 900%;
-    transform: translateY(10px);
-    left: 0;
-    top: 0;
-    z-index: -2;
-    filter: blur(calc(var(--cmd-after-blur) * 1px));
-    opacity: 1;
     border-radius: 8px;
 }
 
-#cmd-fab:hover {
-    --cmd-scale: 1.05;
-    --cmd-bg-position: 0;
-    --cmd-after-blur: 30;
-    --cmd-before-opacity: 1;
+.cmd-fab-inner::before {
+    inset: -1.5px;
+    background: var(--g) no-repeat calc(var(--cmd-pos) * 1%) 0 / 900%;
+    border-radius: 9px;
+    z-index: -1;
+    opacity: var(--cmd-opacity);
 }
 
-#cmd-fab:hover .cmd-fab-inner::after {
-    background: var(--cmd-gradient);
-    opacity: 0.3;
+.cmd-fab-inner::after {
+    inset: 0;
+    background: #000;
+    transform: translateY(10px);
+    z-index: -2;
+    filter: blur(calc(var(--cmd-blur) * 1px));
 }
 
-#cmd-fab:active {
-    --cmd-scale: 0.98;
-    --cmd-after-blur: 15;
-}
+#cmd-fab:hover { --cmd-scale: 1.05; --cmd-pos: 0; --cmd-blur: 30; --cmd-opacity: 1; }
+#cmd-fab:hover .cmd-fab-inner::after { background: var(--g); opacity: 0.3; }
+#cmd-fab:active { --cmd-scale: 0.98; --cmd-blur: 15; }

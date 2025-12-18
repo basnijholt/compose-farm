@@ -442,13 +442,13 @@ function playFabIntro() {
     const fab = document.getElementById('cmd-fab');
     if (!fab) return;
     setTimeout(() => {
-        fab.style.setProperty('--cmd-bg-position', '0');
-        fab.style.setProperty('--cmd-before-opacity', '1');
-        fab.style.setProperty('--cmd-after-blur', '30');
+        fab.style.setProperty('--cmd-pos', '0');
+        fab.style.setProperty('--cmd-opacity', '1');
+        fab.style.setProperty('--cmd-blur', '30');
         setTimeout(() => {
-            fab.style.removeProperty('--cmd-bg-position');
-            fab.style.removeProperty('--cmd-before-opacity');
-            fab.style.removeProperty('--cmd-after-blur');
+            fab.style.removeProperty('--cmd-pos');
+            fab.style.removeProperty('--cmd-opacity');
+            fab.style.removeProperty('--cmd-blur');
         }, 3000);
     }, 500);
 }
