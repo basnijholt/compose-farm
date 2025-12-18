@@ -162,6 +162,12 @@ async def _run_ssh_command(
             "-o",
             "LogLevel=ERROR",  # Suppress warnings about known_hosts
         ]
+        # Add key file if it exists (fallback for when agent is unavailable)
+        from compose_farm.ssh_keys import get_key_path  # noqa: PLC0415
+
+        key_path = get_key_path()
+        if key_path:
+            ssh_args.extend(["-i", str(key_path)])
         if host.port != _DEFAULT_SSH_PORT:
             ssh_args.extend(["-p", str(host.port)])
         ssh_args.extend([f"{host.user}@{host.address}", command])
@@ -175,13 +181,23 @@ async def _run_ssh_command(
 
     import asyncssh  # noqa: PLC0415 - lazy import for faster CLI startup
 
+    from compose_farm.ssh_keys import get_key_path  # noqa: PLC0415
+
     proc: asyncssh.SSHClientProcess[Any]
     try:
+        # Build connect options with key file fallback
+        connect_kwargs: dict[str, Any] = {
+            "known_hosts": None,
+        }
+        key_path = get_key_path()
+        if key_path:
+            connect_kwargs["client_keys"] = [str(key_path)]
+
         async with asyncssh.connect(  # noqa: SIM117 - conn needed before create_process
             host.address,
             port=host.port,
             username=host.user,
-            known_hosts=None,
+            **connect_kwargs,
         ) as conn:
             async with conn.create_process(command) as proc:
                 if stream:

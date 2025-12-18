@@ -19,6 +19,7 @@ from compose_farm.executor import is_local, run_compose_on_host
 from compose_farm.paths import find_config_path
 from compose_farm.state import load_state
 from compose_farm.web.deps import get_config, get_templates
+from compose_farm.web.streaming import get_ssh_client_keys
 
 router = APIRouter(tags=["api"])
 
@@ -292,11 +293,15 @@ async def _read_file_remote(host: Any, path: str) -> str:
     if path.startswith("~/"):
         cmd = f"cat ~/{shlex.quote(path[2:])}"
 
+    # Get client keys as fallback for when agent is unavailable
+    client_keys = get_ssh_client_keys()
+
     async with asyncssh.connect(
         host.address,
         port=host.port,
         username=host.user,
         known_hosts=None,
+        client_keys=client_keys,
     ) as conn:
         result = await conn.run(cmd, check=True)
         stdout = result.stdout or ""
@@ -309,11 +314,15 @@ async def _write_file_remote(host: Any, path: str, content: str) -> None:
     target_path = f"~/{path[2:]}" if path.startswith("~/") else path
     cmd = f"cat > {shlex.quote(target_path)}"
 
+    # Get client keys as fallback for when agent is unavailable
+    client_keys = get_ssh_client_keys()
+
     async with asyncssh.connect(
         host.address,
         port=host.port,
         username=host.user,
         known_hosts=None,
+        client_keys=client_keys,
     ) as conn:
         result = await conn.run(cmd, input=content, check=True)
         if result.returncode != 0:

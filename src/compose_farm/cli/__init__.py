@@ -8,6 +8,7 @@ from compose_farm.cli import (
     lifecycle,  # noqa: F401
     management,  # noqa: F401
     monitoring,  # noqa: F401
+    ssh,  # noqa: F401
     web,  # noqa: F401
 )
 
