@@ -563,6 +563,9 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
                 <span class="opacity-40 text-xs">${c.desc}</span>
             </a>
         `).join('') || '<div class="opacity-50 p-2">No matches</div>';
+        // Scroll selected item into view
+        const sel = list.querySelector(`[data-idx="${selected}"]`);
+        if (sel) sel.scrollIntoView({ block: 'nearest' });
     }
 
     function open() {
