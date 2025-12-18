@@ -21,19 +21,16 @@ from compose_farm.cli.common import (
     maybe_regenerate_traefik,
     report_results,
     run_async,
-    run_host_operation,
 )
 from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success
 from compose_farm.executor import run_on_services, run_sequential_on_services
 from compose_farm.operations import stop_orphaned_services, up_services
 from compose_farm.state import (
-    add_service_to_host,
     get_orphaned_services,
     get_service_host,
     get_services_needing_migration,
     get_services_not_in_state,
     remove_service,
-    remove_service_from_host,
 )
 
 
@@ -45,14 +42,7 @@ def up(
     config: ConfigOption = None,
 ) -> None:
     """Start services (docker compose up -d). Auto-migrates if host changed."""
-    svc_list, cfg = get_services(services or [], all_services, config)
-
-    # Per-host operation: run on specific host only
-    if host:
-        run_host_operation(cfg, svc_list, host, "up -d", "Starting", add_service_to_host)
-        return
-
-    # Normal operation: use up_services with migration logic
+    svc_list, cfg = get_services(services or [], all_services, config, host=host)
     results = run_async(up_services(cfg, svc_list, raw=True))
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
@@ -72,7 +62,7 @@ def down(
     config: ConfigOption = None,
 ) -> None:
     """Stop services (docker compose down)."""
-    # Handle --orphaned flag
+    # Handle --orphaned flag (mutually exclusive with other selection methods)
     if orphaned:
         if services or all_services or host:
             print_error(
@@ -95,14 +85,7 @@ def down(
         report_results(results)
         return
 
-    svc_list, cfg = get_services(services or [], all_services, config)
-
-    # Per-host operation: run on specific host only
-    if host:
-        run_host_operation(cfg, svc_list, host, "down", "Stopping", remove_service_from_host)
-        return
-
-    # Normal operation
+    svc_list, cfg = get_services(services or [], all_services, config, host=host)
     raw = len(svc_list) == 1
     results = run_async(run_on_services(cfg, svc_list, "down", raw=raw))
 

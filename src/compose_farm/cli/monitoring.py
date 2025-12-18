@@ -20,9 +20,8 @@ from compose_farm.cli.common import (
     report_results,
     run_async,
     run_parallel_with_progress,
-    validate_host,
 )
-from compose_farm.console import console, print_error, print_warning
+from compose_farm.console import console
 from compose_farm.executor import run_command, run_on_services
 from compose_farm.state import get_services_needing_migration, group_services_by_host, load_state
 
@@ -127,22 +126,7 @@ def logs(
     config: ConfigOption = None,
 ) -> None:
     """Show service logs."""
-    if all_services and host is not None:
-        print_error("Cannot combine [bold]--all[/] and [bold]--host[/]")
-        raise typer.Exit(1)
-
-    cfg = load_config_or_exit(config)
-
-    # Determine service list based on options
-    if host is not None:
-        validate_host(cfg, host)
-        # Include services where host is in the list of configured hosts
-        svc_list = [s for s in cfg.services if host in cfg.get_hosts(s)]
-        if not svc_list:
-            print_warning(f"No services configured for host [magenta]{host}[/]")
-            return
-    else:
-        svc_list, cfg = get_services(services or [], all_services, config)
+    svc_list, cfg = get_services(services or [], all_services, config, host=host)
 
     # Default to fewer lines when showing multiple services
     many_services = all_services or host is not None or len(svc_list) > 1
@@ -156,11 +140,19 @@ def logs(
 
 @app.command(rich_help_panel="Monitoring")
 def ps(
+    services: ServicesArg = None,
+    all_services: AllOption = False,
+    host: HostOption = None,
     config: ConfigOption = None,
 ) -> None:
-    """Show status of all services."""
-    cfg = load_config_or_exit(config)
-    results = run_async(run_on_services(cfg, list(cfg.services.keys()), "ps"))
+    """Show status of services.
+
+    Without arguments: shows all services (same as --all).
+    With service names: shows only those services.
+    With --host: shows services on that host.
+    """
+    svc_list, cfg = get_services(services or [], all_services, config, host=host, default_all=True)
+    results = run_async(run_on_services(cfg, svc_list, "ps"))
     report_results(results)
 
 
