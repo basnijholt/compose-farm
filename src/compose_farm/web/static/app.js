@@ -435,3 +435,115 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         // Not valid JSON, ignore
     }
 });
+
+// Command Palette
+(function() {
+    const dialog = document.getElementById('cmd-palette');
+    const input = document.getElementById('cmd-input');
+    const list = document.getElementById('cmd-list');
+    const fab = document.getElementById('cmd-fab');
+    if (!dialog || !input || !list) return;
+
+    const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6' };
+    let commands = [];
+    let filtered = [];
+    let selected = 0;
+
+    const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
+    const nav = (url) => () => window.location.href = url;
+    const cmd = (type, name, desc, action) => ({ type, name, desc, action });
+
+    function buildCommands() {
+        const actions = [
+            cmd('action', 'Apply', 'Make reality match config', post('/api/apply')),
+            cmd('action', 'Refresh', 'Update state from reality', post('/api/refresh')),
+            cmd('nav', 'Dashboard', 'Go to dashboard', nav('/')),
+        ];
+
+        // Add service-specific actions if on a service page
+        const match = window.location.pathname.match(/^\/service\/(.+)$/);
+        if (match) {
+            const svc = decodeURIComponent(match[1]);
+            const svcCmd = (name, desc, endpoint) => cmd('service', name, `${desc} ${svc}`, post(`/api/service/${svc}/${endpoint}`));
+            actions.unshift(
+                svcCmd('Up', 'Start', 'up'),
+                svcCmd('Down', 'Stop', 'down'),
+                svcCmd('Restart', 'Restart', 'restart'),
+                svcCmd('Pull', 'Pull', 'pull'),
+                svcCmd('Update', 'Pull + restart', 'update'),
+                svcCmd('Logs', 'View logs for', 'logs'),
+            );
+        }
+
+        // Add nav commands for all services from sidebar
+        const services = [...document.querySelectorAll('#sidebar-services li[data-svc] a[href]')].map(a => {
+            const name = a.getAttribute('href').replace('/service/', '');
+            return cmd('nav', name, 'Go to service', nav(`/service/${name}`));
+        });
+
+        commands = [...actions, ...services];
+    }
+
+    function filter() {
+        const q = input.value.toLowerCase();
+        filtered = commands.filter(c => c.name.toLowerCase().includes(q));
+        selected = Math.max(0, Math.min(selected, filtered.length - 1));
+    }
+
+    function render() {
+        list.innerHTML = filtered.map((c, i) => `
+            <a class="flex justify-between items-center px-3 py-2 rounded-r cursor-pointer hover:bg-base-200 border-l-4 ${i === selected ? 'bg-base-300' : ''}" style="border-left-color: ${colors[c.type] || '#666'}" data-idx="${i}">
+                <span><span class="opacity-50 text-xs mr-2">${c.type}</span>${c.name}</span>
+                <span class="opacity-40 text-xs">${c.desc}</span>
+            </a>
+        `).join('') || '<div class="opacity-50 p-2">No matches</div>';
+    }
+
+    function open() {
+        buildCommands();
+        selected = 0;
+        input.value = '';
+        filter();
+        render();
+        dialog.showModal();
+        input.focus();
+    }
+
+    function exec() {
+        if (filtered[selected]) {
+            dialog.close();
+            filtered[selected].action();
+        }
+    }
+
+    // Keyboard: Cmd+K to open
+    document.addEventListener('keydown', e => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+            e.preventDefault();
+            open();
+        }
+    });
+
+    // Input filtering
+    input.addEventListener('input', () => { filter(); render(); });
+
+    // Keyboard nav inside palette
+    dialog.addEventListener('keydown', e => {
+        if (!dialog.open) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); selected = Math.min(selected + 1, filtered.length - 1); render(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); selected = Math.max(selected - 1, 0); render(); }
+        else if (e.key === 'Enter') { e.preventDefault(); exec(); }
+    });
+
+    // Click to execute
+    list.addEventListener('click', e => {
+        const a = e.target.closest('a[data-idx]');
+        if (a) {
+            selected = parseInt(a.dataset.idx, 10);
+            exec();
+        }
+    });
+
+    // FAB click to open
+    if (fab) fab.addEventListener('click', open);
+})();
