@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% from "partials/components.html" import page_header %}
-{% from "partials/icons.html" import terminal, save %}
+{% from "partials/components.html" import page_header, collapse %}
+{% from "partials/icons.html" import terminal, file_code, save %}
 {% block title %}Console - Compose Farm{% endblock %}
 
 {% block content %}
@@ -20,19 +20,14 @@
     </div>
 
     <!-- Terminal -->
-    <div class="mb-6">
-        <div class="flex items-center gap-2 mb-2">
-            <h3 class="font-semibold flex items-center gap-2">{{ terminal() }} Terminal</h3>
-            <span class="text-xs opacity-50">Full shell access to selected host</span>
-        </div>
+    {% call collapse("Terminal", checked=True, icon=terminal(), subtitle="Full shell access to selected host") %}
         <div id="console-terminal" class="w-full bg-base-300 rounded-lg overflow-hidden resize-y" style="height: 384px; min-height: 200px;"></div>
-    </div>
+    {% endcall %}
 
     <!-- Editor -->
-    <div class="mb-6">
+    {% call collapse("Editor", checked=True, icon=file_code()) %}
         <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-4">
-                <h3 class="font-semibold">Editor</h3>
                 <input type="text" id="console-file-path" class="input input-sm input-bordered w-96" placeholder="Enter file path (e.g., ~/docker-compose.yaml)" value="{{ config_path }}">
                 <button class="btn btn-sm btn-outline" onclick="loadFile()">Open</button>
             </div>
@@ -42,7 +37,7 @@
             </div>
         </div>
         <div id="console-editor" class="resize-y overflow-hidden rounded-lg" style="height: 512px; min-height: 200px;"></div>
-    </div>
+    {% endcall %}
 </div>
 
 <script>
@@ -52,6 +47,13 @@ var consoleWs = null;
 var consoleEditor = null;
 var currentFilePath = null;
 var currentHost = null;
+
+// Helper to show status with monospace path
+function setEditorStatus(prefix, path) {
+    const statusEl = document.getElementById('editor-status');
+    const escaped = path.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    statusEl.innerHTML = `${prefix} <code class="font-mono">${escaped}</code>`;
+}
 
 function connectConsole() {
     const hostSelect = document.getElementById('console-host-select');
@@ -155,7 +157,7 @@ async function loadFile() {
         return;
     }
 
-    statusEl.textContent = `Loading ${path}...`;
+    setEditorStatus('Loading', path + '...');
 
     try {
         const response = await fetch(`/api/console/file?host=${encodeURIComponent(currentHost)}&path=${encodeURIComponent(path)}`);
@@ -172,7 +174,7 @@ async function loadFile() {
             consoleEditor.setValue(data.content);
             monaco.editor.setModelLanguage(consoleEditor.getModel(), language);
             currentFilePath = path;  // Only set after content is loaded
-            statusEl.textContent = `Loaded: ${path}`;
+            setEditorStatus('Loaded:', path);
         } else {
             statusEl.textContent = 'Editor not ready';
         }
@@ -199,7 +201,7 @@ async function saveFile() {
         return;
     }
 
-    statusEl.textContent = `Saving ${currentFilePath}...`;
+    setEditorStatus('Saving', currentFilePath + '...');
 
     try {
         const content = consoleEditor.getValue();
@@ -215,7 +217,7 @@ async function saveFile() {
             return;
         }
 
-        statusEl.textContent = `Saved: ${currentFilePath}`;
+        setEditorStatus('Saved:', currentFilePath);
     } catch (e) {
         statusEl.textContent = `Error: ${e.message}`;
     }

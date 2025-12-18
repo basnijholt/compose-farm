@@ -9,12 +9,13 @@
 {% endmacro %}
 
 {# Collapsible section #}
-{% macro collapse(title, id=None, checked=False, badge=None, icon=None) %}
+{% macro collapse(title, id=None, checked=False, badge=None, icon=None, subtitle=None) %}
 <div class="collapse collapse-arrow bg-base-100 shadow mb-4">
     <input type="checkbox" {% if id %}id="{{ id }}"{% endif %} {% if checked %}checked{% endif %} />
-    <div class="collapse-title font-medium flex items-center gap-2">
+    <div class="collapse-title font-semibold flex items-center gap-2">
         {% if icon %}{{ icon }}{% endif %}{{ title }}
         {% if badge %}<code class="text-xs ml-2 opacity-60">{{ badge }}</code>{% endif %}
+        {% if subtitle %}<span class="text-xs opacity-50 font-normal">{{ subtitle }}</span>{% endif %}
     </div>
     <div class="collapse-content">
         {{ caller() }}
