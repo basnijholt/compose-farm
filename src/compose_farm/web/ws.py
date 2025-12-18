@@ -121,6 +121,14 @@ async def _bridge_websocket_to_ssh(
         proc.terminate()
 
 
+def _make_controlling_tty(slave_fd: int) -> None:
+    """Set up the slave PTY as the controlling terminal for the child process."""
+    # Create a new session
+    os.setsid()
+    # Make the slave fd the controlling terminal
+    fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
+
+
 async def _run_local_exec(websocket: WebSocket, exec_cmd: str) -> None:
     """Run docker exec locally with PTY."""
     master_fd, slave_fd = pty.openpty()
@@ -131,6 +139,8 @@ async def _run_local_exec(websocket: WebSocket, exec_cmd: str) -> None:
         stdout=slave_fd,
         stderr=slave_fd,
         close_fds=True,
+        preexec_fn=lambda: _make_controlling_tty(slave_fd),
+        start_new_session=False,  # We handle setsid in preexec_fn
     )
     os.close(slave_fd)
 
