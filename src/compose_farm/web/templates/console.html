@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% from "partials/components.html" import page_header %}
-{% from "partials/icons.html" import terminal, save %}
+{% from "partials/components.html" import page_header, collapse %}
+{% from "partials/icons.html" import terminal, file_code, save %}
 {% block title %}Console - Compose Farm{% endblock %}
 
 {% block content %}
@@ -20,19 +20,14 @@
     </div>
 
     <!-- Terminal -->
-    <div class="mb-6">
-        <div class="flex items-center gap-2 mb-2">
-            <h3 class="font-semibold flex items-center gap-2">{{ terminal() }} Terminal</h3>
-            <span class="text-xs opacity-50">Full shell access to selected host</span>
-        </div>
+    {% call collapse("Terminal", checked=True, icon=terminal()) %}
         <div id="console-terminal" class="w-full bg-base-300 rounded-lg overflow-hidden resize-y" style="height: 384px; min-height: 200px;"></div>
-    </div>
+    {% endcall %}
 
     <!-- Editor -->
-    <div class="mb-6">
+    {% call collapse("Editor", checked=True, icon=file_code()) %}
         <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-4">
-                <h3 class="font-semibold">Editor</h3>
                 <input type="text" id="console-file-path" class="input input-sm input-bordered w-96" placeholder="Enter file path (e.g., ~/docker-compose.yaml)" value="{{ config_path }}">
                 <button class="btn btn-sm btn-outline" onclick="loadFile()">Open</button>
             </div>
@@ -42,7 +37,7 @@
             </div>
         </div>
         <div id="console-editor" class="resize-y overflow-hidden rounded-lg" style="height: 512px; min-height: 200px;"></div>
-    </div>
+    {% endcall %}
 </div>
 
 <script>
