@@ -435,3 +435,90 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         // Not valid JSON, ignore
     }
 });
+
+// Command Palette
+(function() {
+    const dialog = document.getElementById('cmd-palette');
+    const input = document.getElementById('cmd-input');
+    const list = document.getElementById('cmd-list');
+    if (!dialog || !input || !list) return;
+
+    let commands = [];
+    let selected = 0;
+
+    const actions = [
+        { type: 'action', name: 'Apply', desc: 'Make reality match config', action: () => htmx.ajax('POST', '/api/apply', {swap: 'none'}) },
+        { type: 'action', name: 'Refresh', desc: 'Update state from reality', action: () => htmx.ajax('POST', '/api/refresh', {swap: 'none'}) },
+        { type: 'nav', name: 'Dashboard', desc: 'Go to dashboard', action: () => window.location.href = '/' },
+    ];
+
+    function buildCommands() {
+        const services = [...document.querySelectorAll('#sidebar-services li[data-svc]')].map(li => {
+            const name = li.querySelector('a')?.textContent.trim();
+            return { type: 'service', name, desc: 'Go to service', action: () => window.location.href = `/service/${name}` };
+        });
+        commands = [...actions, ...services];
+    }
+
+    function render(filter = '') {
+        const q = filter.toLowerCase();
+        const filtered = commands.filter(c => c.name.toLowerCase().includes(q));
+        selected = Math.max(0, Math.min(selected, filtered.length - 1));
+
+        list.innerHTML = filtered.map((c, i) => `
+            <li>
+                <a class="flex justify-between ${i === selected ? 'active' : ''}" data-idx="${i}">
+                    <span><span class="opacity-50 text-xs mr-2">${c.type}</span>${c.name}</span>
+                    <span class="opacity-40 text-xs">${c.desc}</span>
+                </a>
+            </li>
+        `).join('') || '<li class="opacity-50 p-2">No matches</li>';
+        return filtered;
+    }
+
+    function open() {
+        buildCommands();
+        selected = 0;
+        input.value = '';
+        render();
+        dialog.showModal();
+        input.focus();
+    }
+
+    function exec(filtered) {
+        const cmd = filtered[selected];
+        if (cmd) {
+            dialog.close();
+            cmd.action();
+        }
+    }
+
+    // Keyboard: Cmd+K to open
+    document.addEventListener('keydown', e => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+            e.preventDefault();
+            open();
+        }
+    });
+
+    // Input filtering
+    input.addEventListener('input', () => render(input.value));
+
+    // Keyboard nav inside palette (use dialog to catch all keys)
+    dialog.addEventListener('keydown', e => {
+        if (!dialog.open) return;
+        const filtered = commands.filter(c => c.name.toLowerCase().includes(input.value.toLowerCase()));
+        if (e.key === 'ArrowDown') { e.preventDefault(); selected = Math.min(selected + 1, filtered.length - 1); render(input.value); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); selected = Math.max(selected - 1, 0); render(input.value); }
+        else if (e.key === 'Enter') { e.preventDefault(); exec(filtered); }
+    });
+
+    // Click to execute
+    list.addEventListener('click', e => {
+        const a = e.target.closest('a[data-idx]');
+        if (a) {
+            selected = parseInt(a.dataset.idx);
+            exec(commands.filter(c => c.name.toLowerCase().includes(input.value.toLowerCase())));
+        }
+    });
+})();
