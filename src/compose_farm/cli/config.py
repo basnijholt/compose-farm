@@ -66,7 +66,7 @@ def _generate_template() -> str:
         template_file = resources.files("compose_farm") / "example-config.yaml"
         return template_file.read_text(encoding="utf-8")
     except FileNotFoundError as e:
-        err_console.print("[red]Example config template is missing from the package.[/red]")
+        err_console.print("[red]✗[/] Example config template is missing from the package.")
         err_console.print("Reinstall compose-farm or report this issue.")
         raise typer.Exit(1) from e
 
@@ -78,6 +78,23 @@ def _get_config_file(path: Path | None) -> Path | None:
 
     config_path = find_config_path()
     return config_path.resolve() if config_path else None
+
+
+def _report_no_config_found() -> None:
+    """Report that no config file was found in search paths."""
+    console.print("[yellow]No config file found.[/yellow]")
+    console.print("\nSearched locations:")
+    for p in config_search_paths():
+        status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
+        console.print(f"  - {p} ({status})")
+    console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
+
+
+def _report_config_path_not_exists(config_file: Path) -> None:
+    """Report that an explicit config path doesn't exist."""
+    console.print("[yellow]Config file not found.[/yellow]")
+    console.print(f"\nProvided path does not exist: [cyan]{config_file}[/cyan]")
+    console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
 
 
 @config_app.command("init")
@@ -123,17 +140,11 @@ def config_edit(
     config_file = _get_config_file(path)
 
     if config_file is None:
-        console.print("[yellow]No config file found.[/yellow]")
-        console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
-        console.print("\nSearched locations:")
-        for p in config_search_paths():
-            console.print(f"  - {p}")
+        _report_no_config_found()
         raise typer.Exit(1)
 
     if not config_file.exists():
-        console.print("[yellow]Config file not found.[/yellow]")
-        console.print(f"\nProvided path does not exist: [cyan]{config_file}[/cyan]")
-        console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
+        _report_config_path_not_exists(config_file)
         raise typer.Exit(1)
 
     editor = _get_editor()
@@ -142,21 +153,21 @@ def config_edit(
     try:
         editor_cmd = shlex.split(editor, posix=os.name != "nt")
     except ValueError as e:
-        err_console.print("[red]Invalid editor command. Check $EDITOR/$VISUAL.[/red]")
+        err_console.print("[red]✗[/] Invalid editor command. Check $EDITOR/$VISUAL.")
         raise typer.Exit(1) from e
 
     if not editor_cmd:
-        err_console.print("[red]Editor command is empty.[/red]")
+        err_console.print("[red]✗[/] Editor command is empty.")
         raise typer.Exit(1)
 
     try:
         subprocess.run([*editor_cmd, str(config_file)], check=True)
     except FileNotFoundError:
-        err_console.print(f"[red]Editor '{editor_cmd[0]}' not found.[/red]")
+        err_console.print(f"[red]✗[/] Editor '{editor_cmd[0]}' not found.")
         err_console.print("Set $EDITOR environment variable to your preferred editor.")
         raise typer.Exit(1) from None
     except subprocess.CalledProcessError as e:
-        err_console.print(f"[red]Editor exited with error code {e.returncode}[/red]")
+        err_console.print(f"[red]✗[/] Editor exited with error code {e.returncode}")
         raise typer.Exit(e.returncode) from None
 
 
@@ -169,18 +180,11 @@ def config_show(
     config_file = _get_config_file(path)
 
     if config_file is None:
-        console.print("[yellow]No config file found.[/yellow]")
-        console.print("\nSearched locations:")
-        for p in config_search_paths():
-            status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
-            console.print(f"  - {p} ({status})")
-        console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
+        _report_no_config_found()
         raise typer.Exit(0)
 
     if not config_file.exists():
-        console.print("[yellow]Config file not found.[/yellow]")
-        console.print(f"\nProvided path does not exist: [cyan]{config_file}[/cyan]")
-        console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
+        _report_config_path_not_exists(config_file)
         raise typer.Exit(1)
 
     content = config_file.read_text(encoding="utf-8")
@@ -207,11 +211,7 @@ def config_path(
     config_file = _get_config_file(path)
 
     if config_file is None:
-        console.print("[yellow]No config file found.[/yellow]")
-        console.print("\nSearched locations:")
-        for p in config_search_paths():
-            status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
-            console.print(f"  - {p} ({status})")
+        _report_no_config_found()
         raise typer.Exit(1)
 
     # Just print the path for easy piping

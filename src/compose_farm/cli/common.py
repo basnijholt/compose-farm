@@ -27,6 +27,7 @@ if TYPE_CHECKING:
     from compose_farm.executor import CommandResult
 
 _T = TypeVar("_T")
+_R = TypeVar("_R")
 
 
 # --- Shared CLI Options ---
@@ -56,6 +57,13 @@ _MISSING_PATH_PREVIEW_LIMIT = 2
 _STATS_PREVIEW_LIMIT = 3  # Max number of pending migrations to show by name
 
 
+def format_host(host: str | list[str]) -> str:
+    """Format a host value for display."""
+    if isinstance(host, list):
+        return ", ".join(host)
+    return host
+
+
 @contextlib.contextmanager
 def progress_bar(
     label: str, total: int, *, initial_description: str = "[dim]connecting...[/]"
@@ -79,6 +87,37 @@ def progress_bar(
     ) as progress:
         task_id = progress.add_task(initial_description, total=total)
         yield progress, task_id
+
+
+def run_parallel_with_progress(
+    label: str,
+    items: list[_T],
+    async_fn: Callable[[_T], Coroutine[None, None, _R]],
+) -> list[_R]:
+    """Run async tasks in parallel with a progress bar.
+
+    Args:
+        label: Progress bar label (e.g., "Discovering", "Querying hosts")
+        items: List of items to process
+        async_fn: Async function to call for each item, returns tuple where
+                  first element is used for progress description
+
+    Returns:
+        List of results from async_fn in completion order.
+
+    """
+
+    async def gather() -> list[_R]:
+        with progress_bar(label, len(items)) as (progress, task_id):
+            tasks = [asyncio.create_task(async_fn(item)) for item in items]
+            results: list[_R] = []
+            for coro in asyncio.as_completed(tasks):
+                result = await coro
+                results.append(result)
+                progress.update(task_id, advance=1, description=f"[cyan]{result[0]}[/]")  # type: ignore[index]
+            return results
+
+    return asyncio.run(gather())
 
 
 def load_config_or_exit(config_path: Path | None) -> Config:
@@ -117,7 +156,7 @@ def get_services(
     unknown = [svc for svc in resolved if svc not in config.services]
     if unknown:
         for svc in unknown:
-            err_console.print(f"[red]✗[/] Unknown service: [cyan]{svc}[/]")
+            err_console.print(f"[red]✗[/] Service [cyan]{svc}[/] not found in config")
         err_console.print("[dim]Hint: Add the service to compose-farm.yaml or use --all[/]")
         raise typer.Exit(1)
 
@@ -205,11 +244,25 @@ def maybe_regenerate_traefik(
         err_console.print(f"[yellow]![/] Failed to update traefik config: {exc}")
 
 
+def validate_host(cfg: Config, host: str) -> None:
+    """Validate that a host exists in config. Exits with error if not found."""
+    if host not in cfg.hosts:
+        err_console.print(f"[red]✗[/] Host [magenta]{host}[/] not found in config")
+        raise typer.Exit(1)
+
+
+def validate_hosts(cfg: Config, hosts: list[str]) -> None:
+    """Validate that all hosts exist in config. Exits with error if any not found."""
+    invalid = [h for h in hosts if h not in cfg.hosts]
+    if invalid:
+        for h in invalid:
+            err_console.print(f"[red]✗[/] Host [magenta]{h}[/] not found in config")
+        raise typer.Exit(1)
+
+
 def validate_host_for_service(cfg: Config, service: str, host: str) -> None:
     """Validate that a host is valid for a service."""
-    if host not in cfg.hosts:
-        err_console.print(f"[red]✗[/] Host '{host}' not found in config")
-        raise typer.Exit(1)
+    validate_host(cfg, host)
     allowed_hosts = cfg.get_hosts(service)
     if host not in allowed_hosts:
         err_console.print(

@@ -8,9 +8,33 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Generator, Mapping
 
     from .config import Config
+
+
+def group_services_by_host(
+    services: dict[str, str | list[str]],
+    hosts: Mapping[str, object],
+    all_hosts: list[str] | None = None,
+) -> dict[str, list[str]]:
+    """Group services by their assigned host(s).
+
+    For multi-host services (list or "all"), the service appears in multiple host lists.
+    """
+    by_host: dict[str, list[str]] = {h: [] for h in hosts}
+    for service, host_value in services.items():
+        if isinstance(host_value, list):
+            for host_name in host_value:
+                if host_name in by_host:
+                    by_host[host_name].append(service)
+        elif host_value == "all" and all_hosts:
+            for host_name in all_hosts:
+                if host_name in by_host:
+                    by_host[host_name].append(service)
+        elif host_value in by_host:
+            by_host[host_value].append(service)
+    return by_host
 
 
 def load_state(config: Config) -> dict[str, str | list[str]]:
