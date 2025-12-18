@@ -73,7 +73,7 @@ def is_local(host: Host) -> bool:
 
 def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
     """Get kwargs for asyncssh.connect() from a Host config."""
-    from compose_farm.ssh_keys import get_key_path  # noqa: PLC0415
+    from compose_farm.ssh_keys import get_key_path, get_ssh_auth_sock  # noqa: PLC0415
 
     kwargs: dict[str, Any] = {
         "host": host.address,
@@ -81,6 +81,10 @@ def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
         "username": host.user,
         "known_hosts": None,
     }
+    # Add SSH agent path (auto-detect forwarded agent if needed)
+    agent_path = get_ssh_auth_sock()
+    if agent_path:
+        kwargs["agent_path"] = agent_path
     # Add key file fallback for when SSH agent is unavailable
     key_path = get_key_path()
     if key_path:
