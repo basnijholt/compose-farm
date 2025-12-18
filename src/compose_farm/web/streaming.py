@@ -125,19 +125,29 @@ async def _run_cli_via_ssh(
     """Run a cf CLI command via SSH to the host.
 
     Used for self-updates to ensure the command survives container restart.
-    Output streams until the container dies, then we show a restart message.
-    The nohup ensures the command continues even when SSH disconnects.
+    Uses setsid to run command in a new session (completely detached), with
+    output going to a log file. We tail the log to stream output. When SSH
+    dies (container killed), the tail dies but the setsid process continues.
     """
     try:
         # Get the host for the web service
         host = config.get_host(CF_WEB_SERVICE)
 
-        # Build the remote command with SIGHUP ignored to survive SSH disconnect.
-        # - trap "" HUP: ignore SIGHUP (same as nohup, but doesn't redirect stdout)
-        # - Output streams through SSH until container dies
-        # - When SSH dies, SIGHUP is sent but ignored, command continues
         cf_cmd = f"cf {' '.join(args)} --config={config.config_path}"
-        remote_cmd = f"trap '' HUP; PATH=$HOME/.local/bin:/usr/local/bin:$PATH {cf_cmd}"
+        log_file = "/tmp/cf-self-update.log"  # noqa: S108
+
+        # Build the remote command:
+        # 1. setsid runs command in new session (survives SSH disconnect)
+        # 2. Output goes to log file
+        # 3. tail -f streams the log (dies when SSH dies, but command continues)
+        # 4. wait for tail or timeout after command should be done
+        remote_cmd = (
+            f"rm -f {log_file} && "
+            f"PATH=$HOME/.local/bin:/usr/local/bin:$PATH "
+            f"setsid sh -c '{cf_cmd} > {log_file} 2>&1' & "
+            f"sleep 0.3 && "
+            f"tail -f {log_file} 2>/dev/null"
+        )
 
         # Show what we're doing
         await stream_to_task(
@@ -146,14 +156,14 @@ async def _run_cli_via_ssh(
         )
         await stream_to_task(
             task_id,
-            f"{GREEN}Running via SSH (SIGHUP trapped){RESET}{CRLF}",
+            f"{GREEN}Running via SSH (detached with setsid){RESET}{CRLF}",
         )
 
-        # Build SSH command with TTY for proper output
-        ssh_args = build_ssh_command(host, remote_cmd, tty=True)
+        # Build SSH command (no TTY needed, output comes from tail)
+        ssh_args = build_ssh_command(host, remote_cmd, tty=False)
 
         # Set up environment with SSH agent
-        env = {**os.environ, "FORCE_COLOR": "1", "TERM": "xterm-256color"}
+        env = {**os.environ}
         ssh_sock = get_ssh_auth_sock()
         if ssh_sock:
             env["SSH_AUTH_SOCK"] = ssh_sock
@@ -176,7 +186,7 @@ async def _run_cli_via_ssh(
         exit_code = await process.wait()
 
         # Exit code 255 means SSH connection closed (container died during down)
-        # This is expected for self-updates - trapped SIGHUP ensures command continues
+        # This is expected for self-updates - setsid ensures command continues
         if exit_code == 255:  # noqa: PLR2004
             await stream_to_task(
                 task_id,
