@@ -108,13 +108,15 @@ async def _run_cli_via_ssh(
         # Get the host for the web service
         host = config.get_host(CF_WEB_SERVICE)
 
-        # Build the remote command
-        remote_cmd = f"cf {' '.join(args)} --config={config.config_path}"
+        # Build the remote command - prepend common install locations to PATH
+        # since non-interactive SSH doesn't source profile files
+        cf_cmd = f"cf {' '.join(args)} --config={config.config_path}"
+        remote_cmd = f"PATH=$HOME/.local/bin:/usr/local/bin:$PATH {cf_cmd}"
 
-        # Show what we're doing
+        # Show what we're doing (display the cf command, not the bash wrapper)
         await stream_to_task(
             task_id,
-            f"{DIM}$ ssh {host.user}@{host.address} {remote_cmd}{RESET}{CRLF}",
+            f"{DIM}$ ssh {host.user}@{host.address} {cf_cmd}{RESET}{CRLF}",
         )
         await stream_to_task(
             task_id,
