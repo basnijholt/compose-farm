@@ -6,10 +6,15 @@ import asyncio
 import os
 from typing import TYPE_CHECKING, Any
 
-from compose_farm.ssh_keys import get_ssh_auth_sock
+from compose_farm.ssh_keys import get_key_path, get_ssh_auth_sock
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
+
+# Environment variable to identify the web service (for self-update detection)
+CF_WEB_SERVICE = os.environ.get("CF_WEB_SERVICE", "")
+
+_DEFAULT_SSH_PORT = 22
 
 # ANSI escape codes for terminal output
 RED = "\x1b[31m"
@@ -79,6 +84,94 @@ async def run_cli_streaming(
         tasks[task_id]["status"] = "failed"
 
 
+def _is_self_update(service: str, command: str) -> bool:
+    """Check if this is a self-update (updating the web service itself).
+
+    Self-updates need special handling because running 'down' on the container
+    we're running in would kill the process before 'up' can execute.
+    """
+    if not CF_WEB_SERVICE or service != CF_WEB_SERVICE:
+        return False
+    # Commands that involve 'down' need SSH: update, restart, down
+    return command in ("update", "restart", "down")
+
+
+async def _run_cli_via_ssh(
+    config: Config,
+    args: list[str],
+    task_id: str,
+) -> None:
+    """Run a cf CLI command via SSH to the host.
+
+    Used for self-updates to ensure the command survives container restart.
+    """
+    try:
+        # Get the host for the web service
+        host = config.get_host(CF_WEB_SERVICE)
+
+        # Build the remote command
+        remote_cmd = f"cf {' '.join(args)} --config={config.config_path}"
+
+        # Show what we're doing
+        await stream_to_task(
+            task_id,
+            f"{DIM}$ ssh {host.user}@{host.address} {remote_cmd}{RESET}{CRLF}",
+        )
+        await stream_to_task(
+            task_id,
+            f"{GREEN}Running via SSH (self-update protection){RESET}{CRLF}",
+        )
+
+        # Build SSH command
+        ssh_args = [
+            "ssh",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "LogLevel=ERROR",
+        ]
+
+        # Add key file if available
+        key_path = get_key_path()
+        if key_path:
+            ssh_args.extend(["-i", str(key_path)])
+
+        if host.port != _DEFAULT_SSH_PORT:
+            ssh_args.extend(["-p", str(host.port)])
+
+        ssh_args.extend([f"{host.user}@{host.address}", remote_cmd])
+
+        # Set up environment with SSH agent
+        env = {**os.environ, "FORCE_COLOR": "1", "TERM": "xterm-256color"}
+        ssh_sock = get_ssh_auth_sock()
+        if ssh_sock:
+            env["SSH_AUTH_SOCK"] = ssh_sock
+
+        process = await asyncio.create_subprocess_exec(
+            *ssh_args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            env=env,
+        )
+
+        # Stream output
+        if process.stdout:
+            async for line in process.stdout:
+                text = line.decode("utf-8", errors="replace")
+                if text.endswith("\n") and not text.endswith("\r\n"):
+                    text = text[:-1] + "\r\n"
+                await stream_to_task(task_id, text)
+
+        exit_code = await process.wait()
+        tasks[task_id]["status"] = "completed" if exit_code == 0 else "failed"
+
+    except Exception as e:
+        await stream_to_task(task_id, f"{RED}Error: {e}{RESET}{CRLF}")
+        tasks[task_id]["status"] = "failed"
+
+
 async def run_compose_streaming(
     config: Config,
     service: str,
@@ -93,4 +186,9 @@ async def run_compose_streaming(
 
     # Build CLI args
     cli_args = [cli_cmd, service, *extra_args]
-    await run_cli_streaming(config, cli_args, task_id)
+
+    # Use SSH for self-updates to survive container restart
+    if _is_self_update(service, cli_cmd):
+        await _run_cli_via_ssh(config, cli_args, task_id)
+    else:
+        await run_cli_streaming(config, cli_args, task_id)
