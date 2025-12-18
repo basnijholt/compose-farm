@@ -286,6 +286,22 @@ def validate_host_for_service(cfg: Config, service: str, host: str) -> None:
         raise typer.Exit(1)
 
 
+def validate_service_selection(
+    services: list[str] | None,
+    all_services: bool,
+    host: str | None,
+) -> None:
+    """Validate that only one service selection method is used.
+
+    The three selection methods (explicit services, --all, --host) are mutually
+    exclusive. This ensures consistent behavior across all commands.
+    """
+    methods = sum([bool(services), all_services, host is not None])
+    if methods > 1:
+        print_error("Use only one of: service names, [bold]--all[/], or [bold]--host[/]")
+        raise typer.Exit(1)
+
+
 def run_host_operation(
     cfg: Config,
     svc_list: list[str],

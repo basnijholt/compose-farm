@@ -21,19 +21,18 @@ from compose_farm.cli.common import (
     maybe_regenerate_traefik,
     report_results,
     run_async,
-    run_host_operation,
+    validate_host,
+    validate_service_selection,
 )
-from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success
+from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success, print_warning
 from compose_farm.executor import run_on_services, run_sequential_on_services
 from compose_farm.operations import stop_orphaned_services, up_services
 from compose_farm.state import (
-    add_service_to_host,
     get_orphaned_services,
     get_service_host,
     get_services_needing_migration,
     get_services_not_in_state,
     remove_service,
-    remove_service_from_host,
 )
 
 
@@ -45,12 +44,28 @@ def up(
     config: ConfigOption = None,
 ) -> None:
     """Start services (docker compose up -d). Auto-migrates if host changed."""
-    svc_list, cfg = get_services(services or [], all_services, config)
+    validate_service_selection(services, all_services, host)
+    cfg = load_config_or_exit(config)
 
-    # Per-host operation: run on specific host only
-    if host:
-        run_host_operation(cfg, svc_list, host, "up -d", "Starting", add_service_to_host)
-        return
+    # Determine service list based on selection method
+    if host is not None:
+        validate_host(cfg, host)
+        svc_list = [s for s in cfg.services if host in cfg.get_hosts(s)]
+        if not svc_list:
+            print_warning(f"No services configured for host [magenta]{host}[/]")
+            return
+    elif all_services:
+        svc_list = list(cfg.services.keys())
+    elif services:
+        # Validate services exist
+        missing = [s for s in services if s not in cfg.services]
+        if missing:
+            print_error(f"Unknown services: {', '.join(missing)}")
+            raise typer.Exit(1)
+        svc_list = list(services)
+    else:
+        print_error("Specify services or use [bold]--all[/] / [bold]--host[/]")
+        raise typer.Exit(1)
 
     # Normal operation: use up_services with migration logic
     results = run_async(up_services(cfg, svc_list, raw=True))
@@ -72,7 +87,7 @@ def down(
     config: ConfigOption = None,
 ) -> None:
     """Stop services (docker compose down)."""
-    # Handle --orphaned flag
+    # Handle --orphaned flag (mutually exclusive with other selection methods)
     if orphaned:
         if services or all_services or host:
             print_error(
@@ -95,12 +110,30 @@ def down(
         report_results(results)
         return
 
-    svc_list, cfg = get_services(services or [], all_services, config)
+    validate_service_selection(services, all_services, host)
+    cfg = load_config_or_exit(config)
 
-    # Per-host operation: run on specific host only
-    if host:
-        run_host_operation(cfg, svc_list, host, "down", "Stopping", remove_service_from_host)
-        return
+    # Determine service list based on selection method
+    if host is not None:
+        validate_host(cfg, host)
+        svc_list = [s for s in cfg.services if host in cfg.get_hosts(s)]
+        if not svc_list:
+            print_warning(f"No services configured for host [magenta]{host}[/]")
+            return
+    elif all_services:
+        svc_list = list(cfg.services.keys())
+    elif services:
+        # Validate services exist
+        missing = [s for s in services if s not in cfg.services]
+        if missing:
+            print_error(f"Unknown services: {', '.join(missing)}")
+            raise typer.Exit(1)
+        svc_list = list(services)
+    else:
+        print_error(
+            "Specify services or use [bold]--all[/] / [bold]--host[/] / [bold]--orphaned[/]"
+        )
+        raise typer.Exit(1)
 
     # Normal operation
     raw = len(svc_list) == 1

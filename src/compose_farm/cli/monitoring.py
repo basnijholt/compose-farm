@@ -21,6 +21,7 @@ from compose_farm.cli.common import (
     run_async,
     run_parallel_with_progress,
     validate_host,
+    validate_service_selection,
 )
 from compose_farm.console import console, print_error, print_warning
 from compose_farm.executor import run_command, run_on_services
@@ -127,16 +128,12 @@ def logs(
     config: ConfigOption = None,
 ) -> None:
     """Show service logs."""
-    if all_services and host is not None:
-        print_error("Cannot combine [bold]--all[/] and [bold]--host[/]")
-        raise typer.Exit(1)
-
+    validate_service_selection(services, all_services, host)
     cfg = load_config_or_exit(config)
 
     # Determine service list based on options
     if host is not None:
         validate_host(cfg, host)
-        # Include services where host is in the list of configured hosts
         svc_list = [s for s in cfg.services if host in cfg.get_hosts(s)]
         if not svc_list:
             print_warning(f"No services configured for host [magenta]{host}[/]")
@@ -167,16 +164,7 @@ def ps(
     With service names: shows only those services.
     With --host: shows services on that host.
     """
-    if services and all_services:
-        print_error("Cannot combine service names and [bold]--all[/]")
-        raise typer.Exit(1)
-    if services and host is not None:
-        print_error("Cannot combine service names and [bold]--host[/]")
-        raise typer.Exit(1)
-    if all_services and host is not None:
-        print_error("Cannot combine [bold]--all[/] and [bold]--host[/]")
-        raise typer.Exit(1)
-
+    validate_service_selection(services, all_services, host)
     cfg = load_config_or_exit(config)
 
     # Determine service list
