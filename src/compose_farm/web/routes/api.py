@@ -10,6 +10,7 @@ import yaml
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
+from compose_farm.executor import run_compose_on_host
 from compose_farm.state import get_service_host, load_state
 from compose_farm.web.app import get_config, reload_config
 
@@ -21,13 +22,11 @@ def _get_compose_services(config: Any, service: str, hosts: list[str]) -> list[d
 
     Returns one entry per container per host for multi-host services.
     """
-    import yaml as pyyaml
-
     compose_path = config.get_compose_path(service)
     if not compose_path or not compose_path.exists():
         return []
 
-    compose_data = pyyaml.safe_load(compose_path.read_text()) or {}
+    compose_data = yaml.safe_load(compose_path.read_text()) or {}
     raw_services = compose_data.get("services", {})
     if not isinstance(raw_services, dict):
         return []
@@ -58,8 +57,6 @@ async def _get_container_states(
     config: Any, service: str, containers: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
     """Query Docker for actual container states on a single host."""
-    from compose_farm.executor import run_compose_on_host
-
     if not containers:
         return containers
 

@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import fcntl
 import os
+import pty
 
+import asyncssh
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from compose_farm.executor import is_local
+from compose_farm.web.app import get_config
 from compose_farm.web.streaming import tasks
 
 router = APIRouter()
@@ -19,9 +24,6 @@ async def _run_exec_session(  # noqa: C901, PLR0912, PLR0915
     host_name: str,
 ) -> None:
     """Run an interactive docker exec session over WebSocket."""
-    from compose_farm.executor import is_local
-    from compose_farm.web.app import get_config
-
     config = get_config()
     host = config.hosts.get(host_name)
     if not host:
@@ -33,9 +35,6 @@ async def _run_exec_session(  # noqa: C901, PLR0912, PLR0915
 
     if is_local(host):
         # Local exec with PTY
-        import fcntl
-        import pty
-
         master_fd, slave_fd = pty.openpty()
 
         proc = await asyncio.create_subprocess_shell(
@@ -85,8 +84,6 @@ async def _run_exec_session(  # noqa: C901, PLR0912, PLR0915
 
     else:
         # Remote exec via SSH with PTY
-        import asyncssh
-
         async with asyncssh.connect(
             host.address,
             port=host.port,
