@@ -2,6 +2,15 @@
  * Compose Farm Web UI JavaScript
  */
 
+// ANSI escape codes for terminal output
+const ANSI = {
+    RED: '\x1b[31m',
+    GREEN: '\x1b[32m',
+    DIM: '\x1b[2m',
+    RESET: '\x1b[0m',
+    CRLF: '\r\n'
+};
+
 // Store active terminals and editors
 const terminals = {};
 const editors = {};
@@ -85,13 +94,13 @@ function initTerminal(elementId, taskId) {
     const ws = createWebSocket(`/ws/terminal/${taskId}`);
 
     ws.onopen = () => {
-        term.write('\x1b[2m[Connected]\x1b[0m\r\n');
+        term.write(`${ANSI.DIM}[Connected]${ANSI.RESET}${ANSI.CRLF}`);
         setTerminalLoading(true);
     };
     ws.onmessage = (event) => term.write(event.data);
     ws.onclose = () => setTerminalLoading(false);
     ws.onerror = (error) => {
-        term.write('\x1b[31m[WebSocket Error]\x1b[0m\r\n');
+        term.write(`${ANSI.RED}[WebSocket Error]${ANSI.RESET}${ANSI.CRLF}`);
         console.error('WebSocket error:', error);
         setTerminalLoading(false);
     };
@@ -139,9 +148,9 @@ function initExecTerminal(service, container, host) {
 
     execWs.onopen = () => { sendSize(); term.focus(); };
     execWs.onmessage = (event) => term.write(event.data);
-    execWs.onclose = () => term.write('\r\n\x1b[2m[Connection closed]\x1b[0m\r\n');
+    execWs.onclose = () => term.write(`${ANSI.CRLF}${ANSI.DIM}[Connection closed]${ANSI.RESET}${ANSI.CRLF}`);
     execWs.onerror = (error) => {
-        term.write('\x1b[31m[WebSocket Error]\x1b[0m\r\n');
+        term.write(`${ANSI.RED}[WebSocket Error]${ANSI.RESET}${ANSI.CRLF}`);
         console.error('Exec WebSocket error:', error);
     };
 

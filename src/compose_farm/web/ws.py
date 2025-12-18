@@ -17,7 +17,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from compose_farm.executor import is_local
 from compose_farm.web.app import get_config
-from compose_farm.web.streaming import tasks
+from compose_farm.web.streaming import CRLF, DIM, GREEN, RED, RESET, tasks
 
 if TYPE_CHECKING:
     from compose_farm.config import Host
@@ -161,7 +161,7 @@ async def _run_exec_session(
     config = get_config()
     host = config.hosts.get(host_name)
     if not host:
-        await websocket.send_text(f"\x1b[31mHost '{host_name}' not found\x1b[0m\r\n")
+        await websocket.send_text(f"{RED}Host '{host_name}' not found{RESET}{CRLF}")
         return
 
     exec_cmd = f"docker exec -it {container} /bin/sh -c 'command -v bash >/dev/null && exec bash || exec sh'"
@@ -183,14 +183,14 @@ async def exec_websocket(
     await websocket.accept()
 
     try:
-        await websocket.send_text(f"\x1b[2m[Connecting to {container} on {host}...]\x1b[0m\r\n")
+        await websocket.send_text(f"{DIM}[Connecting to {container} on {host}...]{RESET}{CRLF}")
         await _run_exec_session(websocket, container, host)
-        await websocket.send_text("\r\n\x1b[2m[Disconnected]\x1b[0m\r\n")
+        await websocket.send_text(f"{CRLF}{DIM}[Disconnected]{RESET}{CRLF}")
     except WebSocketDisconnect:
         pass
     except Exception as e:
         with contextlib.suppress(Exception):
-            await websocket.send_text(f"\x1b[31mError: {e}\x1b[0m\r\n")
+            await websocket.send_text(f"{RED}Error: {e}{RESET}{CRLF}")
     finally:
         with contextlib.suppress(Exception):
             await websocket.close()
@@ -202,7 +202,7 @@ async def terminal_websocket(websocket: WebSocket, task_id: str) -> None:
     await websocket.accept()
 
     if task_id not in tasks:
-        await websocket.send_text("\x1b[31mError: Task not found\x1b[0m\r\n")
+        await websocket.send_text(f"{RED}Error: Task not found{RESET}{CRLF}")
         await websocket.close(code=4004)
         return
 
@@ -218,8 +218,8 @@ async def terminal_websocket(websocket: WebSocket, task_id: str) -> None:
 
             if task["status"] in ("completed", "failed"):
                 status = "[Done]" if task["status"] == "completed" else "[Failed]"
-                color = "32" if task["status"] == "completed" else "31"
-                await websocket.send_text(f"\r\n\x1b[{color}m{status}\x1b[0m\r\n")
+                color = GREEN if task["status"] == "completed" else RED
+                await websocket.send_text(f"{CRLF}{color}{status}{RESET}{CRLF}")
                 await websocket.close()
                 break
 

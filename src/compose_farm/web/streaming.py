@@ -10,10 +10,12 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from compose_farm.config import Config
 
-# ANSI color codes
-GREEN = "\x1b[32m"
+# ANSI escape codes for terminal output
 RED = "\x1b[31m"
+GREEN = "\x1b[32m"
+DIM = "\x1b[2m"
 RESET = "\x1b[0m"
+CRLF = "\r\n"
 
 
 def _get_ssh_auth_sock() -> str | None:
@@ -60,7 +62,7 @@ async def run_cli_streaming(
 
         # Show command being executed
         cmd_display = " ".join(["cf", *args])
-        await stream_to_task(task_id, f"\x1b[2m$ {cmd_display}\x1b[0m\r\n")
+        await stream_to_task(task_id, f"{DIM}$ {cmd_display}{RESET}{CRLF}")
 
         # Force color output even though there's no real TTY
         # Set COLUMNS for Rich/Typer to format output correctly
@@ -91,7 +93,7 @@ async def run_cli_streaming(
         tasks[task_id]["status"] = "completed" if exit_code == 0 else "failed"
 
     except Exception as e:
-        await stream_to_task(task_id, f"{RED}Error: {e}{RESET}\r\n")
+        await stream_to_task(task_id, f"{RED}Error: {e}{RESET}{CRLF}")
         tasks[task_id]["status"] = "failed"
 
 
