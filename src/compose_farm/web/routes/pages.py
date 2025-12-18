@@ -14,12 +14,12 @@ from compose_farm.state import (
     get_service_host,
     get_services_needing_migration,
     get_services_not_in_state,
+    group_running_services_by_host,
     load_state,
 )
 from compose_farm.web.deps import (
     extract_config_error,
     get_config,
-    get_running_services_by_host,
     get_templates,
 )
 
@@ -105,7 +105,7 @@ async def index(request: Request) -> HTMLResponse:
     not_started = get_services_not_in_state(config)
 
     # Group services by host (filter out hosts with no running services)
-    services_by_host = get_running_services_by_host(deployed, config.hosts)
+    services_by_host = group_running_services_by_host(deployed, config.hosts)
 
     # Config file content
     config_content = ""
@@ -271,7 +271,7 @@ async def services_by_host_partial(request: Request, expanded: bool = True) -> H
     templates = get_templates()
 
     deployed = load_state(config)
-    services_by_host = get_running_services_by_host(deployed, config.hosts)
+    services_by_host = group_running_services_by_host(deployed, config.hosts)
 
     return templates.TemplateResponse(
         "partials/services_by_host.html",

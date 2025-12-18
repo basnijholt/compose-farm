@@ -7,14 +7,12 @@ between app.py and route modules.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from compose_farm.config import Config
 
 # Paths
@@ -40,18 +38,3 @@ def extract_config_error(exc: Exception) -> str:
     if isinstance(exc, ValidationError):
         return "; ".join(err.get("msg", str(err)) for err in exc.errors())
     return str(exc)
-
-
-def get_running_services_by_host(
-    state: dict[str, str | list[str]],
-    hosts: Mapping[str, Any],
-) -> dict[str, list[str]]:
-    """Group running services by host, filtering out hosts with no services.
-
-    This is a convenience wrapper around group_services_by_host that filters
-    out empty entries.
-    """
-    from compose_farm.state import group_services_by_host  # noqa: PLC0415
-
-    by_host = group_services_by_host(state, hosts)
-    return {h: svcs for h, svcs in by_host.items() if svcs}
