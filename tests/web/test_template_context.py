@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -110,61 +109,3 @@ class TestPartialTemplatesRender:
         """Test services_by_host partial renders without errors."""
         response = client.get("/partials/services-by-host")
         assert response.status_code == 200
-
-
-class TestTemplateContextCompleteness:
-    """Verify that routes pass all expected context variables.
-
-    These tests check that the context dict passed to TemplateResponse
-    contains exactly what's needed - no more, no less.
-    """
-
-    def test_console_context_variables(self, mock_config: Config) -> None:
-        """Verify console route passes correct context."""
-        # Create a mock request
-        request = MagicMock()
-        request.url = MagicMock()
-        request.url.path = "/console"
-
-        # The route should pass these exact variables
-        expected_vars = {"request", "hosts", "local_host", "config_path"}
-
-        # We can't easily introspect the actual call, but we can verify
-        # the template renders (tested above) and document expectations here
-        assert expected_vars == {"request", "hosts", "local_host", "config_path"}
-
-    def test_index_context_variables(self, mock_config: Config) -> None:
-        """Verify index route passes correct context."""
-        # Variables the index route passes (documented for reference)
-        expected_vars = {
-            "request",
-            "config_error",
-            "hosts",
-            "services",
-            "config_content",
-            "state_content",
-            "running_count",
-            "stopped_count",
-            "orphaned",
-            "migrations",
-            "not_started",
-            "services_by_host",
-        }
-
-        # If the template renders (tested above), these are correct
-        assert len(expected_vars) == 12
-
-    def test_service_context_variables(self, mock_config: Config) -> None:
-        """Verify service route passes correct context."""
-        expected_vars = {
-            "request",
-            "name",
-            "hosts",
-            "current_host",
-            "compose_content",
-            "compose_path",
-            "env_content",
-            "env_path",
-        }
-
-        assert len(expected_vars) == 8
