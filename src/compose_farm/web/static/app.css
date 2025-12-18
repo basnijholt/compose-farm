@@ -1,14 +1,12 @@
-/* Editors (Monaco) - resizable */
+/* Editors (Monaco) */
 .yaml-editor, .env-editor, .yaml-viewer {
     border: 1px solid oklch(var(--bc) / 0.2);
     border-radius: 0.5rem;
-    resize: vertical;
-    overflow: auto;
 }
 
-.yaml-editor { height: 400px; min-height: 200px; }
-.env-editor { height: 250px; min-height: 100px; }
-.yaml-viewer { height: 300px; min-height: 150px; }
+.yaml-editor { height: 400px; }
+.env-editor { height: 250px; }
+.yaml-viewer { height: 300px; }
 
 /* Terminal - make xterm fill and resize with container */
 #terminal-container {

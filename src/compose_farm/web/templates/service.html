@@ -6,14 +6,15 @@
 <div class="max-w-5xl">
     <div class="mb-6">
         <h1 class="text-3xl font-bold">{{ name }}</h1>
-        <div class="flex flex-wrap items-center gap-2 mt-2">
+        <p class="text-base-content/60 text-lg">
             {% if current_host %}
                 <span class="badge badge-success">Running on {{ current_host }}</span>
             {% else %}
-                <span class="badge badge-neutral">Not running</span>
+                <span class="badge badge-ghost">Not running</span>
             {% endif %}
-            <span class="badge badge-outline">{{ hosts | join(', ') }}</span>
-        </div>
+            <span class="mx-2">&bull;</span>
+            Configured for: {{ hosts | join(', ') }}
+        </p>
     </div>
 
     <!-- Action Buttons -->
