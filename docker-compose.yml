@@ -31,6 +31,8 @@ services:
     environment:
       - SSH_AUTH_SOCK=/ssh-agent
       - CF_CONFIG=${CF_COMPOSE_DIR:-/opt/stacks}/compose-farm.yaml
+      # Used to detect self-updates and run via SSH to survive container restart
+      - CF_WEB_SERVICE=compose-farm
     labels:
       - traefik.enable=true
       - traefik.http.routers.compose-farm.rule=Host(`compose-farm.${DOMAIN}`)
