@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 from rich.markup import escape
 
 from .console import console, err_console
+from .ssh_keys import get_key_path, get_ssh_auth_sock, get_ssh_env
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -73,12 +74,21 @@ def is_local(host: Host) -> bool:
 
 def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
     """Get kwargs for asyncssh.connect() from a Host config."""
-    return {
+    kwargs: dict[str, Any] = {
         "host": host.address,
         "port": host.port,
         "username": host.user,
         "known_hosts": None,
     }
+    # Add SSH agent path (auto-detect forwarded agent if needed)
+    agent_path = get_ssh_auth_sock()
+    if agent_path:
+        kwargs["agent_path"] = agent_path
+    # Add key file fallback for when SSH agent is unavailable
+    key_path = get_key_path()
+    if key_path:
+        kwargs["client_keys"] = [str(key_path)]
+    return kwargs
 
 
 async def _run_local_command(
@@ -172,11 +182,16 @@ async def _run_ssh_command(
             "-o",
             "LogLevel=ERROR",  # Suppress warnings about known_hosts
         ]
+        # Add key file if it exists (fallback for when agent is unavailable)
+        key_path = get_key_path()
+        if key_path:
+            ssh_args.extend(["-i", str(key_path)])
         if host.port != _DEFAULT_SSH_PORT:
             ssh_args.extend(["-p", str(host.port)])
         ssh_args.extend([f"{host.user}@{host.address}", command])
         # Run in thread to avoid blocking the event loop
-        result = await asyncio.to_thread(subprocess.run, ssh_args, check=False)
+        # Use get_ssh_env() to auto-detect SSH agent socket
+        result = await asyncio.to_thread(subprocess.run, ssh_args, check=False, env=get_ssh_env())
         return CommandResult(
             service=service,
             exit_code=result.returncode,

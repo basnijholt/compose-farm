@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import os
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from compose_farm.ssh_keys import get_ssh_auth_sock
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
@@ -16,25 +17,6 @@ GREEN = "\x1b[32m"
 DIM = "\x1b[2m"
 RESET = "\x1b[0m"
 CRLF = "\r\n"
-
-
-def _get_ssh_auth_sock() -> str | None:
-    """Get SSH_AUTH_SOCK, auto-detecting forwarded agent if needed."""
-    sock = os.environ.get("SSH_AUTH_SOCK")
-    if sock and Path(sock).is_socket():
-        return sock
-
-    # Try to find a forwarded SSH agent socket
-    agent_dir = Path.home() / ".ssh" / "agent"
-    if agent_dir.is_dir():
-        sockets = sorted(
-            agent_dir.glob("s.*.sshd.*"), key=lambda p: p.stat().st_mtime, reverse=True
-        )
-        for s in sockets:
-            if s.is_socket():
-                return str(s)
-    return None
-
 
 # In-memory task registry
 tasks: dict[str, dict[str, Any]] = {}
@@ -69,7 +51,7 @@ async def run_cli_streaming(
         env = {"FORCE_COLOR": "1", "TERM": "xterm-256color", "COLUMNS": "120"}
 
         # Ensure SSH agent is available (auto-detect if needed)
-        ssh_sock = _get_ssh_auth_sock()
+        ssh_sock = get_ssh_auth_sock()
         if ssh_sock:
             env["SSH_AUTH_SOCK"] = ssh_sock
 
