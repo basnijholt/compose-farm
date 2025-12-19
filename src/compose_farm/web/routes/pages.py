@@ -222,7 +222,7 @@ async def config_error_partial(request: Request) -> HTMLResponse:
 
 @router.get("/partials/stats", response_class=HTMLResponse)
 async def stats_partial(request: Request) -> HTMLResponse:
-    """Stats cards partial."""
+    """Stats cards partial (full wrapper)."""
     config = get_config()
     templates = get_templates()
 
@@ -242,9 +242,31 @@ async def stats_partial(request: Request) -> HTMLResponse:
     )
 
 
+@router.get("/partials/stats-content", response_class=HTMLResponse)
+async def stats_content_partial(request: Request) -> HTMLResponse:
+    """Stats cards inner content (for innerHTML swap)."""
+    config = get_config()
+    templates = get_templates()
+
+    deployed = load_state(config)
+    running_count = len(deployed)
+    stopped_count = len(config.services) - running_count
+
+    return templates.TemplateResponse(
+        "partials/stats_content.html",
+        {
+            "request": request,
+            "hosts": config.hosts,
+            "services": config.services,
+            "running_count": running_count,
+            "stopped_count": stopped_count,
+        },
+    )
+
+
 @router.get("/partials/pending", response_class=HTMLResponse)
 async def pending_partial(request: Request, expanded: bool = True) -> HTMLResponse:
-    """Pending operations partial."""
+    """Pending operations partial (full wrapper)."""
     config = get_config()
     templates = get_templates()
 
@@ -264,9 +286,31 @@ async def pending_partial(request: Request, expanded: bool = True) -> HTMLRespon
     )
 
 
+@router.get("/partials/pending-content", response_class=HTMLResponse)
+async def pending_content_partial(request: Request, expanded: bool = True) -> HTMLResponse:
+    """Pending operations inner content (for innerHTML swap)."""
+    config = get_config()
+    templates = get_templates()
+
+    orphaned = get_orphaned_services(config)
+    migrations = get_services_needing_migration(config)
+    not_started = get_services_not_in_state(config)
+
+    return templates.TemplateResponse(
+        "partials/pending_content.html",
+        {
+            "request": request,
+            "orphaned": orphaned,
+            "migrations": migrations,
+            "not_started": not_started,
+            "expanded": expanded,
+        },
+    )
+
+
 @router.get("/partials/services-by-host", response_class=HTMLResponse)
 async def services_by_host_partial(request: Request, expanded: bool = True) -> HTMLResponse:
-    """Services by host partial."""
+    """Services by host partial (full wrapper)."""
     config = get_config()
     templates = get_templates()
 
@@ -275,6 +319,26 @@ async def services_by_host_partial(request: Request, expanded: bool = True) -> H
 
     return templates.TemplateResponse(
         "partials/services_by_host.html",
+        {
+            "request": request,
+            "hosts": config.hosts,
+            "services_by_host": services_by_host,
+            "expanded": expanded,
+        },
+    )
+
+
+@router.get("/partials/services-by-host-content", response_class=HTMLResponse)
+async def services_by_host_content_partial(request: Request, expanded: bool = True) -> HTMLResponse:
+    """Services by host inner content (for innerHTML swap)."""
+    config = get_config()
+    templates = get_templates()
+
+    deployed = load_state(config)
+    services_by_host = group_running_services_by_host(deployed, config.hosts)
+
+    return templates.TemplateResponse(
+        "partials/services_by_host_content.html",
         {
             "request": request,
             "hosts": config.hosts,
