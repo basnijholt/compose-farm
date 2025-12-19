@@ -8,6 +8,7 @@ import fcntl
 import json
 import os
 import pty
+import shlex
 import signal
 import struct
 import termios
@@ -19,6 +20,9 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from compose_farm.executor import is_local, ssh_connect_kwargs
 from compose_farm.web.deps import get_config
 from compose_farm.web.streaming import CRLF, DIM, GREEN, RED, RESET, tasks
+
+# Shell command to prefer bash over sh
+SHELL_FALLBACK = "command -v bash >/dev/null && exec bash || exec sh"
 
 if TYPE_CHECKING:
     from compose_farm.config import Host
@@ -129,12 +133,12 @@ def _make_controlling_tty(slave_fd: int) -> None:
     fcntl.ioctl(slave_fd, termios.TIOCSCTTY, 0)
 
 
-async def _run_local_exec(websocket: WebSocket, exec_cmd: str) -> None:
-    """Run docker exec locally with PTY."""
+async def _run_local_exec(websocket: WebSocket, argv: list[str]) -> None:
+    """Run command locally with PTY using argv list (no shell interpretation)."""
     master_fd, slave_fd = pty.openpty()
 
-    proc = await asyncio.create_subprocess_shell(
-        exec_cmd,
+    proc = await asyncio.create_subprocess_exec(
+        *argv,
         stdin=slave_fd,
         stdout=slave_fd,
         stderr=slave_fd,
@@ -181,11 +185,15 @@ async def _run_exec_session(
         await websocket.send_text(f"{RED}Host '{host_name}' not found{RESET}{CRLF}")
         return
 
-    exec_cmd = f"docker exec -it {container} /bin/sh -c 'command -v bash >/dev/null && exec bash || exec sh'"
-
     if is_local(host):
-        await _run_local_exec(websocket, exec_cmd)
+        # Local: use argv list (no shell interpretation)
+        argv = ["docker", "exec", "-it", container, "/bin/sh", "-c", SHELL_FALLBACK]
+        await _run_local_exec(websocket, argv)
     else:
+        # Remote: quote container name to prevent injection
+        exec_cmd = (
+            f"docker exec -it {shlex.quote(container)} /bin/sh -c {shlex.quote(SHELL_FALLBACK)}"
+        )
         await _run_remote_exec(websocket, host, exec_cmd)
 
 
@@ -228,7 +236,9 @@ async def _run_shell_session(
     shell_cmd = "cd ~ && exec bash -i 2>/dev/null || exec sh -i"
 
     if is_local(host):
-        await _run_local_exec(websocket, shell_cmd)
+        # Local: use argv list with shell -c to interpret the command
+        argv = ["/bin/sh", "-c", shell_cmd]
+        await _run_local_exec(websocket, argv)
     else:
         await _run_remote_exec(websocket, host, shell_cmd, agent_forwarding=True)
 

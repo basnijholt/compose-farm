@@ -53,6 +53,20 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 
 - **Imports at top level**: Never add imports inside functions unless they are explicitly marked with `# noqa: PLC0415` and a comment explaining it speeds up CLI startup. Heavy modules like `pydantic`, `yaml`, and `rich.table` are lazily imported to keep `cf --help` fast.
 
+## Testing
+
+Run tests with `uv run pytest`. Browser tests require Chromium via nix-shell:
+
+```bash
+# Unit tests
+uv run pytest tests/ --ignore=tests/web/test_htmx_browser.py
+
+# Browser tests (requires nix-shell for Chromium)
+nix-shell --run "uv run pytest tests/web/test_htmx_browser.py -v --no-cov"
+```
+
+The browser tests use Playwright to test HTMX behavior, JavaScript functionality (sidebar filter, command palette, terminals), and content stability during navigation.
+
 ## Communication Notes
 
 - Clarify ambiguous wording (e.g., homophones like "right"/"write", "their"/"there").

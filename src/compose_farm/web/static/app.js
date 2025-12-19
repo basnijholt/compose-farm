@@ -79,7 +79,7 @@ const TERMINAL_THEME = {
  * @param {HTMLElement} container - Container element
  * @param {object} extraOptions - Additional terminal options
  * @param {function} onResize - Optional callback called with (cols, rows) after resize
- * @returns {{term: Terminal, fitAddon: FitAddon}}
+ * @returns {{term: Terminal, fitAddon: FitAddon, dispose: function}}
  */
 function createTerminal(container, extraOptions = {}, onResize = null) {
     container.innerHTML = '';
@@ -96,17 +96,26 @@ function createTerminal(container, extraOptions = {}, onResize = null) {
     const fitAddon = new FitAddon.FitAddon();
     term.loadAddon(fitAddon);
     term.open(container);
-    fitAddon.fit();
 
     const handleResize = () => {
         fitAddon.fit();
         onResize?.(term.cols, term.rows);
     };
 
-    window.addEventListener('resize', handleResize);
-    new ResizeObserver(handleResize).observe(container);
+    // Use ResizeObserver only (handles both container and window resize)
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(container);
 
-    return { term, fitAddon };
+    handleResize(); // Initial fit
+
+    return {
+        term,
+        fitAddon,
+        dispose() {
+            resizeObserver.disconnect();
+            term.dispose();
+        }
+    };
 }
 
 /**
@@ -121,6 +130,25 @@ function createWebSocket(path) {
 window.createWebSocket = createWebSocket;
 
 /**
+ * Wait for xterm.js to load, then execute callback
+ * @param {function} callback - Function to call when xterm is ready
+ * @param {number} maxAttempts - Max attempts (default 20 = 2 seconds)
+ */
+function whenXtermReady(callback, maxAttempts = 20) {
+    const tryInit = (attempts) => {
+        if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
+            callback();
+        } else if (attempts > 0) {
+            setTimeout(() => tryInit(attempts - 1), 100);
+        } else {
+            console.error('xterm.js failed to load');
+        }
+    };
+    tryInit(maxAttempts);
+}
+window.whenXtermReady = whenXtermReady;
+
+/**
  * Initialize a terminal and connect to WebSocket for streaming
  */
 function initTerminal(elementId, taskId) {
@@ -130,7 +158,8 @@ function initTerminal(elementId, taskId) {
         return;
     }
 
-    const { term, fitAddon } = createTerminal(container);
+    const wrapper = createTerminal(container);
+    const { term } = wrapper;
     const ws = createWebSocket(`/ws/terminal/${taskId}`);
 
     const taskKey = getTaskKey();
@@ -152,7 +181,7 @@ function initTerminal(elementId, taskId) {
         setTerminalLoading(false);
     };
 
-    terminals[taskId] = { term, ws, fitAddon };
+    terminals[taskId] = { ...wrapper, ws };
     return { term, ws };
 }
 
@@ -161,7 +190,7 @@ window.initTerminal = initTerminal;
 /**
  * Initialize an interactive exec terminal
  */
-let execTerminal = null;
+let execTerminalWrapper = null;  // {term, dispose}
 let execWs = null;
 
 function initExecTerminal(service, container, host) {
@@ -175,9 +204,9 @@ function initExecTerminal(service, container, host) {
 
     containerEl.classList.remove('hidden');
 
-    // Clean up existing
+    // Clean up existing (use wrapper's dispose to clean up ResizeObserver)
     if (execWs) { execWs.close(); execWs = null; }
-    if (execTerminal) { execTerminal.dispose(); execTerminal = null; }
+    if (execTerminalWrapper) { execTerminalWrapper.dispose(); execTerminalWrapper = null; }
 
     // Create WebSocket first so resize callback can use it
     execWs = createWebSocket(`/ws/exec/${service}/${container}/${host}`);
@@ -189,8 +218,8 @@ function initExecTerminal(service, container, host) {
         }
     };
 
-    const { term } = createTerminal(terminalEl, { cursorBlink: true }, sendSize);
-    execTerminal = term;
+    execTerminalWrapper = createTerminal(terminalEl, { cursorBlink: true }, sendSize);
+    const term = execTerminalWrapper.term;
 
     execWs.onopen = () => { sendSize(term.cols, term.rows); term.focus(); };
     execWs.onmessage = (event) => term.write(event.data);
@@ -216,6 +245,22 @@ window.initExecTerminal = initExecTerminal;
 function refreshDashboard() {
     document.body.dispatchEvent(new CustomEvent('cf:refresh'));
 }
+
+/**
+ * Filter sidebar services by name and host
+ */
+function sidebarFilter() {
+    const q = (document.getElementById('sidebar-filter')?.value || '').toLowerCase();
+    const h = document.getElementById('sidebar-host-select')?.value || '';
+    let n = 0;
+    document.querySelectorAll('#sidebar-services li').forEach(li => {
+        const show = (!q || li.dataset.svc.includes(q)) && (!h || !li.dataset.h || li.dataset.h === h);
+        li.hidden = !show;
+        if (show) n++;
+    });
+    document.getElementById('sidebar-count').textContent = '(' + n + ')';
+}
+window.sidebarFilter = sidebarFilter;
 
 /**
  * Load Monaco editor dynamically (only once)
@@ -413,16 +458,10 @@ function tryReconnectToTask() {
     const taskId = localStorage.getItem(getTaskKey());
     if (!taskId) return;
 
-    // Wait for xterm to be loaded
-    const tryInit = (attempts) => {
-        if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
-            expandTerminal();
-            initTerminal('terminal-output', taskId);
-        } else if (attempts > 0) {
-            setTimeout(() => tryInit(attempts - 1), 100);
-        }
-    };
-    tryInit(20);
+    whenXtermReady(() => {
+        expandTerminal();
+        initTerminal('terminal-output', taskId);
+    });
 }
 
 // Play intro animation on command palette button
@@ -494,20 +533,8 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     try {
         const response = JSON.parse(text);
         if (response.task_id) {
-            // Expand terminal and scroll to it
             expandTerminal();
-
-            // Wait for xterm to be loaded if needed
-            const tryInit = (attempts) => {
-                if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
-                    initTerminal('terminal-output', response.task_id);
-                } else if (attempts > 0) {
-                    setTimeout(() => tryInit(attempts - 1), 100);
-                } else {
-                    console.error('xterm.js failed to load');
-                }
-            };
-            tryInit(20); // Try for up to 2 seconds
+            whenXtermReady(() => initTerminal('terminal-output', response.task_id));
         }
     } catch (e) {
         // Not valid JSON, ignore
@@ -542,17 +569,13 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
             history.pushState({}, '', url);
         });
     };
-    // Navigate to dashboard and trigger action (or just POST if already on dashboard)
-    const dashboardAction = (endpoint) => () => {
-        if (window.location.pathname === '/') {
-            htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
-        } else {
-            // Navigate via HTMX, then trigger action after swap
-            htmx.ajax('GET', '/', {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
-                history.pushState({}, '', '/');
-                htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
-            });
+    // Navigate to dashboard (if needed) and trigger action
+    const dashboardAction = (endpoint) => async () => {
+        if (window.location.pathname !== '/') {
+            await htmx.ajax('GET', '/', {target: '#main-content', select: '#main-content', swap: 'outerHTML'});
+            history.pushState({}, '', '/');
         }
+        htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
     };
     const cmd = (type, name, desc, action, icon = null) => ({ type, name, desc, action, icon });
 
