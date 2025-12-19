@@ -316,28 +316,15 @@ async def commands_partial(
         )
 
     # Static commands (Global actions + App navigation)
+    static = [
+        ("Apply", "Make reality match config", "check", "action", "/api/apply", "post"),
+        ("Refresh", "Update state from reality", "refresh_cw", "action", "/api/refresh", "post"),
+        ("Dashboard", "Go to dashboard", "home", "app", "/", "get"),
+        ("Console", "Go to console", "terminal", "app", "/console", "get"),
+    ]
     commands.extend(
-        {
-            "name": n,
-            "desc": d,
-            "icon": i,
-            "type": t,
-            "url": u,
-            "method": m,
-        }
-        for n, d, i, t, u, m in [
-            ("Apply", "Make reality match config", "check", "action", "/api/apply", "post"),
-            (
-                "Refresh",
-                "Update state from reality",
-                "refresh_cw",
-                "action",
-                "/api/refresh",
-                "post",
-            ),
-            ("Dashboard", "Go to dashboard", "home", "app", "/", "get"),
-            ("Console", "Go to console", "terminal", "app", "/console", "get"),
-        ]
+        {"name": n, "desc": d, "icon": i, "type": t, "url": u, "method": m}
+        for n, d, i, t, u, m in static
     )
 
     # Service navigation commands
