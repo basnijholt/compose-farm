@@ -32,6 +32,81 @@ compose_farm/
 
 Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templates/partials/icons.html` by copying SVG paths from their site. The `action_btn`, `stat_card`, and `collapse` macros in `components.html` accept an optional `icon` parameter.
 
+## HTMX Patterns
+
+The web UI uses [HTMX](https://htmx.org/) for dynamic behavior. Follow these patterns:
+
+### Core Attributes
+
+```html
+<button hx-post="/api/action" hx-target="#result" hx-swap="innerHTML">
+```
+
+- `hx-get`, `hx-post`, `hx-put`, `hx-delete` - HTTP verbs
+- `hx-target` - CSS selector for where response goes
+- `hx-swap` - How to insert (`innerHTML`, `outerHTML`, `beforeend`, etc.)
+- `hx-trigger` - Event that triggers request (default: `click` for buttons)
+
+### Updating Multiple Elements (use `hx-swap-oob`)
+
+When an action needs to update multiple parts of the page, use **Out of Band Swaps**. The server returns the primary response plus additional elements with `hx-swap-oob="true"`:
+
+```html
+<!-- Server response -->
+<div id="primary-target">Success!</div>
+<div id="stats-cards" hx-swap-oob="true">...updated stats...</div>
+<div id="sidebar" hx-swap-oob="outerHTML">...updated sidebar...</div>
+```
+
+HTMX automatically finds elements by ID and swaps them. This is preferred over:
+- Custom events with `hx-trigger` (more JavaScript-y)
+- Multiple separate AJAX calls (inefficient)
+
+Reference: [Updating Other Content](https://htmx.org/examples/update-other-content/)
+
+### SPA-like Navigation (`hx-boost`)
+
+Use `hx-boost="true"` on containers to make all child links/forms use AJAX:
+
+```html
+<nav hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="innerHTML">
+    <a href="/page">Link</a>  <!-- Automatically AJAX-ified -->
+</nav>
+```
+
+### Attribute Inheritance
+
+HTMX attributes inherit to children. Set common attributes on parent elements:
+
+```html
+<div hx-target="#result" hx-swap="innerHTML">
+    <button hx-post="/a">A</button>  <!-- Inherits target/swap -->
+    <button hx-post="/b">B</button>
+</div>
+```
+
+### Working with Monaco Editors
+
+Since Monaco content isn't in form fields, use `hx-vals` with a JS function:
+
+```html
+<button hx-put="/api/config"
+        hx-vals="js:{content: editors['config']?.getValue()}"
+        hx-target="#save-result">
+    Save
+</button>
+```
+
+Or use `htmx.ajax()` from JavaScript when more control is needed:
+
+```javascript
+htmx.ajax('PUT', '/api/config', {
+    values: { content: editor.getValue() },
+    target: '#save-result',
+    swap: 'innerHTML'
+});
+```
+
 ## Key Design Decisions
 
 1. **Hybrid SSH approach**: asyncssh for parallel streaming with prefixes; native `ssh -t` for raw mode (progress bars)
