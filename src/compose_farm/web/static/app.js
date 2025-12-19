@@ -264,10 +264,6 @@ function loadMonaco(callback) {
  * @returns {object} Monaco editor instance
  */
 function createEditor(container, content, language, opts = {}) {
-    // Support legacy boolean readonly parameter
-    if (typeof opts === 'boolean') {
-        opts = { readonly: opts };
-    }
     const { readonly = false, onSave = null } = opts;
 
     const options = {
@@ -332,7 +328,7 @@ function initMonacoEditors() {
             if (!el) return;
 
             const content = el.dataset.content || '';
-            editors[id] = createEditor(el, content, language, readonly);
+            editors[id] = createEditor(el, content, language, { readonly });
             if (!readonly) {
                 editors[id].saveUrl = el.dataset.saveUrl;
             }
