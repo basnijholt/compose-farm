@@ -169,7 +169,7 @@ def get_services(
     config = load_config_or_exit(config_path)
 
     if host is not None:
-        validate_host(config, host)
+        validate_hosts(config, host)
         svc_list = [s for s in config.services if host in config.get_hosts(s)]
         if not svc_list:
             print_warning(f"No services configured for host [magenta]{host}[/]")
@@ -286,16 +286,10 @@ def validate_services(cfg: Config, services: list[str], *, hint: str | None = No
         raise typer.Exit(1)
 
 
-def validate_host(cfg: Config, host: str) -> None:
-    """Validate that a host exists in config. Exits with error if not found."""
-    if host not in cfg.hosts:
-        print_error(MSG_HOST_NOT_FOUND.format(name=host))
-        raise typer.Exit(1)
-
-
-def validate_hosts(cfg: Config, hosts: list[str]) -> None:
-    """Validate that all hosts exist in config. Exits with error if any not found."""
-    invalid = [h for h in hosts if h not in cfg.hosts]
+def validate_hosts(cfg: Config, hosts: str | list[str]) -> None:
+    """Validate that host(s) exist in config. Exits with error if any not found."""
+    host_list = [hosts] if isinstance(hosts, str) else hosts
+    invalid = [h for h in host_list if h not in cfg.hosts]
     if invalid:
         for h in invalid:
             print_error(MSG_HOST_NOT_FOUND.format(name=h))
@@ -304,7 +298,7 @@ def validate_hosts(cfg: Config, hosts: list[str]) -> None:
 
 def validate_host_for_service(cfg: Config, service: str, host: str) -> None:
     """Validate that a host is valid for a service."""
-    validate_host(cfg, host)
+    validate_hosts(cfg, host)
     allowed_hosts = cfg.get_hosts(service)
     if host not in allowed_hosts:
         print_error(
@@ -328,27 +322,3 @@ def validate_service_selection(
     if methods > 1:
         print_error("Use only one of: service names, [bold]--all[/], or [bold]--host[/]")
         raise typer.Exit(1)
-
-
-def run_host_operation(
-    cfg: Config,
-    svc_list: list[str],
-    host: str,
-    command: str,
-    action_verb: str,
-    state_callback: Callable[[Config, str, str], None],
-) -> None:
-    """Run an operation on a specific host for multiple services."""
-    from compose_farm.executor import run_compose_on_host  # noqa: PLC0415
-
-    results: list[CommandResult] = []
-    for service in svc_list:
-        validate_host_for_service(cfg, service, host)
-        console.print(f"[cyan]\\[{service}][/] {action_verb} on [magenta]{host}[/]...")
-        result = run_async(run_compose_on_host(cfg, service, host, command, raw=True))
-        print()  # Newline after raw output
-        results.append(result)
-        if result.success:
-            state_callback(cfg, service, host)
-    maybe_regenerate_traefik(cfg, results)
-    report_results(results)

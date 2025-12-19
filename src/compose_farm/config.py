@@ -10,6 +10,9 @@ from pydantic import BaseModel, Field, model_validator
 
 from .paths import config_search_paths, find_config_path
 
+# Supported compose filenames, in priority order
+COMPOSE_FILENAMES = ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml")
+
 
 class Host(BaseModel):
     """SSH host configuration."""
@@ -90,17 +93,9 @@ class Config(BaseModel):
         return self.hosts[host_names[0]]
 
     def get_compose_path(self, service: str) -> Path:
-        """Get compose file path for a service.
-
-        Tries compose.yaml first, then docker-compose.yml.
-        """
+        """Get compose file path for a service (tries compose.yaml first)."""
         service_dir = self.compose_dir / service
-        for filename in (
-            "compose.yaml",
-            "compose.yml",
-            "docker-compose.yml",
-            "docker-compose.yaml",
-        ):
+        for filename in COMPOSE_FILENAMES:
             candidate = service_dir / filename
             if candidate.exists():
                 return candidate
@@ -109,21 +104,12 @@ class Config(BaseModel):
 
     def discover_compose_dirs(self) -> set[str]:
         """Find all directories in compose_dir that contain a compose file."""
-        compose_filenames = {
-            "compose.yaml",
-            "compose.yml",
-            "docker-compose.yml",
-            "docker-compose.yaml",
-        }
         found: set[str] = set()
         if not self.compose_dir.exists():
             return found
         for subdir in self.compose_dir.iterdir():
-            if subdir.is_dir():
-                for filename in compose_filenames:
-                    if (subdir / filename).exists():
-                        found.add(subdir.name)
-                        break
+            if subdir.is_dir() and any((subdir / f).exists() for f in COMPOSE_FILENAMES):
+                found.add(subdir.name)
         return found
 
 
