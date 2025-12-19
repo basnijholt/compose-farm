@@ -100,9 +100,7 @@ function createTerminal(container, extraOptions = {}, onResize = null) {
 
     const handleResize = () => {
         fitAddon.fit();
-        if (onResize) {
-            onResize(term.cols, term.rows);
-        }
+        onResize?.(term.cols, term.rows);
     };
 
     window.addEventListener('resize', handleResize);
@@ -266,34 +264,24 @@ function loadMonaco(callback) {
 function createEditor(container, content, language, opts = {}) {
     const { readonly = false, onSave = null } = opts;
 
-    const options = {
+    const editor = monaco.editor.create(container, {
         value: content,
-        language: language,
+        language,
         theme: 'vs-dark',
         minimap: { enabled: false },
         automaticLayout: true,
         scrollBeyondLastLine: false,
         fontSize: 14,
         lineNumbers: 'on',
-        wordWrap: 'on'
-    };
-
-    if (readonly) {
-        options.readOnly = true;
-        options.domReadOnly = true;
-    }
-
-    const editor = monaco.editor.create(container, options);
+        wordWrap: 'on',
+        ...(readonly && { readOnly: true, domReadOnly: true })
+    });
 
     // Add Command+S / Ctrl+S handler for editable editors
     if (!readonly) {
-        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function() {
-            if (onSave) {
-                onSave(editor);
-            } else {
-                saveAllEditors();
-            }
-        });
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () =>
+            onSave ? onSave(editor) : saveAllEditors()
+        );
     }
 
     return editor;
@@ -305,10 +293,8 @@ window.createEditor = createEditor;
  */
 function initMonacoEditors() {
     // Dispose existing editors
-    Object.values(editors).forEach(ed => {
-        if (ed && ed.dispose) ed.dispose();
-    });
-    Object.keys(editors).forEach(key => delete editors[key]);
+    Object.values(editors).forEach(ed => ed?.dispose?.());
+    for (const key in editors) delete editors[key];
 
     const editorConfigs = [
         { id: 'compose-editor', language: 'yaml', readonly: false },
@@ -392,7 +378,7 @@ function initKeyboardShortcuts() {
             // Only handle if we have editors and no Monaco editor is focused
             if (Object.keys(editors).length > 0) {
                 // Check if any Monaco editor is focused
-                const focusedEditor = Object.values(editors).find(ed => ed && ed.hasTextFocus && ed.hasTextFocus());
+                const focusedEditor = Object.values(editors).find(ed => ed?.hasTextFocus?.());
                 if (!focusedEditor) {
                     e.preventDefault();
                     saveAllEditors();
