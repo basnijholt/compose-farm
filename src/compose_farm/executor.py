@@ -23,6 +23,23 @@ LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
 _DEFAULT_SSH_PORT = 22
 
 
+async def _stream_output_lines(
+    reader: Any,
+    prefix: str,
+    *,
+    is_stderr: bool = False,
+) -> None:
+    """Stream lines from a reader to console with a service prefix.
+
+    Works with both asyncio.StreamReader (bytes) and asyncssh readers (str).
+    """
+    out = err_console if is_stderr else console
+    async for line in reader:
+        text = line.decode() if isinstance(line, bytes) else line
+        if text.strip():
+            out.print(f"[cyan]\\[{prefix}][/] {escape(text)}", end="")
+
+
 def build_ssh_command(host: Host, command: str, *, tty: bool = False) -> list[str]:
     """Build SSH command args for executing a command on a remote host.
 
@@ -158,25 +175,9 @@ async def _run_local_command(
         )
 
         if stream and proc.stdout and proc.stderr:
-
-            async def read_stream(
-                reader: asyncio.StreamReader,
-                prefix: str,
-                *,
-                is_stderr: bool = False,
-            ) -> None:
-                out = err_console if is_stderr else console
-                while True:
-                    line = await reader.readline()
-                    if not line:
-                        break
-                    text = line.decode()
-                    if text.strip():  # Skip empty lines
-                        out.print(f"[cyan]\\[{prefix}][/] {escape(text)}", end="")
-
             await asyncio.gather(
-                read_stream(proc.stdout, service),
-                read_stream(proc.stderr, service, is_stderr=True),
+                _stream_output_lines(proc.stdout, service),
+                _stream_output_lines(proc.stderr, service, is_stderr=True),
             )
 
         stdout_data = b""
@@ -226,21 +227,9 @@ async def _run_ssh_command(
         async with asyncssh.connect(**ssh_connect_kwargs(host)) as conn:  # noqa: SIM117
             async with conn.create_process(command) as proc:
                 if stream:
-
-                    async def read_stream(
-                        reader: Any,
-                        prefix: str,
-                        *,
-                        is_stderr: bool = False,
-                    ) -> None:
-                        out = err_console if is_stderr else console
-                        async for line in reader:
-                            if line.strip():  # Skip empty lines
-                                out.print(f"[cyan]\\[{prefix}][/] {escape(line)}", end="")
-
                     await asyncio.gather(
-                        read_stream(proc.stdout, service),
-                        read_stream(proc.stderr, service, is_stderr=True),
+                        _stream_output_lines(proc.stdout, service),
+                        _stream_output_lines(proc.stderr, service, is_stderr=True),
                     )
 
                 stdout_data = ""
