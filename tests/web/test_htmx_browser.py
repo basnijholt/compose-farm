@@ -950,3 +950,27 @@ class TestConsolePage:
         option_texts = [options.nth(i).inner_text() for i in range(options.count())]
         assert any("server-1" in text for text in option_texts)
         assert any("server-2" in text for text in option_texts)
+
+    def test_console_connect_creates_terminal_element(self, page: Page, server_url: str) -> None:
+        """Connecting to a host creates xterm terminal elements.
+
+        The console page auto-connects to the first host on load,
+        which creates the xterm.js terminal inside the container.
+        """
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-terminal", timeout=5000)
+
+        # Wait for xterm.js to load from CDN
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
+
+        # The console page auto-connects, which creates the terminal.
+        # Wait for xterm to initialize (creates .xterm class)
+        page.wait_for_selector("#console-terminal .xterm", timeout=10000)
+
+        # Verify xterm elements are present
+        xterm_container = page.locator("#console-terminal .xterm")
+        assert xterm_container.is_visible()
+
+        # Verify xterm screen is created (the actual terminal display)
+        xterm_screen = page.locator("#console-terminal .xterm-screen")
+        assert xterm_screen.is_visible()
