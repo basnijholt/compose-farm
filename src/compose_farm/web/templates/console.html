@@ -101,13 +101,7 @@ function connectConsole() {
         // Auto-load the default file once editor is ready
         const pathInput = document.getElementById('console-file-path');
         if (pathInput && pathInput.value) {
-            const tryLoad = () => {
-                if (consoleEditor) {
-                    loadFile();
-                } else {
-                    setTimeout(tryLoad, 100);
-                }
-            };
+            const tryLoad = () => consoleEditor ? loadFile() : setTimeout(tryLoad, 100);
             tryLoad();
         }
     };

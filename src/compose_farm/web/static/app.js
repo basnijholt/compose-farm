@@ -121,6 +121,25 @@ function createWebSocket(path) {
 window.createWebSocket = createWebSocket;
 
 /**
+ * Wait for xterm.js to load, then execute callback
+ * @param {function} callback - Function to call when xterm is ready
+ * @param {number} maxAttempts - Max attempts (default 20 = 2 seconds)
+ */
+function whenXtermReady(callback, maxAttempts = 20) {
+    const tryInit = (attempts) => {
+        if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
+            callback();
+        } else if (attempts > 0) {
+            setTimeout(() => tryInit(attempts - 1), 100);
+        } else {
+            console.error('xterm.js failed to load');
+        }
+    };
+    tryInit(maxAttempts);
+}
+window.whenXtermReady = whenXtermReady;
+
+/**
  * Initialize a terminal and connect to WebSocket for streaming
  */
 function initTerminal(elementId, taskId) {
@@ -216,6 +235,22 @@ window.initExecTerminal = initExecTerminal;
 function refreshDashboard() {
     document.body.dispatchEvent(new CustomEvent('cf:refresh'));
 }
+
+/**
+ * Filter sidebar services by name and host
+ */
+function sidebarFilter() {
+    const q = (document.getElementById('sidebar-filter')?.value || '').toLowerCase();
+    const h = document.getElementById('sidebar-host-select')?.value || '';
+    let n = 0;
+    document.querySelectorAll('#sidebar-services li').forEach(li => {
+        const show = (!q || li.dataset.svc.includes(q)) && (!h || !li.dataset.h || li.dataset.h === h);
+        li.hidden = !show;
+        if (show) n++;
+    });
+    document.getElementById('sidebar-count').textContent = '(' + n + ')';
+}
+window.sidebarFilter = sidebarFilter;
 
 /**
  * Load Monaco editor dynamically (only once)
@@ -413,16 +448,10 @@ function tryReconnectToTask() {
     const taskId = localStorage.getItem(getTaskKey());
     if (!taskId) return;
 
-    // Wait for xterm to be loaded
-    const tryInit = (attempts) => {
-        if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
-            expandTerminal();
-            initTerminal('terminal-output', taskId);
-        } else if (attempts > 0) {
-            setTimeout(() => tryInit(attempts - 1), 100);
-        }
-    };
-    tryInit(20);
+    whenXtermReady(() => {
+        expandTerminal();
+        initTerminal('terminal-output', taskId);
+    });
 }
 
 // Play intro animation on command palette button
@@ -494,20 +523,8 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     try {
         const response = JSON.parse(text);
         if (response.task_id) {
-            // Expand terminal and scroll to it
             expandTerminal();
-
-            // Wait for xterm to be loaded if needed
-            const tryInit = (attempts) => {
-                if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
-                    initTerminal('terminal-output', response.task_id);
-                } else if (attempts > 0) {
-                    setTimeout(() => tryInit(attempts - 1), 100);
-                } else {
-                    console.error('xterm.js failed to load');
-                }
-            };
-            tryInit(20); // Try for up to 2 seconds
+            whenXtermReady(() => initTerminal('terminal-output', response.task_id));
         }
     } catch (e) {
         // Not valid JSON, ignore
@@ -542,17 +559,13 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
             history.pushState({}, '', url);
         });
     };
-    // Navigate to dashboard and trigger action (or just POST if already on dashboard)
-    const dashboardAction = (endpoint) => () => {
-        if (window.location.pathname === '/') {
-            htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
-        } else {
-            // Navigate via HTMX, then trigger action after swap
-            htmx.ajax('GET', '/', {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
-                history.pushState({}, '', '/');
-                htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
-            });
+    // Navigate to dashboard (if needed) and trigger action
+    const dashboardAction = (endpoint) => async () => {
+        if (window.location.pathname !== '/') {
+            await htmx.ajax('GET', '/', {target: '#main-content', select: '#main-content', swap: 'outerHTML'});
+            history.pushState({}, '', '/');
         }
+        htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
     };
     const cmd = (type, name, desc, action, icon = null) => ({ type, name, desc, action, icon });
 
