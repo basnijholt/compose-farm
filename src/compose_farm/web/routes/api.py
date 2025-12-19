@@ -136,22 +136,34 @@ async def _get_container_states(
     # All containers should be on the same host
     host_name = containers[0]["Host"]
 
-    result = await run_compose_on_host(config, service, host_name, "ps --format json", stream=False)
+    # Use -a to include stopped/exited containers
+    result = await run_compose_on_host(
+        config, service, host_name, "ps -a --format json", stream=False
+    )
     if not result.success:
         return containers
 
-    # Build state map
-    state_map: dict[str, str] = {}
+    # Build state map: name -> (state, exit_code)
+    state_map: dict[str, tuple[str, int]] = {}
     for line in result.stdout.strip().split("\n"):
         if line.strip():
             with contextlib.suppress(json.JSONDecodeError):
                 data = json.loads(line)
-                state_map[data.get("Name", "")] = data.get("State", "unknown")
+                name = data.get("Name", "")
+                state = data.get("State", "unknown")
+                exit_code = data.get("ExitCode", 0)
+                state_map[name] = (state, exit_code)
 
     # Update container states
     for c in containers:
         if c["Name"] in state_map:
-            c["State"] = state_map[c["Name"]]
+            state, exit_code = state_map[c["Name"]]
+            c["State"] = state
+            c["ExitCode"] = exit_code
+        else:
+            # Container not in ps output means it was never started
+            c["State"] = "created"
+            c["ExitCode"] = None
 
     return containers
 

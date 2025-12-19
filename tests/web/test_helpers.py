@@ -75,14 +75,32 @@ class TestRenderContainers:
 
         assert "loading-spinner" in html
 
+    def test_render_exited_success(self, mock_config: Config) -> None:
+        from compose_farm.web.routes.api import _render_containers
+
+        containers = [{"Name": "plex", "State": "exited", "ExitCode": 0}]
+        html = _render_containers("plex", "server-1", containers)
+
+        assert "badge-neutral" in html
+        assert "exited (0)" in html
+
+    def test_render_exited_error(self, mock_config: Config) -> None:
+        from compose_farm.web.routes.api import _render_containers
+
+        containers = [{"Name": "plex", "State": "exited", "ExitCode": 1}]
+        html = _render_containers("plex", "server-1", containers)
+
+        assert "badge-error" in html
+        assert "exited (1)" in html
+
     def test_render_other_state(self, mock_config: Config) -> None:
         from compose_farm.web.routes.api import _render_containers
 
-        containers = [{"Name": "plex", "State": "exited"}]
+        containers = [{"Name": "plex", "State": "restarting"}]
         html = _render_containers("plex", "server-1", containers)
 
         assert "badge-warning" in html
-        assert "exited" in html
+        assert "restarting" in html
 
     def test_render_with_header(self, mock_config: Config) -> None:
         from compose_farm.web.routes.api import _render_containers
