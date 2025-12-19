@@ -1,12 +1,15 @@
 """Browser tests for HTMX behavior using Playwright.
 
-Run with: nix-shell --run "uv run pytest tests/web/test_htmx_browser.py -v --no-cov"
-Or on CI: playwright install chromium --with-deps
+Run with: uv run pytest tests/web/test_htmx_browser.py -v --no-cov
+
+CDN assets are cached locally (in .pytest_cache/vendor/) to eliminate network
+variability. If a test fails with "Uncached CDN request", add the URL to CDN_ASSETS.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import socket
 import threading
@@ -26,7 +29,51 @@ from compose_farm.web.routes import api as web_api
 from compose_farm.web.routes import pages as web_pages
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Page, Route
+    from playwright.sync_api import Page, Route, WebSocket
+
+# CDN assets to vendor locally for faster/more reliable tests
+CDN_ASSETS = {
+    "https://cdn.jsdelivr.net/npm/daisyui@5": ("daisyui.css", "text/css"),
+    "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4": (
+        "tailwind.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css": ("xterm.css", "text/css"),
+    "https://unpkg.com/htmx.org@2.0.4": ("htmx.js", "application/javascript"),
+    "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js": (
+        "xterm.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js": (
+        "xterm-fit.js",
+        "application/javascript",
+    ),
+    # Monaco editor - loader.js plus dynamically loaded modules
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js": (
+        "monaco-loader.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.js": (
+        "monaco-editor-main.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.css": (
+        "monaco-editor-main.css",
+        "text/css",
+    ),
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/worker/workerMain.js": (
+        "monaco-workerMain.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/basic-languages/yaml/yaml.js": (
+        "monaco-yaml.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/browser/ui/codicons/codicon/codicon.ttf": (
+        "monaco-codicon.ttf",
+        "font/ttf",
+    ),
+}
 
 
 def _browser_available() -> bool:
@@ -50,6 +97,69 @@ pytestmark = pytest.mark.skipif(
     not _browser_available(),
     reason="No browser available (install via: playwright install chromium --with-deps)",
 )
+
+
+def _download_url(url: str) -> bytes | None:
+    """Download URL content using curl."""
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["curl", "-fsSL", "--max-time", "30", url],  # noqa: S607
+            capture_output=True,
+            check=True,
+        )
+        return bytes(result.stdout)
+    except Exception:
+        return None
+
+
+@pytest.fixture(scope="session")
+def vendor_cache(request: pytest.FixtureRequest) -> Path:
+    """Download CDN assets once and cache to disk for faster tests.
+
+    Uses a persistent cache directory so assets are only downloaded once
+    across multiple test runs. Clear with: pytest --cache-clear
+    """
+    # Use project-local cache directory
+    cache_dir = Path(request.config.rootdir) / ".pytest_cache" / "vendor"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    for url, (filename, _content_type) in CDN_ASSETS.items():
+        filepath = cache_dir / filename
+        if filepath.exists():
+            continue  # Already cached
+        content = _download_url(url)
+        if not content:
+            msg = f"Failed to download {url} - check network/curl"
+            raise RuntimeError(msg)
+        filepath.write_bytes(content)
+
+    return cache_dir
+
+
+@pytest.fixture
+def page(page: Page, vendor_cache: Path) -> Page:
+    """Override default page fixture to intercept CDN requests with local cache.
+
+    Any CDN request not in CDN_ASSETS will abort with an error, forcing developers
+    to add new CDN URLs to the cache. This catches both static and dynamic loads.
+    """
+    cache = {url: (vendor_cache / f, ct) for url, (f, ct) in CDN_ASSETS.items()}
+
+    def handle_cdn(route: Route) -> None:
+        url = route.request.url
+        for url_prefix, (filepath, content_type) in cache.items():
+            if url.startswith(url_prefix):
+                route.fulfill(status=200, content_type=content_type, body=filepath.read_bytes())
+                return
+        # Uncached CDN request - abort with helpful error
+        route.abort("failed")
+        msg = f"Uncached CDN request: {url}\n\nAdd this URL to CDN_ASSETS in tests/web/test_htmx_browser.py"
+        raise RuntimeError(msg)
+
+    page.route(re.compile(r"https://(cdn\.jsdelivr\.net|unpkg\.com)/.*"), handle_cdn)
+    return page
 
 
 @pytest.fixture(scope="session")
@@ -137,14 +247,20 @@ def server_url(
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
 
-    # Wait for startup
+    # Wait for startup with proper error handling
     url = f"http://127.0.0.1:{port}"
-    for _ in range(50):
+    server_ready = False
+    for _ in range(100):  # 2 seconds max
         try:
-            urllib.request.urlopen(url, timeout=0.5)  # noqa: S310
+            urllib.request.urlopen(url, timeout=0.1)  # noqa: S310
+            server_ready = True
             break
         except Exception:
-            time.sleep(0.1)
+            time.sleep(0.02)  # 20ms between checks
+
+    if not server_ready:
+        msg = f"Test server failed to start on {url}"
+        raise RuntimeError(msg)
 
     yield url
 
@@ -303,6 +419,21 @@ class TestDashboardContent:
         assert "sonarr" in content or "not started" in content
         assert "jellyfin" in content or "not started" in content
 
+    def test_dashboard_monaco_loads(self, page: Page, server_url: str) -> None:
+        """Dashboard page loads Monaco editor for config editing."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Wait for Monaco to load
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+
+        # Verify Monaco editor element exists (may be in collapsed section)
+        page.wait_for_function(
+            "document.querySelectorAll('.monaco-editor').length >= 1",
+            timeout=5000,
+        )
+        assert page.locator(".monaco-editor").count() >= 1
+
 
 class TestSaveConfigButton:
     """Test save config button behavior."""
@@ -363,6 +494,25 @@ class TestServiceDetailPage:
 
         # Should be back on dashboard
         assert page.url.rstrip("/") == server_url.rstrip("/")
+
+    def test_service_page_monaco_loads(self, page: Page, server_url: str) -> None:
+        """Service page loads Monaco editor for compose/env editing."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Wait for Monaco to load
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+
+        # Verify Monaco editor element exists (may be in collapsed section)
+        page.wait_for_function(
+            "document.querySelectorAll('.monaco-editor').length >= 1",
+            timeout=5000,
+        )
+        assert page.locator(".monaco-editor").count() >= 1
 
 
 class TestSidebarFilter:
@@ -746,7 +896,7 @@ class TestKeyboardShortcuts:
         # Wait for Monaco editor to load (it takes a moment)
         page.wait_for_function(
             "typeof monaco !== 'undefined'",
-            timeout=10000,
+            timeout=5000,
         )
 
         # Press Ctrl+S
@@ -900,3 +1050,640 @@ class TestContentStability:
         # Counts should be same (no duplicates created)
         assert page.locator("#stats-cards .card").count() == initial_stat_count
         assert page.locator("#sidebar-services li").count() == initial_service_count
+
+
+class TestConsolePage:
+    """Test console page functionality."""
+
+    def test_console_page_renders(self, page: Page, server_url: str) -> None:
+        """Console page renders with all required elements."""
+        page.goto(f"{server_url}/console")
+
+        # Wait for page to load
+        page.wait_for_selector("#console-host-select", timeout=5000)
+
+        # Verify host selector exists
+        host_select = page.locator("#console-host-select")
+        assert host_select.is_visible()
+
+        # Verify Connect button exists
+        connect_btn = page.locator("#console-connect-btn")
+        assert connect_btn.is_visible()
+        assert "Connect" in connect_btn.inner_text()
+
+        # Verify terminal container exists
+        terminal_container = page.locator("#console-terminal")
+        assert terminal_container.is_visible()
+
+        # Verify editor container exists
+        editor_container = page.locator("#console-editor")
+        assert editor_container.is_visible()
+
+        # Verify file path input exists
+        file_input = page.locator("#console-file-path")
+        assert file_input.is_visible()
+
+        # Verify save button exists
+        save_btn = page.locator("#console-save-btn")
+        assert save_btn.is_visible()
+
+    def test_console_host_selector_shows_all_hosts(self, page: Page, server_url: str) -> None:
+        """Host selector dropdown contains all configured hosts."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-host-select", timeout=5000)
+
+        # Get all options from the dropdown
+        options = page.locator("#console-host-select option")
+        assert options.count() == 2  # server-1 and server-2 from test config
+
+        # Verify both hosts are present
+        option_texts = [options.nth(i).inner_text() for i in range(options.count())]
+        assert any("server-1" in text for text in option_texts)
+        assert any("server-2" in text for text in option_texts)
+
+    def test_console_connect_shows_status(self, page: Page, server_url: str) -> None:
+        """Console shows connection status when attempting to connect."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-host-select", timeout=5000)
+
+        # Wait for terminal to initialize (triggers auto-connect)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+
+        # Status element should exist and have some text
+        # (may show "Connected", "Connecting...", or "Disconnected" depending on WebSocket)
+        status = page.locator("#console-status")
+        assert status.is_visible()
+        status_text = status.inner_text()
+        # Should show some connection-related status
+        assert any(s in status_text for s in ["Connect", "Disconnect", "server-"])
+
+    def test_console_connect_creates_terminal_element(self, page: Page, server_url: str) -> None:
+        """Connecting to a host creates xterm terminal elements.
+
+        The console page auto-connects to the first host on load,
+        which creates the xterm.js terminal inside the container.
+        """
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-terminal", timeout=5000)
+
+        # Wait for xterm.js to load from CDN
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+
+        # The console page auto-connects, which creates the terminal.
+        # Wait for xterm to initialize (creates .xterm class)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+
+        # Verify xterm elements are present
+        xterm_container = page.locator("#console-terminal .xterm")
+        assert xterm_container.is_visible()
+
+        # Verify xterm screen is created (the actual terminal display)
+        xterm_screen = page.locator("#console-terminal .xterm-screen")
+        assert xterm_screen.is_visible()
+
+    def test_console_editor_initializes(self, page: Page, server_url: str) -> None:
+        """Monaco editor initializes on the console page."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-editor", timeout=5000)
+
+        # Wait for Monaco to load from CDN
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+
+        # Monaco creates elements inside the container
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=5000)
+
+        # Verify Monaco editor is present
+        monaco_editor = page.locator("#console-editor .monaco-editor")
+        assert monaco_editor.is_visible()
+
+    def test_console_load_file_calls_api(self, page: Page, server_url: str) -> None:
+        """Clicking Open button calls the file API with correct parameters."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-file-path", timeout=5000)
+
+        # Wait for terminal to connect (sets currentHost)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+
+        # Track API calls
+        api_calls: list[str] = []
+
+        def handle_route(route: Route) -> None:
+            api_calls.append(route.request.url)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"success": true, "content": "test file content"}',
+            )
+
+        page.route("**/api/console/file*", handle_route)
+
+        # Enter a file path and click Open
+        file_input = page.locator("#console-file-path")
+        file_input.fill("/tmp/test.yaml")
+        page.locator("button", has_text="Open").click()
+
+        # Wait for API call
+        page.wait_for_timeout(500)
+
+        # Verify API was called with correct parameters
+        assert len(api_calls) >= 1
+        assert "/api/console/file" in api_calls[0]
+        assert "path=" in api_calls[0]
+        assert "host=" in api_calls[0]
+
+    def test_console_load_file_shows_content(self, page: Page, server_url: str) -> None:
+        """Loading a file displays its content in the Monaco editor."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-file-path", timeout=5000)
+
+        # Wait for terminal to connect and Monaco to load
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=5000)
+
+        # Mock file API to return specific content
+        test_content = "services:\\n  nginx:\\n    image: nginx:latest"
+
+        def handle_route(route: Route) -> None:
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=f'{{"success": true, "content": "{test_content}"}}',
+            )
+
+        page.route("**/api/console/file*", handle_route)
+
+        # Load file
+        file_input = page.locator("#console-file-path")
+        file_input.fill("/tmp/compose.yaml")
+        page.locator("button", has_text="Open").click()
+
+        # Wait for content to be loaded into editor
+        page.wait_for_function(
+            "window.consoleEditor && window.consoleEditor.getValue().includes('nginx')",
+            timeout=5000,
+        )
+
+    def test_console_load_file_updates_status(self, page: Page, server_url: str) -> None:
+        """Loading a file updates the editor status to show the file path."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-file-path", timeout=5000)
+
+        # Wait for terminal and Monaco
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=5000)
+
+        # Mock file API
+        page.route(
+            "**/api/console/file*",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"success": true, "content": "test"}',
+            ),
+        )
+
+        # Load file
+        file_input = page.locator("#console-file-path")
+        file_input.fill("/tmp/test.yaml")
+        page.locator("button", has_text="Open").click()
+
+        # Wait for status to show "Loaded:"
+        page.wait_for_function(
+            "document.getElementById('editor-status')?.textContent?.includes('Loaded')",
+            timeout=5000,
+        )
+
+        # Verify status shows the file path
+        status = page.locator("#editor-status").inner_text()
+        assert "Loaded" in status
+        assert "test.yaml" in status
+
+    def test_console_save_file_calls_api(self, page: Page, server_url: str) -> None:
+        """Clicking Save button calls the file API with PUT method."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-file-path", timeout=5000)
+
+        # Wait for terminal to connect and Monaco to load
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=5000)
+
+        # Track API calls
+        api_calls: list[tuple[str, str]] = []  # (method, url)
+
+        def handle_load_route(route: Route) -> None:
+            api_calls.append((route.request.method, route.request.url))
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"success": true, "content": "original content"}',
+            )
+
+        def handle_save_route(route: Route) -> None:
+            api_calls.append((route.request.method, route.request.url))
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"success": true}',
+            )
+
+        page.route(
+            "**/api/console/file*",
+            lambda route: (
+                handle_save_route(route)
+                if route.request.method == "PUT"
+                else handle_load_route(route)
+            ),
+        )
+
+        # Load a file first (required before save works)
+        file_input = page.locator("#console-file-path")
+        file_input.fill("/tmp/test.yaml")
+        page.locator("button", has_text="Open").click()
+        page.wait_for_timeout(500)
+
+        # Clear api_calls to track only the save
+        api_calls.clear()
+
+        # Click Save button
+        page.locator("#console-save-btn").click()
+        page.wait_for_timeout(500)
+
+        # Verify PUT request was made
+        assert len(api_calls) >= 1
+        method, url = api_calls[0]
+        assert method == "PUT"
+        assert "/api/console/file" in url
+
+    def test_console_save_file_updates_status(self, page: Page, server_url: str) -> None:
+        """Saving a file updates the editor status to show 'Saved'."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-file-path", timeout=5000)
+
+        # Wait for terminal and Monaco
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=5000)
+
+        # Mock file API for both load and save
+        def handle_route(route: Route) -> None:
+            if route.request.method == "PUT":
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body='{"success": true}',
+                )
+            else:
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body='{"success": true, "content": "test"}',
+                )
+
+        page.route("**/api/console/file*", handle_route)
+
+        # Load file first
+        file_input = page.locator("#console-file-path")
+        file_input.fill("/tmp/test.yaml")
+        page.locator("button", has_text="Open").click()
+        page.wait_for_function(
+            "document.getElementById('editor-status')?.textContent?.includes('Loaded')",
+            timeout=5000,
+        )
+
+        # Save file
+        page.locator("#console-save-btn").click()
+
+        # Wait for status to show "Saved:"
+        page.wait_for_function(
+            "document.getElementById('editor-status')?.textContent?.includes('Saved')",
+            timeout=5000,
+        )
+
+        # Verify status shows saved
+        status = page.locator("#editor-status").inner_text()
+        assert "Saved" in status
+
+
+class TestTerminalStreaming:
+    """Test terminal streaming functionality for action commands."""
+
+    def test_terminal_stores_task_in_localstorage(self, page: Page, server_url: str) -> None:
+        """Action response stores task ID in localStorage for reconnection."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Mock Apply API to return a task ID
+        page.route(
+            "**/api/apply",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "test-task-123", "service": null, "command": "apply"}',
+            ),
+        )
+
+        # Clear localStorage first
+        page.evaluate("localStorage.clear()")
+
+        # Click Apply
+        page.locator("button", has_text="Apply").click()
+
+        # Wait for response to be processed
+        page.wait_for_timeout(500)
+
+        # Verify task ID was stored in localStorage
+        stored_task = page.evaluate("localStorage.getItem('cf_task:/')")
+        assert stored_task == "test-task-123"
+
+    def test_terminal_reconnects_from_localstorage(self, page: Page, server_url: str) -> None:
+        """Terminal attempts to reconnect to task stored in localStorage.
+
+        Tests that when a page loads with an active task in localStorage,
+        it expands the terminal and attempts to reconnect.
+        """
+        # First, set up a task in localStorage before navigating
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Store a task ID in localStorage
+        page.evaluate("localStorage.setItem('cf_task:/', 'reconnect-test-123')")
+
+        # Navigate away and back (or reload) to trigger reconnect
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-terminal", timeout=5000)
+
+        # Navigate back to dashboard
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Wait for xterm to load (reconnect uses whenXtermReady)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+
+        # Terminal should be expanded because tryReconnectToTask runs
+        page.wait_for_function(
+            "document.getElementById('terminal-toggle')?.checked === true",
+            timeout=5000,
+        )
+
+    def test_action_triggers_terminal_websocket_connection(
+        self, page: Page, server_url: str
+    ) -> None:
+        """Action response with task_id triggers WebSocket connection to correct path."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Track WebSocket connections
+        ws_urls: list[str] = []
+
+        def handle_ws(ws: WebSocket) -> None:
+            ws_urls.append(ws.url)
+
+        page.on("websocket", handle_ws)
+
+        # Mock Apply API to return a task ID
+        page.route(
+            "**/api/apply",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "ws-test-456", "service": null, "command": "apply"}',
+            ),
+        )
+
+        # Wait for xterm to load
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+
+        # Click Apply
+        page.locator("button", has_text="Apply").click()
+
+        # Wait for WebSocket connection
+        page.wait_for_timeout(1000)
+
+        # Verify WebSocket connected to correct path
+        assert len(ws_urls) >= 1
+        assert any("/ws/terminal/ws-test-456" in url for url in ws_urls)
+
+    def test_terminal_displays_connected_message(self, page: Page, server_url: str) -> None:
+        """Terminal shows [Connected] message after WebSocket opens."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Mock Apply API to return a task ID
+        page.route(
+            "**/api/apply",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "connected-test", "service": null, "command": "apply"}',
+            ),
+        )
+
+        # Wait for xterm to load
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+
+        # Click Apply to trigger terminal
+        page.locator("button", has_text="Apply").click()
+
+        # Wait for terminal to be created and WebSocket to connect
+        page.wait_for_selector("#terminal-output .xterm", timeout=5000)
+
+        # Check terminal buffer for [Connected] message
+        # xterm.js stores content in buffer, accessible via the terminal instance
+        has_connected = page.evaluate("""() => {
+            const container = document.getElementById('terminal-output');
+            if (!container) return false;
+            // Check if xterm viewport contains text (rendered content)
+            const viewport = container.querySelector('.xterm-rows');
+            if (!viewport) return false;
+            return viewport.textContent.includes('Connected');
+        }""")
+        assert has_connected, "Terminal should display [Connected] message"
+
+
+class TestExecTerminal:
+    """Test exec terminal functionality for container shells."""
+
+    def test_service_page_has_exec_terminal_container(self, page: Page, server_url: str) -> None:
+        """Service page has exec terminal container (initially hidden)."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Exec terminal container should exist but be hidden
+        exec_container = page.locator("#exec-terminal-container")
+        assert exec_container.count() == 1
+        assert "hidden" in (exec_container.get_attribute("class") or "")
+
+        # The inner terminal div should also exist
+        exec_terminal = page.locator("#exec-terminal")
+        assert exec_terminal.count() == 1
+
+    def test_exec_terminal_connects_websocket(self, page: Page, server_url: str) -> None:
+        """Clicking Shell button triggers WebSocket to exec endpoint."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Mock containers API to return a container
+        page.route(
+            "**/api/service/plex/containers*",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/html",
+                body="""
+                <div class="flex items-center gap-2 p-2 bg-base-200 rounded">
+                    <span class="status status-success"></span>
+                    <code class="text-sm flex-1">plex-container</code>
+                    <button class="btn btn-sm btn-outline"
+                            onclick="initExecTerminal('plex', 'plex-container', 'server-1')">
+                        Shell
+                    </button>
+                </div>
+                """,
+            ),
+        )
+
+        # Reload to get mocked containers
+        page.reload()
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Track WebSocket connections
+        ws_urls: list[str] = []
+
+        def handle_ws(ws: WebSocket) -> None:
+            ws_urls.append(ws.url)
+
+        page.on("websocket", handle_ws)
+
+        # Wait for xterm to load
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+
+        # Click Shell button
+        page.locator("button", has_text="Shell").click()
+
+        # Wait for WebSocket connection
+        page.wait_for_timeout(1000)
+
+        # Verify WebSocket connected to exec endpoint
+        assert len(ws_urls) >= 1
+        assert any("/ws/exec/plex/plex-container/server-1" in url for url in ws_urls)
+
+        # Exec terminal container should now be visible
+        exec_container = page.locator("#exec-terminal-container")
+        assert "hidden" not in (exec_container.get_attribute("class") or "")
+
+
+class TestServicePagePalette:
+    """Test command palette behavior on service pages."""
+
+    def test_service_page_palette_has_action_commands(self, page: Page, server_url: str) -> None:
+        """Command palette on service page shows service-specific actions."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Verify service-specific action commands are visible
+        cmd_list = page.locator("#cmd-list").inner_text()
+        assert "Up" in cmd_list
+        assert "Down" in cmd_list
+        assert "Restart" in cmd_list
+        assert "Pull" in cmd_list
+        assert "Update" in cmd_list
+        assert "Logs" in cmd_list
+
+    def test_palette_action_triggers_service_api(self, page: Page, server_url: str) -> None:
+        """Selecting action from palette triggers correct service API."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Track API calls
+        api_calls: list[str] = []
+
+        def handle_route(route: Route) -> None:
+            api_calls.append(route.request.url)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "palette-test", "service": "plex", "command": "up"}',
+            )
+
+        page.route("**/api/service/plex/up", handle_route)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Filter to "Up" and execute
+        page.locator("#cmd-input").fill("Up")
+        page.keyboard.press("Enter")
+
+        # Wait for API call
+        page.wait_for_timeout(500)
+
+        # Verify correct API was called
+        assert len(api_calls) >= 1
+        assert "/api/service/plex/up" in api_calls[0]
+
+    def test_palette_apply_from_service_page(self, page: Page, server_url: str) -> None:
+        """Selecting Apply from service page palette navigates to dashboard and triggers API."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Track API calls
+        api_calls: list[str] = []
+
+        def handle_route(route: Route) -> None:
+            api_calls.append(route.request.url)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "apply-test", "service": null, "command": "apply"}',
+            )
+
+        page.route("**/api/apply", handle_route)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Filter to "Apply" and execute
+        page.locator("#cmd-input").fill("Apply")
+        page.keyboard.press("Enter")
+
+        # Wait for navigation to dashboard and API call
+        page.wait_for_url(server_url, timeout=5000)
+        page.wait_for_timeout(500)
+
+        # Verify Apply API was called
+        assert len(api_calls) >= 1
+        assert "/api/apply" in api_calls[0]
