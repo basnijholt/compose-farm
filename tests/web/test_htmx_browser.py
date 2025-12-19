@@ -115,6 +115,7 @@ def vendor_cache(tmp_path_factory: pytest.TempPathFactory) -> Path:
 @pytest.fixture
 def page(page: Page, vendor_cache: Path) -> Page:
     """Override default page fixture to intercept CDN requests with local cache."""
+    cache_hits = [0]  # Use list to allow mutation in closure
 
     def handle_cdn(route: Route) -> None:
         url = route.request.url
@@ -123,6 +124,7 @@ def page(page: Page, vendor_cache: Path) -> Page:
             if url.startswith(cdn_url):
                 cached_file = vendor_cache / filename
                 if cached_file.exists():
+                    cache_hits[0] += 1
                     route.fulfill(
                         status=200,
                         content_type=content_type,
@@ -135,7 +137,11 @@ def page(page: Page, vendor_cache: Path) -> Page:
     # Intercept CDN requests
     page.route(re.compile(r"https://(cdn\.jsdelivr\.net|unpkg\.com)/.*"), handle_cdn)
 
-    return page
+    yield page
+
+    # Log cache usage for debugging (only if any hits)
+    if cache_hits[0] > 0:
+        print(f"[CDN cache] Served {cache_hits[0]} requests from local cache")
 
 
 @pytest.fixture(scope="session")
