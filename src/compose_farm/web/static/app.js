@@ -522,116 +522,55 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     }
 });
 
-// Command Palette
+// Command Palette - minimal JS for modal + keyboard navigation
+// Commands are rendered server-side via HTMX, filtering via hx-get
 (function() {
     const dialog = document.getElementById('cmd-palette');
     const input = document.getElementById('cmd-input');
     const list = document.getElementById('cmd-list');
     const fab = document.getElementById('cmd-fab');
+    const serviceInput = document.getElementById('cmd-service');
     if (!dialog || !input || !list) return;
 
-    // Load icons from template (rendered server-side from icons.html)
-    const iconTemplate = document.getElementById('cmd-icons');
-    const icons = {};
-    if (iconTemplate) {
-        iconTemplate.content.querySelectorAll('[data-icon]').forEach(el => {
-            icons[el.dataset.icon] = el.innerHTML;
-        });
-    }
-
-    const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6', app: '#a855f7' };
-    let commands = [];
-    let filtered = [];
     let selected = 0;
 
-    const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
-    const nav = (url) => () => {
-        htmx.ajax('GET', url, {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
-            history.pushState({}, '', url);
-        });
-    };
-    // Navigate to dashboard and trigger action (or just POST if already on dashboard)
-    const dashboardAction = (endpoint) => () => {
-        if (window.location.pathname === '/') {
-            htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
-        } else {
-            // Navigate via HTMX, then trigger action after swap
-            htmx.ajax('GET', '/', {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
-                history.pushState({}, '', '/');
-                htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
-            });
-        }
-    };
-    const cmd = (type, name, desc, action, icon = null) => ({ type, name, desc, action, icon });
-
-    function buildCommands() {
-        const actions = [
-            cmd('action', 'Apply', 'Make reality match config', dashboardAction('apply'), icons.check),
-            cmd('action', 'Refresh', 'Update state from reality', dashboardAction('refresh'), icons.refresh_cw),
-            cmd('app', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
-            cmd('app', 'Console', 'Go to console', nav('/console'), icons.terminal),
-        ];
-
-        // Add service-specific actions if on a service page
-        const match = window.location.pathname.match(/^\/service\/(.+)$/);
-        if (match) {
-            const svc = decodeURIComponent(match[1]);
-            const svcCmd = (name, desc, endpoint, icon) => cmd('service', name, `${desc} ${svc}`, post(`/api/service/${svc}/${endpoint}`), icon);
-            actions.unshift(
-                svcCmd('Up', 'Start', 'up', icons.play),
-                svcCmd('Down', 'Stop', 'down', icons.square),
-                svcCmd('Restart', 'Restart', 'restart', icons.rotate_cw),
-                svcCmd('Pull', 'Pull', 'pull', icons.cloud_download),
-                svcCmd('Update', 'Pull + restart', 'update', icons.refresh_cw),
-                svcCmd('Logs', 'View logs for', 'logs', icons.file_text),
-            );
-        }
-
-        // Add nav commands for all services from sidebar
-        const services = [...document.querySelectorAll('#sidebar-services li[data-svc] a[href]')].map(a => {
-            const name = a.getAttribute('href').replace('/service/', '');
-            return cmd('nav', name, 'Go to service', nav(`/service/${name}`), icons.box);
-        });
-
-        commands = [...actions, ...services];
+    function getItems() {
+        return list.querySelectorAll('.cmd-item');
     }
 
-    function filter() {
-        const q = input.value.toLowerCase();
-        filtered = commands.filter(c => c.name.toLowerCase().includes(q));
-        selected = Math.max(0, Math.min(selected, filtered.length - 1));
-    }
-
-    function render() {
-        list.innerHTML = filtered.map((c, i) => `
-            <a class="flex justify-between items-center px-3 py-2 rounded-r cursor-pointer hover:bg-base-200 border-l-4 ${i === selected ? 'bg-base-300' : ''}" style="border-left-color: ${colors[c.type] || '#666'}" data-idx="${i}">
-                <span class="flex items-center gap-2">${c.icon || ''}<span>${c.name}</span></span>
-                <span class="opacity-40 text-xs">${c.desc}</span>
-            </a>
-        `).join('') || '<div class="opacity-50 p-2">No matches</div>';
-        // Scroll selected item into view
-        const sel = list.querySelector(`[data-idx="${selected}"]`);
+    function updateSelection() {
+        const items = getItems();
+        items.forEach((item, i) => {
+            item.classList.toggle('bg-base-300', i === selected);
+        });
+        const sel = items[selected];
         if (sel) sel.scrollIntoView({ block: 'nearest' });
     }
 
     function open() {
-        buildCommands();
+        // Set service context from current URL
+        const match = window.location.pathname.match(/^\/service\/(.+)$/);
+        if (serviceInput) {
+            serviceInput.value = match ? decodeURIComponent(match[1]) : '';
+        }
         selected = 0;
         input.value = '';
-        filter();
-        render();
+        // Trigger HTMX to load commands
+        htmx.trigger(input, 'load');
         dialog.showModal();
         input.focus();
     }
 
     function exec() {
-        if (filtered[selected]) {
+        const items = getItems();
+        const item = items[selected];
+        if (item) {
             dialog.close();
-            filtered[selected].action();
+            item.click(); // HTMX handles the request
         }
     }
 
-    // Keyboard: Cmd+K to open
+    // Keyboard: Ctrl+K / Cmd+K to open
     document.addEventListener('keydown', e => {
         if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
             e.preventDefault();
@@ -639,22 +578,28 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         }
     });
 
-    // Input filtering
-    input.addEventListener('input', () => { filter(); render(); });
+    // Update selection after HTMX swaps in new content
+    document.body.addEventListener('htmx:afterSwap', e => {
+        if (e.detail.target === list || e.detail.target.id === 'cmd-list') {
+            selected = 0;
+            updateSelection();
+        }
+    });
 
     // Keyboard nav inside palette
     dialog.addEventListener('keydown', e => {
         if (!dialog.open) return;
-        if (e.key === 'ArrowDown') { e.preventDefault(); selected = Math.min(selected + 1, filtered.length - 1); render(); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); selected = Math.max(selected - 1, 0); render(); }
-        else if (e.key === 'Enter') { e.preventDefault(); exec(); }
-    });
-
-    // Click to execute
-    list.addEventListener('click', e => {
-        const a = e.target.closest('a[data-idx]');
-        if (a) {
-            selected = parseInt(a.dataset.idx, 10);
+        const items = getItems();
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selected = Math.min(selected + 1, items.length - 1);
+            updateSelection();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selected = Math.max(selected - 1, 0);
+            updateSelection();
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
             exec();
         }
     });

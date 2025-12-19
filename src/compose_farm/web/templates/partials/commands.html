@@ -1,0 +1,30 @@
+{% from "partials/icons.html" import play, square, rotate_cw, cloud_download, refresh_cw, file_text, check, home, terminal, box %}
+{# Command palette command list - rendered server-side with HTMX attributes #}
+{% macro icon(name) %}
+{% if name == "play" %}{{ play() }}{% elif name == "square" %}{{ square() }}{% elif name == "rotate_cw" %}{{ rotate_cw() }}{% elif name == "cloud_download" %}{{ cloud_download() }}{% elif name == "refresh_cw" %}{{ refresh_cw() }}{% elif name == "file_text" %}{{ file_text() }}{% elif name == "check" %}{{ check() }}{% elif name == "home" %}{{ home() }}{% elif name == "terminal" %}{{ terminal() }}{% elif name == "box" %}{{ box() }}{% endif %}
+{% endmacro %}
+
+{% set colors = {"service": "#22c55e", "action": "#eab308", "nav": "#3b82f6", "app": "#a855f7"} %}
+
+{% if commands %}
+{% for cmd in commands %}
+<a class="cmd-item flex justify-between items-center px-3 py-2 rounded-r cursor-pointer hover:bg-base-200 border-l-4 {% if loop.first %}bg-base-300{% endif %}"
+   style="border-left-color: {{ colors.get(cmd.type, '#666') }}"
+   data-idx="{{ loop.index0 }}"
+   {% if cmd.method == "post" %}
+   hx-post="{{ cmd.url }}"
+   hx-swap="none"
+   {% else %}
+   hx-get="{{ cmd.url }}"
+   hx-target="#main-content"
+   hx-select="#main-content"
+   hx-swap="outerHTML"
+   hx-push-url="true"
+   {% endif %}>
+    <span class="flex items-center gap-2">{{ icon(cmd.icon) }}<span>{{ cmd.name }}</span></span>
+    <span class="opacity-40 text-xs">{{ cmd.desc }}</span>
+</a>
+{% endfor %}
+{% else %}
+<div class="opacity-50 p-2">No matches</div>
+{% endif %}

@@ -282,3 +282,150 @@ async def services_by_host_partial(request: Request, expanded: bool = True) -> H
             "expanded": expanded,
         },
     )
+
+
+@router.get("/partials/commands", response_class=HTMLResponse)
+async def commands_partial(
+    request: Request,
+    q: str = "",
+    service: str | None = None,
+) -> HTMLResponse:
+    """Command palette commands list.
+
+    Args:
+        request: The HTTP request
+        q: Filter query string
+        service: Current service context (for service-specific commands).
+                 Passed as 'cmd-service' from the form but FastAPI converts hyphens.
+
+    """
+    # FastAPI converts cmd-service to cmd_service, but we also accept 'service'
+    # Check query params directly for cmd-service
+    if service is None:
+        service = request.query_params.get("cmd-service")
+    config = get_config()
+    templates = get_templates()
+
+    # Build command list
+    commands: list[dict[str, str]] = []
+
+    # Service-specific commands (if on a service page)
+    if service:
+        svc_commands = [
+            {
+                "name": "Up",
+                "desc": f"Start {service}",
+                "icon": "play",
+                "type": "service",
+                "url": f"/api/service/{service}/up",
+                "method": "post",
+            },
+            {
+                "name": "Down",
+                "desc": f"Stop {service}",
+                "icon": "square",
+                "type": "service",
+                "url": f"/api/service/{service}/down",
+                "method": "post",
+            },
+            {
+                "name": "Restart",
+                "desc": f"Restart {service}",
+                "icon": "rotate_cw",
+                "type": "service",
+                "url": f"/api/service/{service}/restart",
+                "method": "post",
+            },
+            {
+                "name": "Pull",
+                "desc": f"Pull {service}",
+                "icon": "cloud_download",
+                "type": "service",
+                "url": f"/api/service/{service}/pull",
+                "method": "post",
+            },
+            {
+                "name": "Update",
+                "desc": f"Pull + restart {service}",
+                "icon": "refresh_cw",
+                "type": "service",
+                "url": f"/api/service/{service}/update",
+                "method": "post",
+            },
+            {
+                "name": "Logs",
+                "desc": f"View logs for {service}",
+                "icon": "file_text",
+                "type": "service",
+                "url": f"/api/service/{service}/logs",
+                "method": "post",
+            },
+        ]
+        commands.extend(svc_commands)
+
+    # Global actions
+    commands.extend(
+        [
+            {
+                "name": "Apply",
+                "desc": "Make reality match config",
+                "icon": "check",
+                "type": "action",
+                "url": "/api/apply",
+                "method": "post",
+            },
+            {
+                "name": "Refresh",
+                "desc": "Update state from reality",
+                "icon": "refresh_cw",
+                "type": "action",
+                "url": "/api/refresh",
+                "method": "post",
+            },
+        ]
+    )
+
+    # Navigation commands
+    commands.extend(
+        [
+            {
+                "name": "Dashboard",
+                "desc": "Go to dashboard",
+                "icon": "home",
+                "type": "app",
+                "url": "/",
+                "method": "get",
+            },
+            {
+                "name": "Console",
+                "desc": "Go to console",
+                "icon": "terminal",
+                "type": "app",
+                "url": "/console",
+                "method": "get",
+            },
+        ]
+    )
+
+    # Service navigation commands
+    commands.extend(
+        {
+            "name": svc_name,
+            "desc": "Go to service",
+            "icon": "box",
+            "type": "nav",
+            "url": f"/service/{svc_name}",
+            "method": "get",
+        }
+        for svc_name in sorted(config.services.keys())
+    )
+
+    # Filter by query
+    if q:
+        q_lower = q.lower()
+        commands = [c for c in commands if q_lower in c["name"].lower()]
+
+    return templates.TemplateResponse(
+        "partials/commands.html",
+        {"request": request, "commands": commands, "service": service},
+    )

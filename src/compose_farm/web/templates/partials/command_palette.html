@@ -1,35 +1,32 @@
-{% from "partials/icons.html" import search, play, square, rotate_cw, cloud_download, refresh_cw, file_text, check, home, terminal, box %}
+{% from "partials/icons.html" import search %}
 
-<!-- Icons for command palette (referenced by JS) -->
-<template id="cmd-icons">
-    <span data-icon="play">{{ play() }}</span>
-    <span data-icon="square">{{ square() }}</span>
-    <span data-icon="rotate_cw">{{ rotate_cw() }}</span>
-    <span data-icon="cloud_download">{{ cloud_download() }}</span>
-    <span data-icon="refresh_cw">{{ refresh_cw() }}</span>
-    <span data-icon="file_text">{{ file_text() }}</span>
-    <span data-icon="check">{{ check() }}</span>
-    <span data-icon="home">{{ home() }}</span>
-    <span data-icon="terminal">{{ terminal() }}</span>
-    <span data-icon="box">{{ box() }}</span>
-</template>
 <dialog id="cmd-palette" class="modal">
     <div class="modal-box max-w-lg p-0">
         <label class="input input-lg bg-base-100 border-0 border-b border-base-300 w-full rounded-none rounded-t-box sticky top-0 z-10 focus-within:outline-none">
             {{ search(20) }}
-            <input type="text" id="cmd-input" class="grow" placeholder="Type a command..." autocomplete="off" />
+            <input type="text" id="cmd-input" name="q" class="grow" placeholder="Type a command..." autocomplete="off"
+                   hx-get="/partials/commands"
+                   hx-trigger="input changed delay:100ms, load"
+                   hx-target="#cmd-list"
+                   hx-swap="innerHTML"
+                   hx-include="[name='cmd-service']" />
             <kbd class="kbd kbd-sm opacity-50">esc</kbd>
         </label>
-        <div id="cmd-list" class="flex flex-col p-2 max-h-80 overflow-y-auto">
-            <!-- Populated by JS -->
+        <!-- Hidden input to pass current service context -->
+        <input type="hidden" id="cmd-service" name="cmd-service" value="" />
+        <div id="cmd-list" class="flex flex-col p-2 max-h-80 overflow-y-auto"
+             hx-get="/partials/commands"
+             hx-trigger="load"
+             hx-include="[name='cmd-service']">
+            <!-- Loaded via HTMX -->
         </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
 <!-- Floating button to open command palette -->
-<button id="cmd-fab" class="fixed bottom-6 right-6 z-50" title="Command Palette (⌘K)">
+<button id="cmd-fab" class="fixed bottom-6 right-6 z-50" title="Command Palette (Ctrl+K)">
     <div class="cmd-fab-inner">
-        <span>⌘ + K</span>
+        <span>Ctrl + K</span>
     </div>
 </button>
