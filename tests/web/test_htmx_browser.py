@@ -989,3 +989,39 @@ class TestConsolePage:
         # Verify Monaco editor is present
         monaco_editor = page.locator("#console-editor .monaco-editor")
         assert monaco_editor.is_visible()
+
+    def test_console_load_file_calls_api(self, page: Page, server_url: str) -> None:
+        """Clicking Open button calls the file API with correct parameters."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-file-path", timeout=5000)
+
+        # Wait for terminal to connect (sets currentHost)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=10000)
+
+        # Track API calls
+        api_calls: list[str] = []
+
+        def handle_route(route: Route) -> None:
+            api_calls.append(route.request.url)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"success": true, "content": "test file content"}',
+            )
+
+        page.route("**/api/console/file*", handle_route)
+
+        # Enter a file path and click Open
+        file_input = page.locator("#console-file-path")
+        file_input.fill("/tmp/test.yaml")
+        page.locator("button", has_text="Open").click()
+
+        # Wait for API call
+        page.wait_for_timeout(500)
+
+        # Verify API was called with correct parameters
+        assert len(api_calls) >= 1
+        assert "/api/console/file" in api_calls[0]
+        assert "path=" in api_calls[0]
+        assert "host=" in api_calls[0]
