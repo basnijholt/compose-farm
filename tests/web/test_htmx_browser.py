@@ -1,6 +1,7 @@
 """Browser tests for HTMX behavior using Playwright.
 
 Run with: nix-shell --run "uv run pytest tests/web/test_htmx_browser.py -v --no-cov"
+Or on CI: playwright install chromium --with-deps
 """
 
 from __future__ import annotations
@@ -19,20 +20,38 @@ if TYPE_CHECKING:
     from playwright.sync_api import Page
 
 
+def _browser_available() -> bool:
+    """Check if any chromium browser is available (system or Playwright-managed)."""
+    # Check for system browser
+    if shutil.which("chromium") or shutil.which("google-chrome"):
+        return True
+
+    # Check for Playwright-managed browser
+    try:
+        from playwright._impl._driver import compute_driver_executable
+
+        driver_path = compute_driver_executable()
+        return Path(driver_path).exists()
+    except Exception:
+        return False
+
+
 # Skip all tests if no browser available
 pytestmark = pytest.mark.skipif(
-    not shutil.which("chromium") and not shutil.which("google-chrome"),
-    reason="No system browser available (run with: nix-shell -p chromium)",
+    not _browser_available(),
+    reason="No browser available (install via: playwright install chromium --with-deps)",
 )
 
 
 @pytest.fixture(scope="session")
 def browser_type_launch_args() -> dict[str, str]:
-    """Configure Playwright to use system Chromium."""
+    """Configure Playwright to use system Chromium if available, else use bundled."""
+    # Prefer system browser if available (for nix-shell usage)
     for name in ["chromium", "chromium-browser", "google-chrome", "chrome"]:
         path = shutil.which(name)
         if path:
             return {"executable_path": path}
+    # Fall back to Playwright's bundled browser (for CI)
     return {}
 
 
