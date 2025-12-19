@@ -127,5 +127,5 @@
 
 /* Smaller screens: reduce gradient size so more colors are visible */
 @media (max-width: 768px) {
-    #cmd-fab { --bg-size: 500%; }
+    #cmd-fab { --bg-size: 650%; }
 }
