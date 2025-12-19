@@ -862,7 +862,7 @@ class TestKeyboardShortcuts:
         # Wait for Monaco editor to load (it takes a moment)
         page.wait_for_function(
             "typeof monaco !== 'undefined'",
-            timeout=10000,
+            timeout=5000,
         )
 
         # Press Ctrl+S
@@ -1077,11 +1077,11 @@ class TestConsolePage:
         page.wait_for_selector("#console-terminal", timeout=5000)
 
         # Wait for xterm.js to load from CDN
-        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
 
         # The console page auto-connects, which creates the terminal.
         # Wait for xterm to initialize (creates .xterm class)
-        page.wait_for_selector("#console-terminal .xterm", timeout=10000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
 
         # Verify xterm elements are present
         xterm_container = page.locator("#console-terminal .xterm")
@@ -1097,10 +1097,10 @@ class TestConsolePage:
         page.wait_for_selector("#console-editor", timeout=5000)
 
         # Wait for Monaco to load from CDN
-        page.wait_for_function("typeof monaco !== 'undefined'", timeout=15000)
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
 
         # Monaco creates elements inside the container
-        page.wait_for_selector("#console-editor .monaco-editor", timeout=10000)
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=5000)
 
         # Verify Monaco editor is present
         monaco_editor = page.locator("#console-editor .monaco-editor")
@@ -1112,8 +1112,8 @@ class TestConsolePage:
         page.wait_for_selector("#console-file-path", timeout=5000)
 
         # Wait for terminal to connect (sets currentHost)
-        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
-        page.wait_for_selector("#console-terminal .xterm", timeout=10000)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
 
         # Track API calls
         api_calls: list[str] = []
@@ -1148,10 +1148,10 @@ class TestConsolePage:
         page.wait_for_selector("#console-file-path", timeout=5000)
 
         # Wait for terminal to connect and Monaco to load
-        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
-        page.wait_for_selector("#console-terminal .xterm", timeout=10000)
-        page.wait_for_function("typeof monaco !== 'undefined'", timeout=15000)
-        page.wait_for_selector("#console-editor .monaco-editor", timeout=10000)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=5000)
 
         # Mock file API to return specific content
         test_content = "services:\\n  nginx:\\n    image: nginx:latest"
@@ -1182,10 +1182,10 @@ class TestConsolePage:
         page.wait_for_selector("#console-file-path", timeout=5000)
 
         # Wait for terminal to connect and Monaco to load
-        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
-        page.wait_for_selector("#console-terminal .xterm", timeout=10000)
-        page.wait_for_function("typeof monaco !== 'undefined'", timeout=15000)
-        page.wait_for_selector("#console-editor .monaco-editor", timeout=10000)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=5000)
 
         # Track API calls
         api_calls: list[tuple[str, str]] = []  # (method, url)
@@ -1288,7 +1288,7 @@ class TestTerminalStreaming:
         page.wait_for_selector("#sidebar-services", timeout=5000)
 
         # Wait for xterm to load (reconnect uses whenXtermReady)
-        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
 
         # Terminal should be expanded because tryReconnectToTask runs
         page.wait_for_function(
@@ -1322,7 +1322,7 @@ class TestTerminalStreaming:
         )
 
         # Wait for xterm to load
-        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
 
         # Click Apply
         page.locator("button", has_text="Apply").click()
@@ -1397,7 +1397,7 @@ class TestExecTerminal:
         page.on("websocket", handle_ws)
 
         # Wait for xterm to load
-        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
 
         # Click Shell button
         page.locator("button", has_text="Shell").click()
