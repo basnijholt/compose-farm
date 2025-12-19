@@ -32,22 +32,51 @@ def _start_task(coro_factory: Callable[[str], Coroutine[Any, Any, None]]) -> str
     return task_id
 
 
-# Allowed service commands
-ALLOWED_COMMANDS = {"up", "down", "restart", "pull", "update", "logs"}
-
-
-@router.post("/service/{name}/{command}")
-async def service_action(name: str, command: str) -> dict[str, Any]:
-    """Run a compose command for a service (up, down, restart, pull, update, logs)."""
-    if command not in ALLOWED_COMMANDS:
-        raise HTTPException(status_code=404, detail=f"Unknown command '{command}'")
-
+async def _run_service_action(name: str, command: str) -> dict[str, Any]:
+    """Run a compose command for a service."""
     config = get_config()
+
     if name not in config.services:
         raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
 
     task_id = _start_task(lambda tid: run_compose_streaming(config, name, command, tid))
     return {"task_id": task_id, "service": name, "command": command}
+
+
+@router.post("/service/{name}/up")
+async def up_service(name: str) -> dict[str, Any]:
+    """Start a service."""
+    return await _run_service_action(name, "up")
+
+
+@router.post("/service/{name}/down")
+async def down_service(name: str) -> dict[str, Any]:
+    """Stop a service."""
+    return await _run_service_action(name, "down")
+
+
+@router.post("/service/{name}/restart")
+async def restart_service(name: str) -> dict[str, Any]:
+    """Restart a service (down + up)."""
+    return await _run_service_action(name, "restart")
+
+
+@router.post("/service/{name}/pull")
+async def pull_service(name: str) -> dict[str, Any]:
+    """Pull latest images for a service."""
+    return await _run_service_action(name, "pull")
+
+
+@router.post("/service/{name}/update")
+async def update_service(name: str) -> dict[str, Any]:
+    """Update a service (pull + build + down + up)."""
+    return await _run_service_action(name, "update")
+
+
+@router.post("/service/{name}/logs")
+async def logs_service(name: str) -> dict[str, Any]:
+    """Show logs for a service."""
+    return await _run_service_action(name, "logs")
 
 
 @router.post("/apply")

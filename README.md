@@ -617,14 +617,12 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  This is the "reconcile" command that ensures running services match your
  config file. It will:
-
- 1. Stop orphaned services (in state but removed from config)
- 2. Migrate services on wrong host (host in state ≠ host in config)
- 3. Start missing services (in config but not in state)
-
- Use --dry-run to preview changes before applying.
- Use --no-orphans to only migrate/start without stopping orphaned services.
- Use --full to also run 'up' on all services (picks up compose/env changes).
+ 1. Stop orphaned services (in state but removed from config) 2. Migrate
+ services on wrong host (host in state ≠ host in config) 3. Start missing
+ services (in config but not in state)
+ Use --dry-run to preview changes before applying. Use --no-orphans to only
+ migrate/start without stopping orphaned services. Use --full to also run 'up'
+ on all services (picks up compose/env changes).
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
 │ --dry-run     -n            Show what would change without executing         │
@@ -698,10 +696,9 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Update local state from running services.
 
- Discovers which services are running on which hosts, updates the state
- file, and captures image digests. This is a read operation - it updates
- your local state to match reality, not the other way around.
-
+ Discovers which services are running on which hosts, updates the state file,
+ and captures image digests. This is a read operation - it updates your local
+ state to match reality, not the other way around.
  Use 'cf apply' to make reality match your config (stop orphans, migrate).
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
@@ -737,10 +734,8 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Validate configuration, traefik labels, mounts, and networks.
 
- Without arguments: validates all services against configured hosts.
- With service arguments: validates specific services and shows host
- compatibility.
-
+ Without arguments: validates all services against configured hosts. With
+ service arguments: validates specific services and shows host compatibility.
  Use --local to skip SSH-based checks for faster validation.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
@@ -779,8 +774,8 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Create Docker network on hosts with consistent settings.
 
  Creates an external Docker network that services can use for cross-host
- communication. Uses the same subnet/gateway on all hosts to ensure
- consistent networking.
+ communication. Uses the same subnet/gateway on all hosts to ensure consistent
+ networking.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │   hosts      [HOSTS]...  Hosts to create network on (default: all)           │
@@ -913,9 +908,8 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Show status of services.
 
- Without arguments: shows all services (same as --all).
- With service names: shows only those services.
- With --host: shows services on that host.
+ Without arguments: shows all services (same as --all). With service names:
+ shows only those services. With --host: shows services on that host.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │   services      [SERVICES]...  Services to operate on                        │

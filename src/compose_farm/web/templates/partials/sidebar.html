@@ -31,3 +31,16 @@
         {% endfor %}
     </ul>
 </div>
+<script>
+function sidebarFilter() {
+    const q = (document.getElementById('sidebar-filter')?.value || '').toLowerCase();
+    const h = document.getElementById('sidebar-host-select')?.value || '';
+    let n = 0;
+    document.querySelectorAll('#sidebar-services li').forEach(li => {
+        const show = (!q || li.dataset.svc.includes(q)) && (!h || !li.dataset.h || li.dataset.h === h);
+        li.hidden = !show;
+        if (show) n++;
+    });
+    document.getElementById('sidebar-count').textContent = '(' + n + ')';
+}
+</script>

@@ -42,7 +42,7 @@
 
 <script>
 // Use var to allow re-declaration on HTMX navigation
-var consoleTerminalWrapper = null;  // {term, dispose}
+var consoleTerminal = null;
 var consoleWs = null;
 var consoleEditor = null;
 var currentFilePath = null;
@@ -68,14 +68,14 @@ function connectConsole() {
 
     currentHost = host;
 
-    // Clean up existing connection (use wrapper's dispose to clean up ResizeObserver)
+    // Clean up existing connection
     if (consoleWs) {
         consoleWs.close();
         consoleWs = null;
     }
-    if (consoleTerminalWrapper) {
-        consoleTerminalWrapper.dispose();
-        consoleTerminalWrapper = null;
+    if (consoleTerminal) {
+        consoleTerminal.dispose();
+        consoleTerminal = null;
     }
 
     statusEl.textContent = 'Connecting...';
@@ -91,8 +91,8 @@ function connectConsole() {
     };
 
     // Create terminal with resize callback
-    consoleTerminalWrapper = createTerminal(terminalEl, { cursorBlink: true }, sendSize);
-    const term = consoleTerminalWrapper.term;
+    const { term } = createTerminal(terminalEl, { cursorBlink: true }, sendSize);
+    consoleTerminal = term;
 
     consoleWs.onopen = () => {
         statusEl.textContent = `Connected to ${host}`;
@@ -101,7 +101,13 @@ function connectConsole() {
         // Auto-load the default file once editor is ready
         const pathInput = document.getElementById('console-file-path');
         if (pathInput && pathInput.value) {
-            const tryLoad = () => consoleEditor ? loadFile() : setTimeout(tryLoad, 100);
+            const tryLoad = () => {
+                if (consoleEditor) {
+                    loadFile();
+                } else {
+                    setTimeout(tryLoad, 100);
+                }
+            };
             tryLoad();
         }
     };

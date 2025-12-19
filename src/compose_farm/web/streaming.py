@@ -116,8 +116,7 @@ async def _run_cli_via_ssh(
     try:
         host = config.get_host(CF_WEB_SERVICE)
         cf_cmd = f"cf {' '.join(args)} --config={config.config_path}"
-        # Include task_id to prevent collision with concurrent updates
-        log_file = f"/tmp/cf-self-update-{task_id}.log"  # noqa: S108
+        log_file = "/tmp/cf-self-update.log"  # noqa: S108
 
         # setsid detaches command; tail streams output until SSH dies
         remote_cmd = (
