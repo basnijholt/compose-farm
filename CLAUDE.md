@@ -34,87 +34,9 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 
 ## HTMX Patterns
 
-The web UI uses [HTMX](https://htmx.org/) for dynamic behavior. Follow these patterns:
-
-### Core Attributes
-
-```html
-<button hx-post="/api/action" hx-target="#result" hx-swap="innerHTML">
-```
-
-- `hx-get`, `hx-post`, `hx-put`, `hx-delete` - HTTP verbs
-- `hx-target` - CSS selector for where response goes
-- `hx-swap` - How to insert (`innerHTML`, `outerHTML`, `beforeend`, etc.)
-- `hx-trigger` - Event that triggers request (default: `click` for buttons)
-
-### Updating Multiple Elements (use custom events)
-
-When an action needs to update multiple parts of the page, use **custom events** with `hx-trigger`. Elements listen for the event and refresh themselves independently:
-
-```html
-<!-- Elements that auto-refresh on event -->
-<div id="stats-cards"
-     hx-get="/partials/stats-content"
-     hx-trigger="cf:refresh from:body"
-     hx-swap="innerHTML">
-</div>
-
-<!-- JavaScript dispatches the event after an action -->
-<script>
-document.body.dispatchEvent(new CustomEvent('cf:refresh'));
-</script>
-```
-
-This approach is preferred over `hx-swap-oob` (Out of Band Swaps) because:
-- **Simpler**: No need to construct multi-part responses on the server
-- **Easier to debug**: Each element makes an isolated request you can inspect
-- **Easier to maintain**: Loose coupling between action and refreshed elements
-- **Easier to test**: Endpoints can be tested independently
-
-Reference: [Triggering Events](https://htmx.org/headers/hx-trigger/)
-
-### SPA-like Navigation (`hx-boost`)
-
-Use `hx-boost="true"` on containers to make all child links/forms use AJAX:
-
-```html
-<nav hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="innerHTML">
-    <a href="/page">Link</a>  <!-- Automatically AJAX-ified -->
-</nav>
-```
-
-### Attribute Inheritance
-
-HTMX attributes inherit to children. Set common attributes on parent elements:
-
-```html
-<div hx-target="#result" hx-swap="innerHTML">
-    <button hx-post="/a">A</button>  <!-- Inherits target/swap -->
-    <button hx-post="/b">B</button>
-</div>
-```
-
-### Working with Monaco Editors
-
-Since Monaco content isn't in form fields, use `hx-vals` with a JS function:
-
-```html
-<button hx-put="/api/config"
-        hx-vals="js:{content: editors['config']?.getValue()}"
-        hx-target="#save-result">
-    Save
-</button>
-```
-
-Or use `htmx.ajax()` from JavaScript when more control is needed:
-
-```javascript
-htmx.ajax('PUT', '/api/config', {
-    values: { content: editor.getValue() },
-    target: '#save-result',
-    swap: 'innerHTML'
-});
-```
+- **Multi-element refresh**: Use custom events, not `hx-swap-oob`. Elements have `hx-trigger="cf:refresh from:body"` and JS calls `document.body.dispatchEvent(new CustomEvent('cf:refresh'))`. Simpler to debug/test.
+- **SPA navigation**: Sidebar uses `hx-boost="true"` to AJAX-ify links.
+- **Attribute inheritance**: Set `hx-target`/`hx-swap` on parent elements.
 
 ## Key Design Decisions
 
