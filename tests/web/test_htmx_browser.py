@@ -195,6 +195,27 @@ class TestHTMXSidebarLoading:
         assert "radarr" in content
         assert "jellyfin" in content
 
+    def test_dashboard_content_persists_after_sidebar_loads(
+        self, page: Page, server_url: str
+    ) -> None:
+        """Dashboard content must remain visible after HTMX loads sidebar.
+
+        Regression test: conflicting hx-select attributes on the nav element
+        were causing the dashboard to disappear when sidebar loaded.
+        """
+        page.goto(server_url)
+
+        # Dashboard content should be visible immediately (server-rendered)
+        stats = page.locator("#stats-cards")
+        assert stats.is_visible()
+
+        # Wait for sidebar to fully load via HTMX
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Dashboard content must STILL be visible after sidebar loads
+        assert stats.is_visible(), "Dashboard disappeared after sidebar loaded"
+        assert page.locator("#stats-cards .stat").count() >= 4
+
     def test_sidebar_shows_running_status(self, page: Page, server_url: str) -> None:
         """Sidebar shows running/stopped status indicators for services."""
         page.goto(server_url)
