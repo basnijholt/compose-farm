@@ -936,3 +936,17 @@ class TestConsolePage:
         # Verify save button exists
         save_btn = page.locator("#console-save-btn")
         assert save_btn.is_visible()
+
+    def test_console_host_selector_shows_all_hosts(self, page: Page, server_url: str) -> None:
+        """Host selector dropdown contains all configured hosts."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-host-select", timeout=5000)
+
+        # Get all options from the dropdown
+        options = page.locator("#console-host-select option")
+        assert options.count() == 2  # server-1 and server-2 from test config
+
+        # Verify both hosts are present
+        option_texts = [options.nth(i).inner_text() for i in range(options.count())]
+        assert any("server-1" in text for text in option_texts)
+        assert any("server-2" in text for text in option_texts)
