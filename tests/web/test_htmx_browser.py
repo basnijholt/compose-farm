@@ -7,6 +7,7 @@ Or on CI: playwright install chromium --with-deps
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import socket
 import threading
@@ -27,6 +28,25 @@ from compose_farm.web.routes import pages as web_pages
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page, Route, WebSocket
+
+# CDN assets to vendor locally for faster/more reliable tests
+CDN_ASSETS = {
+    "https://cdn.jsdelivr.net/npm/daisyui@5": ("daisyui.css", "text/css"),
+    "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4": (
+        "tailwind.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css": ("xterm.css", "text/css"),
+    "https://unpkg.com/htmx.org@2.0.4": ("htmx.js", "application/javascript"),
+    "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js": (
+        "xterm.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js": (
+        "xterm-fit.js",
+        "application/javascript",
+    ),
+}
 
 
 def _browser_available() -> bool:
@@ -50,6 +70,72 @@ pytestmark = pytest.mark.skipif(
     not _browser_available(),
     reason="No browser available (install via: playwright install chromium --with-deps)",
 )
+
+
+def _download_url(url: str) -> bytes | None:
+    """Download URL content, trying urllib then curl as fallback."""
+    import subprocess
+
+    # Try urllib first
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "pytest"})  # noqa: S310
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+            return resp.read()  # type: ignore[no-any-return]
+    except Exception:  # noqa: S110
+        pass  # Fall through to curl fallback
+
+    # Fallback to curl (handles SSL proxies better)
+    try:
+        result = subprocess.run(
+            ["curl", "-fsSL", "--max-time", "30", url],  # noqa: S607
+            capture_output=True,
+            check=True,
+        )
+        return bytes(result.stdout)
+    except Exception:
+        return None
+
+
+@pytest.fixture(scope="session")
+def vendor_cache(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Download CDN assets once per test session for faster tests."""
+    cache_dir: Path = tmp_path_factory.mktemp("vendor")
+
+    for url, (filename, _content_type) in CDN_ASSETS.items():
+        filepath = cache_dir / filename
+        content = _download_url(url)
+        if content:
+            filepath.write_bytes(content)
+        else:
+            print(f"Warning: Failed to cache {url}")
+
+    return cache_dir
+
+
+@pytest.fixture
+def page(page: Page, vendor_cache: Path) -> Page:
+    """Override default page fixture to intercept CDN requests with local cache."""
+
+    def handle_cdn(route: Route) -> None:
+        url = route.request.url
+        # Find matching asset
+        for cdn_url, (filename, content_type) in CDN_ASSETS.items():
+            if url.startswith(cdn_url):
+                cached_file = vendor_cache / filename
+                if cached_file.exists():
+                    route.fulfill(
+                        status=200,
+                        content_type=content_type,
+                        body=cached_file.read_bytes(),
+                    )
+                    return
+        # Fall back to actual CDN if not cached
+        route.continue_()
+
+    # Intercept CDN requests
+    page.route(re.compile(r"https://(cdn\.jsdelivr\.net|unpkg\.com)/.*"), handle_cdn)
+
+    return page
 
 
 @pytest.fixture(scope="session")
@@ -137,14 +223,20 @@ def server_url(
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
 
-    # Wait for startup
+    # Wait for startup with proper error handling
     url = f"http://127.0.0.1:{port}"
-    for _ in range(50):
+    server_ready = False
+    for _ in range(100):  # 2 seconds max
         try:
-            urllib.request.urlopen(url, timeout=0.5)  # noqa: S310
+            urllib.request.urlopen(url, timeout=0.1)  # noqa: S310
+            server_ready = True
             break
         except Exception:
-            time.sleep(0.1)
+            time.sleep(0.02)  # 20ms between checks
+
+    if not server_ready:
+        msg = f"Test server failed to start on {url}"
+        raise RuntimeError(msg)
 
     yield url
 
