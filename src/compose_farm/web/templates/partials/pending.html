@@ -1,7 +1,5 @@
 {% from "partials/components.html" import collapse %}
 <div id="pending-operations"
-     hx-get="/partials/pending-content"
-     hx-trigger="cf:refresh from:body"
-     hx-swap="innerHTML">
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
 {% include "partials/pending_content.html" %}
 </div>

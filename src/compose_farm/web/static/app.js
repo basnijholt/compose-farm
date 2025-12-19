@@ -212,12 +212,16 @@ function initExecTerminal(service, container, host) {
 window.initExecTerminal = initExecTerminal;
 
 /**
- * Refresh dashboard partials by dispatching a custom event.
- * Elements with hx-trigger="cf:refresh from:body" will automatically refresh.
+ * Get editor content by ID for HTMX hx-vals.
+ * Used by the save button: hx-vals="js:{content: window.getEditorContent('config')}"
+ * @param {string} id - Editor ID (e.g., 'config', 'compose', 'env')
+ * @returns {string} Editor content or empty string if not found
  */
-function refreshDashboard() {
-    document.body.dispatchEvent(new CustomEvent('cf:refresh'));
+function getEditorContent(id) {
+    const editor = editors[id];
+    return editor?.getValue() || '';
 }
+window.getEditorContent = getEditorContent;
 
 /**
  * Load Monaco editor dynamically (only once)
@@ -295,7 +299,13 @@ function createEditor(container, content, language, opts = {}) {
             if (onSave) {
                 onSave(editor);
             } else {
-                saveAllEditors();
+                // Dashboard: trigger HTMX button; Service page: use JS save
+                const htmxSaveBtn = document.getElementById('save-config-btn');
+                if (htmxSaveBtn) {
+                    htmxSaveBtn.click();
+                } else {
+                    saveAllEditors();
+                }
             }
         });
     }
@@ -368,19 +378,20 @@ async function saveAllEditors() {
         }
     }
 
-    // Show result
+    // Show result (only for service page Save All button - dashboard uses HTMX)
     if (saveBtn && results.length > 0) {
         saveBtn.textContent = 'Saved!';
-        setTimeout(() => saveBtn.textContent = saveBtn.id === 'save-config-btn' ? 'Save Config' : 'Save All', 2000);
-        refreshDashboard();
+        setTimeout(() => saveBtn.textContent = 'Save All', 2000);
     }
 }
 
 /**
- * Initialize save button handler
+ * Initialize save button handler for service page (dashboard uses HTMX)
  */
 function initSaveButton() {
-    const saveBtn = document.getElementById('save-btn') || document.getElementById('save-config-btn');
+    // Only attach onclick to service page Save All button
+    // Dashboard Save Config button uses HTMX with hx-put
+    const saveBtn = document.getElementById('save-btn');
     if (!saveBtn) return;
 
     saveBtn.onclick = saveAllEditors;
@@ -399,7 +410,14 @@ function initKeyboardShortcuts() {
                 const focusedEditor = Object.values(editors).find(ed => ed && ed.hasTextFocus && ed.hasTextFocus());
                 if (!focusedEditor) {
                     e.preventDefault();
-                    saveAllEditors();
+                    // Dashboard: click the HTMX-enabled Save Config button
+                    const htmxSaveBtn = document.getElementById('save-config-btn');
+                    if (htmxSaveBtn) {
+                        htmxSaveBtn.click();
+                    } else {
+                        // Service page: use JS save
+                        saveAllEditors();
+                    }
                 }
             }
         }

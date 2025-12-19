@@ -1,8 +1,6 @@
 {% from "partials/components.html" import collapse %}
 {% from "partials/icons.html" import layers, search %}
 <div id="services-by-host"
-     hx-get="/partials/services-by-host-content"
-     hx-trigger="cf:refresh from:body"
-     hx-swap="innerHTML">
+     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
 {% include "partials/services_by_host_content.html" %}
 </div>
