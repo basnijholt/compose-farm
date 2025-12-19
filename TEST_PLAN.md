@@ -1,14 +1,181 @@
 # Browser Test Implementation Plan
 
-This is a living document tracking the implementation of comprehensive browser tests for all JavaScript functionality. Delete this file before merging.
+This is a living document tracking the implementation of comprehensive browser tests for all JavaScript functionality. **Delete this file before merging.**
 
-## Overview
+---
 
-**Goal:** Ensure all JavaScript interactions have behavioral tests to catch regressions.
+## Context
 
-**Current state:** 38 tests covering sidebar, command palette, HTMX navigation, action buttons, keyboard shortcuts, and content stability.
+### What is Compose Farm?
 
-**Gap:** Terminal streaming, exec terminals, console page, Monaco editor behaviors, and service-specific command palette actions are untested.
+Compose Farm is a CLI + Web UI for managing Docker Compose services across multiple SSH hosts. The web UI is a secondary interface built with:
+- **Backend**: FastAPI + Jinja2 templates
+- **Frontend**: HTMX + DaisyUI (Tailwind) + xterm.js (terminals) + Monaco (editors)
+- **No build system**: All JS libraries loaded from CDN
+
+### Relevant File Paths
+
+```
+src/compose_farm/web/
+├── app.py              # FastAPI app factory
+├── deps.py             # Shared config/template helpers
+├── streaming.py        # CLI subprocess execution, task registry
+├── ws.py               # WebSocket handlers (terminal, exec, shell)
+├── routes/
+│   ├── pages.py        # HTML page routes
+│   ├── api.py          # REST API (file CRUD, container status)
+│   └── actions.py      # Action endpoints (up, down, restart, etc.)
+├── templates/
+│   ├── base.html       # Layout with sidebar
+│   ├── index.html      # Dashboard
+│   ├── service.html    # Service detail page
+│   ├── console.html    # Terminal + file editor (has ~200 lines inline JS)
+│   └── partials/       # HTMX partials
+└── static/
+    └── app.js          # Main JavaScript (~680 lines)
+
+tests/web/
+├── conftest.py              # Shared fixtures
+├── test_htmx_browser.py     # Browser tests (38 existing tests)
+├── test_backup.py           # Unit tests for file backup
+├── test_helpers.py          # Unit tests for helpers
+└── test_template_context.py # Template rendering tests
+```
+
+### How to Run Browser Tests
+
+```bash
+# Browser tests require Chromium via nix-shell
+nix-shell --run "uv run pytest tests/web/test_htmx_browser.py -v --no-cov"
+
+# Run a specific test class
+nix-shell --run "uv run pytest tests/web/test_htmx_browser.py::TestCommandPalette -v --no-cov"
+
+# Run with headed browser for debugging
+nix-shell --run "uv run pytest tests/web/test_htmx_browser.py::TestSidebarFilter -v --no-cov --headed"
+```
+
+---
+
+## JavaScript Functionality Overview
+
+### app.js Functions
+
+| Function | Purpose | WebSocket/API |
+|----------|---------|---------------|
+| `createTerminal(container, opts, onResize)` | Create xterm.js terminal with ResizeObserver | - |
+| `createWebSocket(path)` | Create WebSocket with correct protocol | - |
+| `whenXtermReady(callback)` | Wait for xterm.js CDN to load | - |
+| `initTerminal(elementId, taskId)` | Connect to task streaming WebSocket | `/ws/terminal/{task_id}` |
+| `initExecTerminal(service, container, host)` | Connect to container exec WebSocket | `/ws/exec/{service}/{container}/{host}` |
+| `sidebarFilter()` | Filter sidebar by text/host | - |
+| `loadMonaco(callback)` | Lazy load Monaco from CDN | - |
+| `createEditor(container, content, lang, opts)` | Create Monaco editor | - |
+| `initMonacoEditors()` | Initialize all page editors | - |
+| `saveAllEditors()` | Save all editors via PUT requests | `/api/compose`, `/api/env`, `/api/config` |
+| `refreshDashboard()` | Dispatch `cf:refresh` custom event | - |
+| `expandTerminal()` | Expand terminal collapse section | - |
+| `tryReconnectToTask()` | Reconnect to active task from localStorage | `/ws/terminal/{task_id}` |
+| Command Palette (IIFE) | Cmd+K navigation, filtering, execution | Various |
+
+### console.html Functions (inline)
+
+| Function | Purpose | API |
+|----------|---------|-----|
+| `connectConsole()` | Connect to host shell | `/ws/shell/{host}` |
+| `loadFile()` | Load file content | `GET /api/console/file?host=X&path=Y` |
+| `saveFile()` | Save file content | `PUT /api/console/file?host=X&path=Y` |
+| `initConsoleEditor()` | Create Monaco editor for console | - |
+
+### WebSocket Endpoints
+
+| Endpoint | Purpose | Message Format |
+|----------|---------|----------------|
+| `/ws/terminal/{task_id}` | Stream CLI command output | Server sends text, client receives |
+| `/ws/exec/{service}/{container}/{host}` | Interactive container shell | Bidirectional: text + `{type: "resize", cols, rows}` |
+| `/ws/shell/{host}` | Interactive host shell | Bidirectional: text + `{type: "resize", cols, rows}` |
+
+---
+
+## Existing Test Patterns
+
+### Test Server Fixture
+
+The test server uses a module-scoped fixture that:
+1. Creates a temp config with test services (plex, sonarr, radarr, jellyfin)
+2. Patches `get_config()` to return the test config
+3. Starts uvicorn in a thread
+4. Returns the server URL
+
+```python
+@pytest.fixture(scope="module")
+def server_url(test_config: Path, monkeypatch_module: pytest.MonkeyPatch) -> Generator[str, None, None]:
+    config = load_config(test_config)
+    monkeypatch_module.setattr(web_deps, "get_config", lambda: config)
+    # ... start server, yield URL, cleanup
+```
+
+### Typical Test Pattern
+
+```python
+class TestSidebarFilter:
+    def test_text_filter_hides_non_matching_services(self, page: Page, server_url: str) -> None:
+        """Typing in filter input hides services that don't match."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Initial state
+        visible_items = page.locator("#sidebar-services li:not([hidden])")
+        assert visible_items.count() == 4
+
+        # Trigger action
+        filter_input = page.locator("#sidebar-filter")
+        filter_input.fill("plex")
+        filter_input.dispatch_event("keyup")
+
+        # Verify result
+        visible_after = page.locator("#sidebar-services li:not([hidden])")
+        assert visible_after.count() == 1
+```
+
+### Mocking API Responses
+
+```python
+def test_apply_button_makes_post_request(self, page: Page, server_url: str) -> None:
+    page.goto(server_url)
+
+    api_calls: list[str] = []
+
+    def handle_route(route: Route) -> None:
+        api_calls.append(route.request.url)
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body='{"task_id": "test-123"}',
+        )
+
+    page.route("**/api/apply", handle_route)
+    page.locator("button", has_text="Apply").click()
+    page.wait_for_timeout(500)
+
+    assert len(api_calls) == 1
+```
+
+### Waiting for Dynamic Content
+
+```python
+# Wait for HTMX to load content
+page.wait_for_selector("#sidebar-services", timeout=5000)
+
+# Wait for Monaco to load
+page.wait_for_function("typeof monaco !== 'undefined'", timeout=10000)
+
+# Wait for element state change
+page.wait_for_function(
+    "document.getElementById('terminal-toggle')?.checked === true",
+    timeout=3000,
+)
+```
 
 ---
 
@@ -17,248 +184,235 @@ This is a living document tracking the implementation of comprehensive browser t
 ### P0: Critical Path (Must Have)
 
 #### Terminal Streaming (`initTerminal`, WebSocket handlers)
-Core functionality for showing command output.
+
+The core functionality for showing command output after clicking action buttons.
+
+**How it works:**
+1. User clicks action button (e.g., "Apply")
+2. Server creates task, returns `{task_id: "..."}`
+3. JS intercepts response in `htmx:afterRequest`
+4. JS calls `initTerminal("terminal-output", taskId)`
+5. WebSocket connects to `/ws/terminal/{task_id}`
+6. Server streams output, JS writes to terminal
+7. When done, server sends `[Done]` or `[Failed]`
+
+**Tests needed:**
 
 - [ ] `test_action_triggers_terminal_websocket_connection`
-  - Click action button → terminal connects to `/ws/terminal/{task_id}`
-  - Verify WebSocket URL matches task_id from response
+  - Mock `/api/apply` to return `{task_id: "test-123"}`
+  - Intercept WebSocket upgrade request
+  - Verify connection to `/ws/terminal/test-123`
 
-- [ ] `test_terminal_displays_streamed_output`
-  - Mock WebSocket to send test output
-  - Verify output appears in terminal element
+- [ ] `test_terminal_expands_on_action_response`
+  - Already exists as `test_action_response_expands_terminal`
+  - ✅ DONE
 
-- [ ] `test_terminal_shows_done_message_on_completion`
-  - Mock WebSocket to send `[Done]`
-  - Verify terminal shows completion status
+- [ ] `test_terminal_displays_connected_message`
+  - After WebSocket opens, terminal should show `[Connected]`
+  - Use `page.evaluate()` to check terminal buffer or look for text
 
-- [ ] `test_terminal_shows_failed_message_on_error`
-  - Mock WebSocket to send `[Failed]`
-  - Verify terminal shows error status
+- [ ] `test_terminal_stores_task_in_localstorage`
+  - After action → verify `localStorage.getItem('cf_task:/')` equals task_id
 
-- [ ] `test_terminal_reconnects_from_localstorage_on_refresh`
-  - Trigger action → store task in localStorage
-  - Reload page → verify terminal reconnects
-  - Note: May need to mock the WebSocket endpoint
+- [ ] `test_terminal_clears_localstorage_on_done`
+  - Complete task → verify localStorage cleared
 
 #### Console Page - Terminal
-Shell access to hosts.
+
+**How it works:**
+1. User navigates to `/console`
+2. User selects host from dropdown
+3. User clicks "Connect"
+4. `connectConsole()` creates terminal + WebSocket to `/ws/shell/{host}`
+5. Bidirectional communication: keystrokes sent, output received
+
+**Tests needed:**
 
 - [ ] `test_console_page_renders`
   - Navigate to `/console`
-  - Verify host selector, terminal, and editor sections visible
+  - Verify: host selector, Connect button, terminal container, editor container
 
-- [ ] `test_console_host_selector_shows_hosts`
-  - Verify dropdown contains hosts from config
+- [ ] `test_console_host_selector_shows_all_hosts`
+  - Verify dropdown has options for server-1, server-2
 
-- [ ] `test_console_connect_creates_terminal`
-  - Select host → click Connect
-  - Verify terminal element is created
+- [ ] `test_console_connect_shows_status`
+  - Click Connect → status shows "Connecting..." then "Connected to {host}"
+  - Note: WebSocket may fail in test (no real SSH), so mock or check initial state
 
-- [ ] `test_console_terminal_connects_websocket`
-  - Click Connect → verify WebSocket to `/ws/shell/{host}`
+- [ ] `test_console_connect_creates_terminal_element`
+  - Click Connect → terminal container has xterm elements (`.xterm` class)
 
-- [ ] `test_console_shows_connection_status`
-  - Connect → verify status shows "Connected to {host}"
-  - Disconnect → verify status shows "Disconnected"
+- [ ] `test_console_auto_connects_on_load`
+  - Console page auto-connects to first host on load
+  - Verify terminal created without clicking Connect
 
 #### Console Page - File Editor
-Remote file editing.
 
-- [ ] `test_console_editor_loads`
-  - Navigate to console → verify Monaco editor initializes
+**How it works:**
+1. User enters file path (e.g., `~/docker-compose.yaml`)
+2. User clicks "Open"
+3. `loadFile()` fetches `GET /api/console/file?host=X&path=Y`
+4. Content displayed in Monaco editor
+5. User edits, clicks "Save"
+6. `saveFile()` sends `PUT /api/console/file?host=X&path=Y` with content
 
-- [ ] `test_console_load_file_fetches_content`
+**Tests needed:**
+
+- [ ] `test_console_editor_initializes`
+  - Navigate to console → Monaco editor loads
+  - Wait for `typeof monaco !== 'undefined'`
+
+- [ ] `test_console_load_file_calls_api`
   - Enter path → click Open
-  - Mock API response → verify content in editor
+  - Verify GET request to `/api/console/file`
 
-- [ ] `test_console_load_file_shows_status`
-  - Load file → verify status shows "Loaded: {path}"
+- [ ] `test_console_load_file_shows_content`
+  - Mock API to return `{success: true, content: "test content"}`
+  - Verify editor contains "test content"
 
-- [ ] `test_console_save_file_sends_content`
-  - Load file → edit → click Save
-  - Verify PUT request with content
+- [ ] `test_console_load_file_updates_status`
+  - Load file → status shows "Loaded: {path}"
 
-- [ ] `test_console_save_file_shows_status`
-  - Save → verify status shows "Saved: {path}"
+- [ ] `test_console_save_file_calls_api`
+  - Load file → click Save
+  - Verify PUT request with editor content
 
-- [ ] `test_console_file_path_detects_language`
-  - Load `.yaml` file → verify YAML syntax highlighting
-  - Load `.json` file → verify JSON syntax highlighting
+- [ ] `test_console_save_file_updates_status`
+  - Save file → status shows "Saved: {path}"
 
 ---
 
 ### P1: Important (Should Have)
 
 #### Exec Terminal (`initExecTerminal`)
-Interactive container shell access.
 
-- [ ] `test_container_shell_button_visible`
-  - Navigate to service page with containers
-  - Verify Shell button appears for running containers
+Container shell access from service page.
 
-- [ ] `test_shell_button_opens_exec_terminal`
-  - Click Shell button → verify exec terminal container becomes visible
+**How it works:**
+1. Service page shows container list
+2. Each container has "Shell" button
+3. Button calls `initExecTerminal(service, container, host)`
+4. Creates terminal + WebSocket to `/ws/exec/{service}/{container}/{host}`
+
+**Tests needed:**
+
+- [ ] `test_service_page_has_exec_terminal_container`
+  - Navigate to service page → exec terminal container exists (hidden)
+
+- [ ] `test_shell_button_shows_exec_terminal`
+  - Note: Requires containers to be visible, which requires mocking container status API
+  - Click Shell → exec terminal container becomes visible
 
 - [ ] `test_exec_terminal_connects_websocket`
-  - Click Shell → verify WebSocket to `/ws/exec/{service}/{container}/{host}`
+  - Click Shell → WebSocket connects to correct path
 
-- [ ] `test_exec_terminal_cleanup_on_reconnect`
-  - Open shell → open another shell
-  - Verify first WebSocket closed, no errors
+#### Monaco Editor Behaviors
 
-#### Monaco Editor Loading
+- [ ] `test_dashboard_monaco_loads`
+  - Dashboard page → Monaco loads for config editor
 
-- [ ] `test_monaco_lazy_loads_on_first_editor`
-  - Navigate to page with editor
-  - Verify Monaco script loaded from CDN
+- [ ] `test_service_page_monaco_loads`
+  - Service page → Monaco loads for compose/env editors
 
-- [ ] `test_monaco_editor_cmd_s_saves`
-  - Focus editor → press Cmd+S
-  - Verify save API called
-
-- [ ] `test_multiple_editors_share_monaco_instance`
-  - Page with multiple editors → verify Monaco loaded once
+- [ ] `test_editor_cmd_s_triggers_save`
+  - Focus editor → Cmd+S → save API called
+  - Note: May conflict with global Ctrl+S test
 
 #### Service Page Command Palette
 
-- [ ] `test_service_page_palette_shows_service_actions`
-  - Navigate to service page → open palette
-  - Verify Up, Down, Restart, Pull, Update, Logs commands present
+- [ ] `test_service_page_palette_has_action_commands`
+  - Navigate to `/service/plex` → open palette
+  - Verify: Up, Down, Restart, Pull, Update, Logs commands visible
 
-- [ ] `test_palette_service_action_triggers_api`
-  - On service page → palette → select Up
-  - Verify POST to `/api/service/{name}/up`
+- [ ] `test_palette_action_triggers_service_api`
+  - On service page → palette → select "Up"
+  - Verify POST to `/api/service/plex/up`
 
-- [ ] `test_palette_dashboard_action_from_service_page`
-  - On service page → palette → select Apply
-  - Verify navigates to dashboard + triggers action
+- [ ] `test_palette_apply_from_service_page`
+  - On service page → palette → select "Apply"
+  - Verify navigates to dashboard + triggers `/api/apply`
 
 ---
 
-### P2: Nice to Have
+### P2: Nice to Have (Lower Priority)
 
-#### Terminal Resize
-
-- [ ] `test_terminal_resize_observer_fires`
-  - Resize terminal container
-  - Verify fit() called (terminal dimensions change)
-
-- [ ] `test_exec_terminal_sends_resize_message`
-  - Resize exec terminal
-  - Verify WebSocket receives resize JSON
-
-#### Terminal Cleanup
-
-- [ ] `test_terminal_dispose_disconnects_observer`
-  - Create terminal → dispose
-  - Verify no memory leaks (ResizeObserver disconnected)
-
-#### Language Detection
-
+- [ ] `test_terminal_resize_updates_dimensions`
+- [ ] `test_exec_terminal_sends_resize_json`
 - [ ] `test_language_detection_yaml`
 - [ ] `test_language_detection_json`
-- [ ] `test_language_detection_python`
-- [ ] `test_language_detection_unknown_defaults_plaintext`
-
-#### FAB Animation
-
-- [ ] `test_fab_intro_animation_plays`
-  - Page load → verify FAB has animation class
+- [ ] `test_fab_animation_on_load`
 
 ---
 
-## Implementation Notes
+## Implementation Strategy
 
-### Challenges
+### Phase 1: Console Page Tests (Easiest)
+Start here because:
+- Console page is self-contained
+- File API can be easily mocked
+- No complex task/streaming state
 
-1. **WebSocket Testing**: Playwright can intercept HTTP but WebSocket interception is trickier. Options:
-   - Use `page.route()` to mock the WebSocket upgrade request (returns mock data)
-   - Create a real WebSocket endpoint in the test server that returns predictable data
-   - Use Playwright's `page.evaluate()` to mock the WebSocket constructor
+### Phase 2: Terminal Streaming Tests
+- Need to handle WebSocket mocking
+- May need real `/ws/terminal` endpoint that returns test data
+- Focus on behavioral tests (connection, expansion) not content
 
-2. **Monaco Editor**: Loads from CDN, takes time to initialize. Need:
-   - Wait for `window.monaco` to be defined
-   - Use `page.wait_for_function()` with appropriate timeout
+### Phase 3: Exec Terminal Tests
+- Depends on container status API mocking
+- Similar WebSocket challenges as terminal streaming
 
-3. **Terminal Content**: xterm.js renders to canvas, not DOM text. Options:
-   - Check for terminal container visibility
-   - Use `term.buffer` to read content (requires page.evaluate)
-   - Look for specific DOM elements that indicate state
+### Phase 4: Service Page Palette Tests
+- Build on existing command palette tests
+- Just need to verify service-specific commands
 
-4. **localStorage**: Need to verify task persistence. Options:
-   - Use `page.evaluate()` to check localStorage
-   - Create task → reload → verify reconnection behavior
+---
 
-### Test Fixtures Needed
+## Technical Challenges & Solutions
 
-```python
-@pytest.fixture
-def mock_websocket_task():
-    """Mock WebSocket that sends predictable task output."""
-    # Return a handler that can be used with page.route()
-    pass
+### Challenge 1: WebSocket Testing
 
-@pytest.fixture
-def mock_console_api():
-    """Mock console file read/write API."""
-    pass
-```
+**Problem:** Playwright's `page.route()` intercepts HTTP but WebSocket upgrade is trickier.
 
-### File Structure
+**Solutions:**
+1. **Intercept upgrade request** - Can detect that WebSocket was attempted
+2. **Create test WebSocket endpoint** - Add a test route that returns predictable data
+3. **Use page.evaluate()** - Mock `WebSocket` constructor in browser
 
-```
-tests/web/
-├── conftest.py                 # Existing fixtures
-├── test_htmx_browser.py        # Existing 38 tests
-├── test_terminal_browser.py    # NEW: Terminal streaming tests
-├── test_console_browser.py     # NEW: Console page tests
-└── test_editor_browser.py      # NEW: Monaco editor tests
-```
+**Recommended approach:** For P0, verify WebSocket URL is correct via route interception. Don't verify actual content (too complex for now).
 
-Or add to existing file as new test classes:
-```python
-# In test_htmx_browser.py
-class TestTerminalStreaming:
-    ...
+### Challenge 2: xterm.js Content
 
-class TestConsolePage:
-    ...
+**Problem:** xterm.js renders to canvas, not readable DOM.
 
-class TestMonacoEditor:
-    ...
+**Solutions:**
+1. Check terminal visibility and initialization
+2. Use `page.evaluate()` to read `term.buffer`
+3. Look for status elements (spinner, connected message)
 
-class TestExecTerminal:
-    ...
-```
+**Recommended approach:** Focus on behavioral tests. Verify terminal is created and connected, not specific output text.
+
+### Challenge 3: Monaco Editor Timing
+
+**Problem:** Monaco loads async from CDN, may not be ready immediately.
+
+**Solution:** Use `page.wait_for_function("typeof monaco !== 'undefined'", timeout=10000)`
 
 ---
 
 ## Progress Log
 
-### Session 1: Initial Setup
-- [x] Created this planning document
-- [ ] Implement P0 terminal streaming tests
-- [ ] Implement P0 console page tests
-
----
-
-## Open Questions
-
-1. **WebSocket mocking strategy**: Should we mock at the Playwright level or create test endpoints in the server?
-   - Recommendation: Start with test endpoints, fall back to Playwright mocking if needed
-
-2. **Test file organization**: Single file or split by feature?
-   - Recommendation: Add to existing file as new test classes for now, split later if it gets too large
-
-3. **How to verify terminal content**: Canvas-based rendering makes text verification hard
-   - Recommendation: Focus on behavioral tests (connection, visibility) rather than content verification
+| Date | What was done |
+|------|---------------|
+| 2024-12-19 | Created this planning document |
+| | Next: Implement P0 console page tests |
 
 ---
 
 ## Definition of Done
 
-- [ ] All P0 tests passing
-- [ ] All P1 tests passing
-- [ ] Tests run in CI (nix-shell or playwright install)
-- [ ] No flaky tests (run 3x to verify)
-- [ ] This document deleted
+- [ ] All P0 tests implemented and passing
+- [ ] All P1 tests implemented and passing
+- [ ] Tests run successfully in nix-shell
+- [ ] No flaky tests (verified with 3 consecutive runs)
+- [ ] PR updated with test changes
+- [ ] This file deleted before merge
