@@ -347,6 +347,16 @@ class TestServiceDetailPage:
 class TestSidebarFilter:
     """Test JavaScript sidebar filtering functionality."""
 
+    @staticmethod
+    def _filter_sidebar(page: Page, text: str) -> None:
+        """Fill the sidebar filter and trigger the keyup event.
+
+        The sidebar uses onkeyup, which fill() doesn't trigger.
+        """
+        filter_input = page.locator("#sidebar-filter")
+        filter_input.fill(text)
+        filter_input.dispatch_event("keyup")
+
     def test_text_filter_hides_non_matching_services(self, page: Page, server_url: str) -> None:
         """Typing in filter input hides services that don't match."""
         page.goto(server_url)
@@ -357,7 +367,7 @@ class TestSidebarFilter:
         assert visible_items.count() == 4
 
         # Type in filter to match only "plex"
-        page.locator("#sidebar-filter").fill("plex")
+        self._filter_sidebar(page, "plex")
 
         # Only plex should be visible now
         visible_after = page.locator("#sidebar-services li:not([hidden])")
@@ -374,7 +384,7 @@ class TestSidebarFilter:
         assert "(4)" in count_badge.inner_text()
 
         # Filter to show only services containing "arr" (sonarr, radarr)
-        page.locator("#sidebar-filter").fill("arr")
+        self._filter_sidebar(page, "arr")
 
         # Count should update to (2)
         assert "(2)" in count_badge.inner_text()
@@ -385,7 +395,7 @@ class TestSidebarFilter:
         page.wait_for_selector("#sidebar-services", timeout=5000)
 
         # Type uppercase
-        page.locator("#sidebar-filter").fill("PLEX")
+        self._filter_sidebar(page, "PLEX")
 
         # Should still match plex
         visible = page.locator("#sidebar-services li:not([hidden])")
@@ -419,7 +429,7 @@ class TestSidebarFilter:
         page.locator("#sidebar-host-select").select_option("server-2")
 
         # Then filter by text "arr" (should match only radarr on server-2)
-        page.locator("#sidebar-filter").fill("arr")
+        self._filter_sidebar(page, "arr")
 
         visible = page.locator("#sidebar-services li:not([hidden])")
         assert visible.count() == 1
@@ -431,11 +441,11 @@ class TestSidebarFilter:
         page.wait_for_selector("#sidebar-services", timeout=5000)
 
         # Apply filter
-        page.locator("#sidebar-filter").fill("plex")
+        self._filter_sidebar(page, "plex")
         assert page.locator("#sidebar-services li:not([hidden])").count() == 1
 
         # Clear filter
-        page.locator("#sidebar-filter").fill("")
+        self._filter_sidebar(page, "")
 
         # All services visible again
         assert page.locator("#sidebar-services li:not([hidden])").count() == 4
@@ -696,8 +706,8 @@ class TestActionButtons:
 
         page.route("**/api/service/plex/up", handle_route)
 
-        # Click Up button
-        page.locator("button", has_text="Up").click()
+        # Click Up button (use get_by_role for exact match, avoiding "Update")
+        page.get_by_role("button", name="Up", exact=True).click()
         page.wait_for_timeout(500)
 
         assert len(api_calls) == 1
