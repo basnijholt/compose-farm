@@ -97,12 +97,20 @@ def _download_url(url: str) -> bytes | None:
 
 
 @pytest.fixture(scope="session")
-def vendor_cache(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Download CDN assets once per test session for faster tests."""
-    cache_dir: Path = tmp_path_factory.mktemp("vendor")
+def vendor_cache(request: pytest.FixtureRequest) -> Path:
+    """Download CDN assets once and cache to disk for faster tests.
+
+    Uses a persistent cache directory so assets are only downloaded once
+    across multiple test runs. Clear with: pytest --cache-clear
+    """
+    # Use project-local cache directory
+    cache_dir = Path(request.config.rootdir) / ".pytest_cache" / "vendor"
+    cache_dir.mkdir(parents=True, exist_ok=True)
 
     for url, (filename, _content_type) in CDN_ASSETS.items():
         filepath = cache_dir / filename
+        if filepath.exists():
+            continue  # Already cached
         content = _download_url(url)
         if content:
             filepath.write_bytes(content)
