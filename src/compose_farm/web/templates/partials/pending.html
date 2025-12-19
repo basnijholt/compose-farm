@@ -2,8 +2,6 @@
 <div id="pending-operations"
      hx-get="/partials/pending-content"
      hx-trigger="cf:refresh from:body"
-     hx-target="this"
-     hx-select="unset"
      hx-swap="innerHTML">
 {% include "partials/pending_content.html" %}
 </div>

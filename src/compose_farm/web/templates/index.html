@@ -23,7 +23,6 @@
     <div id="config-error"
          hx-get="/partials/config-error"
          hx-trigger="cf:refresh from:body"
-         hx-target="this"
          hx-swap="innerHTML">
     {% if config_error %}
         {% include "partials/config_error.html" %}
