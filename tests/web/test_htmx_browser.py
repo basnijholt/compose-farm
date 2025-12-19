@@ -419,6 +419,21 @@ class TestDashboardContent:
         assert "sonarr" in content or "not started" in content
         assert "jellyfin" in content or "not started" in content
 
+    def test_dashboard_monaco_loads(self, page: Page, server_url: str) -> None:
+        """Dashboard page loads Monaco editor for config editing."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Wait for Monaco to load
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+
+        # Verify Monaco editor element exists (may be in collapsed section)
+        page.wait_for_function(
+            "document.querySelectorAll('.monaco-editor').length >= 1",
+            timeout=5000,
+        )
+        assert page.locator(".monaco-editor").count() >= 1
+
 
 class TestSaveConfigButton:
     """Test save config button behavior."""
@@ -479,6 +494,25 @@ class TestServiceDetailPage:
 
         # Should be back on dashboard
         assert page.url.rstrip("/") == server_url.rstrip("/")
+
+    def test_service_page_monaco_loads(self, page: Page, server_url: str) -> None:
+        """Service page loads Monaco editor for compose/env editing."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Wait for Monaco to load
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+
+        # Verify Monaco editor element exists (may be in collapsed section)
+        page.wait_for_function(
+            "document.querySelectorAll('.monaco-editor').length >= 1",
+            timeout=5000,
+        )
+        assert page.locator(".monaco-editor").count() >= 1
 
 
 class TestSidebarFilter:
@@ -1067,6 +1101,23 @@ class TestConsolePage:
         assert any("server-1" in text for text in option_texts)
         assert any("server-2" in text for text in option_texts)
 
+    def test_console_connect_shows_status(self, page: Page, server_url: str) -> None:
+        """Console shows connection status when attempting to connect."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-host-select", timeout=5000)
+
+        # Wait for terminal to initialize (triggers auto-connect)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+
+        # Status element should exist and have some text
+        # (may show "Connected", "Connecting...", or "Disconnected" depending on WebSocket)
+        status = page.locator("#console-status")
+        assert status.is_visible()
+        status_text = status.inner_text()
+        # Should show some connection-related status
+        assert any(s in status_text for s in ["Connect", "Disconnect", "server-"])
+
     def test_console_connect_creates_terminal_element(self, page: Page, server_url: str) -> None:
         """Connecting to a host creates xterm terminal elements.
 
@@ -1176,6 +1227,43 @@ class TestConsolePage:
             timeout=5000,
         )
 
+    def test_console_load_file_updates_status(self, page: Page, server_url: str) -> None:
+        """Loading a file updates the editor status to show the file path."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-file-path", timeout=5000)
+
+        # Wait for terminal and Monaco
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=5000)
+
+        # Mock file API
+        page.route(
+            "**/api/console/file*",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"success": true, "content": "test"}',
+            ),
+        )
+
+        # Load file
+        file_input = page.locator("#console-file-path")
+        file_input.fill("/tmp/test.yaml")
+        page.locator("button", has_text="Open").click()
+
+        # Wait for status to show "Loaded:"
+        page.wait_for_function(
+            "document.getElementById('editor-status')?.textContent?.includes('Loaded')",
+            timeout=5000,
+        )
+
+        # Verify status shows the file path
+        status = page.locator("#editor-status").inner_text()
+        assert "Loaded" in status
+        assert "test.yaml" in status
+
     def test_console_save_file_calls_api(self, page: Page, server_url: str) -> None:
         """Clicking Save button calls the file API with PUT method."""
         page.goto(f"{server_url}/console")
@@ -1233,6 +1321,56 @@ class TestConsolePage:
         method, url = api_calls[0]
         assert method == "PUT"
         assert "/api/console/file" in url
+
+    def test_console_save_file_updates_status(self, page: Page, server_url: str) -> None:
+        """Saving a file updates the editor status to show 'Saved'."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-file-path", timeout=5000)
+
+        # Wait for terminal and Monaco
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=5000)
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=5000)
+
+        # Mock file API for both load and save
+        def handle_route(route: Route) -> None:
+            if route.request.method == "PUT":
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body='{"success": true}',
+                )
+            else:
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    body='{"success": true, "content": "test"}',
+                )
+
+        page.route("**/api/console/file*", handle_route)
+
+        # Load file first
+        file_input = page.locator("#console-file-path")
+        file_input.fill("/tmp/test.yaml")
+        page.locator("button", has_text="Open").click()
+        page.wait_for_function(
+            "document.getElementById('editor-status')?.textContent?.includes('Loaded')",
+            timeout=5000,
+        )
+
+        # Save file
+        page.locator("#console-save-btn").click()
+
+        # Wait for status to show "Saved:"
+        page.wait_for_function(
+            "document.getElementById('editor-status')?.textContent?.includes('Saved')",
+            timeout=5000,
+        )
+
+        # Verify status shows saved
+        status = page.locator("#editor-status").inner_text()
+        assert "Saved" in status
 
 
 class TestTerminalStreaming:
@@ -1333,6 +1471,42 @@ class TestTerminalStreaming:
         # Verify WebSocket connected to correct path
         assert len(ws_urls) >= 1
         assert any("/ws/terminal/ws-test-456" in url for url in ws_urls)
+
+    def test_terminal_displays_connected_message(self, page: Page, server_url: str) -> None:
+        """Terminal shows [Connected] message after WebSocket opens."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Mock Apply API to return a task ID
+        page.route(
+            "**/api/apply",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "connected-test", "service": null, "command": "apply"}',
+            ),
+        )
+
+        # Wait for xterm to load
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+
+        # Click Apply to trigger terminal
+        page.locator("button", has_text="Apply").click()
+
+        # Wait for terminal to be created and WebSocket to connect
+        page.wait_for_selector("#terminal-output .xterm", timeout=5000)
+
+        # Check terminal buffer for [Connected] message
+        # xterm.js stores content in buffer, accessible via the terminal instance
+        has_connected = page.evaluate("""() => {
+            const container = document.getElementById('terminal-output');
+            if (!container) return false;
+            // Check if xterm viewport contains text (rendered content)
+            const viewport = container.querySelector('.xterm-rows');
+            if (!viewport) return false;
+            return viewport.textContent.includes('Connected');
+        }""")
+        assert has_connected, "Terminal should display [Connected] message"
 
 
 class TestExecTerminal:
@@ -1475,3 +1649,41 @@ class TestServicePagePalette:
         # Verify correct API was called
         assert len(api_calls) >= 1
         assert "/api/service/plex/up" in api_calls[0]
+
+    def test_palette_apply_from_service_page(self, page: Page, server_url: str) -> None:
+        """Selecting Apply from service page palette navigates to dashboard and triggers API."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Track API calls
+        api_calls: list[str] = []
+
+        def handle_route(route: Route) -> None:
+            api_calls.append(route.request.url)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "apply-test", "service": null, "command": "apply"}',
+            )
+
+        page.route("**/api/apply", handle_route)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Filter to "Apply" and execute
+        page.locator("#cmd-input").fill("Apply")
+        page.keyboard.press("Enter")
+
+        # Wait for navigation to dashboard and API call
+        page.wait_for_url(server_url, timeout=5000)
+        page.wait_for_timeout(500)
+
+        # Verify Apply API was called
+        assert len(api_calls) >= 1
+        assert "/api/apply" in api_calls[0]
