@@ -264,7 +264,7 @@ function loadMonaco(callback) {
 function createEditor(container, content, language, opts = {}) {
     const { readonly = false, onSave = null } = opts;
 
-    const editor = monaco.editor.create(container, {
+    const options = {
         value: content,
         language,
         theme: 'vs-dark',
@@ -273,15 +273,25 @@ function createEditor(container, content, language, opts = {}) {
         scrollBeyondLastLine: false,
         fontSize: 14,
         lineNumbers: 'on',
-        wordWrap: 'on',
-        ...(readonly && { readOnly: true, domReadOnly: true })
-    });
+        wordWrap: 'on'
+    };
+
+    if (readonly) {
+        options.readOnly = true;
+        options.domReadOnly = true;
+    }
+
+    const editor = monaco.editor.create(container, options);
 
     // Add Command+S / Ctrl+S handler for editable editors
     if (!readonly) {
-        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () =>
-            onSave ? onSave(editor) : saveAllEditors()
-        );
+        editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+            if (onSave) {
+                onSave(editor);
+            } else {
+                saveAllEditors();
+            }
+        });
     }
 
     return editor;
