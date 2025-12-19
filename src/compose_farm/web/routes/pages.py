@@ -300,7 +300,6 @@ async def commands_partial(
 
     """
     # FastAPI converts cmd-service to cmd_service, but we also accept 'service'
-    # Check query params directly for cmd-service
     if service is None:
         service = request.query_params.get("cmd-service")
     config = get_config()
@@ -311,57 +310,25 @@ async def commands_partial(
 
     # Service-specific commands (if on a service page)
     if service:
-        svc_commands = [
-            {
-                "name": "Up",
-                "desc": f"Start {service}",
-                "icon": "play",
-                "type": "service",
-                "url": f"/api/service/{service}/up",
-                "method": "post",
-            },
-            {
-                "name": "Down",
-                "desc": f"Stop {service}",
-                "icon": "square",
-                "type": "service",
-                "url": f"/api/service/{service}/down",
-                "method": "post",
-            },
-            {
-                "name": "Restart",
-                "desc": f"Restart {service}",
-                "icon": "rotate_cw",
-                "type": "service",
-                "url": f"/api/service/{service}/restart",
-                "method": "post",
-            },
-            {
-                "name": "Pull",
-                "desc": f"Pull {service}",
-                "icon": "cloud_download",
-                "type": "service",
-                "url": f"/api/service/{service}/pull",
-                "method": "post",
-            },
-            {
-                "name": "Update",
-                "desc": f"Pull + restart {service}",
-                "icon": "refresh_cw",
-                "type": "service",
-                "url": f"/api/service/{service}/update",
-                "method": "post",
-            },
-            {
-                "name": "Logs",
-                "desc": f"View logs for {service}",
-                "icon": "file_text",
-                "type": "service",
-                "url": f"/api/service/{service}/logs",
-                "method": "post",
-            },
+        actions = [
+            ("Up", "Start", "play", "up"),
+            ("Down", "Stop", "square", "down"),
+            ("Restart", "Restart", "rotate_cw", "restart"),
+            ("Pull", "Pull", "cloud_download", "pull"),
+            ("Update", "Pull + restart", "refresh_cw", "update"),
+            ("Logs", "View logs for", "file_text", "logs"),
         ]
-        commands.extend(svc_commands)
+        commands.extend(
+            {
+                "name": name,
+                "desc": f"{desc} {service}",
+                "icon": icon,
+                "type": "service",
+                "url": f"/api/service/{service}/{endpoint}",
+                "method": "post",
+            }
+            for name, desc, icon, endpoint in actions
+        )
 
     # Global actions
     commands.extend(
