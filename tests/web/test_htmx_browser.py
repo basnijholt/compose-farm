@@ -1,7 +1,9 @@
 """Browser tests for HTMX behavior using Playwright.
 
-Run with: nix-shell --run "uv run pytest tests/web/test_htmx_browser.py -v --no-cov"
-Or on CI: playwright install chromium --with-deps
+Run with: uv run pytest tests/web/test_htmx_browser.py -v --no-cov
+
+CDN assets are cached locally (in .pytest_cache/vendor/) to eliminate network
+variability. If a test fails with "Uncached CDN request", add the URL to CDN_ASSETS.
 """
 
 from __future__ import annotations
@@ -46,7 +48,76 @@ CDN_ASSETS = {
         "xterm-fit.js",
         "application/javascript",
     ),
+    # Monaco editor - loader.js plus dynamically loaded modules
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js": (
+        "monaco-loader.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.js": (
+        "monaco-editor-main.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.css": (
+        "monaco-editor-main.css",
+        "text/css",
+    ),
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/worker/workerMain.js": (
+        "monaco-workerMain.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/basic-languages/yaml/yaml.js": (
+        "monaco-yaml.js",
+        "application/javascript",
+    ),
+    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/browser/ui/codicons/codicon/codicon.ttf": (
+        "monaco-codicon.ttf",
+        "font/ttf",
+    ),
 }
+
+# Path to web source files
+WEB_SOURCE_DIR = Path(__file__).parent.parent.parent / "src" / "compose_farm" / "web"
+
+
+def _find_cdn_urls_in_source() -> set[str]:
+    """Scan web source files for CDN URLs that should be cached."""
+    cdn_pattern = re.compile(r'https://(?:cdn\.jsdelivr\.net|unpkg\.com)/[^\s\'"]+')
+    urls: set[str] = set()
+
+    for ext in ("*.html", "*.js"):
+        for filepath in WEB_SOURCE_DIR.rglob(ext):
+            content = filepath.read_text()
+            urls.update(cdn_pattern.findall(content))
+
+    # Normalize: remove trailing quotes/parens that regex might capture
+    return {url.rstrip("'\");") for url in urls}
+
+
+def test_all_cdn_urls_are_cached() -> None:
+    """Ensure all CDN URLs in source files are in CDN_ASSETS for test caching.
+
+    If this test fails, add the missing URL to CDN_ASSETS at the top of this file.
+    This prevents flaky tests caused by network requests to CDN during browser tests.
+    """
+    source_urls = _find_cdn_urls_in_source()
+    cached_urls = set(CDN_ASSETS.keys())
+
+    missing: list[str] = []
+    for url in source_urls:
+        # Check if this URL is cached OR is a base path prefix of a cached URL
+        # (Monaco uses require.config({ paths: { vs: '...' }}) which sets a base path)
+        is_cached = any(url.startswith(prefix) for prefix in cached_urls)
+        is_base_path = any(cached.startswith(url) for cached in cached_urls)
+        if not is_cached and not is_base_path:
+            missing.append(url)
+
+    if missing:
+        msg = (
+            "CDN URLs found in source but not cached in CDN_ASSETS:\n"
+            + "\n".join(f"  - {url}" for url in sorted(missing))
+            + "\n\nAdd these to CDN_ASSETS in tests/web/test_htmx_browser.py"
+        )
+        pytest.fail(msg)
 
 
 def _browser_available() -> bool:
@@ -113,16 +184,23 @@ def vendor_cache(request: pytest.FixtureRequest) -> Path:
 
 @pytest.fixture
 def page(page: Page, vendor_cache: Path) -> Page:
-    """Override default page fixture to intercept CDN requests with local cache."""
-    # Build lookup: url_prefix -> (filepath, content_type)
+    """Override default page fixture to intercept CDN requests with local cache.
+
+    Any CDN request not in CDN_ASSETS will abort with an error, forcing developers
+    to add new CDN URLs to the cache. This catches both static and dynamic loads.
+    """
     cache = {url: (vendor_cache / f, ct) for url, (f, ct) in CDN_ASSETS.items()}
 
     def handle_cdn(route: Route) -> None:
+        url = route.request.url
         for url_prefix, (filepath, content_type) in cache.items():
-            if route.request.url.startswith(url_prefix):
+            if url.startswith(url_prefix):
                 route.fulfill(status=200, content_type=content_type, body=filepath.read_bytes())
                 return
-        route.continue_()
+        # Uncached CDN request - abort with helpful error
+        route.abort("failed")
+        msg = f"Uncached CDN request: {url}\n\nAdd this URL to CDN_ASSETS in tests/web/test_htmx_browser.py"
+        raise RuntimeError(msg)
 
     page.route(re.compile(r"https://(cdn\.jsdelivr\.net|unpkg\.com)/.*"), handle_cdn)
     return page
