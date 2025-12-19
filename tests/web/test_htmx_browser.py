@@ -1,6 +1,6 @@
 """Browser tests for HTMX behavior using Playwright.
 
-Run with: nix-shell -p chromium --run "pytest tests/web/test_htmx_browser.py -v"
+Run with: nix-shell --run "uv run pytest tests/web/test_htmx_browser.py -v --no-cov"
 """
 
 from __future__ import annotations
@@ -62,7 +62,7 @@ services:
   sonarr: server-1
 """)
 
-    # Create state
+    # Create state (plex running, sonarr not started)
     (tmp / "compose-farm-state.yaml").write_text("deployed:\n  plex: server-1\n")
 
     return config
@@ -134,96 +134,175 @@ def monkeypatch_module() -> Generator[pytest.MonkeyPatch, None, None]:
     mp.undo()
 
 
-class TestDashboard:
-    """Test dashboard page loads correctly."""
+class TestHTMXSidebarLoading:
+    """Test that sidebar loads dynamically via HTMX."""
 
-    def test_dashboard_loads(self, page: Page, server_url: str) -> None:
-        """Dashboard page loads with all sections."""
-        response = page.goto(server_url)
-        assert response is not None, "No response from server"
-        assert response.ok, f"Server returned {response.status}"
+    def test_sidebar_initially_shows_loading(self, page: Page, server_url: str) -> None:
+        """Sidebar shows loading spinner before HTMX loads content."""
+        # Intercept the sidebar request to delay it
+        page.route("**/partials/sidebar", lambda route: route.abort())
 
-        page.wait_for_load_state("networkidle")
-
-        # Check key elements exist
-        page.wait_for_selector("#stats-cards", timeout=5000)
-        page.wait_for_selector("#pending-operations", timeout=5000)
-
-    def test_stats_cards_show_data(self, page: Page, server_url: str) -> None:
-        """Stats cards display service counts."""
         page.goto(server_url)
-        page.wait_for_selector("#stats-cards")
 
-        content = page.locator("#stats-cards").inner_html()
-        # Should show hosts, services, running, stopped counts
-        assert "Hosts" in content or "1" in content
-        assert "Services" in content or "2" in content
+        # Before HTMX loads, should see loading indicator
+        nav = page.locator("nav")
+        assert "Loading" in nav.inner_text() or nav.locator(".loading").count() > 0
 
-    def test_pending_operations_visible(self, page: Page, server_url: str) -> None:
-        """Pending operations section shows sync status."""
+    def test_sidebar_loads_services_via_htmx(self, page: Page, server_url: str) -> None:
+        """Sidebar fetches and displays services via hx-get on load."""
         page.goto(server_url)
-        page.wait_for_selector("#pending-operations")
 
-        content = page.locator("#pending-operations").inner_html()
-        # Should have either sync message or pending items
-        assert len(content) > 0
-
-    def test_save_button_exists(self, page: Page, server_url: str) -> None:
-        """Save config button is present."""
-        page.goto(server_url)
-        save_btn = page.locator("#save-config-btn")
-        assert save_btn.count() == 1
-
-
-class TestSidebarNavigation:
-    """Test sidebar navigation works."""
-
-    def test_sidebar_has_service_links(self, page: Page, server_url: str) -> None:
-        """Sidebar contains service navigation links."""
-        page.goto(server_url)
-        # Wait for sidebar to load via HTMX
+        # Wait for HTMX to load sidebar content
         page.wait_for_selector("#sidebar-services", timeout=5000)
 
-        # Check sidebar has service links
-        service_links = page.locator("#sidebar-services a[href*='/service/']")
-        assert service_links.count() >= 1
+        # Verify actual services from test config appear
+        services = page.locator("#sidebar-services li")
+        assert services.count() == 2  # plex and sonarr
 
-    def test_sidebar_navigation_to_service(self, page: Page, server_url: str) -> None:
-        """Clicking service link navigates to service page."""
+        # Check specific services are present
+        content = page.locator("#sidebar-services").inner_text()
+        assert "plex" in content
+        assert "sonarr" in content
+
+    def test_sidebar_shows_running_status(self, page: Page, server_url: str) -> None:
+        """Sidebar shows running/stopped status indicators for services."""
         page.goto(server_url)
-        # Wait for sidebar to load via HTMX
-        page.wait_for_selector("#sidebar-services a[href*='/service/']", timeout=5000)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
 
-        # Click first service link
-        link = page.locator("#sidebar-services a[href*='/service/']").first
-        service_name = link.get_attribute("href").split("/service/")[1]
-        link.click()
+        # plex is in state (running) - should have success status
+        plex_item = page.locator("#sidebar-services li", has_text="plex")
+        assert plex_item.locator(".status-success").count() == 1
 
-        # Should navigate to service page
-        page.wait_for_url(f"**/service/{service_name}", timeout=5000)
-        assert f"/service/{service_name}" in page.url
+        # sonarr is NOT in state (not started) - should have neutral status
+        sonarr_item = page.locator("#sidebar-services li", has_text="sonarr")
+        assert sonarr_item.locator(".status-neutral").count() == 1
 
 
-class TestPartialEndpoints:
-    """Test partial endpoints return valid HTML."""
+class TestHTMXBoostNavigation:
+    """Test hx-boost SPA-like navigation."""
 
-    def test_stats_partial(self, page: Page, server_url: str) -> None:
-        """Stats partial returns valid HTML."""
-        response = page.goto(f"{server_url}/partials/stats")
-        assert response.ok
-        content = page.content()
-        assert "stats-cards" in content
+    def test_navigation_updates_url_without_full_reload(self, page: Page, server_url: str) -> None:
+        """Clicking boosted link updates URL without full page reload."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
 
-    def test_pending_partial(self, page: Page, server_url: str) -> None:
-        """Pending partial returns valid HTML."""
-        response = page.goto(f"{server_url}/partials/pending")
-        assert response.ok
-        content = page.content()
-        assert "pending-operations" in content
+        # Add a marker to detect full page reload
+        page.evaluate("window.__htmxTestMarker = 'still-here'")
 
-    def test_sidebar_partial(self, page: Page, server_url: str) -> None:
-        """Sidebar partial returns valid HTML."""
-        response = page.goto(f"{server_url}/partials/sidebar")
-        assert response.ok
-        content = page.content()
-        assert "href" in content  # Should have navigation links
+        # Click a service link (boosted via hx-boost on parent)
+        page.locator("#sidebar-services a", has_text="plex").click()
+
+        # Wait for navigation
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Verify URL changed
+        assert "/service/plex" in page.url
+
+        # Verify NO full page reload (marker should still exist)
+        marker = page.evaluate("window.__htmxTestMarker")
+        assert marker == "still-here", "Full page reload occurred - hx-boost not working"
+
+    def test_main_content_replaced_on_navigation(self, page: Page, server_url: str) -> None:
+        """Navigation replaces #main-content via hx-target/hx-select."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Get initial main content
+        initial_content = page.locator("#main-content").inner_text()
+        assert "Compose Farm" in initial_content  # Dashboard title
+
+        # Navigate to service page
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Main content should now show service page
+        new_content = page.locator("#main-content").inner_text()
+        assert "plex" in new_content.lower()
+        assert "Compose Farm" not in new_content  # Dashboard title should be gone
+
+
+class TestDashboardContent:
+    """Test dashboard displays correct data."""
+
+    def test_stats_show_correct_counts(self, page: Page, server_url: str) -> None:
+        """Stats cards show accurate host/service counts from config."""
+        page.goto(server_url)
+        page.wait_for_selector("#stats-cards", timeout=5000)
+
+        stats = page.locator("#stats-cards").inner_text()
+
+        # From test config: 1 host, 2 services, 1 running (plex), 1 stopped (sonarr)
+        assert "1" in stats  # hosts count
+        assert "2" in stats  # services count
+
+    def test_pending_shows_not_started_service(self, page: Page, server_url: str) -> None:
+        """Pending operations shows sonarr as not started."""
+        page.goto(server_url)
+        page.wait_for_selector("#pending-operations", timeout=5000)
+
+        pending = page.locator("#pending-operations")
+        content = pending.inner_text()
+
+        # sonarr is not in state, should show as not started
+        assert "sonarr" in content.lower() or "Not Started" in content
+
+
+class TestSaveConfigButton:
+    """Test save config button behavior."""
+
+    def test_save_button_shows_saved_feedback(self, page: Page, server_url: str) -> None:
+        """Clicking save shows 'Saved!' feedback text."""
+        page.goto(server_url)
+        page.wait_for_selector("#save-config-btn", timeout=5000)
+
+        save_btn = page.locator("#save-config-btn")
+        initial_text = save_btn.inner_text()
+        assert "Save" in initial_text
+
+        # Click save
+        save_btn.click()
+
+        # Wait for feedback
+        page.wait_for_function(
+            "document.querySelector('#save-config-btn')?.textContent?.includes('Saved')",
+            timeout=5000,
+        )
+
+        # Verify feedback shown
+        assert "Saved" in save_btn.inner_text()
+
+
+class TestServiceDetailPage:
+    """Test service detail page via HTMX navigation."""
+
+    def test_service_page_shows_service_info(self, page: Page, server_url: str) -> None:
+        """Service page displays service information."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Should show service name and host info
+        content = page.locator("#main-content").inner_text()
+        assert "plex" in content.lower()
+        assert "server-1" in content  # assigned host from config
+        # Should show compose file path
+        assert "compose.yaml" in content
+
+    def test_back_navigation_works(self, page: Page, server_url: str) -> None:
+        """Browser back button works after HTMX navigation."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Go back
+        page.go_back()
+        page.wait_for_url(server_url, timeout=5000)
+
+        # Should be back on dashboard
+        assert page.url.rstrip("/") == server_url.rstrip("/")
