@@ -63,9 +63,12 @@ uv run pytest tests/ --ignore=tests/web/test_htmx_browser.py
 
 # Browser tests (requires nix-shell for Chromium)
 nix-shell --run "uv run pytest tests/web/test_htmx_browser.py -v --no-cov"
+
+# Browser tests in parallel (faster, uses pytest-xdist)
+nix-shell --run "uv run pytest tests/web/test_htmx_browser.py -v --no-cov -n 4 --dist loadscope"
 ```
 
-The browser tests use Playwright to test HTMX behavior, JavaScript functionality (sidebar filter, command palette, terminals), and content stability during navigation.
+The browser tests use Playwright to test HTMX behavior, JavaScript functionality (sidebar filter, command palette, terminals), and content stability during navigation. Use `--dist loadscope` with `-n` to run test classes in parallel while keeping tests within a class sequential (avoids race conditions with the shared test server).
 
 ## Communication Notes
 
