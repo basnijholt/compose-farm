@@ -974,3 +974,18 @@ class TestConsolePage:
         # Verify xterm screen is created (the actual terminal display)
         xterm_screen = page.locator("#console-terminal .xterm-screen")
         assert xterm_screen.is_visible()
+
+    def test_console_editor_initializes(self, page: Page, server_url: str) -> None:
+        """Monaco editor initializes on the console page."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-editor", timeout=5000)
+
+        # Wait for Monaco to load from CDN
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=15000)
+
+        # Monaco creates elements inside the container
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=10000)
+
+        # Verify Monaco editor is present
+        monaco_editor = page.locator("#console-editor .monaco-editor")
+        assert monaco_editor.is_visible()
