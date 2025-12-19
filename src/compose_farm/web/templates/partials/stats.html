@@ -1,6 +1,8 @@
 {% from "partials/components.html" import stat_card %}
 {% from "partials/icons.html" import server, layers, circle_check, circle_x %}
 <div id="stats-cards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
-     {% if oob %}hx-swap-oob="outerHTML"{% endif %}>
+     hx-get="/partials/stats-content"
+     hx-trigger="cf:refresh from:body"
+     hx-swap="innerHTML">
 {% include "partials/stats_content.html" %}
 </div>

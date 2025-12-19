@@ -14,20 +14,16 @@
     <div class="flex flex-wrap gap-2 mb-6">
         {{ action_btn("Apply", "/api/apply", "primary", "Make reality match config", check()) }}
         {{ action_btn("Refresh", "/api/refresh", "outline", "Update state from reality", refresh_cw()) }}
-        <button id="save-config-btn" class="btn btn-outline"
-                hx-put="/htmx/save-config"
-                hx-vals="js:{content: window.getEditorContent('config')}"
-                hx-target="#save-config-btn"
-                hx-swap="innerHTML"
-                hx-indicator="#save-config-btn">
-            {{ save() }} <span>Save Config</span>
-        </button>
+        <button id="save-config-btn" class="btn btn-outline">{{ save() }} Save Config</button>
     </div>
 
     {% include "partials/terminal.html" %}
 
-    <!-- Config Error Banner (refreshed via OOB on save) -->
-    <div id="config-error">
+    <!-- Config Error Banner -->
+    <div id="config-error"
+         hx-get="/partials/config-error"
+         hx-trigger="cf:refresh from:body"
+         hx-swap="innerHTML">
     {% if config_error %}
         {% include "partials/config_error.html" %}
     {% endif %}

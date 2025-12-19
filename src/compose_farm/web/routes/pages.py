@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated
-
 import yaml
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
@@ -346,76 +344,5 @@ async def services_by_host_content_partial(request: Request, expanded: bool = Tr
             "hosts": config.hosts,
             "services_by_host": services_by_host,
             "expanded": expanded,
-        },
-    )
-
-
-@router.put("/htmx/save-config", response_class=HTMLResponse)
-async def save_config_htmx(
-    request: Request,
-    content: Annotated[str, Body(media_type="text/plain")],
-) -> HTMLResponse:
-    """Save config and return HTML response with OOB swaps.
-
-    This endpoint is designed for HTMX - it saves the config file and returns
-    HTML that includes out-of-band swaps to refresh dashboard sections.
-    """
-    templates = get_templates()
-    config_path = find_config_path()
-
-    # Validate and save
-    message = "Saved!"
-    config_error = None
-    try:
-        yaml.safe_load(content)  # Validate YAML syntax
-        if config_path:
-            config_path.write_text(content)
-    except yaml.YAMLError as e:
-        message = f"Invalid YAML: {e}"
-        config_error = message
-
-    # Reload config to get fresh data for OOB elements
-    try:
-        config = get_config()
-    except (ValidationError, FileNotFoundError) as e:
-        config_error = extract_config_error(e)
-        # Return error response without OOB (config is broken)
-        return HTMLResponse(f"Error: {config_error}")
-
-    # Load state and compute dashboard data
-    deployed = load_state(config)
-    running_count = len(deployed)
-    stopped_count = len(config.services) - running_count
-    orphaned = get_orphaned_services(config)
-    migrations = get_services_needing_migration(config)
-    not_started = get_services_not_in_state(config)
-    services_by_host = group_running_services_by_host(deployed, config.hosts)
-
-    # Build service -> host mapping for sidebar
-    service_hosts = {
-        svc: "" if host_val == "all" or isinstance(host_val, list) else host_val
-        for svc, host_val in config.services.items()
-    }
-
-    return templates.TemplateResponse(
-        "partials/save_response.html",
-        {
-            "request": request,
-            "message": message,
-            "config_error": config_error,
-            # Stats
-            "hosts": config.hosts,
-            "services": config.services,
-            "running_count": running_count,
-            "stopped_count": stopped_count,
-            # Pending
-            "orphaned": orphaned,
-            "migrations": migrations,
-            "not_started": not_started,
-            # Services by host
-            "services_by_host": services_by_host,
-            # Sidebar
-            "service_hosts": service_hosts,
-            "state": deployed,
         },
     )
