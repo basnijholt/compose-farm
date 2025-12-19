@@ -213,13 +213,7 @@ def parse_host_volumes(config: Config, service: str) -> list[str]:
                 paths.append(host_path)
 
     # Return unique paths, preserving order
-    seen: set[str] = set()
-    unique: list[str] = []
-    for p in paths:
-        if p not in seen:
-            seen.add(p)
-            unique.append(p)
-    return unique
+    return list(dict.fromkeys(paths))
 
 
 def parse_devices(config: Config, service: str) -> list[str]:
@@ -258,13 +252,7 @@ def parse_devices(config: Config, service: str) -> list[str]:
                     devices.append(host_path)
 
     # Return unique devices, preserving order
-    seen: set[str] = set()
-    unique: list[str] = []
-    for d in devices:
-        if d not in seen:
-            seen.add(d)
-            unique.append(d)
-    return unique
+    return list(dict.fromkeys(devices))
 
 
 def parse_external_networks(config: Config, service: str) -> list[str]:

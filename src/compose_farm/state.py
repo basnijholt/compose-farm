@@ -115,50 +115,6 @@ def remove_service(config: Config, service: str) -> None:
         state.pop(service, None)
 
 
-def add_service_to_host(config: Config, service: str, host: str) -> None:
-    """Add a specific host to a service's state.
-
-    For multi-host services, adds the host to the list if not present.
-    For single-host services, sets the host.
-    """
-    with _modify_state(config) as state:
-        current = state.get(service)
-
-        if config.is_multi_host(service):
-            # Multi-host: add to list if not present
-            if isinstance(current, list):
-                if host not in current:
-                    state[service] = [*current, host]
-            else:
-                state[service] = [host]
-        else:
-            # Single-host: just set it
-            state[service] = host
-
-
-def remove_service_from_host(config: Config, service: str, host: str) -> None:
-    """Remove a specific host from a service's state.
-
-    For multi-host services, removes just that host from the list.
-    For single-host services, removes the service entirely if host matches.
-    """
-    with _modify_state(config) as state:
-        current = state.get(service)
-        if current is None:
-            return
-
-        if isinstance(current, list):
-            # Multi-host: remove this host from list
-            remaining = [h for h in current if h != host]
-            if remaining:
-                state[service] = remaining
-            else:
-                state.pop(service, None)
-        elif current == host:
-            # Single-host: remove if matches
-            state.pop(service, None)
-
-
 def get_services_needing_migration(config: Config) -> list[str]:
     """Get services where current host differs from configured host.
 
