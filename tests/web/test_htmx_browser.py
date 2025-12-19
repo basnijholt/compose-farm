@@ -214,7 +214,7 @@ class TestHTMXSidebarLoading:
 
         # Dashboard content must STILL be visible after sidebar loads
         assert stats.is_visible(), "Dashboard disappeared after sidebar loaded"
-        assert page.locator("#stats-cards .stat").count() >= 4
+        assert page.locator("#stats-cards .card").count() >= 4
 
     def test_sidebar_shows_running_status(self, page: Page, server_url: str) -> None:
         """Sidebar shows running/stopped status indicators for services."""
@@ -779,7 +779,7 @@ class TestContentStability:
 
         # All major dashboard sections must be visible
         assert page.locator("#stats-cards").is_visible(), "Stats cards missing"
-        assert page.locator("#stats-cards .stat").count() >= 4, "Stats incomplete"
+        assert page.locator("#stats-cards .card").count() >= 4, "Stats incomplete"
         assert page.locator("#pending-operations").is_visible(), "Pending ops missing"
         assert page.locator("#services-by-host").is_visible(), "Services by host missing"
         assert page.locator("#sidebar-services").is_visible(), "Sidebar missing"
@@ -887,7 +887,7 @@ class TestContentStability:
         page.wait_for_selector("#sidebar-services", timeout=5000)
 
         # Count initial elements
-        initial_stat_count = page.locator("#stats-cards .stat").count()
+        initial_stat_count = page.locator("#stats-cards .card").count()
         initial_service_count = page.locator("#sidebar-services li").count()
 
         # Trigger multiple refreshes
@@ -898,5 +898,5 @@ class TestContentStability:
         page.wait_for_load_state("networkidle")
 
         # Counts should be same (no duplicates created)
-        assert page.locator("#stats-cards .stat").count() == initial_stat_count
+        assert page.locator("#stats-cards .card").count() == initial_stat_count
         assert page.locator("#sidebar-services li").count() == initial_service_count
