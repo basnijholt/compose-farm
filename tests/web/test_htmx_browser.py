@@ -960,12 +960,12 @@ class TestConsolePage:
         page.goto(f"{server_url}/console")
         page.wait_for_selector("#console-terminal", timeout=5000)
 
-        # Wait for xterm.js to load from CDN (can be slow on first load)
-        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=15000)
+        # Wait for xterm.js to load from CDN
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
 
         # The console page auto-connects, which creates the terminal.
         # Wait for xterm to initialize (creates .xterm class)
-        page.wait_for_selector("#console-terminal .xterm", timeout=15000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=10000)
 
         # Verify xterm elements are present
         xterm_container = page.locator("#console-terminal .xterm")
