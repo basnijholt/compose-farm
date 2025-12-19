@@ -1,18 +1,4 @@
-{% from "partials/icons.html" import search, play, square, rotate_cw, cloud_download, refresh_cw, file_text, check, home, terminal, box %}
-
-<!-- Icons for command palette (referenced by JS) -->
-<template id="cmd-icons">
-    <span data-icon="play">{{ play() }}</span>
-    <span data-icon="square">{{ square() }}</span>
-    <span data-icon="rotate_cw">{{ rotate_cw() }}</span>
-    <span data-icon="cloud_download">{{ cloud_download() }}</span>
-    <span data-icon="refresh_cw">{{ refresh_cw() }}</span>
-    <span data-icon="file_text">{{ file_text() }}</span>
-    <span data-icon="check">{{ check() }}</span>
-    <span data-icon="home">{{ home() }}</span>
-    <span data-icon="terminal">{{ terminal() }}</span>
-    <span data-icon="box">{{ box() }}</span>
-</template>
+{% from "partials/icons.html" import search %}
 <dialog id="cmd-palette" class="modal">
     <div class="modal-box max-w-lg p-0">
         <label class="input input-lg bg-base-100 border-0 border-b border-base-300 w-full rounded-none rounded-t-box sticky top-0 z-10 focus-within:outline-none">
@@ -20,8 +6,13 @@
             <input type="text" id="cmd-input" class="grow" placeholder="Type a command..." autocomplete="off" />
             <kbd class="kbd kbd-sm opacity-50">esc</kbd>
         </label>
-        <div id="cmd-list" class="flex flex-col p-2 max-h-80 overflow-y-auto">
-            <!-- Populated by JS -->
+        <input type="hidden" id="cmd-service" name="cmd-service" value="" />
+        <div id="cmd-list" class="flex flex-col p-2 max-h-80 overflow-y-auto"
+             hx-get="/partials/commands"
+             hx-trigger="cf:commands"
+             hx-include="[name='cmd-service']"
+             hx-swap="innerHTML">
+            <div class="opacity-50 p-2">Loading...</div>
         </div>
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>

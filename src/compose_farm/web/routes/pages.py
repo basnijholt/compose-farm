@@ -282,3 +282,89 @@ async def services_by_host_partial(request: Request, expanded: bool = True) -> H
             "expanded": expanded,
         },
     )
+
+
+@router.get("/partials/commands", response_class=HTMLResponse)
+async def commands_partial(request: Request, service: str | None = None) -> HTMLResponse:
+    """Command palette commands list."""
+    service = service or request.query_params.get("cmd-service")
+    config = get_config()
+    templates = get_templates()
+
+    commands: list[dict[str, str | bool]] = []
+
+    if service:
+        commands.extend(
+            {
+                "name": name,
+                "desc": f"{desc} {service}",
+                "icon": icon,
+                "type": "service",
+                "url": f"/api/service/{service}/{endpoint}",
+                "method": "post",
+            }
+            for name, desc, icon, endpoint in [
+                ("Up", "Start", "play", "up"),
+                ("Down", "Stop", "square", "down"),
+                ("Restart", "Restart", "rotate_cw", "restart"),
+                ("Pull", "Pull", "cloud_download", "pull"),
+                ("Update", "Pull + restart", "refresh_cw", "update"),
+                ("Logs", "View logs for", "file_text", "logs"),
+            ]
+        )
+
+    commands.extend(
+        [
+            {
+                "name": "Apply",
+                "desc": "Make reality match config",
+                "icon": "check",
+                "type": "action",
+                "url": "/api/apply",
+                "method": "post",
+                "dashboard": True,
+            },
+            {
+                "name": "Refresh",
+                "desc": "Update state from reality",
+                "icon": "refresh_cw",
+                "type": "action",
+                "url": "/api/refresh",
+                "method": "post",
+                "dashboard": True,
+            },
+            {
+                "name": "Dashboard",
+                "desc": "Go to dashboard",
+                "icon": "home",
+                "type": "app",
+                "url": "/",
+                "method": "get",
+            },
+            {
+                "name": "Console",
+                "desc": "Go to console",
+                "icon": "terminal",
+                "type": "app",
+                "url": "/console",
+                "method": "get",
+            },
+        ]
+    )
+
+    commands.extend(
+        {
+            "name": svc_name,
+            "desc": "Go to service",
+            "icon": "box",
+            "type": "nav",
+            "url": f"/service/{svc_name}",
+            "method": "get",
+        }
+        for svc_name in sorted(config.services.keys())
+    )
+
+    return templates.TemplateResponse(
+        "partials/commands.html",
+        {"request": request, "commands": commands},
+    )
