@@ -1217,3 +1217,82 @@ class TestTerminalStreaming:
         # Verify WebSocket connected to correct path
         assert len(ws_urls) >= 1
         assert any("/ws/terminal/ws-test-456" in url for url in ws_urls)
+
+
+class TestExecTerminal:
+    """Test exec terminal functionality for container shells."""
+
+    def test_service_page_has_exec_terminal_container(self, page: Page, server_url: str) -> None:
+        """Service page has exec terminal container (initially hidden)."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Exec terminal container should exist but be hidden
+        exec_container = page.locator("#exec-terminal-container")
+        assert exec_container.count() == 1
+        assert "hidden" in (exec_container.get_attribute("class") or "")
+
+        # The inner terminal div should also exist
+        exec_terminal = page.locator("#exec-terminal")
+        assert exec_terminal.count() == 1
+
+    def test_exec_terminal_connects_websocket(self, page: Page, server_url: str) -> None:
+        """Clicking Shell button triggers WebSocket to exec endpoint."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Mock containers API to return a container
+        page.route(
+            "**/api/service/plex/containers*",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/html",
+                body="""
+                <div class="flex items-center gap-2 p-2 bg-base-200 rounded">
+                    <span class="status status-success"></span>
+                    <code class="text-sm flex-1">plex-container</code>
+                    <button class="btn btn-sm btn-outline"
+                            onclick="initExecTerminal('plex', 'plex-container', 'server-1')">
+                        Shell
+                    </button>
+                </div>
+                """,
+            ),
+        )
+
+        # Reload to get mocked containers
+        page.reload()
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Track WebSocket connections
+        ws_urls: list[str] = []
+
+        def handle_ws(ws: WebSocket) -> None:
+            ws_urls.append(ws.url)
+
+        page.on("websocket", handle_ws)
+
+        # Wait for xterm to load
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
+
+        # Click Shell button
+        page.locator("button", has_text="Shell").click()
+
+        # Wait for WebSocket connection
+        page.wait_for_timeout(1000)
+
+        # Verify WebSocket connected to exec endpoint
+        assert len(ws_urls) >= 1
+        assert any("/ws/exec/plex/plex-container/server-1" in url for url in ws_urls)
+
+        # Exec terminal container should now be visible
+        exec_container = page.locator("#exec-terminal-container")
+        assert "hidden" not in (exec_container.get_attribute("class") or "")
