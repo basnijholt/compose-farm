@@ -45,7 +45,7 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 
 ## Code Style
 
-- **Imports at top level**: Never add imports inside functions unless they are explicitly marked with `# noqa: PLC0415` and a comment explaining it speeds up CLI startup. Heavy modules like `pydantic`, `yaml`, and `rich.table` are lazily imported to keep `cf --help` fast.
+- **Imports at top level**: Never add imports inside functions. All imports must be at the top of the file.
 
 ## Communication Notes
 

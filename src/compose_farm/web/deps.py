@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING
 from fastapi.templating import Jinja2Templates
 from pydantic import ValidationError
 
+from compose_farm.executor import is_local
+
 if TYPE_CHECKING:
     from compose_farm.config import Config
 
@@ -38,3 +40,11 @@ def extract_config_error(exc: Exception) -> str:
     if isinstance(exc, ValidationError):
         return "; ".join(err.get("msg", str(err)) for err in exc.errors())
     return str(exc)
+
+
+def get_local_host(config: Config) -> str | None:
+    """Find the local host name from config, if any."""
+    for name, host in config.hosts.items():
+        if is_local(host):
+            return name
+    return None
