@@ -1059,3 +1059,61 @@ class TestConsolePage:
             "window.consoleEditor && window.consoleEditor.getValue().includes('nginx')",
             timeout=5000,
         )
+
+    def test_console_save_file_calls_api(self, page: Page, server_url: str) -> None:
+        """Clicking Save button calls the file API with PUT method."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-file-path", timeout=5000)
+
+        # Wait for terminal to connect and Monaco to load
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=10000)
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=15000)
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=10000)
+
+        # Track API calls
+        api_calls: list[tuple[str, str]] = []  # (method, url)
+
+        def handle_load_route(route: Route) -> None:
+            api_calls.append((route.request.method, route.request.url))
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"success": true, "content": "original content"}',
+            )
+
+        def handle_save_route(route: Route) -> None:
+            api_calls.append((route.request.method, route.request.url))
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"success": true}',
+            )
+
+        page.route(
+            "**/api/console/file*",
+            lambda route: (
+                handle_save_route(route)
+                if route.request.method == "PUT"
+                else handle_load_route(route)
+            ),
+        )
+
+        # Load a file first (required before save works)
+        file_input = page.locator("#console-file-path")
+        file_input.fill("/tmp/test.yaml")
+        page.locator("button", has_text="Open").click()
+        page.wait_for_timeout(500)
+
+        # Clear api_calls to track only the save
+        api_calls.clear()
+
+        # Click Save button
+        page.locator("#console-save-btn").click()
+        page.wait_for_timeout(500)
+
+        # Verify PUT request was made
+        assert len(api_calls) >= 1
+        method, url = api_calls[0]
+        assert method == "PUT"
+        assert "/api/console/file" in url
