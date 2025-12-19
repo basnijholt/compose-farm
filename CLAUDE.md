@@ -47,22 +47,31 @@ The web UI uses [HTMX](https://htmx.org/) for dynamic behavior. Follow these pat
 - `hx-swap` - How to insert (`innerHTML`, `outerHTML`, `beforeend`, etc.)
 - `hx-trigger` - Event that triggers request (default: `click` for buttons)
 
-### Updating Multiple Elements (use `hx-swap-oob`)
+### Updating Multiple Elements (use custom events)
 
-When an action needs to update multiple parts of the page, use **Out of Band Swaps**. The server returns the primary response plus additional elements with `hx-swap-oob="true"`:
+When an action needs to update multiple parts of the page, use **custom events** with `hx-trigger`. Elements listen for the event and refresh themselves independently:
 
 ```html
-<!-- Server response -->
-<div id="primary-target">Success!</div>
-<div id="stats-cards" hx-swap-oob="true">...updated stats...</div>
-<div id="sidebar" hx-swap-oob="outerHTML">...updated sidebar...</div>
+<!-- Elements that auto-refresh on event -->
+<div id="stats-cards"
+     hx-get="/partials/stats-content"
+     hx-trigger="cf:refresh from:body"
+     hx-swap="innerHTML">
+</div>
+
+<!-- JavaScript dispatches the event after an action -->
+<script>
+document.body.dispatchEvent(new CustomEvent('cf:refresh'));
+</script>
 ```
 
-HTMX automatically finds elements by ID and swaps them. This is preferred over:
-- Custom events with `hx-trigger` (more JavaScript-y)
-- Multiple separate AJAX calls (inefficient)
+This approach is preferred over `hx-swap-oob` (Out of Band Swaps) because:
+- **Simpler**: No need to construct multi-part responses on the server
+- **Easier to debug**: Each element makes an isolated request you can inspect
+- **Easier to maintain**: Loose coupling between action and refreshed elements
+- **Easier to test**: Endpoints can be tested independently
 
-Reference: [Updating Other Content](https://htmx.org/examples/update-other-content/)
+Reference: [Triggering Events](https://htmx.org/headers/hx-trigger/)
 
 ### SPA-like Navigation (`hx-boost`)
 
