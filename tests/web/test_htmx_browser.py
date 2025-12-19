@@ -6,15 +6,24 @@ Or on CI: playwright install chromium --with-deps
 
 from __future__ import annotations
 
+import os
 import shutil
+import socket
 import threading
 import time
+import urllib.request
 from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 import uvicorn
+
+from compose_farm.config import load_config
+from compose_farm.web import deps as web_deps
+from compose_farm.web.app import create_app
+from compose_farm.web.routes import api as web_api
+from compose_farm.web.routes import pages as web_pages
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page
@@ -92,15 +101,6 @@ def server_url(
     test_config: Path, monkeypatch_module: pytest.MonkeyPatch
 ) -> Generator[str, None, None]:
     """Start test server and return URL."""
-    import os
-    import socket
-
-    from compose_farm.config import load_config
-    from compose_farm.web import deps as web_deps
-    from compose_farm.web.app import create_app
-    from compose_farm.web.routes import api as web_api
-    from compose_farm.web.routes import pages as web_pages
-
     # Load the test config
     config = load_config(test_config)
 
@@ -129,8 +129,6 @@ def server_url(
     url = f"http://127.0.0.1:{port}"
     for _ in range(50):
         try:
-            import urllib.request
-
             urllib.request.urlopen(url, timeout=0.5)  # noqa: S310
             break
         except Exception:
