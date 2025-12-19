@@ -1149,3 +1149,33 @@ class TestTerminalStreaming:
         # Verify task ID was stored in localStorage
         stored_task = page.evaluate("localStorage.getItem('cf_task:/')")
         assert stored_task == "test-task-123"
+
+    def test_terminal_reconnects_from_localstorage(self, page: Page, server_url: str) -> None:
+        """Terminal attempts to reconnect to task stored in localStorage.
+
+        Tests that when a page loads with an active task in localStorage,
+        it expands the terminal and attempts to reconnect.
+        """
+        # First, set up a task in localStorage before navigating
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Store a task ID in localStorage
+        page.evaluate("localStorage.setItem('cf_task:/', 'reconnect-test-123')")
+
+        # Navigate away and back (or reload) to trigger reconnect
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-terminal", timeout=5000)
+
+        # Navigate back to dashboard
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Wait for xterm to load (reconnect uses whenXtermReady)
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
+
+        # Terminal should be expanded because tryReconnectToTask runs
+        page.wait_for_function(
+            "document.getElementById('terminal-toggle')?.checked === true",
+            timeout=5000,
+        )
