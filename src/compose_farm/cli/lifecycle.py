@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 import typer
-
-if TYPE_CHECKING:
-    from compose_farm.config import Config
 
 from compose_farm.cli.app import app
 from compose_farm.cli.common import (
@@ -148,40 +145,8 @@ def update(
     report_results(results)
 
 
-def _report_pending_migrations(cfg: Config, migrations: list[str]) -> None:
-    """Report services that need migration."""
-    console.print(f"[cyan]Services to migrate ({len(migrations)}):[/]")
-    for svc in migrations:
-        current = get_service_host(cfg, svc)
-        target = cfg.get_hosts(svc)[0]
-        console.print(f"  [cyan]{svc}[/]: [magenta]{current}[/] → [magenta]{target}[/]")
-
-
-def _report_pending_orphans(orphaned: dict[str, str | list[str]]) -> None:
-    """Report orphaned services that will be stopped."""
-    console.print(f"[yellow]Orphaned services to stop ({len(orphaned)}):[/]")
-    for svc, hosts in orphaned.items():
-        console.print(f"  [cyan]{svc}[/] on [magenta]{format_host(hosts)}[/]")
-
-
-def _report_pending_starts(cfg: Config, missing: list[str]) -> None:
-    """Report services that will be started."""
-    console.print(f"[green]Services to start ({len(missing)}):[/]")
-    for svc in missing:
-        target = format_host(cfg.get_hosts(svc))
-        console.print(f"  [cyan]{svc}[/] on [magenta]{target}[/]")
-
-
-def _report_pending_refresh(cfg: Config, to_refresh: list[str]) -> None:
-    """Report services that will be refreshed."""
-    console.print(f"[blue]Services to refresh ({len(to_refresh)}):[/]")
-    for svc in to_refresh:
-        target = format_host(cfg.get_hosts(svc))
-        console.print(f"  [cyan]{svc}[/] on [magenta]{target}[/]")
-
-
 @app.command(rich_help_panel="Lifecycle")
-def apply(
+def apply(  # noqa: PLR0912 (multi-phase reconciliation needs these branches)
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run", "-n", help="Show what would change without executing"),
@@ -229,13 +194,23 @@ def apply(
 
     # Report what will be done
     if has_orphans:
-        _report_pending_orphans(orphaned)
+        console.print(f"[yellow]Orphaned services to stop ({len(orphaned)}):[/]")
+        for svc, hosts in orphaned.items():
+            console.print(f"  [cyan]{svc}[/] on [magenta]{format_host(hosts)}[/]")
     if has_migrations:
-        _report_pending_migrations(cfg, migrations)
+        console.print(f"[cyan]Services to migrate ({len(migrations)}):[/]")
+        for svc in migrations:
+            current = get_service_host(cfg, svc)
+            target = cfg.get_hosts(svc)[0]
+            console.print(f"  [cyan]{svc}[/]: [magenta]{current}[/] → [magenta]{target}[/]")
     if has_missing:
-        _report_pending_starts(cfg, missing)
+        console.print(f"[green]Services to start ({len(missing)}):[/]")
+        for svc in missing:
+            console.print(f"  [cyan]{svc}[/] on [magenta]{format_host(cfg.get_hosts(svc))}[/]")
     if has_refresh:
-        _report_pending_refresh(cfg, to_refresh)
+        console.print(f"[blue]Services to refresh ({len(to_refresh)}):[/]")
+        for svc in to_refresh:
+            console.print(f"  [cyan]{svc}[/] on [magenta]{format_host(cfg.get_hosts(svc))}[/]")
 
     if dry_run:
         console.print(f"\n{MSG_DRY_RUN}")

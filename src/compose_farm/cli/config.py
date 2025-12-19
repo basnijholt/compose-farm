@@ -40,24 +40,12 @@ _RawOption = Annotated[
 
 
 def _get_editor() -> str:
-    """Get the user's preferred editor.
-
-    Checks $EDITOR, then $VISUAL, then falls back to platform defaults.
-    """
-    for env_var in ("EDITOR", "VISUAL"):
-        editor = os.environ.get(env_var)
-        if editor:
-            return editor
-
+    """Get the user's preferred editor ($EDITOR > $VISUAL > platform default)."""
+    if editor := os.environ.get("EDITOR") or os.environ.get("VISUAL"):
+        return editor
     if platform.system() == "Windows":
         return "notepad"
-
-    # Try common editors on Unix-like systems
-    for editor in ("nano", "vim", "vi"):
-        if shutil.which(editor):
-            return editor
-
-    return "vi"
+    return next((e for e in ("nano", "vim", "vi") if shutil.which(e)), "vi")
 
 
 def _generate_template() -> str:
@@ -80,20 +68,16 @@ def _get_config_file(path: Path | None) -> Path | None:
     return config_path.resolve() if config_path else None
 
 
-def _report_no_config_found() -> None:
-    """Report that no config file was found in search paths."""
-    console.print("[yellow]No config file found.[/yellow]")
-    console.print("\nSearched locations:")
-    for p in config_search_paths():
-        status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
-        console.print(f"  - {p} ({status})")
-    console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
-
-
-def _report_config_path_not_exists(config_file: Path) -> None:
-    """Report that an explicit config path doesn't exist."""
+def _report_missing_config(explicit_path: Path | None = None) -> None:
+    """Report that a config file was not found."""
     console.print("[yellow]Config file not found.[/yellow]")
-    console.print(f"\nProvided path does not exist: [cyan]{config_file}[/cyan]")
+    if explicit_path:
+        console.print(f"\nProvided path does not exist: [cyan]{explicit_path}[/cyan]")
+    else:
+        console.print("\nSearched locations:")
+        for p in config_search_paths():
+            status = "[green]exists[/green]" if p.exists() else "[dim]not found[/dim]"
+            console.print(f"  - {p} ({status})")
     console.print("\nRun [bold cyan]cf config init[/bold cyan] to create one.")
 
 
@@ -140,11 +124,11 @@ def config_edit(
     config_file = _get_config_file(path)
 
     if config_file is None:
-        _report_no_config_found()
+        _report_missing_config()
         raise typer.Exit(1)
 
     if not config_file.exists():
-        _report_config_path_not_exists(config_file)
+        _report_missing_config(config_file)
         raise typer.Exit(1)
 
     editor = _get_editor()
@@ -180,11 +164,11 @@ def config_show(
     config_file = _get_config_file(path)
 
     if config_file is None:
-        _report_no_config_found()
+        _report_missing_config()
         raise typer.Exit(0)
 
     if not config_file.exists():
-        _report_config_path_not_exists(config_file)
+        _report_missing_config(config_file)
         raise typer.Exit(1)
 
     content = config_file.read_text(encoding="utf-8")
@@ -211,7 +195,7 @@ def config_path(
     config_file = _get_config_file(path)
 
     if config_file is None:
-        _report_no_config_found()
+        _report_missing_config()
         raise typer.Exit(1)
 
     # Just print the path for easy piping
