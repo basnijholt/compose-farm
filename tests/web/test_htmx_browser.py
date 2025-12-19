@@ -1025,3 +1025,37 @@ class TestConsolePage:
         assert "/api/console/file" in api_calls[0]
         assert "path=" in api_calls[0]
         assert "host=" in api_calls[0]
+
+    def test_console_load_file_shows_content(self, page: Page, server_url: str) -> None:
+        """Loading a file displays its content in the Monaco editor."""
+        page.goto(f"{server_url}/console")
+        page.wait_for_selector("#console-file-path", timeout=5000)
+
+        # Wait for terminal to connect and Monaco to load
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
+        page.wait_for_selector("#console-terminal .xterm", timeout=10000)
+        page.wait_for_function("typeof monaco !== 'undefined'", timeout=15000)
+        page.wait_for_selector("#console-editor .monaco-editor", timeout=10000)
+
+        # Mock file API to return specific content
+        test_content = "services:\\n  nginx:\\n    image: nginx:latest"
+
+        def handle_route(route: Route) -> None:
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body=f'{{"success": true, "content": "{test_content}"}}',
+            )
+
+        page.route("**/api/console/file*", handle_route)
+
+        # Load file
+        file_input = page.locator("#console-file-path")
+        file_input.fill("/tmp/compose.yaml")
+        page.locator("button", has_text="Open").click()
+
+        # Wait for content to be loaded into editor
+        page.wait_for_function(
+            "window.consoleEditor && window.consoleEditor.getValue().includes('nginx')",
+            timeout=5000,
+        )
