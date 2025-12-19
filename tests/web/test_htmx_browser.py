@@ -1296,3 +1296,66 @@ class TestExecTerminal:
         # Exec terminal container should now be visible
         exec_container = page.locator("#exec-terminal-container")
         assert "hidden" not in (exec_container.get_attribute("class") or "")
+
+
+class TestServicePagePalette:
+    """Test command palette behavior on service pages."""
+
+    def test_service_page_palette_has_action_commands(self, page: Page, server_url: str) -> None:
+        """Command palette on service page shows service-specific actions."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Verify service-specific action commands are visible
+        cmd_list = page.locator("#cmd-list").inner_text()
+        assert "Up" in cmd_list
+        assert "Down" in cmd_list
+        assert "Restart" in cmd_list
+        assert "Pull" in cmd_list
+        assert "Update" in cmd_list
+        assert "Logs" in cmd_list
+
+    def test_palette_action_triggers_service_api(self, page: Page, server_url: str) -> None:
+        """Selecting action from palette triggers correct service API."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services a", timeout=5000)
+
+        # Navigate to plex service
+        page.locator("#sidebar-services a", has_text="plex").click()
+        page.wait_for_url("**/service/plex", timeout=5000)
+
+        # Track API calls
+        api_calls: list[str] = []
+
+        def handle_route(route: Route) -> None:
+            api_calls.append(route.request.url)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "palette-test", "service": "plex", "command": "up"}',
+            )
+
+        page.route("**/api/service/plex/up", handle_route)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Filter to "Up" and execute
+        page.locator("#cmd-input").fill("Up")
+        page.keyboard.press("Enter")
+
+        # Wait for API call
+        page.wait_for_timeout(500)
+
+        # Verify correct API was called
+        assert len(api_calls) >= 1
+        assert "/api/service/plex/up" in api_calls[0]
