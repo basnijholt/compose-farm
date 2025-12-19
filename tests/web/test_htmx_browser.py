@@ -26,7 +26,7 @@ from compose_farm.web.routes import api as web_api
 from compose_farm.web.routes import pages as web_pages
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Page, Route
+    from playwright.sync_api import Page, Route, WebSocket
 
 
 def _browser_available() -> bool:
@@ -1179,3 +1179,41 @@ class TestTerminalStreaming:
             "document.getElementById('terminal-toggle')?.checked === true",
             timeout=5000,
         )
+
+    def test_action_triggers_terminal_websocket_connection(
+        self, page: Page, server_url: str
+    ) -> None:
+        """Action response with task_id triggers WebSocket connection to correct path."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Track WebSocket connections
+        ws_urls: list[str] = []
+
+        def handle_ws(ws: WebSocket) -> None:
+            ws_urls.append(ws.url)
+
+        page.on("websocket", handle_ws)
+
+        # Mock Apply API to return a task ID
+        page.route(
+            "**/api/apply",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "ws-test-456", "service": null, "command": "apply"}',
+            ),
+        )
+
+        # Wait for xterm to load
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=10000)
+
+        # Click Apply
+        page.locator("button", has_text="Apply").click()
+
+        # Wait for WebSocket connection
+        page.wait_for_timeout(1000)
+
+        # Verify WebSocket connected to correct path
+        assert len(ws_urls) >= 1
+        assert any("/ws/terminal/ws-test-456" in url for url in ws_urls)
