@@ -900,3 +900,39 @@ class TestContentStability:
         # Counts should be same (no duplicates created)
         assert page.locator("#stats-cards .card").count() == initial_stat_count
         assert page.locator("#sidebar-services li").count() == initial_service_count
+
+
+class TestConsolePage:
+    """Test console page functionality."""
+
+    def test_console_page_renders(self, page: Page, server_url: str) -> None:
+        """Console page renders with all required elements."""
+        page.goto(f"{server_url}/console")
+
+        # Wait for page to load
+        page.wait_for_selector("#console-host-select", timeout=5000)
+
+        # Verify host selector exists
+        host_select = page.locator("#console-host-select")
+        assert host_select.is_visible()
+
+        # Verify Connect button exists
+        connect_btn = page.locator("#console-connect-btn")
+        assert connect_btn.is_visible()
+        assert "Connect" in connect_btn.inner_text()
+
+        # Verify terminal container exists
+        terminal_container = page.locator("#console-terminal")
+        assert terminal_container.is_visible()
+
+        # Verify editor container exists
+        editor_container = page.locator("#console-editor")
+        assert editor_container.is_visible()
+
+        # Verify file path input exists
+        file_input = page.locator("#console-file-path")
+        assert file_input.is_visible()
+
+        # Verify save button exists
+        save_btn = page.locator("#console-save-btn")
+        assert save_btn.is_visible()
