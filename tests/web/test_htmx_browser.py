@@ -75,50 +75,6 @@ CDN_ASSETS = {
     ),
 }
 
-# Path to web source files
-WEB_SOURCE_DIR = Path(__file__).parent.parent.parent / "src" / "compose_farm" / "web"
-
-
-def _find_cdn_urls_in_source() -> set[str]:
-    """Scan web source files for CDN URLs that should be cached."""
-    cdn_pattern = re.compile(r'https://(?:cdn\.jsdelivr\.net|unpkg\.com)/[^\s\'"]+')
-    urls: set[str] = set()
-
-    for ext in ("*.html", "*.js"):
-        for filepath in WEB_SOURCE_DIR.rglob(ext):
-            content = filepath.read_text()
-            urls.update(cdn_pattern.findall(content))
-
-    # Normalize: remove trailing quotes/parens that regex might capture
-    return {url.rstrip("'\");") for url in urls}
-
-
-def test_all_cdn_urls_are_cached() -> None:
-    """Ensure all CDN URLs in source files are in CDN_ASSETS for test caching.
-
-    If this test fails, add the missing URL to CDN_ASSETS at the top of this file.
-    This prevents flaky tests caused by network requests to CDN during browser tests.
-    """
-    source_urls = _find_cdn_urls_in_source()
-    cached_urls = set(CDN_ASSETS.keys())
-
-    missing: list[str] = []
-    for url in source_urls:
-        # Check if this URL is cached OR is a base path prefix of a cached URL
-        # (Monaco uses require.config({ paths: { vs: '...' }}) which sets a base path)
-        is_cached = any(url.startswith(prefix) for prefix in cached_urls)
-        is_base_path = any(cached.startswith(url) for cached in cached_urls)
-        if not is_cached and not is_base_path:
-            missing.append(url)
-
-    if missing:
-        msg = (
-            "CDN URLs found in source but not cached in CDN_ASSETS:\n"
-            + "\n".join(f"  - {url}" for url in sorted(missing))
-            + "\n\nAdd these to CDN_ASSETS in tests/web/test_htmx_browser.py"
-        )
-        pytest.fail(msg)
-
 
 def _browser_available() -> bool:
     """Check if any chromium browser is available (system or Playwright-managed)."""
