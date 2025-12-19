@@ -79,7 +79,7 @@ const TERMINAL_THEME = {
  * @param {HTMLElement} container - Container element
  * @param {object} extraOptions - Additional terminal options
  * @param {function} onResize - Optional callback called with (cols, rows) after resize
- * @returns {{term: Terminal, fitAddon: FitAddon}}
+ * @returns {{term: Terminal, fitAddon: FitAddon, dispose: function}}
  */
 function createTerminal(container, extraOptions = {}, onResize = null) {
     container.innerHTML = '';
@@ -96,17 +96,26 @@ function createTerminal(container, extraOptions = {}, onResize = null) {
     const fitAddon = new FitAddon.FitAddon();
     term.loadAddon(fitAddon);
     term.open(container);
-    fitAddon.fit();
 
     const handleResize = () => {
         fitAddon.fit();
         onResize?.(term.cols, term.rows);
     };
 
-    window.addEventListener('resize', handleResize);
-    new ResizeObserver(handleResize).observe(container);
+    // Use ResizeObserver only (handles both container and window resize)
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(container);
 
-    return { term, fitAddon };
+    handleResize(); // Initial fit
+
+    return {
+        term,
+        fitAddon,
+        dispose() {
+            resizeObserver.disconnect();
+            term.dispose();
+        }
+    };
 }
 
 /**
@@ -149,7 +158,8 @@ function initTerminal(elementId, taskId) {
         return;
     }
 
-    const { term, fitAddon } = createTerminal(container);
+    const wrapper = createTerminal(container);
+    const { term } = wrapper;
     const ws = createWebSocket(`/ws/terminal/${taskId}`);
 
     const taskKey = getTaskKey();
@@ -171,7 +181,7 @@ function initTerminal(elementId, taskId) {
         setTerminalLoading(false);
     };
 
-    terminals[taskId] = { term, ws, fitAddon };
+    terminals[taskId] = { ...wrapper, ws };
     return { term, ws };
 }
 
@@ -180,7 +190,7 @@ window.initTerminal = initTerminal;
 /**
  * Initialize an interactive exec terminal
  */
-let execTerminal = null;
+let execTerminalWrapper = null;  // {term, dispose}
 let execWs = null;
 
 function initExecTerminal(service, container, host) {
@@ -194,9 +204,9 @@ function initExecTerminal(service, container, host) {
 
     containerEl.classList.remove('hidden');
 
-    // Clean up existing
+    // Clean up existing (use wrapper's dispose to clean up ResizeObserver)
     if (execWs) { execWs.close(); execWs = null; }
-    if (execTerminal) { execTerminal.dispose(); execTerminal = null; }
+    if (execTerminalWrapper) { execTerminalWrapper.dispose(); execTerminalWrapper = null; }
 
     // Create WebSocket first so resize callback can use it
     execWs = createWebSocket(`/ws/exec/${service}/${container}/${host}`);
@@ -208,8 +218,8 @@ function initExecTerminal(service, container, host) {
         }
     };
 
-    const { term } = createTerminal(terminalEl, { cursorBlink: true }, sendSize);
-    execTerminal = term;
+    execTerminalWrapper = createTerminal(terminalEl, { cursorBlink: true }, sendSize);
+    const term = execTerminalWrapper.term;
 
     execWs.onopen = () => { sendSize(term.cols, term.rows); term.focus(); };
     execWs.onmessage = (event) => term.write(event.data);
