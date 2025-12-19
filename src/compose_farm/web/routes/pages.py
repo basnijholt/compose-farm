@@ -194,6 +194,13 @@ async def sidebar_partial(request: Request) -> HTMLResponse:
         for svc, host_val in config.services.items()
     }
 
+    # Find local host
+    local_host = None
+    for name, host in config.hosts.items():
+        if is_local(host):
+            local_host = name
+            break
+
     return templates.TemplateResponse(
         "partials/sidebar.html",
         {
@@ -201,6 +208,7 @@ async def sidebar_partial(request: Request) -> HTMLResponse:
             "services": sorted(config.services.keys()),
             "service_hosts": service_hosts,
             "hosts": sorted(config.hosts.keys()),
+            "local_host": local_host,
             "state": state,
         },
     )
