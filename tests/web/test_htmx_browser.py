@@ -1117,3 +1117,35 @@ class TestConsolePage:
         method, url = api_calls[0]
         assert method == "PUT"
         assert "/api/console/file" in url
+
+
+class TestTerminalStreaming:
+    """Test terminal streaming functionality for action commands."""
+
+    def test_terminal_stores_task_in_localstorage(self, page: Page, server_url: str) -> None:
+        """Action response stores task ID in localStorage for reconnection."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Mock Apply API to return a task ID
+        page.route(
+            "**/api/apply",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "test-task-123", "service": null, "command": "apply"}',
+            ),
+        )
+
+        # Clear localStorage first
+        page.evaluate("localStorage.clear()")
+
+        # Click Apply
+        page.locator("button", has_text="Apply").click()
+
+        # Wait for response to be processed
+        page.wait_for_timeout(500)
+
+        # Verify task ID was stored in localStorage
+        stored_task = page.evaluate("localStorage.getItem('cf_task:/')")
+        assert stored_task == "test-task-123"
