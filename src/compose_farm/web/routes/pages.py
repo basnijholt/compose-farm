@@ -290,18 +290,9 @@ async def commands_partial(
     q: str = "",
     service: str | None = None,
 ) -> HTMLResponse:
-    """Command palette commands list.
-
-    Args:
-        request: The HTTP request
-        q: Filter query string
-        service: Current service context (for service-specific commands).
-                 Passed as 'cmd-service' from the form but FastAPI converts hyphens.
-
-    """
+    """Command palette commands list."""
     # FastAPI converts cmd-service to cmd_service, but we also accept 'service'
-    if service is None:
-        service = request.query_params.get("cmd-service")
+    service = service or request.query_params.get("cmd-service")
     config = get_config()
     templates = get_templates()
 
@@ -310,14 +301,6 @@ async def commands_partial(
 
     # Service-specific commands (if on a service page)
     if service:
-        actions = [
-            ("Up", "Start", "play", "up"),
-            ("Down", "Stop", "square", "down"),
-            ("Restart", "Restart", "rotate_cw", "restart"),
-            ("Pull", "Pull", "cloud_download", "pull"),
-            ("Update", "Pull + restart", "refresh_cw", "update"),
-            ("Logs", "View logs for", "file_text", "logs"),
-        ]
         commands.extend(
             {
                 "name": name,
@@ -327,50 +310,38 @@ async def commands_partial(
                 "url": f"/api/service/{service}/{endpoint}",
                 "method": "post",
             }
-            for name, desc, icon, endpoint in actions
+            for name, desc, icon, endpoint in [
+                ("Up", "Start", "play", "up"),
+                ("Down", "Stop", "square", "down"),
+                ("Restart", "Restart", "rotate_cw", "restart"),
+                ("Pull", "Pull", "cloud_download", "pull"),
+                ("Update", "Pull + restart", "refresh_cw", "update"),
+                ("Logs", "View logs for", "file_text", "logs"),
+            ]
         )
 
-    # Global actions
+    # Static commands (Global actions + App navigation)
     commands.extend(
-        [
-            {
-                "name": "Apply",
-                "desc": "Make reality match config",
-                "icon": "check",
-                "type": "action",
-                "url": "/api/apply",
-                "method": "post",
-            },
-            {
-                "name": "Refresh",
-                "desc": "Update state from reality",
-                "icon": "refresh_cw",
-                "type": "action",
-                "url": "/api/refresh",
-                "method": "post",
-            },
-        ]
-    )
-
-    # Navigation commands
-    commands.extend(
-        [
-            {
-                "name": "Dashboard",
-                "desc": "Go to dashboard",
-                "icon": "home",
-                "type": "app",
-                "url": "/",
-                "method": "get",
-            },
-            {
-                "name": "Console",
-                "desc": "Go to console",
-                "icon": "terminal",
-                "type": "app",
-                "url": "/console",
-                "method": "get",
-            },
+        {
+            "name": n,
+            "desc": d,
+            "icon": i,
+            "type": t,
+            "url": u,
+            "method": m,
+        }
+        for n, d, i, t, u, m in [
+            ("Apply", "Make reality match config", "check", "action", "/api/apply", "post"),
+            (
+                "Refresh",
+                "Update state from reality",
+                "refresh_cw",
+                "action",
+                "/api/refresh",
+                "post",
+            ),
+            ("Dashboard", "Go to dashboard", "home", "app", "/", "get"),
+            ("Console", "Go to console", "terminal", "app", "/console", "get"),
         ]
     )
 
