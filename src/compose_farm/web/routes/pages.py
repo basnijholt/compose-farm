@@ -7,7 +7,6 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
-from compose_farm.executor import is_local
 from compose_farm.paths import find_config_path
 from compose_farm.state import (
     get_orphaned_services,
@@ -20,6 +19,7 @@ from compose_farm.state import (
 from compose_farm.web.deps import (
     extract_config_error,
     get_config,
+    get_local_host,
     get_templates,
 )
 
@@ -32,14 +32,8 @@ async def console(request: Request) -> HTMLResponse:
     config = get_config()
     templates = get_templates()
 
-    # Find local host and sort it first
-    local_host = None
-    for name, host in config.hosts.items():
-        if is_local(host):
-            local_host = name
-            break
-
     # Sort hosts with local first
+    local_host = get_local_host(config)
     hosts = sorted(config.hosts.keys())
     if local_host:
         hosts = [local_host] + [h for h in hosts if h != local_host]
@@ -201,6 +195,7 @@ async def sidebar_partial(request: Request) -> HTMLResponse:
             "services": sorted(config.services.keys()),
             "service_hosts": service_hosts,
             "hosts": sorted(config.hosts.keys()),
+            "local_host": get_local_host(config),
             "state": state,
         },
     )
