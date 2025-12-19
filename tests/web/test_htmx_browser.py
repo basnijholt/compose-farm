@@ -73,18 +73,9 @@ pytestmark = pytest.mark.skipif(
 
 
 def _download_url(url: str) -> bytes | None:
-    """Download URL content, trying urllib then curl as fallback."""
+    """Download URL content using curl."""
     import subprocess
 
-    # Try urllib first
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "pytest"})  # noqa: S310
-        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
-            return resp.read()  # type: ignore[no-any-return]
-    except Exception:  # noqa: S110
-        pass  # Fall through to curl fallback
-
-    # Fallback to curl (handles SSL proxies better)
     try:
         result = subprocess.run(
             ["curl", "-fsSL", "--max-time", "30", url],  # noqa: S607
@@ -112,10 +103,10 @@ def vendor_cache(request: pytest.FixtureRequest) -> Path:
         if filepath.exists():
             continue  # Already cached
         content = _download_url(url)
-        if content:
-            filepath.write_bytes(content)
-        else:
-            print(f"Warning: Failed to cache {url}")
+        if not content:
+            msg = f"Failed to download {url} - check network/curl"
+            raise RuntimeError(msg)
+        filepath.write_bytes(content)
 
     return cache_dir
 
