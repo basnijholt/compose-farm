@@ -58,14 +58,17 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 Run tests with `uv run pytest`. Browser tests require Chromium (system-installed or via `playwright install chromium`):
 
 ```bash
-# Unit tests (can parallelize with -n auto)
-uv run pytest tests/ --ignore=tests/web/test_htmx_browser.py -n auto
+# Unit tests only (skip browser tests, can parallelize)
+uv run pytest -m "not browser" -n auto
 
-# Browser tests (run sequentially)
-uv run pytest tests/web/test_htmx_browser.py -v --no-cov
+# Browser tests only (run sequentially, no coverage)
+uv run pytest -m browser --no-cov
+
+# All tests
+uv run pytest --no-cov
 ```
 
-The browser tests use Playwright to test HTMX behavior, JavaScript functionality (sidebar filter, command palette, terminals), and content stability during navigation. Browser tests should run sequentially (no `-n`) because parallel execution causes resource contention and flaky timeouts.
+Browser tests are marked with `@pytest.mark.browser`. They use Playwright to test HTMX behavior, JavaScript functionality (sidebar filter, command palette, terminals), and content stability during navigation. Run sequentially (no `-n`) to avoid resource contention.
 
 ## Communication Notes
 
