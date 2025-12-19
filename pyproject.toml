@@ -145,6 +145,9 @@ addopts = [
     "--no-cov-on-fail",
     "-v",
 ]
+markers = [
+    "browser: marks tests as browser tests (deselect with '-m \"not browser\"')",
+]
 
 [tool.coverage.run]
 omit = []
@@ -176,4 +179,6 @@ dev = [
     "httpx>=0.28.0",
     # For browser tests (use system chromium via nix-shell -p chromium)
     "pytest-playwright>=0.7.0",
+    # For parallel test execution
+    "pytest-xdist>=3.0.0",
 ]

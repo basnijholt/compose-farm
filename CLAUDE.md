@@ -53,6 +53,23 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 
 - **Imports at top level**: Never add imports inside functions unless they are explicitly marked with `# noqa: PLC0415` and a comment explaining it speeds up CLI startup. Heavy modules like `pydantic`, `yaml`, and `rich.table` are lazily imported to keep `cf --help` fast.
 
+## Testing
+
+Run tests with `uv run pytest`. Browser tests require Chromium (system-installed or via `playwright install chromium`):
+
+```bash
+# Unit tests only (skip browser tests, can parallelize)
+uv run pytest -m "not browser" -n auto
+
+# Browser tests only (run sequentially, no coverage)
+uv run pytest -m browser --no-cov
+
+# All tests
+uv run pytest --no-cov
+```
+
+Browser tests are marked with `@pytest.mark.browser`. They use Playwright to test HTMX behavior, JavaScript functionality (sidebar filter, command palette, terminals), and content stability during navigation. Run sequentially (no `-n`) to avoid resource contention.
+
 ## Communication Notes
 
 - Clarify ambiguous wording (e.g., homophones like "right"/"write", "their"/"there").
