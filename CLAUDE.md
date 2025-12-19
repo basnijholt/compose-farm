@@ -58,17 +58,14 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 Run tests with `uv run pytest`. Browser tests require Chromium via nix-shell:
 
 ```bash
-# Unit tests
-uv run pytest tests/ --ignore=tests/web/test_htmx_browser.py
+# Unit tests (can parallelize with -n auto)
+uv run pytest tests/ --ignore=tests/web/test_htmx_browser.py -n auto
 
-# Browser tests (requires nix-shell for Chromium)
+# Browser tests (requires nix-shell for Chromium, run sequentially)
 nix-shell --run "uv run pytest tests/web/test_htmx_browser.py -v --no-cov"
-
-# Browser tests in parallel (faster, uses pytest-xdist)
-nix-shell --run "uv run pytest tests/web/test_htmx_browser.py -v --no-cov -n 4 --dist loadscope"
 ```
 
-The browser tests use Playwright to test HTMX behavior, JavaScript functionality (sidebar filter, command palette, terminals), and content stability during navigation. Use `--dist loadscope` with `-n` to run test classes in parallel while keeping tests within a class sequential (avoids race conditions with the shared test server).
+The browser tests use Playwright to test HTMX behavior, JavaScript functionality (sidebar filter, command palette, terminals), and content stability during navigation. Browser tests should run sequentially (no `-n`) because parallel execution causes resource contention and flaky timeouts.
 
 ## Communication Notes
 
