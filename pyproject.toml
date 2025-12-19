@@ -145,6 +145,9 @@ addopts = [
     "--no-cov-on-fail",
     "-v",
 ]
+markers = [
+    "browser: marks tests as browser tests (deselect with '-m \"not browser\"')",
+]
 
 [tool.coverage.run]
 omit = []

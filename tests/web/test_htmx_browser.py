@@ -92,11 +92,14 @@ def _browser_available() -> bool:
         return False
 
 
-# Skip all tests if no browser available
-pytestmark = pytest.mark.skipif(
-    not _browser_available(),
-    reason="No browser available (install via: playwright install chromium --with-deps)",
-)
+# Mark all tests as browser tests and skip if no browser available
+pytestmark = [
+    pytest.mark.browser,
+    pytest.mark.skipif(
+        not _browser_available(),
+        reason="No browser available (install via: playwright install chromium --with-deps)",
+    ),
+]
 
 
 def _download_url(url: str) -> bytes | None:
