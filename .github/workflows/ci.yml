@@ -27,18 +27,34 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
-      - name: Install Playwright browsers (Ubuntu only)
-        if: matrix.os == 'ubuntu-latest'
-        run: uv run playwright install chromium --with-deps
-
-      - name: Run tests
-        run: uv run pytest
+      - name: Run tests (excluding browser tests)
+        run: uv run pytest --ignore=tests/web/test_htmx_browser.py
 
       - name: Upload coverage reports to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
         uses: codecov/codecov-action@v5
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  browser-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Install Playwright browsers
+        run: uv run playwright install chromium --with-deps
+
+      - name: Run browser tests
+        run: uv run pytest tests/web/test_htmx_browser.py -v --no-cov
 
   lint:
     runs-on: ubuntu-latest
