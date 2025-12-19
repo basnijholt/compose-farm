@@ -50,24 +50,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --all-extras --dev
 
-      - name: Get Playwright version
-        id: playwright-version
-        run: echo "version=$(uv run python -c 'import playwright; print(playwright.__version__)')" >> $GITHUB_OUTPUT
-
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
-
       - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: uv run playwright install chromium --with-deps
-
-      - name: Install Playwright OS dependencies (cache hit)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: uv run playwright install-deps chromium
 
       - name: Run browser tests
         run: uv run pytest tests/web/test_htmx_browser.py -v --no-cov
