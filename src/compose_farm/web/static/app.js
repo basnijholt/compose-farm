@@ -212,15 +212,11 @@ function initExecTerminal(service, container, host) {
 window.initExecTerminal = initExecTerminal;
 
 /**
- * Refresh dashboard partials while preserving collapse states
+ * Refresh dashboard partials by dispatching a custom event.
+ * Elements with hx-trigger="cf:refresh from:body" will automatically refresh.
  */
 function refreshDashboard() {
-    const isExpanded = (id) => document.getElementById(id)?.checked ?? true;
-    htmx.ajax('GET', '/partials/sidebar', {target: '#sidebar nav', swap: 'innerHTML'});
-    htmx.ajax('GET', '/partials/stats', {target: '#stats-cards', swap: 'outerHTML'});
-    htmx.ajax('GET', `/partials/pending?expanded=${isExpanded('pending-collapse')}`, {target: '#pending-operations', swap: 'outerHTML'});
-    htmx.ajax('GET', `/partials/services-by-host?expanded=${isExpanded('services-by-host-collapse')}`, {target: '#services-by-host', swap: 'outerHTML'});
-    htmx.ajax('GET', '/partials/config-error', {target: '#config-error', swap: 'innerHTML'});
+    document.body.dispatchEvent(new CustomEvent('cf:refresh'));
 }
 
 /**

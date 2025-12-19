@@ -30,7 +30,7 @@
                 <span class="font-semibold rainbow-hover">Compose Farm</span>
             </header>
 
-            <main id="main-content" class="flex-1 p-6 overflow-y-auto" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
+            <main id="main-content" class="flex-1 p-6 overflow-y-auto">
                 {% block content %}{% endblock %}
             </main>
         </div>
@@ -47,7 +47,7 @@
                         </a>
                     </h2>
                 </header>
-                <nav class="flex-1 overflow-y-auto p-2" hx-get="/partials/sidebar" hx-trigger="load" hx-swap="innerHTML">
+                <nav class="flex-1 overflow-y-auto p-2" hx-get="/partials/sidebar" hx-trigger="load, cf:refresh from:body" hx-swap="innerHTML">
                     <span class="loading loading-spinner loading-sm"></span> Loading...
                 </nav>
             </aside>

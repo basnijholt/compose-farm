@@ -1,6 +1,5 @@
 {% from "partials/components.html" import collapse %}
 {% from "partials/icons.html" import layers, search %}
-<div id="services-by-host">
 {% call collapse("Services by Host", id="services-by-host-collapse", checked=expanded|default(true), icon=layers()) %}
     <div class="flex flex-wrap gap-2 mb-4 items-center">
         <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200">
@@ -38,4 +37,3 @@
     }
     </script>
 {% endcall %}
-</div>

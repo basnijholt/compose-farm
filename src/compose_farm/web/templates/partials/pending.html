@@ -1,5 +1,4 @@
 {% from "partials/components.html" import collapse %}
-<div id="pending-operations">
 {% if orphaned or migrations or not_started %}
 {% call collapse("Pending Operations", id="pending-collapse", checked=expanded|default(true)) %}
     {% if orphaned %}
@@ -35,4 +34,3 @@
     <span>All services are in sync with configuration.</span>
 </div>
 {% endif %}
-</div>

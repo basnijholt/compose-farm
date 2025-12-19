@@ -8,7 +8,10 @@
     {{ page_header("Compose Farm", "Cluster overview and management") }}
 
     <!-- Stats Cards -->
-    {% include "partials/stats.html" %}
+    <div id="stats-cards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
+         hx-get="/partials/stats" hx-trigger="cf:refresh from:body" hx-swap="innerHTML">
+        {% include "partials/stats.html" %}
+    </div>
 
     <!-- Global Actions -->
     <div class="flex flex-wrap gap-2 mb-6">
@@ -20,7 +23,10 @@
     {% include "partials/terminal.html" %}
 
     <!-- Config Error Banner -->
-    <div id="config-error">
+    <div id="config-error"
+         hx-get="/partials/config-error"
+         hx-trigger="cf:refresh from:body"
+         hx-swap="innerHTML">
     {% if config_error %}
         {% include "partials/config_error.html" %}
     {% endif %}
@@ -34,10 +40,16 @@
     {% endcall %}
 
     <!-- Pending Operations -->
-    {% include "partials/pending.html" %}
+    <div id="pending-operations"
+         hx-get="/partials/pending" hx-trigger="cf:refresh from:body" hx-swap="innerHTML">
+        {% include "partials/pending.html" %}
+    </div>
 
     <!-- Services by Host -->
-    {% include "partials/services_by_host.html" %}
+    <div id="services-by-host"
+         hx-get="/partials/services-by-host" hx-trigger="cf:refresh from:body" hx-swap="innerHTML">
+        {% include "partials/services_by_host.html" %}
+    </div>
 
     <!-- Hosts Configuration -->
     {% call collapse("Hosts (" ~ (hosts | length) ~ ")", icon=server()) %}

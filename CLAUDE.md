@@ -32,6 +32,12 @@ compose_farm/
 
 Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templates/partials/icons.html` by copying SVG paths from their site. The `action_btn`, `stat_card`, and `collapse` macros in `components.html` accept an optional `icon` parameter.
 
+## HTMX Patterns
+
+- **Multi-element refresh**: Use custom events, not `hx-swap-oob`. Elements have `hx-trigger="cf:refresh from:body"` and JS calls `document.body.dispatchEvent(new CustomEvent('cf:refresh'))`. Simpler to debug/test.
+- **SPA navigation**: Sidebar uses `hx-boost="true"` to AJAX-ify links.
+- **Attribute inheritance**: Set `hx-target`/`hx-swap` on parent elements.
+
 ## Key Design Decisions
 
 1. **Hybrid SSH approach**: asyncssh for parallel streaming with prefixes; native `ssh -t` for raw mode (progress bars)
