@@ -18,6 +18,10 @@ Define which services run where in one YAML file, then use `cf apply` to make re
   <source src="/assets/quickstart.webm" type="video/webm">
 </video>
 
+<video autoplay loop muted playsinline>
+  <source src="/assets/web-workflow.webm" type="video/webm">
+</video>
+
 ## Why Compose Farm?
 
 | Problem | Compose Farm Solution |

@@ -17,6 +17,7 @@ nav = [
   { "Getting Started" = "getting-started.md" },
   { "Configuration" = "configuration.md" },
   { "Commands" = "commands.md" },
+  { "Web UI" = "web-ui.md" },
   { "Architecture" = "architecture.md" },
   { "Traefik Integration" = "traefik.md" },
   { "Best Practices" = "best-practices.md" },
