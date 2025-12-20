@@ -16,7 +16,9 @@ def _make_config(tmp_path: Path, stacks: dict[str, str] | None = None) -> Config
     compose_dir = tmp_path / "compose"
     compose_dir.mkdir()
 
-    stack_dict = stacks or {"svc1": "host1", "svc2": "host2"}
+    stack_dict: dict[str, str | list[str]] = (
+        dict(stacks) if stacks else {"svc1": "host1", "svc2": "host2"}
+    )
     for stack in stack_dict:
         stack_dir = compose_dir / stack
         stack_dir.mkdir()

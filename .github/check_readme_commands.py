@@ -24,7 +24,7 @@ def get_all_commands(typer_app: typer.Typer, prefix: str = "cf") -> set[str]:
             continue
         name = command.name
         if not name and command.callback:
-            name = command.callback.__name__
+            name = getattr(command.callback, "__name__", None)
         if name:
             commands.add(f"{prefix} {name}")
 

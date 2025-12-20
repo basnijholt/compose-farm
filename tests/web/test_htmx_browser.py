@@ -44,7 +44,9 @@ def _browser_available() -> bool:
     try:
         from playwright._impl._driver import compute_driver_executable
 
-        driver_path = compute_driver_executable()
+        driver_info = compute_driver_executable()
+        # compute_driver_executable returns (driver_path, browser_path) tuple
+        driver_path = driver_info[0] if isinstance(driver_info, tuple) else driver_info
         return Path(driver_path).exists()
     except Exception:
         return False
@@ -63,7 +65,7 @@ pytestmark = [
 @pytest.fixture(scope="session")
 def vendor_cache(request: pytest.FixtureRequest) -> Path:
     """Download CDN assets once and cache to disk for faster tests."""
-    cache_dir = Path(request.config.rootdir) / ".pytest_cache" / "vendor"
+    cache_dir = Path(request.config.rootpath) / ".pytest_cache" / "vendor"
     return ensure_vendor_cache(cache_dir)
 
 

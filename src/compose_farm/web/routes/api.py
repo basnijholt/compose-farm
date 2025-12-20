@@ -8,7 +8,10 @@ import json
 import shlex
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import asyncssh
 import yaml
@@ -175,8 +178,9 @@ def _render_containers(
     templates = get_templates()
     template = templates.env.get_template("partials/containers.html")
     module = template.make_module()
-    result: str = module.host_containers(stack, host, containers, show_header=show_header)
-    return result
+    # TemplateModule exports macros as attributes; getattr keeps type checkers happy
+    host_containers: Callable[..., str] = getattr(module, "host_containers")  # noqa: B009
+    return host_containers(stack, host, containers, show_header=show_header)
 
 
 @router.get("/stack/{name}/containers", response_class=HTMLResponse)

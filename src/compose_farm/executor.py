@@ -238,9 +238,13 @@ async def _run_ssh_command(
     if raw:
         # Use native ssh with TTY for proper progress bar rendering
         ssh_args = build_ssh_command(host, command, tty=True)
+
+        def run_ssh() -> subprocess.CompletedProcess[bytes]:
+            return subprocess.run(ssh_args, check=False, env=get_ssh_env())
+
         # Run in thread to avoid blocking the event loop
         # Use get_ssh_env() to auto-detect SSH agent socket
-        result = await asyncio.to_thread(subprocess.run, ssh_args, check=False, env=get_ssh_env())
+        result = await asyncio.to_thread(run_ssh)
         return CommandResult(
             stack=stack,
             exit_code=result.returncode,
