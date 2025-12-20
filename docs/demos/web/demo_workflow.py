@@ -55,10 +55,15 @@ def _demo_console_terminal(page: Page, server_url: str) -> None:
 
 def _demo_config_editor(page: Page) -> None:
     """Demo part 2: Show the Compose Farm config in editor."""
-    # Scroll down to show the Editor section
-    editor_section = page.locator(".collapse", has_text="Editor").first
-    editor_section.scroll_into_view_if_needed()
-    pause(page, 600)
+    # Smoothly scroll down to show the Editor section
+    # Use JavaScript for smooth scrolling animation
+    page.evaluate("""
+        const editor = document.getElementById('console-editor');
+        if (editor) {
+            editor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    """)
+    pause(page, 1200)  # Wait for smooth scroll animation
 
     # Wait for Monaco editor to load with config content
     page.wait_for_selector("#console-editor .monaco-editor", timeout=10000)
@@ -119,42 +124,23 @@ def _demo_dashboard_and_themes(page: Page, server_url: str) -> None:
     page.wait_for_url(server_url, timeout=5000)
     pause(page, 1200)
 
-    # Open theme picker and cycle through themes quickly
+    # Open theme picker and arrow down to Luxury (shows live preview)
+    # Theme order: light, dark, cupcake, bumblebee, emerald, corporate, synthwave,
+    # retro, cyberpunk, valentine, halloween, garden, forest, aqua, lofi, pastel,
+    # fantasy, wireframe, black, luxury (index 19)
     page.locator("#theme-btn").click()
     page.wait_for_selector("#cmd-palette[open]", timeout=2000)
     pause(page, 400)
 
-    # Quickly arrow through many themes to show the variety
-    for _ in range(8):
+    # Arrow down through themes with live preview until we reach Luxury
+    for _ in range(19):
         page.keyboard.press("ArrowDown")
-        pause(page, 250)
+        pause(page, 180)
 
-    # Go back up a few
-    for _ in range(3):
-        page.keyboard.press("ArrowUp")
-        pause(page, 250)
-
-    # Select current theme
-    page.keyboard.press("Enter")
-    pause(page, 800)
-
-    # Open theme picker again and search for a specific theme
-    page.locator("#theme-btn").click()
-    page.wait_for_selector("#cmd-palette[open]", timeout=2000)
-    pause(page, 300)
-    slow_type(page, "#cmd-input", " luxury", delay=80)
+    # Select Luxury theme
     pause(page, 400)
     page.keyboard.press("Enter")
-    pause(page, 800)
-
-    # Switch to another theme
-    page.locator("#theme-btn").click()
-    page.wait_for_selector("#cmd-palette[open]", timeout=2000)
-    pause(page, 300)
-    slow_type(page, "#cmd-input", " cupcake", delay=80)
-    pause(page, 400)
-    page.keyboard.press("Enter")
-    pause(page, 800)
+    pause(page, 1000)
 
     # Return to dark theme
     page.locator("#theme-btn").click()
