@@ -9,10 +9,11 @@ Set FontSize 14
 Set Width 900
 Set Height 600
 Set Theme "Catppuccin Mocha"
+Set FontFamily "FiraCode Nerd Font"
 Set TypingSpeed 50ms
 Env BAT_PAGING "always"
 
-Type "# Config is just: service -> host"
+Type "# Config is just: service  host"
 Enter
 Sleep 500ms
 
@@ -61,7 +62,7 @@ Enter
 Wait+Screen /immich/
 Sleep 2s
 
-Type "# ✨ The magic: move between hosts (nas → anton)"
+Type "#  The magic: move between hosts (nas  anton)"
 Enter
 Sleep 500ms
 
