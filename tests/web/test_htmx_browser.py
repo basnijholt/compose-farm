@@ -1809,6 +1809,27 @@ class TestThemeSwitcher:
         assert "theme: light" in cmd_list
         assert "theme: dark" in cmd_list
 
+    def test_theme_command_opens_theme_picker(self, page: Page, server_url: str) -> None:
+        """Selecting 'Theme' command reopens palette with theme filter."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Open palette and select Theme command
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Filter to Theme command and select it
+        page.locator("#cmd-input").fill("Theme")
+        page.keyboard.press("Enter")
+
+        # Palette should reopen with "theme:" filter
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+        assert page.locator("#cmd-input").input_value() == "theme:"
+
+        # Should show theme options
+        cmd_list = page.locator("#cmd-list").inner_text()
+        assert "theme: light" in cmd_list
+
     def test_theme_shows_color_swatches(self, page: Page, server_url: str) -> None:
         """Theme commands show color preview swatches."""
         page.goto(server_url)

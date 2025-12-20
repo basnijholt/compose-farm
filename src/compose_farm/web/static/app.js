@@ -552,10 +552,17 @@ function playFabIntro() {
 
     const cmd = (type, name, desc, action, icon = null, themeId = null) => ({ type, name, desc, action, icon, themeId });
 
+    // Reopen palette with theme filter
+    const openThemePicker = () => {
+        // Small delay to let dialog close before reopening
+        setTimeout(() => open('theme:'), 50);
+    };
+
     function buildCommands() {
         const actions = [
             cmd('action', 'Apply', 'Make reality match config', dashboardAction('apply'), icons.check),
             cmd('action', 'Refresh', 'Update state from reality', dashboardAction('refresh'), icons.refresh_cw),
+            cmd('app', 'Theme', 'Change color theme', openThemePicker, icons.palette),
             cmd('app', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
             cmd('app', 'Console', 'Go to console', nav('/console'), icons.terminal),
         ];
