@@ -87,7 +87,9 @@ def _browser_available() -> bool:
     try:
         from playwright._impl._driver import compute_driver_executable
 
-        driver_path = compute_driver_executable()
+        driver_info = compute_driver_executable()
+        # compute_driver_executable returns (driver_path, browser_path) tuple
+        driver_path = driver_info[0] if isinstance(driver_info, tuple) else driver_info
         return Path(driver_path).exists()
     except Exception:
         return False
@@ -126,7 +128,8 @@ def vendor_cache(request: pytest.FixtureRequest) -> Path:
     across multiple test runs. Clear with: pytest --cache-clear
     """
     # Use project-local cache directory
-    cache_dir = Path(request.config.rootdir) / ".pytest_cache" / "vendor"
+    rootdir = Path(request.config.rootpath)
+    cache_dir = rootdir / ".pytest_cache" / "vendor"
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     for url, (filename, _content_type) in CDN_ASSETS.items():

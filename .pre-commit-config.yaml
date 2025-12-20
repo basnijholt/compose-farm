@@ -34,3 +34,12 @@ repos:
           - typer>=0.9.0
           - asyncssh>=2.14.0
           - types-PyYAML
+
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty (type checker)
+        entry: uv run ty check
+        language: system
+        types: [python]
+        pass_filenames: false

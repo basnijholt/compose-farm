@@ -122,7 +122,11 @@ def _parse_hosts(raw_hosts: dict[str, str | dict[str, str | int]]) -> dict[str, 
             hosts[name] = Host(address=value)
         else:
             # Full form: hostname: {address: ..., user: ..., port: ...}
-            hosts[name] = Host(**value)
+            hosts[name] = Host(
+                address=str(value.get("address", "")),
+                user=str(value["user"]) if "user" in value else getpass.getuser(),
+                port=int(value["port"]) if "port" in value else 22,
+            )
     return hosts
 
 
