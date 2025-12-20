@@ -1808,3 +1808,78 @@ class TestThemeSwitcher:
         cmd_list = page.locator("#cmd-list").inner_text()
         assert "theme: light" in cmd_list
         assert "theme: dark" in cmd_list
+
+    def test_theme_shows_color_swatches(self, page: Page, server_url: str) -> None:
+        """Theme commands show color preview swatches."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        self._open_theme_palette(page)
+
+        # Theme items should have color swatches with data-theme attribute
+        light_swatch = page.locator("#cmd-list [data-theme='light']")
+        assert light_swatch.count() >= 1
+
+        # Swatch should contain bg-primary, bg-secondary, etc.
+        swatch_html = light_swatch.first.inner_html()
+        assert "bg-primary" in swatch_html
+        assert "bg-secondary" in swatch_html
+
+    def test_theme_preview_on_arrow_navigation(self, page: Page, server_url: str) -> None:
+        """Arrow key navigation previews themes without persisting."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Set initial theme
+        self._open_theme_palette(page)
+        self._select_theme(page, "dark")
+
+        # Reopen palette
+        self._open_theme_palette(page)
+
+        # Navigate to a different theme with arrow keys
+        page.locator("#cmd-input").fill("theme: cupcake")
+        page.keyboard.press("ArrowDown")  # Select cupcake
+
+        # Theme should be previewed
+        current = page.locator("html").get_attribute("data-theme")
+        assert current == "cupcake"
+
+        # But localStorage should still have original
+        stored = page.evaluate("localStorage.getItem('cf_theme')")
+        assert stored == "dark"
+
+        # Press Escape to cancel
+        page.keyboard.press("Escape")
+
+        # Theme should be restored
+        current = page.locator("html").get_attribute("data-theme")
+        assert current == "dark"
+
+    def test_theme_preview_restored_on_escape(self, page: Page, server_url: str) -> None:
+        """Pressing Escape restores original theme."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Set initial theme
+        self._open_theme_palette(page)
+        self._select_theme(page, "nord")
+
+        initial = page.locator("html").get_attribute("data-theme")
+        assert initial == "nord"
+
+        # Open palette and navigate to different theme
+        self._open_theme_palette(page)
+        page.locator("#cmd-input").fill("theme: synthwave")
+
+        # Preview should change
+        page.wait_for_function(
+            "document.documentElement.getAttribute('data-theme') === 'synthwave'"
+        )
+
+        # Press Escape
+        page.keyboard.press("Escape")
+
+        # Should restore original
+        restored = page.locator("html").get_attribute("data-theme")
+        assert restored == "nord"

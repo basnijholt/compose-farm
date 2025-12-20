@@ -516,6 +516,7 @@ function playFabIntro() {
     let commands = [];
     let filtered = [];
     let selected = 0;
+    let originalTheme = null; // Store theme when palette opens for preview/restore
 
     const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
     const nav = (url) => () => {
@@ -536,7 +537,20 @@ function playFabIntro() {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem(THEME_KEY, theme);
     };
-    const cmd = (type, name, desc, action, icon = null) => ({ type, name, desc, action, icon });
+    // Preview theme without saving (for hover)
+    const previewTheme = (theme) => {
+        document.documentElement.setAttribute('data-theme', theme);
+    };
+    // Restore original theme (when closing without selection)
+    const restoreTheme = () => {
+        if (originalTheme) {
+            document.documentElement.setAttribute('data-theme', originalTheme);
+        }
+    };
+    // Generate color swatch HTML for a theme
+    const themeSwatch = (theme) => `<span class="flex gap-0.5" data-theme="${theme}"><span class="w-2 h-4 rounded-l bg-primary"></span><span class="w-2 h-4 bg-secondary"></span><span class="w-2 h-4 bg-accent"></span><span class="w-2 h-4 rounded-r bg-neutral"></span></span>`;
+
+    const cmd = (type, name, desc, action, icon = null, themeId = null) => ({ type, name, desc, action, icon, themeId });
 
     function buildCommands() {
         const actions = [
@@ -567,10 +581,10 @@ function playFabIntro() {
             return cmd('nav', name, 'Go to service', nav(`/service/${name}`), icons.box);
         });
 
-        // Add theme commands
+        // Add theme commands with color swatches
         const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
         const themeCommands = THEMES.map(theme =>
-            cmd('theme', `theme: ${theme}`, theme === currentTheme ? '(current)' : 'Switch theme', setTheme(theme), icons.palette)
+            cmd('theme', `theme: ${theme}`, theme === currentTheme ? '(current)' : 'Switch theme', setTheme(theme), themeSwatch(theme), theme)
         );
 
         commands = [...actions, ...services, ...themeCommands];
@@ -584,7 +598,7 @@ function playFabIntro() {
 
     function render() {
         list.innerHTML = filtered.map((c, i) => `
-            <a class="flex justify-between items-center px-3 py-2 rounded-r cursor-pointer hover:bg-base-200 border-l-4 ${i === selected ? 'bg-base-300' : ''}" style="border-left-color: ${colors[c.type] || '#666'}" data-idx="${i}">
+            <a class="flex justify-between items-center px-3 py-2 rounded-r cursor-pointer hover:bg-base-200 border-l-4 ${i === selected ? 'bg-base-300' : ''}" style="border-left-color: ${colors[c.type] || '#666'}" data-idx="${i}"${c.themeId ? ` data-theme-id="${c.themeId}"` : ''}>
                 <span class="flex items-center gap-2">${c.icon || ''}<span>${c.name}</span></span>
                 <span class="opacity-40 text-xs">${c.desc}</span>
             </a>
@@ -592,9 +606,19 @@ function playFabIntro() {
         // Scroll selected item into view
         const sel = list.querySelector(`[data-idx="${selected}"]`);
         if (sel) sel.scrollIntoView({ block: 'nearest' });
+        // Preview theme if selected item is a theme command
+        const selectedCmd = filtered[selected];
+        if (selectedCmd?.themeId) {
+            previewTheme(selectedCmd.themeId);
+        } else if (originalTheme) {
+            // Restore original when navigating away from theme commands
+            previewTheme(originalTheme);
+        }
     }
 
     function open(initialFilter = '') {
+        // Store original theme for preview/restore
+        originalTheme = document.documentElement.getAttribute('data-theme') || 'dark';
         buildCommands();
         selected = 0;
         input.value = initialFilter;
@@ -604,8 +628,14 @@ function playFabIntro() {
         input.focus();
     }
 
+    function close() {
+        dialog.close();
+        restoreTheme();
+    }
+
     function exec() {
         if (filtered[selected]) {
+            originalTheme = null; // Don't restore - we're committing the change
             dialog.close();
             filtered[selected].action();
         }
@@ -636,6 +666,32 @@ function playFabIntro() {
         if (a) {
             selected = parseInt(a.dataset.idx, 10);
             exec();
+        }
+    });
+
+    // Hover to preview theme
+    list.addEventListener('mouseover', e => {
+        const a = e.target.closest('a[data-theme-id]');
+        if (a) {
+            previewTheme(a.dataset.themeId);
+        }
+    });
+
+    // Restore theme when mouse leaves list (back to selected or original)
+    list.addEventListener('mouseleave', () => {
+        const selectedCmd = filtered[selected];
+        if (selectedCmd?.themeId) {
+            previewTheme(selectedCmd.themeId);
+        } else if (originalTheme) {
+            previewTheme(originalTheme);
+        }
+    });
+
+    // Restore theme when dialog closes without selection (Escape, backdrop click)
+    dialog.addEventListener('close', () => {
+        if (originalTheme) {
+            restoreTheme();
+            originalTheme = null;
         }
     });
 
