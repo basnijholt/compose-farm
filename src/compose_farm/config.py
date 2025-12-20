@@ -151,19 +151,6 @@ def load_config(path: Path | None = None) -> Config:
     with config_path.open() as f:
         raw = yaml.safe_load(f)
 
-    if "services" in raw:
-        msg = (
-            "Config key 'services' has been renamed to 'stacks'. "
-            "Update your compose-farm.yaml to use 'stacks:'."
-        )
-        raise ValueError(msg)
-    if "traefik_service" in raw:
-        msg = (
-            "Config key 'traefik_service' has been renamed to 'traefik_stack'. "
-            "Update your compose-farm.yaml to use 'traefik_stack:'."
-        )
-        raise ValueError(msg)
-
     # Parse hosts with flexible format support
     raw["hosts"] = _parse_hosts(raw.get("hosts", {}))
     raw["config_path"] = config_path.resolve()
