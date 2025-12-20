@@ -45,7 +45,6 @@ cf apply  # Services start, migrate, or stop as needed
 
 <video autoplay loop muted playsinline>
   <source src="assets/quickstart.webm" type="video/webm">
-  <img src="assets/quickstart.gif" alt="Quickstart demo">
 </video>
 
 ### Installation
@@ -99,7 +98,6 @@ cf logs -f plex
 
 <video autoplay loop muted playsinline>
   <source src="assets/migration.webm" type="video/webm">
-  <img src="assets/migration.gif" alt="Migration demo">
 </video>
 - **Parallel execution**: Multiple services start/stop concurrently
 - **State tracking**: Knows which services are running where
