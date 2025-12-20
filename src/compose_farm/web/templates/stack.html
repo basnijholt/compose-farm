@@ -20,28 +20,28 @@
     <!-- Action Buttons -->
     <div class="flex flex-wrap gap-2 mb-6">
         <!-- Lifecycle -->
-        {{ action_btn("Up", "/api/service/" ~ name ~ "/up", "primary", "Start service (docker compose up -d)", play()) }}
-        {{ action_btn("Down", "/api/service/" ~ name ~ "/down", "outline", "Stop service (docker compose down)", square()) }}
-        {{ action_btn("Restart", "/api/service/" ~ name ~ "/restart", "secondary", "Restart service (down + up)", rotate_cw()) }}
-        {{ action_btn("Update", "/api/service/" ~ name ~ "/update", "accent", "Update to latest (pull + build + down + up)", download()) }}
+        {{ action_btn("Up", "/api/stack/" ~ name ~ "/up", "primary", "Start stack (docker compose up -d)", play()) }}
+        {{ action_btn("Down", "/api/stack/" ~ name ~ "/down", "outline", "Stop stack (docker compose down)", square()) }}
+        {{ action_btn("Restart", "/api/stack/" ~ name ~ "/restart", "secondary", "Restart stack (down + up)", rotate_cw()) }}
+        {{ action_btn("Update", "/api/stack/" ~ name ~ "/update", "accent", "Update to latest (pull + build + down + up)", download()) }}
 
         <div class="divider divider-horizontal mx-0"></div>
 
         <!-- Other -->
-        {{ action_btn("Pull", "/api/service/" ~ name ~ "/pull", "outline", "Pull latest images (no restart)", cloud_download()) }}
-        {{ action_btn("Logs", "/api/service/" ~ name ~ "/logs", "outline", "Show recent logs", file_text()) }}
+        {{ action_btn("Pull", "/api/stack/" ~ name ~ "/pull", "outline", "Pull latest images (no restart)", cloud_download()) }}
+        {{ action_btn("Logs", "/api/stack/" ~ name ~ "/logs", "outline", "Show recent logs", file_text()) }}
         <button id="save-btn" class="btn btn-outline">{{ save() }} Save All</button>
     </div>
 
     {% call collapse("Compose File", badge=compose_path, icon=file_code()) %}
         <div class="editor-wrapper yaml-wrapper">
-            <div id="compose-editor" class="yaml-editor" data-content="{{ compose_content | e }}" data-save-url="/api/service/{{ name }}/compose"></div>
+            <div id="compose-editor" class="yaml-editor" data-content="{{ compose_content | e }}" data-save-url="/api/stack/{{ name }}/compose"></div>
         </div>
     {% endcall %}
 
     {% call collapse(".env File", badge=env_path, icon=settings()) %}
         <div class="editor-wrapper env-wrapper">
-            <div id="env-editor" class="env-editor" data-content="{{ env_content | e }}" data-save-url="/api/service/{{ name }}/env"></div>
+            <div id="env-editor" class="env-editor" data-content="{{ env_content | e }}" data-save-url="/api/stack/{{ name }}/env"></div>
         </div>
     {% endcall %}
 
@@ -51,7 +51,7 @@
     {% if current_host %}
     {% call collapse("Container Shell", id="exec-collapse", checked=True, icon=terminal()) %}
         <div id="containers-list" class="mb-4"
-             hx-get="/api/service/{{ name }}/containers"
+             hx-get="/api/stack/{{ name }}/containers"
              hx-trigger="load"
              hx-target="this"
              hx-select="unset"

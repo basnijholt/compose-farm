@@ -45,10 +45,10 @@
         {% include "partials/pending.html" %}
     </div>
 
-    <!-- Services by Host -->
-    <div id="services-by-host"
-         hx-get="/partials/services-by-host" hx-trigger="cf:refresh from:body" hx-swap="innerHTML">
-        {% include "partials/services_by_host.html" %}
+    <!-- Stacks by Host -->
+    <div id="stacks-by-host"
+         hx-get="/partials/stacks-by-host" hx-trigger="cf:refresh from:body" hx-swap="innerHTML">
+        {% include "partials/stacks_by_host.html" %}
     </div>
 
     <!-- Hosts Configuration -->

@@ -21,10 +21,10 @@ def mock_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Config:
     compose_dir = tmp_path / "compose"
     compose_dir.mkdir()
 
-    # Create minimal service directory
-    svc_dir = compose_dir / "test-service"
-    svc_dir.mkdir()
-    (svc_dir / "compose.yaml").write_text("services:\n  app:\n    image: nginx\n")
+    # Create minimal stack directory
+    stack_dir = compose_dir / "test-service"
+    stack_dir.mkdir()
+    (stack_dir / "compose.yaml").write_text("services:\n  app:\n    image: nginx\n")
 
     config_path = tmp_path / "compose-farm.yaml"
     config_path.write_text(f"""
@@ -32,7 +32,7 @@ compose_dir: {compose_dir}
 hosts:
   local-host:
     address: localhost
-services:
+stacks:
   test-service: local-host
 """)
 
@@ -78,9 +78,9 @@ class TestPageTemplatesRender:
         assert "Console" in response.text
         assert "Terminal" in response.text
 
-    def test_service_detail_renders(self, client: TestClient) -> None:
-        """Test service detail page renders without errors."""
-        response = client.get("/service/test-service")
+    def test_stack_detail_renders(self, client: TestClient) -> None:
+        """Test stack detail page renders without errors."""
+        response = client.get("/stack/test-service")
         assert response.status_code == 200
         assert "test-service" in response.text
 
@@ -105,7 +105,7 @@ class TestPartialTemplatesRender:
         response = client.get("/partials/pending")
         assert response.status_code == 200
 
-    def test_services_by_host_renders(self, client: TestClient) -> None:
-        """Test services_by_host partial renders without errors."""
-        response = client.get("/partials/services-by-host")
+    def test_stacks_by_host_renders(self, client: TestClient) -> None:
+        """Test stacks_by_host partial renders without errors."""
+        response = client.get("/partials/stacks-by-host")
         assert response.status_code == 200

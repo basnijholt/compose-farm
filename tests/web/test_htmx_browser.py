@@ -107,13 +107,13 @@ def browser_type_launch_args() -> dict[str, str]:
 def test_config(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Create test config and compose files.
 
-    Creates a multi-host, multi-service config for comprehensive testing:
+    Creates a multi-host, multi-stack config for comprehensive testing:
     - server-1: plex (running), sonarr (not started)
     - server-2: radarr (running), jellyfin (not started)
     """
     tmp: Path = tmp_path_factory.mktemp("data")
 
-    # Create compose dir with services
+    # Create compose dir with stacks
     compose_dir = tmp / "compose"
     compose_dir.mkdir()
     for name in ["plex", "sonarr", "radarr", "jellyfin"]:
@@ -132,7 +132,7 @@ hosts:
   server-2:
     address: 192.168.1.20
     user: docker
-services:
+stacks:
   plex: server-1
   sonarr: server-1
   radarr: server-2
@@ -222,19 +222,19 @@ class TestHTMXSidebarLoading:
         nav = page.locator("nav")
         assert "Loading" in nav.inner_text() or nav.locator(".loading").count() > 0
 
-    def test_sidebar_loads_services_via_htmx(self, page: Page, server_url: str) -> None:
-        """Sidebar fetches and displays services via hx-get on load."""
+    def test_sidebar_loads_stacks_via_htmx(self, page: Page, server_url: str) -> None:
+        """Sidebar fetches and displays stacks via hx-get on load."""
         page.goto(server_url)
 
         # Wait for HTMX to load sidebar content
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
-        # Verify actual services from test config appear
-        services = page.locator("#sidebar-services li")
-        assert services.count() == 4  # plex, sonarr, radarr, jellyfin
+        # Verify actual stacks from test config appear
+        stacks = page.locator("#sidebar-stacks li")
+        assert stacks.count() == 4  # plex, sonarr, radarr, jellyfin
 
-        # Check specific services are present
-        content = page.locator("#sidebar-services").inner_text()
+        # Check specific stacks are present
+        content = page.locator("#sidebar-stacks").inner_text()
         assert "plex" in content
         assert "sonarr" in content
         assert "radarr" in content
@@ -255,27 +255,27 @@ class TestHTMXSidebarLoading:
         assert stats.is_visible()
 
         # Wait for sidebar to fully load via HTMX
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Dashboard content must STILL be visible after sidebar loads
         assert stats.is_visible(), "Dashboard disappeared after sidebar loaded"
         assert page.locator("#stats-cards .card").count() >= 4
 
     def test_sidebar_shows_running_status(self, page: Page, server_url: str) -> None:
-        """Sidebar shows running/stopped status indicators for services."""
+        """Sidebar shows running/stopped status indicators for stacks."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # plex and radarr are in state (running) - should have success status
-        plex_item = page.locator("#sidebar-services li", has_text="plex")
+        plex_item = page.locator("#sidebar-stacks li", has_text="plex")
         assert plex_item.locator(".status-success").count() == 1
-        radarr_item = page.locator("#sidebar-services li", has_text="radarr")
+        radarr_item = page.locator("#sidebar-stacks li", has_text="radarr")
         assert radarr_item.locator(".status-success").count() == 1
 
         # sonarr and jellyfin are NOT in state (not started) - should have neutral status
-        sonarr_item = page.locator("#sidebar-services li", has_text="sonarr")
+        sonarr_item = page.locator("#sidebar-stacks li", has_text="sonarr")
         assert sonarr_item.locator(".status-neutral").count() == 1
-        jellyfin_item = page.locator("#sidebar-services li", has_text="jellyfin")
+        jellyfin_item = page.locator("#sidebar-stacks li", has_text="jellyfin")
         assert jellyfin_item.locator(".status-neutral").count() == 1
 
 
@@ -285,19 +285,19 @@ class TestHTMXBoostNavigation:
     def test_navigation_updates_url_without_full_reload(self, page: Page, server_url: str) -> None:
         """Clicking boosted link updates URL without full page reload."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
         # Add a marker to detect full page reload
         page.evaluate("window.__htmxTestMarker = 'still-here'")
 
-        # Click a service link (boosted via hx-boost on parent)
-        page.locator("#sidebar-services a", has_text="plex").click()
+        # Click a stack link (boosted via hx-boost on parent)
+        page.locator("#sidebar-stacks a", has_text="plex").click()
 
         # Wait for navigation
-        page.wait_for_url("**/service/plex", timeout=5000)
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
         # Verify URL changed
-        assert "/service/plex" in page.url
+        assert "/stack/plex" in page.url
 
         # Verify NO full page reload (marker should still exist)
         marker = page.evaluate("window.__htmxTestMarker")
@@ -306,17 +306,17 @@ class TestHTMXBoostNavigation:
     def test_main_content_replaced_on_navigation(self, page: Page, server_url: str) -> None:
         """Navigation replaces #main-content via hx-target/hx-select."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
         # Get initial main content
         initial_content = page.locator("#main-content").inner_text()
         assert "Compose Farm" in initial_content  # Dashboard title
 
-        # Navigate to service page
-        page.locator("#sidebar-services a", has_text="plex").click()
-        page.wait_for_url("**/service/plex", timeout=5000)
+        # Navigate to stack page
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
-        # Main content should now show service page
+        # Main content should now show stack page
         new_content = page.locator("#main-content").inner_text()
         assert "plex" in new_content.lower()
         assert "Compose Farm" not in new_content  # Dashboard title should be gone
@@ -326,17 +326,17 @@ class TestDashboardContent:
     """Test dashboard displays correct data."""
 
     def test_stats_show_correct_counts(self, page: Page, server_url: str) -> None:
-        """Stats cards show accurate host/service counts from config."""
+        """Stats cards show accurate host/stack counts from config."""
         page.goto(server_url)
         page.wait_for_selector("#stats-cards", timeout=5000)
 
         stats = page.locator("#stats-cards").inner_text()
 
-        # From test config: 2 hosts, 4 services, 2 running (plex, radarr)
+        # From test config: 2 hosts, 4 stacks, 2 running (plex, radarr)
         assert "2" in stats  # hosts count
-        assert "4" in stats  # services count
+        assert "4" in stats  # stacks count
 
-    def test_pending_shows_not_started_services(self, page: Page, server_url: str) -> None:
+    def test_pending_shows_not_started_stacks(self, page: Page, server_url: str) -> None:
         """Pending operations shows sonarr and jellyfin as not started."""
         page.goto(server_url)
         page.wait_for_selector("#pending-operations", timeout=5000)
@@ -351,7 +351,7 @@ class TestDashboardContent:
     def test_dashboard_monaco_loads(self, page: Page, server_url: str) -> None:
         """Dashboard page loads Monaco editor for config editing."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Wait for Monaco to load
         page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
@@ -389,19 +389,19 @@ class TestSaveConfigButton:
         assert "Saved" in save_btn.inner_text()
 
 
-class TestServiceDetailPage:
-    """Test service detail page via HTMX navigation."""
+class TestStackDetailPage:
+    """Test stack detail page via HTMX navigation."""
 
-    def test_service_page_shows_service_info(self, page: Page, server_url: str) -> None:
-        """Service page displays service information."""
+    def test_stack_page_shows_stack_info(self, page: Page, server_url: str) -> None:
+        """Stack page displays stack information."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
-        # Navigate to plex service
-        page.locator("#sidebar-services a", has_text="plex").click()
-        page.wait_for_url("**/service/plex", timeout=5000)
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
-        # Should show service name and host info
+        # Should show stack name and host info
         content = page.locator("#main-content").inner_text()
         assert "plex" in content.lower()
         assert "server-1" in content  # assigned host from config
@@ -411,11 +411,11 @@ class TestServiceDetailPage:
     def test_back_navigation_works(self, page: Page, server_url: str) -> None:
         """Browser back button works after HTMX navigation."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
-        # Navigate to service
-        page.locator("#sidebar-services a", has_text="plex").click()
-        page.wait_for_url("**/service/plex", timeout=5000)
+        # Navigate to stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
         # Go back
         page.go_back()
@@ -424,14 +424,14 @@ class TestServiceDetailPage:
         # Should be back on dashboard
         assert page.url.rstrip("/") == server_url.rstrip("/")
 
-    def test_service_page_monaco_loads(self, page: Page, server_url: str) -> None:
-        """Service page loads Monaco editor for compose/env editing."""
+    def test_stack_page_monaco_loads(self, page: Page, server_url: str) -> None:
+        """Stack page loads Monaco editor for compose/env editing."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
-        # Navigate to plex service
-        page.locator("#sidebar-services a", has_text="plex").click()
-        page.wait_for_url("**/service/plex", timeout=5000)
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
         # Wait for Monaco to load
         page.wait_for_function("typeof monaco !== 'undefined'", timeout=5000)
@@ -457,33 +457,33 @@ class TestSidebarFilter:
         filter_input.fill(text)
         filter_input.dispatch_event("keyup")
 
-    def test_text_filter_hides_non_matching_services(self, page: Page, server_url: str) -> None:
-        """Typing in filter input hides services that don't match."""
+    def test_text_filter_hides_non_matching_stacks(self, page: Page, server_url: str) -> None:
+        """Typing in filter input hides stacks that don't match."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
-        # Initially all 4 services visible
-        visible_items = page.locator("#sidebar-services li:not([hidden])")
+        # Initially all 4 stacks visible
+        visible_items = page.locator("#sidebar-stacks li:not([hidden])")
         assert visible_items.count() == 4
 
         # Type in filter to match only "plex"
         self._filter_sidebar(page, "plex")
 
         # Only plex should be visible now
-        visible_after = page.locator("#sidebar-services li:not([hidden])")
+        visible_after = page.locator("#sidebar-stacks li:not([hidden])")
         assert visible_after.count() == 1
         assert "plex" in visible_after.first.inner_text()
 
     def test_text_filter_updates_count_badge(self, page: Page, server_url: str) -> None:
-        """Filter updates the service count badge."""
+        """Filter updates the stack count badge."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Initial count should be (4)
         count_badge = page.locator("#sidebar-count")
         assert "(4)" in count_badge.inner_text()
 
-        # Filter to show only services containing "arr" (sonarr, radarr)
+        # Filter to show only stacks containing "arr" (sonarr, radarr)
         self._filter_sidebar(page, "arr")
 
         # Count should update to (2)
@@ -492,26 +492,26 @@ class TestSidebarFilter:
     def test_text_filter_is_case_insensitive(self, page: Page, server_url: str) -> None:
         """Filter matching is case-insensitive."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Type uppercase
         self._filter_sidebar(page, "PLEX")
 
         # Should still match plex
-        visible = page.locator("#sidebar-services li:not([hidden])")
+        visible = page.locator("#sidebar-stacks li:not([hidden])")
         assert visible.count() == 1
         assert "plex" in visible.first.inner_text().lower()
 
     def test_host_dropdown_filters_by_host(self, page: Page, server_url: str) -> None:
-        """Host dropdown filters services by their assigned host."""
+        """Host dropdown filters stacks by their assigned host."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Select server-1 from dropdown
         page.locator("#sidebar-host-select").select_option("server-1")
 
-        # Only plex and sonarr (server-1 services) should be visible
-        visible = page.locator("#sidebar-services li:not([hidden])")
+        # Only plex and sonarr (server-1 stacks) should be visible
+        visible = page.locator("#sidebar-stacks li:not([hidden])")
         assert visible.count() == 2
 
         content = visible.all_inner_texts()
@@ -523,7 +523,7 @@ class TestSidebarFilter:
     def test_combined_text_and_host_filter(self, page: Page, server_url: str) -> None:
         """Text filter and host filter work together."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Filter by server-2 host
         page.locator("#sidebar-host-select").select_option("server-2")
@@ -531,24 +531,24 @@ class TestSidebarFilter:
         # Then filter by text "arr" (should match only radarr on server-2)
         self._filter_sidebar(page, "arr")
 
-        visible = page.locator("#sidebar-services li:not([hidden])")
+        visible = page.locator("#sidebar-stacks li:not([hidden])")
         assert visible.count() == 1
         assert "radarr" in visible.first.inner_text()
 
-    def test_clearing_filter_shows_all_services(self, page: Page, server_url: str) -> None:
-        """Clearing filter restores all services."""
+    def test_clearing_filter_shows_all_stacks(self, page: Page, server_url: str) -> None:
+        """Clearing filter restores all stacks."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Apply filter
         self._filter_sidebar(page, "plex")
-        assert page.locator("#sidebar-services li:not([hidden])").count() == 1
+        assert page.locator("#sidebar-stacks li:not([hidden])").count() == 1
 
         # Clear filter
         self._filter_sidebar(page, "")
 
-        # All services visible again
-        assert page.locator("#sidebar-services li:not([hidden])").count() == 4
+        # All stacks visible again
+        assert page.locator("#sidebar-stacks li:not([hidden])").count() == 4
 
 
 class TestCommandPalette:
@@ -557,7 +557,7 @@ class TestCommandPalette:
     def test_cmd_k_opens_palette(self, page: Page, server_url: str) -> None:
         """Cmd+K keyboard shortcut opens the command palette."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Palette should be closed initially
         assert not page.locator("#cmd-palette").is_visible()
@@ -572,7 +572,7 @@ class TestCommandPalette:
     def test_palette_input_is_focused_on_open(self, page: Page, server_url: str) -> None:
         """Input field is focused when palette opens."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
@@ -584,7 +584,7 @@ class TestCommandPalette:
     def test_palette_shows_navigation_commands(self, page: Page, server_url: str) -> None:
         """Palette shows Dashboard and Console navigation commands."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
@@ -593,23 +593,23 @@ class TestCommandPalette:
         assert "Dashboard" in cmd_list
         assert "Console" in cmd_list
 
-    def test_palette_shows_service_navigation(self, page: Page, server_url: str) -> None:
-        """Palette includes service names for navigation."""
+    def test_palette_shows_stack_navigation(self, page: Page, server_url: str) -> None:
+        """Palette includes stack names for navigation."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
         cmd_list = page.locator("#cmd-list").inner_text()
-        # Services should appear as navigation options
+        # Stacks should appear as navigation options
         assert "plex" in cmd_list
         assert "radarr" in cmd_list
 
     def test_palette_filters_on_input(self, page: Page, server_url: str) -> None:
         """Typing in palette filters the command list."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
@@ -625,7 +625,7 @@ class TestCommandPalette:
     def test_arrow_down_moves_selection(self, page: Page, server_url: str) -> None:
         """Arrow down key moves selection to next item."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
@@ -646,25 +646,25 @@ class TestCommandPalette:
     def test_enter_executes_and_closes_palette(self, page: Page, server_url: str) -> None:
         """Enter key executes selected command and closes palette."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
-        # Filter to plex service
+        # Filter to plex stack
         page.locator("#cmd-input").fill("plex")
         page.keyboard.press("Enter")
 
         # Palette should close
         page.wait_for_selector("#cmd-palette:not([open])", timeout=2000)
 
-        # Should navigate to plex service page
-        page.wait_for_url("**/service/plex", timeout=5000)
+        # Should navigate to plex stack page
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
     def test_click_executes_command(self, page: Page, server_url: str) -> None:
         """Clicking a command executes it."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
@@ -678,7 +678,7 @@ class TestCommandPalette:
     def test_escape_closes_palette(self, page: Page, server_url: str) -> None:
         """Escape key closes the palette without executing."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
@@ -692,7 +692,7 @@ class TestCommandPalette:
     def test_fab_button_opens_palette(self, page: Page, server_url: str) -> None:
         """Floating action button opens the command palette."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Click the FAB
         page.locator("#cmd-fab").click()
@@ -707,7 +707,7 @@ class TestActionButtons:
     def test_apply_button_makes_post_request(self, page: Page, server_url: str) -> None:
         """Apply button triggers POST to /api/apply."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Intercept the API call
         api_calls: list[str] = []
@@ -736,7 +736,7 @@ class TestActionButtons:
     def test_refresh_button_makes_post_request(self, page: Page, server_url: str) -> None:
         """Refresh button triggers POST to /api/refresh."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         api_calls: list[str] = []
 
@@ -759,7 +759,7 @@ class TestActionButtons:
     def test_action_response_expands_terminal(self, page: Page, server_url: str) -> None:
         """Action button response with task_id expands terminal section."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Terminal should be collapsed initially
         terminal_toggle = page.locator("#terminal-toggle")
@@ -784,16 +784,16 @@ class TestActionButtons:
             timeout=3000,
         )
 
-    def test_service_page_action_buttons(self, page: Page, server_url: str) -> None:
+    def test_stack_page_action_buttons(self, page: Page, server_url: str) -> None:
         """Service page has working action buttons."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
-        # Navigate to plex service
-        page.locator("#sidebar-services a", has_text="plex").click()
-        page.wait_for_url("**/service/plex", timeout=5000)
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
-        # Intercept service-specific API calls
+        # Intercept stack-specific API calls
         api_calls: list[str] = []
 
         def handle_route(route: Route) -> None:
@@ -804,14 +804,14 @@ class TestActionButtons:
                 body='{"task_id": "test-up-123"}',
             )
 
-        page.route("**/api/service/plex/up", handle_route)
+        page.route("**/api/stack/plex/up", handle_route)
 
         # Click Up button (use get_by_role for exact match, avoiding "Update")
         page.get_by_role("button", name="Up", exact=True).click()
         page.wait_for_timeout(500)
 
         assert len(api_calls) == 1
-        assert "/api/service/plex/up" in api_calls[0]
+        assert "/api/stack/plex/up" in api_calls[0]
 
 
 class TestKeyboardShortcuts:
@@ -853,50 +853,50 @@ class TestContentStability:
         page.goto(server_url)
 
         # Wait for all HTMX requests to complete
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
         page.wait_for_load_state("networkidle")
 
         # All major dashboard sections must be visible
         assert page.locator("#stats-cards").is_visible(), "Stats cards missing"
         assert page.locator("#stats-cards .card").count() >= 4, "Stats incomplete"
         assert page.locator("#pending-operations").is_visible(), "Pending ops missing"
-        assert page.locator("#services-by-host").is_visible(), "Services by host missing"
-        assert page.locator("#sidebar-services").is_visible(), "Sidebar missing"
+        assert page.locator("#stacks-by-host").is_visible(), "Stacks by host missing"
+        assert page.locator("#sidebar-stacks").is_visible(), "Sidebar missing"
 
     def test_sidebar_persists_after_navigation_and_back(self, page: Page, server_url: str) -> None:
         """Sidebar content persists through navigation cycle."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Remember sidebar state
-        initial_count = page.locator("#sidebar-services li").count()
+        initial_count = page.locator("#sidebar-stacks li").count()
         assert initial_count == 4
 
         # Navigate away
-        page.locator("#sidebar-services a", has_text="plex").click()
-        page.wait_for_url("**/service/plex", timeout=5000)
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
         # Sidebar should still be there with same content
-        assert page.locator("#sidebar-services").is_visible()
-        assert page.locator("#sidebar-services li").count() == initial_count
+        assert page.locator("#sidebar-stacks").is_visible()
+        assert page.locator("#sidebar-stacks li").count() == initial_count
 
         # Navigate back
         page.go_back()
         page.wait_for_url(server_url, timeout=5000)
 
         # Sidebar still intact
-        assert page.locator("#sidebar-services").is_visible()
-        assert page.locator("#sidebar-services li").count() == initial_count
+        assert page.locator("#sidebar-stacks").is_visible()
+        assert page.locator("#sidebar-stacks li").count() == initial_count
 
     def test_dashboard_sections_persist_after_save(self, page: Page, server_url: str) -> None:
         """Dashboard sections remain after save triggers cf:refresh event."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Capture initial state - all must be visible
         assert page.locator("#stats-cards").is_visible()
         assert page.locator("#pending-operations").is_visible()
-        assert page.locator("#services-by-host").is_visible()
+        assert page.locator("#stacks-by-host").is_visible()
 
         # Trigger save (which dispatches cf:refresh)
         page.locator("#save-config-btn").click()
@@ -911,15 +911,15 @@ class TestContentStability:
         # All sections must still be visible
         assert page.locator("#stats-cards").is_visible(), "Stats disappeared after save"
         assert page.locator("#pending-operations").is_visible(), "Pending disappeared"
-        assert page.locator("#services-by-host").is_visible(), "Services disappeared"
-        assert page.locator("#sidebar-services").is_visible(), "Sidebar disappeared"
+        assert page.locator("#stacks-by-host").is_visible(), "Stacks disappeared"
+        assert page.locator("#sidebar-stacks").is_visible(), "Sidebar disappeared"
 
     def test_filter_state_not_affected_by_other_htmx_requests(
         self, page: Page, server_url: str
     ) -> None:
         """Sidebar filter state persists during other HTMX activity."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Apply a filter
         filter_input = page.locator("#sidebar-filter")
@@ -927,7 +927,7 @@ class TestContentStability:
         filter_input.dispatch_event("keyup")
 
         # Verify filter is applied
-        assert page.locator("#sidebar-services li:not([hidden])").count() == 1
+        assert page.locator("#sidebar-stacks li:not([hidden])").count() == 1
 
         # Trigger a save (causes cf:refresh on multiple elements)
         page.locator("#save-config-btn").click()
@@ -935,15 +935,15 @@ class TestContentStability:
 
         # Filter input should still have our text
         # (Note: sidebar reloads so filter clears - this tests the sidebar reload works)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
-        assert page.locator("#sidebar-services").is_visible()
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
+        assert page.locator("#sidebar-stacks").is_visible()
 
     def test_main_content_not_affected_by_sidebar_refresh(
         self, page: Page, server_url: str
     ) -> None:
         """Main content area stays intact when sidebar refreshes."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Get main content text
         main_content = page.locator("#main-content")
@@ -963,11 +963,11 @@ class TestContentStability:
     ) -> None:
         """Multiple refresh cycles don't create duplicate elements."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Count initial elements
         initial_stat_count = page.locator("#stats-cards .card").count()
-        initial_service_count = page.locator("#sidebar-services li").count()
+        initial_stack_count = page.locator("#sidebar-stacks li").count()
 
         # Trigger multiple refreshes
         for _ in range(3):
@@ -978,7 +978,7 @@ class TestContentStability:
 
         # Counts should be same (no duplicates created)
         assert page.locator("#stats-cards .card").count() == initial_stat_count
-        assert page.locator("#sidebar-services li").count() == initial_service_count
+        assert page.locator("#sidebar-stacks li").count() == initial_stack_count
 
 
 class TestConsolePage:
@@ -1308,7 +1308,7 @@ class TestTerminalStreaming:
     def test_terminal_stores_task_in_localstorage(self, page: Page, server_url: str) -> None:
         """Action response stores task ID in localStorage for reconnection."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Mock Apply API to return a task ID
         page.route(
@@ -1316,7 +1316,7 @@ class TestTerminalStreaming:
             lambda route: route.fulfill(
                 status=200,
                 content_type="application/json",
-                body='{"task_id": "test-task-123", "service": null, "command": "apply"}',
+                body='{"task_id": "test-task-123", "stack": null, "command": "apply"}',
             ),
         )
 
@@ -1341,7 +1341,7 @@ class TestTerminalStreaming:
         """
         # First, set up a task in localStorage before navigating
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Store a task ID in localStorage
         page.evaluate("localStorage.setItem('cf_task:/', 'reconnect-test-123')")
@@ -1352,7 +1352,7 @@ class TestTerminalStreaming:
 
         # Navigate back to dashboard
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Wait for xterm to load (reconnect uses whenXtermReady)
         page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
@@ -1368,7 +1368,7 @@ class TestTerminalStreaming:
     ) -> None:
         """Action response with task_id triggers WebSocket connection to correct path."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Track WebSocket connections
         ws_urls: list[str] = []
@@ -1384,7 +1384,7 @@ class TestTerminalStreaming:
             lambda route: route.fulfill(
                 status=200,
                 content_type="application/json",
-                body='{"task_id": "ws-test-456", "service": null, "command": "apply"}',
+                body='{"task_id": "ws-test-456", "stack": null, "command": "apply"}',
             ),
         )
 
@@ -1404,7 +1404,7 @@ class TestTerminalStreaming:
     def test_terminal_displays_connected_message(self, page: Page, server_url: str) -> None:
         """Terminal shows [Connected] message after WebSocket opens."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Mock Apply API to return a task ID
         page.route(
@@ -1412,7 +1412,7 @@ class TestTerminalStreaming:
             lambda route: route.fulfill(
                 status=200,
                 content_type="application/json",
-                body='{"task_id": "connected-test", "service": null, "command": "apply"}',
+                body='{"task_id": "connected-test", "stack": null, "command": "apply"}',
             ),
         )
 
@@ -1439,14 +1439,14 @@ class TestTerminalStreaming:
 class TestExecTerminal:
     """Test exec terminal functionality for container shells."""
 
-    def test_service_page_has_exec_terminal_container(self, page: Page, server_url: str) -> None:
+    def test_stack_page_has_exec_terminal_container(self, page: Page, server_url: str) -> None:
         """Service page has exec terminal container (initially hidden)."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
-        # Navigate to plex service
-        page.locator("#sidebar-services a", has_text="plex").click()
-        page.wait_for_url("**/service/plex", timeout=5000)
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
         # Exec terminal container should exist but be hidden
         exec_container = page.locator("#exec-terminal-container")
@@ -1460,15 +1460,15 @@ class TestExecTerminal:
     def test_exec_terminal_connects_websocket(self, page: Page, server_url: str) -> None:
         """Clicking Shell button triggers WebSocket to exec endpoint."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
-        # Navigate to plex service
-        page.locator("#sidebar-services a", has_text="plex").click()
-        page.wait_for_url("**/service/plex", timeout=5000)
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
         # Mock containers API to return a container
         page.route(
-            "**/api/service/plex/containers*",
+            "**/api/stack/plex/containers*",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/html",
@@ -1487,7 +1487,7 @@ class TestExecTerminal:
 
         # Reload to get mocked containers
         page.reload()
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Track WebSocket connections
         ws_urls: list[str] = []
@@ -1516,22 +1516,22 @@ class TestExecTerminal:
 
 
 class TestServicePagePalette:
-    """Test command palette behavior on service pages."""
+    """Test command palette behavior on stack pages."""
 
-    def test_service_page_palette_has_action_commands(self, page: Page, server_url: str) -> None:
-        """Command palette on service page shows service-specific actions."""
+    def test_stack_page_palette_has_action_commands(self, page: Page, server_url: str) -> None:
+        """Command palette on stack page shows stack-specific actions."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
-        # Navigate to plex service
-        page.locator("#sidebar-services a", has_text="plex").click()
-        page.wait_for_url("**/service/plex", timeout=5000)
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
         # Open command palette
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
-        # Verify service-specific action commands are visible
+        # Verify stack-specific action commands are visible
         cmd_list = page.locator("#cmd-list").inner_text()
         assert "Up" in cmd_list
         assert "Down" in cmd_list
@@ -1540,14 +1540,14 @@ class TestServicePagePalette:
         assert "Update" in cmd_list
         assert "Logs" in cmd_list
 
-    def test_palette_action_triggers_service_api(self, page: Page, server_url: str) -> None:
-        """Selecting action from palette triggers correct service API."""
+    def test_palette_action_triggers_stack_api(self, page: Page, server_url: str) -> None:
+        """Selecting action from palette triggers correct stack API."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
-        # Navigate to plex service
-        page.locator("#sidebar-services a", has_text="plex").click()
-        page.wait_for_url("**/service/plex", timeout=5000)
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
         # Track API calls
         api_calls: list[str] = []
@@ -1557,10 +1557,10 @@ class TestServicePagePalette:
             route.fulfill(
                 status=200,
                 content_type="application/json",
-                body='{"task_id": "palette-test", "service": "plex", "command": "up"}',
+                body='{"task_id": "palette-test", "stack": "plex", "command": "up"}',
             )
 
-        page.route("**/api/service/plex/up", handle_route)
+        page.route("**/api/stack/plex/up", handle_route)
 
         # Open command palette
         page.keyboard.press("Control+k")
@@ -1575,16 +1575,16 @@ class TestServicePagePalette:
 
         # Verify correct API was called
         assert len(api_calls) >= 1
-        assert "/api/service/plex/up" in api_calls[0]
+        assert "/api/stack/plex/up" in api_calls[0]
 
-    def test_palette_apply_from_service_page(self, page: Page, server_url: str) -> None:
-        """Selecting Apply from service page palette navigates to dashboard and triggers API."""
+    def test_palette_apply_from_stack_page(self, page: Page, server_url: str) -> None:
+        """Selecting Apply from stack page palette navigates to dashboard and triggers API."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
-        # Navigate to plex service
-        page.locator("#sidebar-services a", has_text="plex").click()
-        page.wait_for_url("**/service/plex", timeout=5000)
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
 
         # Track API calls
         api_calls: list[str] = []
@@ -1594,7 +1594,7 @@ class TestServicePagePalette:
             route.fulfill(
                 status=200,
                 content_type="application/json",
-                body='{"task_id": "apply-test", "service": null, "command": "apply"}',
+                body='{"task_id": "apply-test", "stack": null, "command": "apply"}',
             )
 
         page.route("**/api/apply", handle_route)
@@ -1635,7 +1635,7 @@ class TestThemeSwitcher:
     def test_theme_button_exists(self, page: Page, server_url: str) -> None:
         """Theme button exists in sidebar header."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Theme button should exist
         assert page.locator("#theme-btn").count() == 1
@@ -1643,7 +1643,7 @@ class TestThemeSwitcher:
     def test_theme_button_opens_palette_with_filter(self, page: Page, server_url: str) -> None:
         """Clicking theme button opens command palette pre-filtered to themes."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         self._open_theme_palette(page)
 
@@ -1658,7 +1658,7 @@ class TestThemeSwitcher:
     def test_clicking_theme_changes_html_data_theme(self, page: Page, server_url: str) -> None:
         """Selecting a theme changes the data-theme attribute on <html>."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Get initial theme
         initial_theme = page.locator("html").get_attribute("data-theme")
@@ -1675,7 +1675,7 @@ class TestThemeSwitcher:
     def test_theme_persists_in_localstorage(self, page: Page, server_url: str) -> None:
         """Selected theme is saved to localStorage."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Select synthwave theme
         self._open_theme_palette(page)
@@ -1688,7 +1688,7 @@ class TestThemeSwitcher:
     def test_theme_restored_on_page_load(self, page: Page, server_url: str) -> None:
         """Theme is restored from localStorage on page load."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Set theme
         self._open_theme_palette(page)
@@ -1696,7 +1696,7 @@ class TestThemeSwitcher:
 
         # Reload page
         page.reload()
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Theme should be restored
         theme = page.locator("html").get_attribute("data-theme")
@@ -1705,7 +1705,7 @@ class TestThemeSwitcher:
     def test_theme_can_be_changed_multiple_times(self, page: Page, server_url: str) -> None:
         """Theme can be changed multiple times in a session."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         themes_to_test = ["light", "dark", "nord", "sunset"]
 
@@ -1718,7 +1718,7 @@ class TestThemeSwitcher:
     def test_themes_available_in_regular_palette(self, page: Page, server_url: str) -> None:
         """Themes are also available when opening regular command palette."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Open with Cmd+K
         page.keyboard.press("Control+k")
@@ -1735,7 +1735,7 @@ class TestThemeSwitcher:
     def test_theme_command_opens_theme_picker(self, page: Page, server_url: str) -> None:
         """Selecting 'Theme' command reopens palette with theme filter."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Open palette and select Theme command
         page.keyboard.press("Control+k")
@@ -1756,7 +1756,7 @@ class TestThemeSwitcher:
     def test_current_theme_is_preselected(self, page: Page, server_url: str) -> None:
         """Opening theme picker pre-selects the current theme."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Set a specific theme first
         self._open_theme_palette(page)
@@ -1773,7 +1773,7 @@ class TestThemeSwitcher:
     def test_theme_shows_color_swatches(self, page: Page, server_url: str) -> None:
         """Theme commands show color preview swatches."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         self._open_theme_palette(page)
 
@@ -1789,7 +1789,7 @@ class TestThemeSwitcher:
     def test_theme_preview_on_arrow_navigation(self, page: Page, server_url: str) -> None:
         """Arrow key navigation previews themes without persisting."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Set initial theme
         self._open_theme_palette(page)
@@ -1820,7 +1820,7 @@ class TestThemeSwitcher:
     def test_theme_preview_restored_on_escape(self, page: Page, server_url: str) -> None:
         """Pressing Escape restores original theme."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Set initial theme
         self._open_theme_palette(page)
@@ -1848,7 +1848,7 @@ class TestThemeSwitcher:
     def test_theme_restored_after_non_theme_command(self, page: Page, server_url: str) -> None:
         """Theme restores when executing non-theme command after preview."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-services", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
         # Set initial theme to dark
         self._open_theme_palette(page)

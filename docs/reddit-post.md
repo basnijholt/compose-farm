@@ -5,7 +5,7 @@
 - I made a CLI to run Docker Compose across multiple hosts without Kubernetes or Swarm
 ---
 
-I've been running 100+ Docker Compose stacks on a single machine, and it kept running out of memory. I needed to spread services across multiple hosts, but:
+I've been running 100+ Docker Compose stacks on a single machine, and it kept running out of memory. I needed to spread stacks across multiple hosts, but:
 
 - **Kubernetes** felt like overkill. I don't need pods, ingress controllers, or 10x more YAML.
 - **Docker Swarm** is basically in maintenance mode.
@@ -15,7 +15,7 @@ So I built **Compose Farm**, a simple CLI that runs `docker compose` commands ov
 
 ## How it works
 
-One YAML file maps services to hosts:
+One YAML file maps stacks to hosts:
 
 ```yaml
 compose_dir: /opt/stacks
@@ -24,7 +24,7 @@ hosts:
   nuc: 192.168.1.10
   hp: 192.168.1.11
 
-services:
+stacks:
   plex: nuc
   jellyfin: hp
   sonarr: nuc
@@ -43,7 +43,7 @@ cf ps             # shows status across all hosts
 
 ## Auto-migration
 
-Change a service's host in the config and run `cf up`. It stops the service on the old host and starts it on the new one. No manual SSH needed.
+Change a stack's host in the config and run `cf up`. It stops the stack on the old host and starts it on the new one. No manual SSH needed.
 
 ```yaml
 # Before
@@ -65,7 +65,7 @@ cf up plex  # migrates automatically
 
 ## What it doesn't do
 
-- No high availability (if a host goes down, services don't auto-migrate)
+- No high availability (if a host goes down, stacks don't auto-migrate)
 - No overlay networking (containers on different hosts can't talk via Docker DNS)
 - No health checks or automatic restarts
 

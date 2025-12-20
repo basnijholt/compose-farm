@@ -53,7 +53,7 @@ class TestSshStatus:
 hosts:
   local:
     address: localhost
-services:
+stacks:
   test: local
 """)
 
@@ -69,7 +69,7 @@ services:
 hosts:
   local:
     address: localhost
-services:
+stacks:
   test: local
 """)
 
@@ -92,7 +92,7 @@ class TestSshSetup:
 hosts:
   local:
     address: localhost
-services:
+stacks:
   test: local
 """)
 

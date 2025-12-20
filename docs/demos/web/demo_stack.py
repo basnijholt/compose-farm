@@ -1,13 +1,13 @@
-"""Demo: Service actions.
+"""Demo: Stack actions.
 
 Records a ~30 second demo showing:
-- Navigating to a service page
+- Navigating to a stack page
 - Viewing compose file in Monaco editor
 - Triggering Restart action via command palette
 - Watching terminal output stream
 - Triggering Logs action
 
-Run: pytest docs/demos/web/demo_service.py -v --no-cov
+Run: pytest docs/demos/web/demo_stack.py -v --no-cov
 """
 
 from __future__ import annotations
@@ -27,8 +27,8 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.browser  # type: ignore[misc]
-def test_demo_service(recording_page: Page, server_url: str) -> None:
-    """Record service actions demo."""
+def test_demo_stack(recording_page: Page, server_url: str) -> None:
+    """Record stack actions demo."""
     page = recording_page
 
     # Start on dashboard
@@ -42,8 +42,8 @@ def test_demo_service(recording_page: Page, server_url: str) -> None:
     slow_type(page, "#cmd-input", "grocy", delay=100)
     pause(page, 500)
     page.keyboard.press("Enter")
-    page.wait_for_url("**/service/grocy", timeout=5000)
-    pause(page, 1000)  # Show service page
+    page.wait_for_url("**/stack/grocy", timeout=5000)
+    pause(page, 1000)  # Show stack page
 
     # Click on Compose File collapse to show the Monaco editor
     # The collapse uses a checkbox input, click it via the parent collapse div
@@ -63,7 +63,7 @@ def test_demo_service(recording_page: Page, server_url: str) -> None:
     compose_collapse.locator("input[type=checkbox]").click(force=True)
     pause(page, 500)
 
-    # Open command palette for service actions
+    # Open command palette for stack actions
     open_command_palette(page)
     pause(page, 400)
 

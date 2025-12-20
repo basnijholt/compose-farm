@@ -3,7 +3,7 @@
 Records a ~45 second demo combining multiple features:
 - Dashboard overview with stats
 - Sidebar filtering
-- Service navigation
+- Stack navigation
 - Terminal streaming
 - Theme switching
 
@@ -40,10 +40,10 @@ def _demo_dashboard_and_filter(page: Page, server_url: str) -> None:
     pause(page, 1000)
 
 
-def _demo_service_and_logs(page: Page) -> None:
-    """Demo part 2: Navigate to service and view logs."""
-    page.locator("#sidebar-services a", has_text="jellyfin").click()
-    page.wait_for_url("**/service/jellyfin", timeout=5000)
+def _demo_stack_and_logs(page: Page) -> None:
+    """Demo part 2: Navigate to stack and view logs."""
+    page.locator("#sidebar-stacks a", has_text="jellyfin").click()
+    page.wait_for_url("**/stack/jellyfin", timeout=5000)
     pause(page, 1500)
 
     open_command_palette(page)
@@ -93,5 +93,5 @@ def test_demo_workflow(recording_page: Page, server_url: str) -> None:
     page = recording_page
 
     _demo_dashboard_and_filter(page, server_url)
-    _demo_service_and_logs(page)
+    _demo_stack_and_logs(page)
     _demo_theme_and_return(page, server_url)

@@ -25,7 +25,7 @@ def valid_config_data() -> dict[str, Any]:
     return {
         "compose_dir": "/opt/compose",
         "hosts": {"server1": "192.168.1.10"},
-        "services": {"nginx": "server1"},
+        "stacks": {"nginx": "server1"},
     }
 
 
@@ -85,13 +85,13 @@ class TestGenerateTemplate:
         data = yaml.safe_load(template)
         assert "compose_dir" in data
         assert "hosts" in data
-        assert "services" in data
+        assert "stacks" in data
 
     def test_has_documentation_comments(self) -> None:
         template = _generate_template()
         assert "# Compose Farm configuration" in template
         assert "hosts:" in template
-        assert "services:" in template
+        assert "stacks:" in template
 
 
 class TestConfigInit:

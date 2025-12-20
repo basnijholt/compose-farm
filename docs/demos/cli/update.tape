@@ -1,5 +1,5 @@
 # Update Demo
-# Shows updating services (pull + down + up)
+# Shows updating stacks (pull + build + down + up)
 
 Output docs/assets/update.gif
 Output docs/assets/update.webm
@@ -11,7 +11,7 @@ Set Height 500
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 50ms
 
-Type "# Update a single service"
+Type "# Update a single stack"
 Enter
 Sleep 500ms
 

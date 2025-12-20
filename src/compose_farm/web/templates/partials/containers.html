@@ -1,6 +1,6 @@
-{# Container list for a service on a single host #}
+{# Container list for a stack on a single host #}
 {% from "partials/icons.html" import terminal %}
-{% macro container_row(service, container, host) %}
+{% macro container_row(stack, container, host) %}
 <div class="flex items-center gap-2 mb-2">
     {% if container.State == "running" %}
         <span class="badge badge-success">running</span>
@@ -19,17 +19,17 @@
     {% endif %}
     <code class="text-sm flex-1">{{ container.Name }}</code>
     <button class="btn btn-sm btn-outline"
-            onclick="initExecTerminal('{{ service }}', '{{ container.Name }}', '{{ host }}')">
+            onclick="initExecTerminal('{{ stack }}', '{{ container.Name }}', '{{ host }}')">
         {{ terminal() }} Shell
     </button>
 </div>
 {% endmacro %}
 
-{% macro host_containers(service, host, containers, show_header=False) %}
+{% macro host_containers(stack, host, containers, show_header=False) %}
 {% if show_header %}
 <div class="font-semibold text-sm mt-3 mb-1">{{ host }}</div>
 {% endif %}
 {% for container in containers %}
-{{ container_row(service, container, host) }}
+{{ container_row(stack, container, host) }}
 {% endfor %}
 {% endmacro %}

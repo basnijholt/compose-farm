@@ -22,7 +22,7 @@ python docs/demos/web/record.py navigation
 | Demo | Description |
 |------|-------------|
 | `navigation` | Command palette fuzzy search and navigation |
-| `service` | Service restart/logs via command palette |
+| `stack` | Stack restart/logs via command palette |
 | `themes` | Theme switching with arrow key preview |
 | `workflow` | Full workflow: filter, navigate, logs, themes |
 | `console` | Console terminal running cf commands |

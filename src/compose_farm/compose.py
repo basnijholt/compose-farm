@@ -179,13 +179,13 @@ def _parse_volume_item(
     return host_path
 
 
-def parse_host_volumes(config: Config, service: str) -> list[str]:
-    """Extract host bind mount paths from a service's compose file.
+def parse_host_volumes(config: Config, stack: str) -> list[str]:
+    """Extract host bind mount paths from a stack's compose file.
 
     Returns a list of absolute host paths used as volume mounts.
     Skips named volumes and resolves relative paths.
     """
-    compose_path = config.get_compose_path(service)
+    compose_path = config.get_compose_path(stack)
     if not compose_path.exists():
         return []
 
@@ -216,12 +216,12 @@ def parse_host_volumes(config: Config, service: str) -> list[str]:
     return list(dict.fromkeys(paths))
 
 
-def parse_devices(config: Config, service: str) -> list[str]:
-    """Extract host device paths from a service's compose file.
+def parse_devices(config: Config, stack: str) -> list[str]:
+    """Extract host device paths from a stack's compose file.
 
     Returns a list of host device paths (e.g., /dev/dri, /dev/dri/renderD128).
     """
-    compose_path = config.get_compose_path(service)
+    compose_path = config.get_compose_path(stack)
     if not compose_path.exists():
         return []
 
@@ -255,12 +255,12 @@ def parse_devices(config: Config, service: str) -> list[str]:
     return list(dict.fromkeys(devices))
 
 
-def parse_external_networks(config: Config, service: str) -> list[str]:
-    """Extract external network names from a service's compose file.
+def parse_external_networks(config: Config, stack: str) -> list[str]:
+    """Extract external network names from a stack's compose file.
 
     Returns a list of network names marked as external: true.
     """
-    compose_path = config.get_compose_path(service)
+    compose_path = config.get_compose_path(stack)
     if not compose_path.exists():
         return []
 

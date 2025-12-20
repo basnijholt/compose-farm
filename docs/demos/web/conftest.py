@@ -29,24 +29,24 @@ if TYPE_CHECKING:
 
     from playwright.sync_api import BrowserContext, Page, Route
 
-# Services to exclude from demo recordings (exact match)
-DEMO_EXCLUDE_SERVICES = {"arr"}
+# Stacks to exclude from demo recordings (exact match)
+DEMO_EXCLUDE_STACKS = {"arr"}
 
 
 def _get_filtered_config() -> CFConfig:
-    """Load config but filter out excluded services."""
+    """Load config but filter out excluded stacks."""
     config = load_config()
-    # Filter out excluded services
-    filtered_services = {
-        name: host for name, host in config.services.items() if name not in DEMO_EXCLUDE_SERVICES
+    # Filter out excluded stacks
+    filtered_stacks = {
+        name: host for name, host in config.stacks.items() if name not in DEMO_EXCLUDE_STACKS
     }
-    # Create a new config with filtered services
+    # Create a new config with filtered stacks
     return CFConfig(
         compose_dir=config.compose_dir,
         hosts=config.hosts,
-        services=filtered_services,
+        stacks=filtered_stacks,
         traefik_file=config.traefik_file,
-        traefik_service=config.traefik_service,
+        traefik_stack=config.traefik_stack,
         config_path=config.config_path,
     )
 
@@ -74,10 +74,10 @@ REAL_CONFIG_PATH = Path("/opt/stacks/compose-farm.yaml")
 
 @pytest.fixture(scope="module")
 def server_url() -> Generator[str, None, None]:
-    """Start demo server using real config (with filtered services) and return URL."""
+    """Start demo server using real config (with filtered stacks) and return URL."""
     os.environ["CF_CONFIG"] = str(REAL_CONFIG_PATH)
 
-    # Patch get_config in all web modules to filter out excluded services
+    # Patch get_config in all web modules to filter out excluded stacks
     # Must patch where it's imported, not where it's defined
     patches = [
         patch("compose_farm.web.routes.pages.get_config", _get_filtered_config),
@@ -200,15 +200,15 @@ def close_command_palette(page: Page) -> None:
 
 
 def wait_for_sidebar(page: Page) -> None:
-    """Wait for sidebar to load with services."""
-    page.wait_for_selector("#sidebar-services", timeout=5000)
+    """Wait for sidebar to load with stacks."""
+    page.wait_for_selector("#sidebar-stacks", timeout=5000)
     pause(page, 300)
 
 
-def navigate_to_service(page: Page, service: str) -> None:
-    """Navigate to a service page via sidebar click."""
-    page.locator("#sidebar-services a", has_text=service).click()
-    page.wait_for_url(f"**/service/{service}", timeout=5000)
+def navigate_to_stack(page: Page, stack: str) -> None:
+    """Navigate to a stack page via sidebar click."""
+    page.locator("#sidebar-stacks a", has_text=stack).click()
+    page.wait_for_url(f"**/stack/{stack}", timeout=5000)
     pause(page, 500)
 
 

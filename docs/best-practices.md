@@ -12,7 +12,7 @@ Tips, limitations, and recommendations for using Compose Farm effectively.
 
 Compose Farm moves containers between hosts but **does not provide cross-host networking**. Docker's internal DNS and networks don't span hosts.
 
-**What breaks when you move a service:**
+**What breaks when you move a stack:**
 
 | Feature | Works? | Why |
 |---------|--------|-----|
@@ -29,7 +29,7 @@ Compose Farm moves containers between hosts but **does not provide cross-host ne
 - No health checks or restart policies beyond Docker's
 - No secrets management beyond Docker's
 
-## Service Organization
+## Stack Organization
 
 ### Keep Dependencies Together
 
@@ -53,16 +53,16 @@ services:
 
 ```yaml
 # compose-farm.yaml
-services:
+stacks:
   myapp: nuc  # All three containers stay together
 ```
 
-### Separate Standalone Services
+### Separate Standalone Stacks
 
-Services that don't talk to other containers can be anywhere:
+Stacks whose services don't talk to other containers can be anywhere:
 
 ```yaml
-services:
+stacks:
   # These can run on any host
   plex: nuc
   jellyfin: hp
@@ -92,14 +92,14 @@ services:
       - "5432:5432"
 ```
 
-## Multi-Host Services
+## Multi-Host Stacks
 
 ### When to Use `all`
 
-Use `all` for services that need local access to each host:
+Use `all` for stacks that need local access to each host:
 
 ```yaml
-services:
+stacks:
   # Need Docker socket
   dozzle: all          # Log viewer
   portainer-agent: all  # Portainer agents
@@ -112,10 +112,10 @@ services:
 
 ### Host-Specific Lists
 
-For services on specific hosts only:
+For stacks on specific hosts only:
 
 ```yaml
-services:
+stacks:
   # Only on compute nodes
   gitlab-runner: [nuc, hp]
 
@@ -146,7 +146,7 @@ Before migrating, Compose Farm verifies:
 # 1. Preview changes
 cf apply --dry-run
 
-# 2. Verify target host can run the service
+# 2. Verify target host can run the stack
 cf check myservice
 
 # 3. Apply changes
@@ -254,23 +254,23 @@ cf update plex && cf update sonarr && cf update radarr
 
 ## Traefik Setup
 
-### Service Placement
+### Stack Placement
 
 Put Traefik on a reliable host:
 
 ```yaml
-services:
+stacks:
   traefik: nuc  # Primary host with good uptime
 ```
 
-### Same-Host Services
+### Same-Host Stacks
 
-Services on the same host as Traefik use Docker provider:
+Stacks on the same host as Traefik use Docker provider:
 
 ```yaml
-traefik_service: traefik
+traefik_stack: traefik
 
-services:
+stacks:
   traefik: nuc
   portainer: nuc   # Docker provider handles this
   plex: hp         # File provider handles this
@@ -317,7 +317,7 @@ cf apply
 
 ### Common Issues
 
-**Service won't start:**
+**Stack won't start:**
 ```bash
 cf check myservice      # Verify mounts/networks
 cf logs myservice       # Check container logs
@@ -339,15 +339,6 @@ cf refresh              # Sync state
 ```bash
 cf ssh status           # Check key status
 cf ssh setup            # Re-setup keys
-```
-
-### Debug Mode
-
-For more verbose output:
-
-```bash
-# See exact commands being run
-cf --verbose up myservice
 ```
 
 ## Security Considerations
@@ -374,7 +365,7 @@ cf --verbose up myservice
 
 | Scenario | Solution |
 |----------|----------|
-| 2-10 hosts, static services | **Compose Farm** |
+| 2-10 hosts, static stacks | **Compose Farm** |
 | Cross-host container networking | Docker Swarm |
 | Auto-scaling, self-healing | Kubernetes |
 | Infrastructure as code | Ansible + Compose Farm |

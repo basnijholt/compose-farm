@@ -15,14 +15,14 @@ from compose_farm.cli.common import (
     AllOption,
     ConfigOption,
     LogPathOption,
-    ServicesArg,
+    StacksArg,
     format_host,
-    get_services,
+    get_stacks,
     load_config_or_exit,
     run_async,
     run_parallel_with_progress,
     validate_hosts,
-    validate_services,
+    validate_stacks,
 )
 
 if TYPE_CHECKING:
@@ -43,7 +43,7 @@ from compose_farm.executor import (
 from compose_farm.logs import (
     DEFAULT_LOG_PATH,
     SnapshotEntry,
-    collect_service_entries,
+    collect_stack_entries,
     isoformat,
     load_existing_entries,
     merge_entries,
@@ -51,31 +51,29 @@ from compose_farm.logs import (
 )
 from compose_farm.operations import (
     check_host_compatibility,
-    check_service_requirements,
-    discover_service_host,
+    check_stack_requirements,
+    discover_stack_host,
 )
-from compose_farm.state import get_orphaned_services, load_state, save_state
+from compose_farm.state import get_orphaned_stacks, load_state, save_state
 from compose_farm.traefik import generate_traefik_config, render_traefik_config
 
 # --- Sync helpers ---
 
 
-def _discover_services(
-    cfg: Config, services: list[str] | None = None
-) -> dict[str, str | list[str]]:
-    """Discover running services with a progress bar."""
-    svc_list = services if services is not None else list(cfg.services)
+def _discover_stacks(cfg: Config, stacks: list[str] | None = None) -> dict[str, str | list[str]]:
+    """Discover running stacks with a progress bar."""
+    stack_list = stacks if stacks is not None else list(cfg.stacks)
     results = run_parallel_with_progress(
         "Discovering",
-        svc_list,
-        lambda s: discover_service_host(cfg, s),
+        stack_list,
+        lambda s: discover_stack_host(cfg, s),
     )
     return {svc: host for svc, host in results if host is not None}
 
 
-def _snapshot_services(
+def _snapshot_stacks(
     cfg: Config,
-    services: list[str],
+    stacks: list[str],
     log_path: Path | None,
 ) -> Path:
     """Capture image digests with a progress bar."""
@@ -83,16 +81,16 @@ def _snapshot_services(
     now_dt = datetime.now(UTC)
     now_iso = isoformat(now_dt)
 
-    async def collect_service(service: str) -> tuple[str, list[SnapshotEntry]]:
+    async def collect_stack(stack: str) -> tuple[str, list[SnapshotEntry]]:
         try:
-            return service, await collect_service_entries(cfg, service, now=now_dt)
+            return stack, await collect_stack_entries(cfg, stack, now=now_dt)
         except RuntimeError:
-            return service, []
+            return stack, []
 
     results = run_parallel_with_progress(
         "Capturing",
-        services,
-        collect_service,
+        stacks,
+        collect_stack,
     )
     snapshot_entries = [entry for _, entries in results for entry in entries]
 
@@ -112,7 +110,7 @@ def _merge_state(
     discovered: dict[str, str | list[str]],
     removed: list[str],
 ) -> dict[str, str | list[str]]:
-    """Merge discovered services into existing state for partial refresh."""
+    """Merge discovered stacks into existing state for partial refresh."""
     new_state = {**current_state, **discovered}
     for svc in removed:
         new_state.pop(svc, None)
@@ -128,25 +126,25 @@ def _report_sync_changes(
 ) -> None:
     """Report sync changes to the user."""
     if added:
-        console.print(f"\nNew services found ({len(added)}):")
-        for service in sorted(added):
-            host_str = format_host(discovered[service])
-            console.print(f"  [green]+[/] [cyan]{service}[/] on [magenta]{host_str}[/]")
+        console.print(f"\nNew stacks found ({len(added)}):")
+        for stack in sorted(added):
+            host_str = format_host(discovered[stack])
+            console.print(f"  [green]+[/] [cyan]{stack}[/] on [magenta]{host_str}[/]")
 
     if changed:
-        console.print(f"\nServices on different hosts ({len(changed)}):")
-        for service, old_host, new_host in sorted(changed):
+        console.print(f"\nStacks on different hosts ({len(changed)}):")
+        for stack, old_host, new_host in sorted(changed):
             old_str = format_host(old_host)
             new_str = format_host(new_host)
             console.print(
-                f"  [yellow]~[/] [cyan]{service}[/]: [magenta]{old_str}[/] → [magenta]{new_str}[/]"
+                f"  [yellow]~[/] [cyan]{stack}[/]: [magenta]{old_str}[/] → [magenta]{new_str}[/]"
             )
 
     if removed:
-        console.print(f"\nServices no longer running ({len(removed)}):")
-        for service in sorted(removed):
-            host_str = format_host(current_state[service])
-            console.print(f"  [red]-[/] [cyan]{service}[/] (was on [magenta]{host_str}[/])")
+        console.print(f"\nStacks no longer running ({len(removed)}):")
+        for stack in sorted(removed):
+            host_str = format_host(current_state[stack])
+            console.print(f"  [red]-[/] [cyan]{stack}[/] (was on [magenta]{host_str}[/])")
 
 
 # --- Check helpers ---
@@ -181,44 +179,44 @@ def _check_ssh_connectivity(cfg: Config) -> list[str]:
     return [host for host, success in results if not success]
 
 
-def _check_service_requirements(
+def _check_stack_requirements(
     cfg: Config,
-    services: list[str],
+    stacks: list[str],
 ) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]], list[tuple[str, str, str]]]:
-    """Check mounts, networks, and devices for all services with a progress bar.
+    """Check mounts, networks, and devices for all stacks with a progress bar.
 
     Returns (mount_errors, network_errors, device_errors) where each is a list of
-    (service, host, missing_item) tuples.
+    (stack, host, missing_item) tuples.
     """
 
-    async def check_service(
-        service: str,
+    async def check_stack(
+        stack: str,
     ) -> tuple[
         str,
         list[tuple[str, str, str]],
         list[tuple[str, str, str]],
         list[tuple[str, str, str]],
     ]:
-        """Check requirements for a single service on all its hosts."""
-        host_names = cfg.get_hosts(service)
+        """Check requirements for a single stack on all its hosts."""
+        host_names = cfg.get_hosts(stack)
         mount_errors: list[tuple[str, str, str]] = []
         network_errors: list[tuple[str, str, str]] = []
         device_errors: list[tuple[str, str, str]] = []
 
         for host_name in host_names:
-            missing_paths, missing_nets, missing_devs = await check_service_requirements(
-                cfg, service, host_name
+            missing_paths, missing_nets, missing_devs = await check_stack_requirements(
+                cfg, stack, host_name
             )
-            mount_errors.extend((service, host_name, p) for p in missing_paths)
-            network_errors.extend((service, host_name, n) for n in missing_nets)
-            device_errors.extend((service, host_name, d) for d in missing_devs)
+            mount_errors.extend((stack, host_name, p) for p in missing_paths)
+            network_errors.extend((stack, host_name, n) for n in missing_nets)
+            device_errors.extend((stack, host_name, d) for d in missing_devs)
 
-        return service, mount_errors, network_errors, device_errors
+        return stack, mount_errors, network_errors, device_errors
 
     results = run_parallel_with_progress(
         "Checking requirements",
-        services,
-        check_service,
+        stacks,
+        check_stack,
     )
 
     all_mount_errors: list[tuple[str, str, str]] = []
@@ -234,7 +232,7 @@ def _check_service_requirements(
 
 def _report_config_status(cfg: Config) -> bool:
     """Check and report config vs disk status. Returns True if errors found."""
-    configured = set(cfg.services.keys())
+    configured = set(cfg.stacks.keys())
     on_disk = cfg.discover_compose_dirs()
     unmanaged = sorted(on_disk - configured)
     missing_from_disk = sorted(configured - on_disk)
@@ -255,12 +253,12 @@ def _report_config_status(cfg: Config) -> bool:
     return bool(missing_from_disk)
 
 
-def _report_orphaned_services(cfg: Config) -> bool:
-    """Check for services in state but not in config. Returns True if orphans found."""
-    orphaned = get_orphaned_services(cfg)
+def _report_orphaned_stacks(cfg: Config) -> bool:
+    """Check for stacks in state but not in config. Returns True if orphans found."""
+    orphaned = get_orphaned_stacks(cfg)
 
     if orphaned:
-        console.print("\n[yellow]Orphaned services[/] (in state but not in config):")
+        console.print("\n[yellow]Orphaned stacks[/] (in state but not in config):")
         console.print(
             "[dim]Run [bold]cf apply[/bold] to stop them, or [bold]cf down --orphaned[/bold] for just orphans.[/]"
         )
@@ -271,10 +269,10 @@ def _report_orphaned_services(cfg: Config) -> bool:
     return False
 
 
-def _report_traefik_status(cfg: Config, services: list[str]) -> None:
+def _report_traefik_status(cfg: Config, stacks: list[str]) -> None:
     """Check and report traefik label status."""
     try:
-        _, warnings = generate_traefik_config(cfg, services, check_all=True)
+        _, warnings = generate_traefik_config(cfg, stacks, check_all=True)
     except (FileNotFoundError, ValueError):
         return
 
@@ -287,16 +285,16 @@ def _report_traefik_status(cfg: Config, services: list[str]) -> None:
 
 
 def _report_requirement_errors(errors: list[tuple[str, str, str]], category: str) -> None:
-    """Report requirement errors (mounts, networks, devices) grouped by service."""
-    by_service: dict[str, list[tuple[str, str]]] = {}
-    for svc, host, item in errors:
-        by_service.setdefault(svc, []).append((host, item))
+    """Report requirement errors (mounts, networks, devices) grouped by stack."""
+    by_stack: dict[str, list[tuple[str, str]]] = {}
+    for stack, host, item in errors:
+        by_stack.setdefault(stack, []).append((host, item))
 
     console.print(f"[red]Missing {category}[/] ({len(errors)}):")
-    for svc, items in sorted(by_service.items()):
+    for stack, items in sorted(by_stack.items()):
         host = items[0][0]
         missing = [i for _, i in items]
-        console.print(f"  [cyan]{svc}[/] on [magenta]{host}[/]:")
+        console.print(f"  [cyan]{stack}[/] on [magenta]{host}[/]:")
         for item in missing:
             console.print(f"    [red]✗[/] {item}")
 
@@ -316,7 +314,7 @@ def _report_host_compatibility(
     compat: dict[str, tuple[int, int, list[str]]],
     assigned_hosts: list[str],
 ) -> None:
-    """Report host compatibility for a service."""
+    """Report host compatibility for a stack."""
     for host_name, (found, total, missing) in sorted(compat.items()):
         is_assigned = host_name in assigned_hosts
         marker = " [dim](assigned)[/]" if is_assigned else ""
@@ -347,7 +345,7 @@ def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bo
     console.print()  # Spacing before mounts/networks check
 
     # Check mounts, networks, and devices
-    mount_errors, network_errors, device_errors = _check_service_requirements(cfg, svc_list)
+    mount_errors, network_errors, device_errors = _check_stack_requirements(cfg, svc_list)
 
     if mount_errors:
         _report_requirement_errors(mount_errors, "mounts")
@@ -362,10 +360,10 @@ def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bo
         print_success("All mounts, networks, and devices exist")
 
     if show_host_compat:
-        for service in svc_list:
-            console.print(f"\n[bold]Host compatibility for[/] [cyan]{service}[/]:")
-            compat = run_async(check_host_compatibility(cfg, service))
-            assigned_hosts = cfg.get_hosts(service)
+        for stack in svc_list:
+            console.print(f"\n[bold]Host compatibility for[/] [cyan]{stack}[/]:")
+            compat = run_async(check_host_compatibility(cfg, stack))
+            assigned_hosts = cfg.get_hosts(stack)
             _report_host_compatibility(compat, assigned_hosts)
 
     return has_errors
@@ -379,8 +377,8 @@ _DEFAULT_NETWORK_GATEWAY = "172.20.0.1"
 
 @app.command("traefik-file", rich_help_panel="Configuration")
 def traefik_file(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
+    stacks: StacksArg = None,
+    all_stacks: AllOption = False,
     output: Annotated[
         Path | None,
         typer.Option(
@@ -392,9 +390,9 @@ def traefik_file(
     config: ConfigOption = None,
 ) -> None:
     """Generate a Traefik file-provider fragment from compose Traefik labels."""
-    svc_list, cfg = get_services(services or [], all_services, config)
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
     try:
-        dynamic, warnings = generate_traefik_config(cfg, svc_list)
+        dynamic, warnings = generate_traefik_config(cfg, stack_list)
     except (FileNotFoundError, ValueError) as exc:
         print_error(str(exc))
         raise typer.Exit(1) from exc
@@ -414,8 +412,8 @@ def traefik_file(
 
 @app.command(rich_help_panel="Configuration")
 def refresh(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
+    stacks: StacksArg = None,
+    all_stacks: AllOption = False,
     config: ConfigOption = None,
     log_path: LogPathOption = None,
     dry_run: Annotated[
@@ -423,33 +421,33 @@ def refresh(
         typer.Option("--dry-run", "-n", help="Show what would change without writing"),
     ] = False,
 ) -> None:
-    """Update local state from running services.
+    """Update local state from running stacks.
 
-    Discovers which services are running on which hosts, updates the state
+    Discovers which stacks are running on which hosts, updates the state
     file, and captures image digests. This is a read operation - it updates
     your local state to match reality, not the other way around.
 
-    Without arguments: refreshes all services (same as --all).
-    With service names: refreshes only those services.
+    Without arguments: refreshes all stacks (same as --all).
+    With stack names: refreshes only those stacks.
 
     Use 'cf apply' to make reality match your config (stop orphans, migrate).
     """
-    svc_list, cfg = get_services(services or [], all_services, config, default_all=True)
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, default_all=True)
 
     # Partial refresh merges with existing state; full refresh replaces it
-    # Partial = specific services provided (not --all, not default)
-    partial_refresh = bool(services) and not all_services
+    # Partial = specific stacks provided (not --all, not default)
+    partial_refresh = bool(stacks) and not all_stacks
 
     current_state = load_state(cfg)
 
-    discovered = _discover_services(cfg, svc_list)
+    discovered = _discover_stacks(cfg, stack_list)
 
-    # Calculate changes (only for the services we're refreshing)
+    # Calculate changes (only for the stacks we're refreshing)
     added = [s for s in discovered if s not in current_state]
     # Only mark as "removed" if we're doing a full refresh
     if partial_refresh:
-        # In partial refresh, a service not running is just "not found"
-        removed = [s for s in svc_list if s in current_state and s not in discovered]
+        # In partial refresh, a stack not running is just "not found"
+        removed = [s for s in stack_list if s in current_state and s not in discovered]
     else:
         removed = [s for s in current_state if s not in discovered]
     changed = [
@@ -475,12 +473,12 @@ def refresh(
             _merge_state(current_state, discovered, removed) if partial_refresh else discovered
         )
         save_state(cfg, new_state)
-        print_success(f"State updated: {len(new_state)} services tracked.")
+        print_success(f"State updated: {len(new_state)} stacks tracked.")
 
-    # Capture image digests for running services
+    # Capture image digests for running stacks
     if discovered:
         try:
-            path = _snapshot_services(cfg, list(discovered.keys()), log_path)
+            path = _snapshot_stacks(cfg, list(discovered.keys()), log_path)
             print_success(f"Digests written to {path}")
         except RuntimeError as exc:
             print_warning(str(exc))
@@ -488,7 +486,7 @@ def refresh(
 
 @app.command(rich_help_panel="Configuration")
 def check(
-    services: ServicesArg = None,
+    stacks: StacksArg = None,
     local: Annotated[
         bool,
         typer.Option("--local", help="Skip SSH-based checks (faster)"),
@@ -497,31 +495,31 @@ def check(
 ) -> None:
     """Validate configuration, traefik labels, mounts, and networks.
 
-    Without arguments: validates all services against configured hosts.
-    With service arguments: validates specific services and shows host compatibility.
+    Without arguments: validates all stacks against configured hosts.
+    With stack arguments: validates specific stacks and shows host compatibility.
 
     Use --local to skip SSH-based checks for faster validation.
     """
     cfg = load_config_or_exit(config)
 
-    # Determine which services to check and whether to show host compatibility
-    if services:
-        svc_list = list(services)
-        validate_services(cfg, svc_list)
+    # Determine which stacks to check and whether to show host compatibility
+    if stacks:
+        stack_list = list(stacks)
+        validate_stacks(cfg, stack_list)
         show_host_compat = True
     else:
-        svc_list = list(cfg.services.keys())
+        stack_list = list(cfg.stacks.keys())
         show_host_compat = False
 
     # Run checks
     has_errors = _report_config_status(cfg)
-    _report_traefik_status(cfg, svc_list)
+    _report_traefik_status(cfg, stack_list)
 
-    if not local and _run_remote_checks(cfg, svc_list, show_host_compat=show_host_compat):
+    if not local and _run_remote_checks(cfg, stack_list, show_host_compat=show_host_compat):
         has_errors = True
 
-    # Check for orphaned services (in state but removed from config)
-    if _report_orphaned_services(cfg):
+    # Check for orphaned stacks (in state but removed from config)
+    if _report_orphaned_stacks(cfg):
         has_errors = True
 
     if has_errors:
@@ -550,7 +548,7 @@ def init_network(
 ) -> None:
     """Create Docker network on hosts with consistent settings.
 
-    Creates an external Docker network that services can use for cross-host
+    Creates an external Docker network that stacks can use for cross-host
     communication. Uses the same subnet/gateway on all hosts to ensure
     consistent networking.
     """
@@ -567,7 +565,7 @@ def init_network(
 
         if check_result.success:
             console.print(f"[cyan]\\[{host_name}][/] Network '{network}' already exists")
-            return CommandResult(service=host_name, exit_code=0, success=True)
+            return CommandResult(stack=host_name, exit_code=0, success=True)
 
         # Create the network
         create_cmd = (

@@ -125,6 +125,22 @@ nas:/volume1/compose /opt/compose nfs defaults 0 0
 
 Create `~/.config/compose-farm/compose-farm.yaml`:
 
+#### Single host example
+
+```yaml
+# Where compose files are located (one folder per stack)
+compose_dir: /opt/stacks
+
+hosts:
+  local: localhost
+
+stacks:
+  plex: local
+  sonarr: local
+  radarr: local
+```
+
+#### Multi-host example
 ```yaml
 # Where compose files are located (same path on all hosts)
 compose_dir: /opt/compose
@@ -137,16 +153,17 @@ hosts:
   hp:
     address: 192.168.1.11
     # user defaults to current user
-  local: localhost         # Run locally without SSH
 
-# Map services to hosts
-services:
+# Map stacks to hosts
+stacks:
   plex: nuc
   sonarr: nuc
   radarr: hp
-  jellyfin: local
 ```
 
+Each entry in `stacks:` maps to a folder under `compose_dir` that contains a compose file.
+
+For cross-host HTTP routing, add Traefik labels and configure `traefik_file` (see [Traefik Integration](traefik.md)).
 ### Validate Configuration
 
 ```bash
@@ -167,17 +184,17 @@ cf check
 cf ps
 ```
 
-Shows all configured services and their status.
+Shows all configured stacks and their status.
 
-### Start All Services
+### Start All Stacks
 
 ```bash
 cf up --all
 ```
 
-Starts all services on their assigned hosts.
+Starts all stacks on their assigned hosts.
 
-### Start Specific Services
+### Start Specific Stacks
 
 ```bash
 cf up plex sonarr
@@ -193,13 +210,13 @@ cf apply             # Execute changes
 ```
 
 This will:
-1. Start services in config but not running
-2. Migrate services on wrong host
-3. Stop services removed from config
+1. Start stacks in config but not running
+2. Migrate stacks on wrong host
+3. Stop stacks removed from config
 
 ## Docker Network Setup
 
-If your services use an external Docker network:
+If your stacks use an external Docker network:
 
 ```bash
 # Create network on all hosts
@@ -213,7 +230,7 @@ Default network: `mynetwork` with subnet `172.20.0.0/16`
 
 ## Example Workflow
 
-### 1. Add a New Service
+### 1. Add a New Stack
 
 Create the compose file:
 
@@ -239,23 +256,23 @@ EOF
 Add to config:
 
 ```yaml
-services:
-  # ... existing services
+stacks:
+  # ... existing stacks
   prowlarr: nuc
 ```
 
-Start the service:
+Start the stack:
 
 ```bash
 cf up prowlarr
 ```
 
-### 2. Move a Service to Another Host
+### 2. Move a Stack to Another Host
 
 Edit `compose-farm.yaml`:
 
 ```yaml
-services:
+stacks:
   plex: hp  # Changed from nuc
 ```
 
@@ -272,11 +289,11 @@ Or use apply to reconcile everything:
 cf apply
 ```
 
-### 3. Update All Services
+### 3. Update All Stacks
 
 ```bash
 cf update --all
-# Runs: pull + down + up for each service
+# Runs: pull + build + down + up for each stack
 ```
 
 ## Next Steps

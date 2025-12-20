@@ -10,7 +10,7 @@
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 > [!NOTE]
-> Run `docker compose` commands across multiple hosts via SSH. One YAML maps services to hosts. Run `cf apply` and reality matches your config—services start, migrate, or stop as needed. No Kubernetes, no Swarm, no magic.
+> Run `docker compose` commands across multiple hosts via SSH. One YAML maps stacks to hosts. Run `cf apply` and reality matches your config—stacks start, migrate, or stop as needed. No Kubernetes, no Swarm, no magic.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -19,7 +19,7 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 - [How It Works](#how-it-works)
 - [Requirements](#requirements)
 - [Limitations & Best Practices](#limitations--best-practices)
-  - [What breaks when you move a service](#what-breaks-when-you-move-a-service)
+  - [What breaks when you move a stack](#what-breaks-when-you-move-a-stack)
   - [Best practices](#best-practices)
   - [What Compose Farm doesn't do](#what-compose-farm-doesnt-do)
 - [Installation](#installation)
@@ -27,7 +27,9 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
   - [SSH Agent (default)](#ssh-agent-default)
   - [Dedicated SSH Key (recommended for Docker/Web UI)](#dedicated-ssh-key-recommended-for-dockerweb-ui)
 - [Configuration](#configuration)
-  - [Multi-Host Services](#multi-host-services)
+  - [Single-host example](#single-host-example)
+  - [Multi-host example](#multi-host-example)
+  - [Multi-Host Stacks](#multi-host-stacks)
   - [Config Command](#config-command)
 - [Usage](#usage)
   - [CLI `--help` Output](#cli---help-output)
@@ -40,14 +42,14 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 ## Why Compose Farm?
 
-I used to run 100+ Docker Compose stacks on a single machine that kept running out of memory. I needed a way to distribute services across multiple machines without the complexity of:
+I used to run 100+ Docker Compose stacks on a single machine that kept running out of memory. I needed a way to distribute stacks across multiple machines without the complexity of:
 
 - **Kubernetes**: Overkill for my use case. I don't need pods, services, ingress controllers, or YAML manifests 10x the size of my compose files.
 - **Docker Swarm**: Effectively in maintenance mode—no longer being invested in by Docker.
 
 Both require changes to your compose files. **Compose Farm requires zero changes**—your existing `docker-compose.yml` files work as-is.
 
-I also wanted a declarative setup—one config file that defines where everything runs. Change the config, run `cf apply`, and everything reconciles—services start, migrate, or stop as needed. See [Comparison with Alternatives](#comparison-with-alternatives) for how this compares to other approaches.
+I also wanted a declarative setup—one config file that defines where everything runs. Change the config, run `cf apply`, and everything reconciles—stacks start, migrate, or stop as needed. See [Comparison with Alternatives](#comparison-with-alternatives) for how this compares to other approaches.
 
 <p align="center">
 <a href="https://xkcd.com/927/">
@@ -59,8 +61,8 @@ Before you say it—no, this is not a new standard. I changed nothing about my e
 
 Compose Farm just automates what you'd do by hand:
 - Runs `docker compose` commands over SSH
-- Tracks which service runs on which host
-- **One command (`cf apply`) to reconcile everything**—start missing services, migrate moved ones, stop removed ones
+- Tracks which stack runs on which host
+- **One command (`cf apply`) to reconcile everything**—start missing stacks, migrate moved ones, stop removed ones
 - Generates Traefik file-provider config for cross-host routing
 
 **It's a convenience wrapper, not a new paradigm.**
@@ -70,13 +72,13 @@ Compose Farm just automates what you'd do by hand:
 **The declarative way** — run `cf apply` and reality matches your config:
 
 1. Compose Farm compares your config to what's actually running
-2. Services in config but not running? **Starts them**
-3. Services on the wrong host? **Migrates them** (stops on old host, starts on new)
-4. Services running but removed from config? **Stops them**
+2. Stacks in config but not running? **Starts them**
+3. Stacks on the wrong host? **Migrates them** (stops on old host, starts on new)
+4. Stacks running but removed from config? **Stops them**
 
-**Under the hood** — each service operation is just SSH + docker compose:
+**Under the hood** — each stack operation is just SSH + docker compose:
 
-1. Look up which host runs the service (e.g., `plex` → `server-1`)
+1. Look up which host runs the stack (e.g., `plex` → `server-1`)
 2. SSH to `server-1` (or run locally if `localhost`)
 3. Execute `docker compose -f /opt/compose/plex/docker-compose.yml up -d`
 4. Stream output back with `[plex]` prefix
@@ -104,13 +106,13 @@ nas:/volume1/compose  →  /opt/compose (on server-2)
 nas:/volume1/compose  →  /opt/compose (on server-3)
 ```
 
-Compose Farm simply runs `docker compose -f /opt/compose/{service}/docker-compose.yml` on the appropriate host—it doesn't copy or sync files.
+Compose Farm simply runs `docker compose -f /opt/compose/{stack}/docker-compose.yml` on the appropriate host—it doesn't copy or sync files.
 
 ## Limitations & Best Practices
 
 Compose Farm moves containers between hosts but **does not provide cross-host networking**. Docker's internal DNS and networks don't span hosts.
 
-### What breaks when you move a service
+### What breaks when you move a stack
 
 - **Docker DNS** - `http://redis:6379` won't resolve from another host
 - **Docker networks** - Containers can't reach each other via network names
@@ -120,7 +122,7 @@ Compose Farm moves containers between hosts but **does not provide cross-host ne
 
 1. **Keep dependent services together** - If an app needs a database, redis, or worker, keep them in the same compose file on the same host
 
-2. **Only migrate standalone services** - Services that don't talk to other containers (or only talk to external APIs) are safe to move
+2. **Only migrate standalone stacks** - Stacks whose services don't talk to other containers (or only talk to external APIs) are safe to move
 
 3. **Expose ports for cross-host communication** - If services must communicate across hosts, publish ports and use IP addresses instead of container names:
    ```yaml
@@ -197,7 +199,7 @@ This creates `~/.ssh/compose-farm/id_ed25519` (ED25519, no passphrase) and copie
 
 <details><summary>🐳 Docker volume options for SSH keys</summary>
 
-When running in Docker, mount a volume to persist the SSH keys. Choose ONE option and use it for both `cf` and `web` services:
+When running in Docker, mount a volume to persist the SSH keys. Choose ONE option and use it for both `cf` and `web` Compose services:
 
 **Option 1: Host path (default)** - keys at `~/.ssh/compose-farm/id_ed25519`
 ```yaml
@@ -225,6 +227,23 @@ The keys will persist across restarts.
 
 Create `~/.config/compose-farm/compose-farm.yaml` (or `./compose-farm.yaml` in your working directory):
 
+### Single-host example
+
+No SSH, shared storage, or Traefik file-provider required.
+
+```yaml
+compose_dir: /opt/stacks
+
+hosts:
+  local: localhost  # Run locally without SSH
+
+stacks:
+  plex: local
+  jellyfin: local
+  traefik: local
+```
+
+### Multi-host example
 ```yaml
 compose_dir: /opt/compose  # Must be the same path on all hosts
 
@@ -235,24 +254,24 @@ hosts:
   server-2:
     address: 192.168.1.11
     # user defaults to current user
-  local: localhost  # Run locally without SSH
 
-services:
+stacks:
   plex: server-1
   jellyfin: server-2
   sonarr: server-1
-  radarr: local  # Runs on the machine where you invoke compose-farm
 
-  # Multi-host services (run on multiple/all hosts)
+  # Multi-host stacks (run on multiple/all hosts)
   autokuma: all              # Runs on ALL configured hosts
   dozzle: [server-1, server-2]  # Explicit list of hosts
 ```
 
-Compose files are expected at `{compose_dir}/{service}/compose.yaml` (also supports `compose.yml`, `docker-compose.yml`, `docker-compose.yaml`).
+For cross-host HTTP routing, add Traefik labels to your compose files and set `traefik_file` so Compose Farm can generate the file-provider config.
 
-### Multi-Host Services
+Each entry in `stacks:` maps to a folder under `compose_dir` that contains a compose file. Compose files are expected at `{compose_dir}/{stack}/compose.yaml` (also supports `compose.yml`, `docker-compose.yml`, `docker-compose.yaml`).
 
-Some services need to run on every host. This is typically required for tools that access **host-local resources** like the Docker socket (`/var/run/docker.sock`), which cannot be accessed remotely without security risks.
+### Multi-Host Stacks
+
+Some stacks need to run on every host. This is typically required for tools that access **host-local resources** like the Docker socket (`/var/run/docker.sock`), which cannot be accessed remotely without security risks.
 
 Common use cases:
 - **AutoKuma** - auto-creates Uptime Kuma monitors from container labels (needs local Docker socket)
@@ -265,7 +284,7 @@ This is the same pattern as Docker Swarm's `deploy.mode: global`.
 Use the `all` keyword or an explicit list:
 
 ```yaml
-services:
+stacks:
   # Run on all configured hosts
   autokuma: all
   dozzle: all
@@ -274,9 +293,9 @@ services:
   node-exporter: [server-1, server-2, server-3]
 ```
 
-When you run `cf up autokuma`, it starts the service on all hosts in parallel. Multi-host services:
+When you run `cf up autokuma`, it starts the stack on all hosts in parallel. Multi-host stacks:
 - Are excluded from migration logic (they always run everywhere)
-- Show output with `[service@host]` prefix for each host
+- Show output with `[stack@host]` prefix for each host
 - Track all running hosts in state
 
 ### Config Command
@@ -300,20 +319,20 @@ The CLI is available as both `compose-farm` and the shorter `cf` alias.
 | Command | Description |
 |---------|-------------|
 | **`cf apply`** | **Make reality match config (start + migrate + stop orphans)** |
-| `cf up <svc>` | Start service (auto-migrates if host changed) |
-| `cf down <svc>` | Stop service |
-| `cf restart <svc>` | down + up |
-| `cf update <svc>` | pull + down + up |
-| `cf pull <svc>` | Pull latest images |
-| `cf logs -f <svc>` | Follow logs |
-| `cf ps` | Show status of all services |
-| `cf refresh` | Update state from running services |
+| `cf up <stack>` | Start stack (auto-migrates if host changed) |
+| `cf down <stack>` | Stop stack |
+| `cf restart <stack>` | down + up |
+| `cf update <stack>` | pull + build + down + up |
+| `cf pull <stack>` | Pull latest images |
+| `cf logs -f <stack>` | Follow logs |
+| `cf ps` | Show status of all stacks |
+| `cf refresh` | Update state from running stacks |
 | `cf check` | Validate config, mounts, networks |
 | `cf init-network` | Create Docker network on hosts |
 | `cf traefik-file` | Generate Traefik file-provider config |
 | `cf config <cmd>` | Manage config files (init, show, path, validate, edit, symlink) |
 
-All commands support `--all` to operate on all services.
+All commands support `--all` to operate on all stacks.
 
 Each command replaces: look up host → SSH → find compose file → run `ssh host "cd /opt/compose/plex && docker compose up -d"`.
 
@@ -321,14 +340,14 @@ Each command replaces: look up host → SSH → find compose file → run `ssh h
 # The main command: make reality match your config
 cf apply               # start missing + migrate + stop orphans
 cf apply --dry-run     # preview what would change
-cf apply --no-orphans  # skip stopping orphaned services
-cf apply --full        # also refresh all services (picks up config changes)
+cf apply --no-orphans  # skip stopping orphaned stacks
+cf apply --full        # also refresh all stacks (picks up config changes)
 
-# Or operate on individual services
-cf up plex jellyfin    # start services (auto-migrates if host changed)
+# Or operate on individual stacks
+cf up plex jellyfin    # start stacks (auto-migrates if host changed)
 cf up --all
-cf down plex           # stop services
-cf down --orphaned     # stop services removed from config
+cf down plex           # stop stacks
+cf down --orphaned     # stop stacks removed from config
 
 # Pull latest images
 cf pull --all
@@ -336,19 +355,19 @@ cf pull --all
 # Restart (down + up)
 cf restart plex
 
-# Update (pull + down + up) - the end-to-end update command
+# Update (pull + build + down + up) - the end-to-end update command
 cf update --all
 
-# Update state from reality (discovers running services + captures digests)
-cf refresh             # updates state.yaml and dockerfarm-log.toml
+# Update state from reality (discovers running stacks + captures digests)
+cf refresh             # updates compose-farm-state.yaml and dockerfarm-log.toml
 cf refresh --dry-run   # preview without writing
 
 # Validate config, traefik labels, mounts, and networks
 cf check                 # full validation (includes SSH checks)
 cf check --local         # fast validation (skip SSH)
-cf check jellyfin        # check service + show which hosts can run it
+cf check jellyfin        # check stack + show which hosts can run it
 
-# Create Docker network on new hosts (before migrating services)
+# Create Docker network on new hosts (before migrating stacks)
 cf init-network nuc hp   # create mynetwork on specific hosts
 cf init-network          # create on all hosts
 
@@ -383,39 +402,37 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Compose Farm - run docker compose commands across multiple hosts
 
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --version             -v        Show version and exit                        │
-│ --install-completion            Install completion for the current shell.    │
-│ --show-completion               Show completion for the current shell, to    │
-│                                 copy it or customize the installation.       │
-│ --help                -h        Show this message and exit.                  │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Lifecycle ──────────────────────────────────────────────────────────────────╮
-│ up             Start services (docker compose up -d). Auto-migrates if host  │
-│                changed.                                                      │
-│ down           Stop services (docker compose down).                          │
-│ pull           Pull latest images (docker compose pull).                     │
-│ restart        Restart services (down + up).                                 │
-│ update         Update services (pull + build + down + up).                   │
-│ apply          Make reality match config (start, migrate, stop as needed).   │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Configuration ──────────────────────────────────────────────────────────────╮
-│ traefik-file   Generate a Traefik file-provider fragment from compose        │
-│                Traefik labels.                                               │
-│ refresh        Update local state from running services.                     │
-│ check          Validate configuration, traefik labels, mounts, and networks. │
-│ init-network   Create Docker network on hosts with consistent settings.      │
-│ config         Manage compose-farm configuration files.                      │
-│ ssh            Manage SSH keys for passwordless authentication.              │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Monitoring ─────────────────────────────────────────────────────────────────╮
-│ logs           Show service logs.                                            │
-│ ps             Show status of services.                                      │
-│ stats          Show overview statistics for hosts and services.              │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Server ─────────────────────────────────────────────────────────────────────╮
-│ web            Start the web UI server.                                      │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --version             -v        Show version and exit                                  │
+│ --install-completion            Install completion for the current shell.              │
+│ --show-completion               Show completion for the current shell, to copy it or   │
+│                                 customize the installation.                            │
+│ --help                -h        Show this message and exit.                            │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Lifecycle ────────────────────────────────────────────────────────────────────────────╮
+│ up             Start stacks (docker compose up -d). Auto-migrates if host changed.     │
+│ down           Stop stacks (docker compose down).                                      │
+│ pull           Pull latest images (docker compose pull).                               │
+│ restart        Restart stacks (down + up).                                             │
+│ update         Update stacks (pull + build + down + up).                               │
+│ apply          Make reality match config (start, migrate, stop as needed).             │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Configuration ────────────────────────────────────────────────────────────────────────╮
+│ traefik-file   Generate a Traefik file-provider fragment from compose Traefik labels.  │
+│ refresh        Update local state from running stacks.                                 │
+│ check          Validate configuration, traefik labels, mounts, and networks.           │
+│ init-network   Create Docker network on hosts with consistent settings.                │
+│ config         Manage compose-farm configuration files.                                │
+│ ssh            Manage SSH keys for passwordless authentication.                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Monitoring ───────────────────────────────────────────────────────────────────────────╮
+│ logs           Show stack logs.                                                        │
+│ ps             Show status of stacks.                                                  │
+│ stats          Show overview statistics for hosts and stacks.                          │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Server ───────────────────────────────────────────────────────────────────────────────╮
+│ web            Start the web UI server.                                                │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -440,19 +457,19 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```yaml
 
- Usage: cf up [OPTIONS] [SERVICES]...
+ Usage: cf up [OPTIONS] [STACKS]...
 
- Start services (docker compose up -d). Auto-migrates if host changed.
+ Start stacks (docker compose up -d). Auto-migrates if host changed.
 
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│   services      [SERVICES]...  Services to operate on                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a            Run on all services                                  │
-│ --host    -H      TEXT  Filter to services on this host                      │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   stacks      [STACKS]...  Stacks to operate on                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a            Run on all stacks                                              │
+│ --host    -H      TEXT  Filter to stacks on this host                                  │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -475,21 +492,20 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```yaml
 
- Usage: cf down [OPTIONS] [SERVICES]...
+ Usage: cf down [OPTIONS] [STACKS]...
 
- Stop services (docker compose down).
+ Stop stacks (docker compose down).
 
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│   services      [SERVICES]...  Services to operate on                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all       -a            Run on all services                                │
-│ --orphaned                Stop orphaned services (in state but removed from  │
-│                           config)                                            │
-│ --host      -H      TEXT  Filter to services on this host                    │
-│ --config    -c      PATH  Path to config file                                │
-│ --help      -h            Show this message and exit.                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   stacks      [STACKS]...  Stacks to operate on                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all       -a            Run on all stacks                                            │
+│ --orphaned                Stop orphaned stacks (in state but removed from config)      │
+│ --host      -H      TEXT  Filter to stacks on this host                                │
+│ --config    -c      PATH  Path to config file                                          │
+│ --help      -h            Show this message and exit.                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -512,18 +528,18 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```yaml
 
- Usage: cf pull [OPTIONS] [SERVICES]...
+ Usage: cf pull [OPTIONS] [STACKS]...
 
  Pull latest images (docker compose pull).
 
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│   services      [SERVICES]...  Services to operate on                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a            Run on all services                                  │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   stacks      [STACKS]...  Stacks to operate on                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a            Run on all stacks                                              │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -546,18 +562,18 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```yaml
 
- Usage: cf restart [OPTIONS] [SERVICES]...
+ Usage: cf restart [OPTIONS] [STACKS]...
 
- Restart services (down + up).
+ Restart stacks (down + up).
 
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│   services      [SERVICES]...  Services to operate on                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a            Run on all services                                  │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   stacks      [STACKS]...  Stacks to operate on                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a            Run on all stacks                                              │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -580,18 +596,18 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```yaml
 
- Usage: cf update [OPTIONS] [SERVICES]...
+ Usage: cf update [OPTIONS] [STACKS]...
 
- Update services (pull + build + down + up).
+ Update stacks (pull + build + down + up).
 
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│   services      [SERVICES]...  Services to operate on                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a            Run on all services                                  │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   stacks      [STACKS]...  Stacks to operate on                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a            Run on all stacks                                              │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -618,25 +634,22 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Make reality match config (start, migrate, stop as needed).
 
- This is the "reconcile" command that ensures running services match your
- config file. It will:
+ This is the "reconcile" command that ensures running stacks match your config file. It
+ will:
+ 1. Stop orphaned stacks (in state but removed from config) 2. Migrate stacks on wrong
+ host (host in state ≠ host in config) 3. Start missing stacks (in config but not in
+ state)
+ Use --dry-run to preview changes before applying. Use --no-orphans to only migrate/start
+ without stopping orphaned stacks. Use --full to also run 'up' on all stacks (picks up
+ compose/env changes).
 
- 1. Stop orphaned services (in state but removed from config)
- 2. Migrate services on wrong host (host in state ≠ host in config)
- 3. Start missing services (in config but not in state)
-
- Use --dry-run to preview changes before applying.
- Use --no-orphans to only migrate/start without stopping orphaned services.
- Use --full to also run 'up' on all services (picks up compose/env changes).
-
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --dry-run     -n            Show what would change without executing         │
-│ --no-orphans                Only migrate, don't stop orphaned services       │
-│ --full        -f            Also run up on all services to apply config      │
-│                             changes                                          │
-│ --config      -c      PATH  Path to config file                              │
-│ --help        -h            Show this message and exit.                      │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --dry-run     -n            Show what would change without executing                   │
+│ --no-orphans                Only migrate, don't stop orphaned stacks                   │
+│ --full        -f            Also run up on all stacks to apply config changes          │
+│ --config      -c      PATH  Path to config file                                        │
+│ --help        -h            Show this message and exit.                                │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -661,20 +674,20 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```yaml
 
- Usage: cf traefik-file [OPTIONS] [SERVICES]...
+ Usage: cf traefik-file [OPTIONS] [STACKS]...
 
  Generate a Traefik file-provider fragment from compose Traefik labels.
 
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│   services      [SERVICES]...  Services to operate on                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a            Run on all services                                  │
-│ --output  -o      PATH  Write Traefik file-provider YAML to this path        │
-│                         (stdout if omitted)                                  │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   stacks      [STACKS]...  Stacks to operate on                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a            Run on all stacks                                              │
+│ --output  -o      PATH  Write Traefik file-provider YAML to this path (stdout if       │
+│                         omitted)                                                       │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -697,29 +710,27 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```yaml
 
- Usage: cf refresh [OPTIONS] [SERVICES]...
+ Usage: cf refresh [OPTIONS] [STACKS]...
 
- Update local state from running services.
+ Update local state from running stacks.
 
- Discovers which services are running on which hosts, updates the state
- file, and captures image digests. This is a read operation - it updates
- your local state to match reality, not the other way around.
-
- Without arguments: refreshes all services (same as --all).
- With service names: refreshes only those services.
-
+ Discovers which stacks are running on which hosts, updates the state file, and captures
+ image digests. This is a read operation - it updates your local state to match reality,
+ not the other way around.
+ Without arguments: refreshes all stacks (same as --all). With stack names: refreshes
+ only those stacks.
  Use 'cf apply' to make reality match your config (stop orphans, migrate).
 
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│   services      [SERVICES]...  Services to operate on                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all       -a            Run on all services                                │
-│ --config    -c      PATH  Path to config file                                │
-│ --log-path  -l      PATH  Path to Dockerfarm TOML log                        │
-│ --dry-run   -n            Show what would change without writing             │
-│ --help      -h            Show this message and exit.                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   stacks      [STACKS]...  Stacks to operate on                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all       -a            Run on all stacks                                            │
+│ --config    -c      PATH  Path to config file                                          │
+│ --log-path  -l      PATH  Path to Dockerfarm TOML log                                  │
+│ --dry-run   -n            Show what would change without writing                       │
+│ --help      -h            Show this message and exit.                                  │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -743,24 +754,22 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```yaml
 
- Usage: cf check [OPTIONS] [SERVICES]...
+ Usage: cf check [OPTIONS] [STACKS]...
 
  Validate configuration, traefik labels, mounts, and networks.
 
- Without arguments: validates all services against configured hosts.
- With service arguments: validates specific services and shows host
- compatibility.
-
+ Without arguments: validates all stacks against configured hosts. With stack arguments:
+ validates specific stacks and shows host compatibility.
  Use --local to skip SSH-based checks for faster validation.
 
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│   services      [SERVICES]...  Services to operate on                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --local                 Skip SSH-based checks (faster)                       │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   stacks      [STACKS]...  Stacks to operate on                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --local                 Skip SSH-based checks (faster)                                 │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -788,20 +797,19 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Create Docker network on hosts with consistent settings.
 
- Creates an external Docker network that services can use for cross-host
- communication. Uses the same subnet/gateway on all hosts to ensure
- consistent networking.
+ Creates an external Docker network that stacks can use for cross-host communication.
+ Uses the same subnet/gateway on all hosts to ensure consistent networking.
 
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│   hosts      [HOSTS]...  Hosts to create network on (default: all)           │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --network  -n      TEXT  Network name [default: mynetwork]                   │
-│ --subnet   -s      TEXT  Network subnet [default: 172.20.0.0/16]             │
-│ --gateway  -g      TEXT  Network gateway [default: 172.20.0.1]               │
-│ --config   -c      PATH  Path to config file                                 │
-│ --help     -h            Show this message and exit.                         │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   hosts      [HOSTS]...  Hosts to create network on (default: all)                     │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --network  -n      TEXT  Network name [default: mynetwork]                             │
+│ --subnet   -s      TEXT  Network subnet [default: 172.20.0.0/16]                       │
+│ --gateway  -g      TEXT  Network gateway [default: 172.20.0.1]                         │
+│ --config   -c      PATH  Path to config file                                           │
+│ --help     -h            Show this message and exit.                                   │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -829,18 +837,17 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Manage compose-farm configuration files.
 
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --help  -h        Show this message and exit.                                │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Commands ───────────────────────────────────────────────────────────────────╮
-│ init       Create a new config file with documented example.                 │
-│ edit       Open the config file in your default editor.                      │
-│ show       Display the config file location and contents.                    │
-│ path       Print the config file path (useful for scripting).                │
-│ validate   Validate the config file syntax and schema.                       │
-│ symlink    Create a symlink from the default config location to a config     │
-│            file.                                                             │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --help  -h        Show this message and exit.                                          │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Commands ─────────────────────────────────────────────────────────────────────────────╮
+│ init       Create a new config file with documented example.                           │
+│ edit       Open the config file in your default editor.                                │
+│ show       Display the config file location and contents.                              │
+│ path       Print the config file path (useful for scripting).                          │
+│ validate   Validate the config file syntax and schema.                                 │
+│ symlink    Create a symlink from the default config location to a config file.         │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -880,22 +887,21 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```yaml
 
- Usage: cf logs [OPTIONS] [SERVICES]...
+ Usage: cf logs [OPTIONS] [STACKS]...
 
- Show service logs.
+ Show stack logs.
 
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│   services      [SERVICES]...  Services to operate on                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a               Run on all services                               │
-│ --host    -H      TEXT     Filter to services on this host                   │
-│ --follow  -f               Follow logs                                       │
-│ --tail    -n      INTEGER  Number of lines (default: 20 for --all, 100       │
-│                            otherwise)                                        │
-│ --config  -c      PATH     Path to config file                               │
-│ --help    -h               Show this message and exit.                       │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   stacks      [STACKS]...  Stacks to operate on                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a               Run on all stacks                                           │
+│ --host    -H      TEXT     Filter to stacks on this host                               │
+│ --follow  -f               Follow logs                                                 │
+│ --tail    -n      INTEGER  Number of lines (default: 20 for --all, 100 otherwise)      │
+│ --config  -c      PATH     Path to config file                                         │
+│ --help    -h               Show this message and exit.                                 │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -919,23 +925,22 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 <!-- ⚠️ This content is auto-generated by `markdown-code-runner`. -->
 ```yaml
 
- Usage: cf ps [OPTIONS] [SERVICES]...
+ Usage: cf ps [OPTIONS] [STACKS]...
 
- Show status of services.
+ Show status of stacks.
 
- Without arguments: shows all services (same as --all).
- With service names: shows only those services.
- With --host: shows services on that host.
+ Without arguments: shows all stacks (same as --all). With stack names: shows only those
+ stacks. With --host: shows stacks on that host.
 
-╭─ Arguments ──────────────────────────────────────────────────────────────────╮
-│   services      [SERVICES]...  Services to operate on                        │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a            Run on all services                                  │
-│ --host    -H      TEXT  Filter to services on this host                      │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
+│   stacks      [STACKS]...  Stacks to operate on                                        │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --all     -a            Run on all stacks                                              │
+│ --host    -H      TEXT  Filter to stacks on this host                                  │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -961,16 +966,16 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Usage: cf stats [OPTIONS]
 
- Show overview statistics for hosts and services.
+ Show overview statistics for hosts and stacks.
 
- Without --live: Shows config/state info (hosts, services, pending migrations).
- With --live: Also queries Docker on each host for container counts.
+ Without --live: Shows config/state info (hosts, stacks, pending migrations). With
+ --live: Also queries Docker on each host for container counts.
 
-╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --live    -l            Query Docker for live container stats                │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
+│ --live    -l            Query Docker for live container stats                          │
+│ --config  -c      PATH  Path to config file                                            │
+│ --help    -h            Show this message and exit.                                    │
+╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
 
@@ -996,36 +1001,36 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
 ### Auto-Migration
 
-When you change a service's host assignment in config and run `up`, Compose Farm automatically:
+When you change a stack's host assignment in config and run `up`, Compose Farm automatically:
 1. Checks that required mounts and networks exist on the new host (aborts if missing)
 2. Runs `down` on the old host
 3. Runs `up -d` on the new host
 4. Updates state tracking
 
-Use `cf apply` to automatically reconcile all services—it finds and migrates services on wrong hosts, stops orphaned services, and starts missing services.
+Use `cf apply` to automatically reconcile all stacks—it finds and migrates stacks on wrong hosts, stops orphaned stacks, and starts missing stacks.
 
 ```yaml
 # Before: plex runs on server-1
-services:
+stacks:
   plex: server-1
 
 # After: change to server-2, then run `cf up plex`
-services:
+stacks:
   plex: server-2  # Compose Farm will migrate automatically
 ```
 
-**Orphaned services**: When you remove (or comment out) a service from config, it becomes "orphaned"—tracked in state but no longer in config. Use these commands to handle orphans:
+**Orphaned stacks**: When you remove (or comment out) a stack from config, it becomes "orphaned"—tracked in state but no longer in config. Use these commands to handle orphans:
 
-- `cf apply` — Migrate services AND stop orphans (the full reconcile)
-- `cf down --orphaned` — Only stop orphaned services
+- `cf apply` — Migrate stacks AND stop orphans (the full reconcile)
+- `cf down --orphaned` — Only stop orphaned stacks
 - `cf apply --dry-run` — Preview what would change before applying
 
-This makes the config truly declarative: comment out a service, run `cf apply`, and it stops.
+This makes the config truly declarative: comment out a stack, run `cf apply`, and it stops.
 
 ## Traefik Multihost Ingress (File Provider)
 
 If you run a single Traefik instance on one "front‑door" host and want it to route to
-Compose Farm services on other hosts, Compose Farm can generate a Traefik file‑provider
+Compose Farm stacks on other hosts, Compose Farm can generate a Traefik file‑provider
 fragment from your existing compose labels.
 
 **How it works**
@@ -1035,11 +1040,11 @@ fragment from your existing compose labels.
 - Labels and port specs may use `${VAR}` / `${VAR:-default}`; Compose Farm resolves these
   using the stack's `.env` file and your current environment, just like Docker Compose.
 - Publish a host port for that container (via `ports:`). The generator prefers
-  host‑published ports so Traefik can reach the service across hosts; if none are found,
+  host‑published ports so Traefik can reach the stack across hosts; if none are found,
   it warns and you'd need L3 reachability to container IPs.
 - If a router label doesn't specify `traefik.http.routers.<name>.service` and there's only
   one Traefik service defined on that container, Compose Farm wires the router to it.
-- `compose-farm.yaml` stays unchanged: just `hosts` and `services: service → host`.
+- `compose-farm.yaml` stays unchanged: just `hosts` and `stacks: stack → host`.
 
 Example `docker-compose.yml` pattern:
 
@@ -1073,7 +1078,7 @@ providers:
 cf traefik-file --all --output /mnt/data/traefik/dynamic.d/compose-farm.yml
 ```
 
-Re‑run this after changing Traefik labels, moving a service to another host, or changing
+Re‑run this after changing Traefik labels, moving a stack to another host, or changing
 published ports.
 
 **Auto-regeneration**
@@ -1084,17 +1089,17 @@ add `traefik_file` to your config:
 ```yaml
 compose_dir: /opt/compose
 traefik_file: /opt/traefik/dynamic.d/compose-farm.yml  # auto-regenerate on up/down/restart/update
-traefik_service: traefik  # skip services on same host (docker provider handles them)
+traefik_stack: traefik  # skip stacks on same host (docker provider handles them)
 
 hosts:
   # ...
-services:
+stacks:
   traefik: server-1  # Traefik runs here
-  plex: server-2     # Services on other hosts get file-provider entries
+  plex: server-2     # Stacks on other hosts get file-provider entries
   # ...
 ```
 
-The `traefik_service` option specifies which service runs Traefik. Services on the same host
+The `traefik_stack` option specifies which stack runs Traefik. Stacks on the same host
 are skipped in the file-provider config since Traefik's docker provider handles them directly.
 
 Now `cf up plex` will update the Traefik config automatically—no separate
@@ -1137,11 +1142,11 @@ There are many ways to run containers on multiple hosts. Here is where Compose F
 | Agentless | ✅ | ✅ | ❌ | ✅ | ❌ |
 | High availability | ❌ | ❌ | ✅ | ❌ | ❌ |
 
-**Docker Contexts** — You can use `docker context create remote ssh://...` and `docker compose --context remote up`. But it's manual: you must remember which host runs which service, there's no global view, no parallel execution, and no auto-migration.
+**Docker Contexts** — You can use `docker context create remote ssh://...` and `docker compose --context remote up`. But it's manual: you must remember which host runs which stack, there's no global view, no parallel execution, and no auto-migration.
 
 **Kubernetes / Docker Swarm** — Full orchestration that abstracts away the hardware. But they require cluster initialization, separate control planes, and often rewriting compose files. They introduce complexity (consensus, overlay networks) unnecessary for static "pet" servers.
 
-**Ansible / Terraform** — Infrastructure-as-Code tools that can SSH in and deploy containers. But they're push-based configuration management, not interactive CLIs. Great for setting up state, clumsy for day-to-day operations like `cf logs -f` or quickly restarting a service.
+**Ansible / Terraform** — Infrastructure-as-Code tools that can SSH in and deploy containers. But they're push-based configuration management, not interactive CLIs. Great for setting up state, clumsy for day-to-day operations like `cf logs -f` or quickly restarting a stack.
 
 **Portainer / Coolify** — Web-based management UIs. But they're UI-first and often require agents on your servers. Compose Farm is CLI-first and agentless.
 

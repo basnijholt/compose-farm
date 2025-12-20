@@ -11,7 +11,7 @@ from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
 from compose_farm.logs import (
     _parse_images_output,
-    collect_service_entries,
+    collect_stack_entries,
     isoformat,
     load_existing_entries,
     merge_entries,
@@ -35,25 +35,25 @@ def test_parse_images_output_handles_list_and_lines() -> None:
 async def test_snapshot_preserves_first_seen(tmp_path: Path) -> None:
     compose_dir = tmp_path / "compose"
     compose_dir.mkdir()
-    service_dir = compose_dir / "svc"
-    service_dir.mkdir()
-    (service_dir / "docker-compose.yml").write_text("services: {}\n")
+    stack_dir = compose_dir / "svc"
+    stack_dir.mkdir()
+    (stack_dir / "docker-compose.yml").write_text("services: {}\n")
 
     config = Config(
         compose_dir=compose_dir,
         hosts={"local": Host(address="localhost")},
-        services={"svc": "local"},
+        stacks={"svc": "local"},
     )
 
     sample_output = json.dumps([{"Service": "svc", "Image": "redis", "Digest": "sha256:abc"}])
 
     async def fake_run_compose(
-        _cfg: Config, service: str, compose_cmd: str, *, stream: bool = True
+        _cfg: Config, stack: str, compose_cmd: str, *, stream: bool = True
     ) -> CommandResult:
         assert compose_cmd == "images --format json"
         assert stream is False or stream is True
         return CommandResult(
-            service=service,
+            stack=stack,
             exit_code=0,
             success=True,
             stdout=sample_output,
@@ -64,7 +64,7 @@ async def test_snapshot_preserves_first_seen(tmp_path: Path) -> None:
 
     # First snapshot
     first_time = datetime(2025, 1, 1, tzinfo=UTC)
-    first_entries = await collect_service_entries(
+    first_entries = await collect_stack_entries(
         config, "svc", now=first_time, run_compose_fn=fake_run_compose
     )
     first_iso = isoformat(first_time)
@@ -77,7 +77,7 @@ async def test_snapshot_preserves_first_seen(tmp_path: Path) -> None:
 
     # Second snapshot
     second_time = datetime(2025, 2, 1, tzinfo=UTC)
-    second_entries = await collect_service_entries(
+    second_entries = await collect_stack_entries(
         config, "svc", now=second_time, run_compose_fn=fake_run_compose
     )
     second_iso = isoformat(second_time)
