@@ -185,6 +185,8 @@ cf apply
 
 ## Shared Storage
 
+Shared storage is only required for multi-host deployments.
+
 ### NFS Best Practices
 
 ```bash
@@ -297,7 +299,7 @@ http:
 |------|----------|--------|
 | Compose Farm config | `~/.config/compose-farm/` | Git or copy |
 | Compose files | `/opt/compose/` | Git |
-| State file | `~/.config/compose-farm/state.yaml` | Optional (can refresh) |
+| State file | `~/.config/compose-farm/compose-farm-state.yaml` | Optional (can refresh) |
 | App data | `/opt/appdata/` | Backup solution |
 
 ### Disaster Recovery
@@ -339,15 +341,6 @@ cf refresh              # Sync state
 ```bash
 cf ssh status           # Check key status
 cf ssh setup            # Re-setup keys
-```
-
-### Debug Mode
-
-For more verbose output:
-
-```bash
-# See exact commands being run
-cf --verbose up myservice
 ```
 
 ## Security Considerations

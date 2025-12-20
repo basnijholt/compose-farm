@@ -12,6 +12,8 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 > [!NOTE]
 > Run `docker compose` commands across multiple hosts via SSH. One YAML maps services to hosts. Run `cf apply` and reality matches your config—services start, migrate, or stop as needed. No Kubernetes, no Swarm, no magic.
 
+Single host? Map everything to `localhost` and Compose Farm just runs locally from each stack folder.
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
@@ -85,13 +87,24 @@ That's it. No orchestration, no service discovery, no magic.
 
 ## Requirements
 
-- Python 3.11+ (we recommend [uv](https://docs.astral.sh/uv/) for installation)
-- SSH key-based authentication to your hosts (uses ssh-agent)
-- Docker and Docker Compose installed on all target hosts
-- **Shared storage**: All compose files must be accessible at the same path on all hosts
-- **Docker networks**: External networks must exist on all hosts (use `cf init-network` to create)
+### Single host (local-only)
 
-Compose Farm assumes your compose files are accessible at the same path on all hosts. This is typically achieved via:
+- Python 3.11+ (we recommend [uv](https://docs.astral.sh/uv/) for installation)
+- Docker and Docker Compose installed
+- One folder per stack under `compose_dir`
+
+If you're on a single host, you can skip SSH, shared storage, and Traefik. Compose Farm just runs `docker compose` locally in each stack folder.
+
+### Multi-host
+
+- Everything above, plus:
+- Docker and Docker Compose installed on all target hosts
+- SSH key-based authentication to your hosts (uses ssh-agent)
+- **Shared storage or synced folders** so `compose_dir` is the same path on all hosts (NFS recommended)
+- **Docker networks**: External networks must exist on all hosts (use `cf init-network` to create)
+- **Optional for ingress**: Traefik file provider for cross-host routing (labels + published ports, generated via `cf traefik-file`)
+
+For multi-host setups, Compose Farm assumes your compose files are accessible at the same path on all hosts. This is typically achieved via:
 
 - **NFS mount** (e.g., `/opt/compose` mounted from a NAS)
 - **Synced folders** (e.g., Syncthing, rsync)
@@ -225,6 +238,24 @@ The keys will persist across restarts.
 
 Create `~/.config/compose-farm/compose-farm.yaml` (or `./compose-farm.yaml` in your working directory):
 
+### Single-host example
+
+No SSH, shared storage, or Traefik file-provider required.
+
+```yaml
+compose_dir: /opt/stacks
+
+hosts:
+  local: localhost  # Run locally without SSH
+
+services:
+  plex: local
+  jellyfin: local
+  traefik: local
+```
+
+### Multi-host example
+
 ```yaml
 compose_dir: /opt/compose  # Must be the same path on all hosts
 
@@ -235,18 +266,18 @@ hosts:
   server-2:
     address: 192.168.1.11
     # user defaults to current user
-  local: localhost  # Run locally without SSH
 
 services:
   plex: server-1
   jellyfin: server-2
   sonarr: server-1
-  radarr: local  # Runs on the machine where you invoke compose-farm
 
   # Multi-host services (run on multiple/all hosts)
   autokuma: all              # Runs on ALL configured hosts
   dozzle: [server-1, server-2]  # Explicit list of hosts
 ```
+
+For cross-host HTTP routing, add Traefik labels to your compose files and set `traefik_file` so Compose Farm can generate the file-provider config.
 
 Compose files are expected at `{compose_dir}/{service}/compose.yaml` (also supports `compose.yml`, `docker-compose.yml`, `docker-compose.yaml`).
 
@@ -303,7 +334,7 @@ The CLI is available as both `compose-farm` and the shorter `cf` alias.
 | `cf up <svc>` | Start service (auto-migrates if host changed) |
 | `cf down <svc>` | Stop service |
 | `cf restart <svc>` | down + up |
-| `cf update <svc>` | pull + down + up |
+| `cf update <svc>` | pull + build + down + up |
 | `cf pull <svc>` | Pull latest images |
 | `cf logs -f <svc>` | Follow logs |
 | `cf ps` | Show status of all services |
@@ -336,11 +367,11 @@ cf pull --all
 # Restart (down + up)
 cf restart plex
 
-# Update (pull + down + up) - the end-to-end update command
+# Update (pull + build + down + up) - the end-to-end update command
 cf update --all
 
 # Update state from reality (discovers running services + captures digests)
-cf refresh             # updates state.yaml and dockerfarm-log.toml
+cf refresh             # updates compose-farm-state.yaml and dockerfarm-log.toml
 cf refresh --dry-run   # preview without writing
 
 # Validate config, traefik labels, mounts, and networks
@@ -1023,6 +1054,8 @@ services:
 This makes the config truly declarative: comment out a service, run `cf apply`, and it stops.
 
 ## Traefik Multihost Ingress (File Provider)
+
+If everything runs on one host, you can skip this section and rely on Traefik's Docker provider.
 
 If you run a single Traefik instance on one "front‑door" host and want it to route to
 Compose Farm services on other hosts, Compose Farm can generate a Traefik file‑provider

@@ -4,16 +4,22 @@ icon: lucide/rocket
 
 # Getting Started
 
-This guide walks you through installing Compose Farm and setting up your first multi-host deployment.
+This guide walks you through installing Compose Farm and setting up your first deployment (single host or multi-host).
 
 ## Prerequisites
 
-Before you begin, ensure you have:
+### Single host
 
 - **[uv](https://docs.astral.sh/uv/)** (recommended) or Python 3.11+
-- **SSH key-based authentication** to your Docker hosts
+- **Docker and Docker Compose** installed
+- **One folder per stack** under `compose_dir`
+
+### Multi-host
+
+- Everything above, plus:
 - **Docker and Docker Compose** installed on all target hosts
-- **Shared storage** for compose files (NFS, Syncthing, etc.)
+- **SSH key-based authentication** to your Docker hosts
+- **Shared storage or sync** for compose files (NFS, Syncthing, etc.)
 
 ## Installation
 
@@ -65,6 +71,8 @@ cf --help
 
 Compose Farm uses SSH to run commands on remote hosts. You need passwordless SSH access.
 
+Skip this section if you're running a single host with `localhost`.
+
 ### Option 1: SSH Agent (default)
 
 If you already have SSH keys loaded in your agent:
@@ -92,6 +100,8 @@ cf ssh status
 This creates `~/.ssh/compose-farm/id_ed25519` and copies the public key to each host.
 
 ## Shared Storage Setup
+
+This section applies to multi-host deployments only.
 
 Compose files must be accessible at the **same path** on all hosts. Common approaches:
 
@@ -125,6 +135,23 @@ nas:/volume1/compose /opt/compose nfs defaults 0 0
 
 Create `~/.config/compose-farm/compose-farm.yaml`:
 
+#### Single host example
+
+```yaml
+# Where compose files are located (one folder per stack)
+compose_dir: /opt/stacks
+
+hosts:
+  local: localhost
+
+services:
+  plex: local
+  sonarr: local
+  radarr: local
+```
+
+#### Multi-host example
+
 ```yaml
 # Where compose files are located (same path on all hosts)
 compose_dir: /opt/compose
@@ -137,15 +164,16 @@ hosts:
   hp:
     address: 192.168.1.11
     # user defaults to current user
-  local: localhost         # Run locally without SSH
 
 # Map services to hosts
 services:
   plex: nuc
   sonarr: nuc
   radarr: hp
-  jellyfin: local
+  jellyfin: hp
 ```
+
+For cross-host HTTP routing, add Traefik labels and configure `traefik_file` (see [Traefik Integration](traefik.md)).
 
 ### Validate Configuration
 
@@ -276,7 +304,7 @@ cf apply
 
 ```bash
 cf update --all
-# Runs: pull + down + up for each service
+# Runs: pull + build + down + up for each service
 ```
 
 ## Next Steps
