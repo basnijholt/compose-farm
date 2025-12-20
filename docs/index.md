@@ -77,6 +77,8 @@ services:
 cf apply  # Services start, migrate, or stop as needed
 ```
 
+Each entry in `services:` maps to a folder under `compose_dir` that contains a compose file.
+
 For cross-host HTTP routing, add Traefik labels and configure `traefik_file` to generate file-provider config.
 
 ### Installation

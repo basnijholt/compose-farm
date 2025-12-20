@@ -283,7 +283,7 @@ services:
 
 For cross-host HTTP routing, add Traefik labels to your compose files and set `traefik_file` so Compose Farm can generate the file-provider config.
 
-Compose files are expected at `{compose_dir}/{service}/compose.yaml` (also supports `compose.yml`, `docker-compose.yml`, `docker-compose.yaml`).
+Each entry in `services:` maps to a folder under `compose_dir` that contains a compose file. Compose files are expected at `{compose_dir}/{service}/compose.yaml` (also supports `compose.yml`, `docker-compose.yml`, `docker-compose.yaml`).
 
 ### Multi-Host Services
 
