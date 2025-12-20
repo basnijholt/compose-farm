@@ -140,8 +140,11 @@ If you need containers on different hosts to communicate seamlessly, you need Do
 ## Installation
 
 ```bash
+# One-liner (installs uv if needed)
+curl -fsSL https://raw.githubusercontent.com/basnijholt/compose-farm/main/bootstrap.sh | sh
+
+# Or if you already have uv/pip
 uv tool install compose-farm
-# or
 pip install compose-farm
 ```
 
