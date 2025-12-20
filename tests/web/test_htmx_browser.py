@@ -3,7 +3,8 @@
 Run with: uv run pytest tests/web/test_htmx_browser.py -v --no-cov
 
 CDN assets are cached locally (in .pytest_cache/vendor/) to eliminate network
-variability. If a test fails with "Uncached CDN request", add the URL to CDN_ASSETS.
+variability. If a test fails with "Uncached CDN request", add the URL to
+compose_farm.web.cdn.CDN_ASSETS.
 """
 
 from __future__ import annotations
@@ -25,56 +26,12 @@ import uvicorn
 from compose_farm.config import load_config
 from compose_farm.web import deps as web_deps
 from compose_farm.web.app import create_app
+from compose_farm.web.cdn import CDN_ASSETS, ensure_vendor_cache
 from compose_farm.web.routes import api as web_api
 from compose_farm.web.routes import pages as web_pages
 
 if TYPE_CHECKING:
     from playwright.sync_api import Page, Route, WebSocket
-
-# CDN assets to vendor locally for faster/more reliable tests
-CDN_ASSETS = {
-    "https://cdn.jsdelivr.net/npm/daisyui@5/themes.css": ("daisyui-themes.css", "text/css"),
-    "https://cdn.jsdelivr.net/npm/daisyui@5": ("daisyui.css", "text/css"),
-    "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4": (
-        "tailwind.js",
-        "application/javascript",
-    ),
-    "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css": ("xterm.css", "text/css"),
-    "https://unpkg.com/htmx.org@2.0.4": ("htmx.js", "application/javascript"),
-    "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js": (
-        "xterm.js",
-        "application/javascript",
-    ),
-    "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js": (
-        "xterm-fit.js",
-        "application/javascript",
-    ),
-    # Monaco editor - loader.js plus dynamically loaded modules
-    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js": (
-        "monaco-loader.js",
-        "application/javascript",
-    ),
-    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.js": (
-        "monaco-editor-main.js",
-        "application/javascript",
-    ),
-    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.css": (
-        "monaco-editor-main.css",
-        "text/css",
-    ),
-    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/worker/workerMain.js": (
-        "monaco-workerMain.js",
-        "application/javascript",
-    ),
-    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/basic-languages/yaml/yaml.js": (
-        "monaco-yaml.js",
-        "application/javascript",
-    ),
-    "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/browser/ui/codicons/codicon/codicon.ttf": (
-        "monaco-codicon.ttf",
-        "font/ttf",
-    ),
-}
 
 
 def _browser_available() -> bool:
@@ -105,44 +62,11 @@ pytestmark = [
 ]
 
 
-def _download_url(url: str) -> bytes | None:
-    """Download URL content using curl."""
-    import subprocess
-
-    try:
-        result = subprocess.run(
-            ["curl", "-fsSL", "--max-time", "30", url],  # noqa: S607
-            capture_output=True,
-            check=True,
-        )
-        return bytes(result.stdout)
-    except Exception:
-        return None
-
-
 @pytest.fixture(scope="session")
 def vendor_cache(request: pytest.FixtureRequest) -> Path:
-    """Download CDN assets once and cache to disk for faster tests.
-
-    Uses a persistent cache directory so assets are only downloaded once
-    across multiple test runs. Clear with: pytest --cache-clear
-    """
-    # Use project-local cache directory
-    rootdir = Path(request.config.rootpath)
-    cache_dir = rootdir / ".pytest_cache" / "vendor"
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    for url, (filename, _content_type) in CDN_ASSETS.items():
-        filepath = cache_dir / filename
-        if filepath.exists():
-            continue  # Already cached
-        content = _download_url(url)
-        if not content:
-            msg = f"Failed to download {url} - check network/curl"
-            raise RuntimeError(msg)
-        filepath.write_bytes(content)
-
-    return cache_dir
+    """Download CDN assets once and cache to disk for faster tests."""
+    cache_dir = Path(request.config.rootpath) / ".pytest_cache" / "vendor"
+    return ensure_vendor_cache(cache_dir)
 
 
 @pytest.fixture

@@ -5,7 +5,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DOCS_DIR="$(dirname "$SCRIPT_DIR")"
+DEMOS_DIR="$(dirname "$SCRIPT_DIR")"
+DOCS_DIR="$(dirname "$DEMOS_DIR")"
 REPO_DIR="$(dirname "$DOCS_DIR")"
 OUTPUT_DIR="$DOCS_DIR/assets"
 
