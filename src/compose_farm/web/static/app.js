@@ -685,16 +685,16 @@ function playFabIntro() {
         }
     });
 
-    // Hover updates selection (and triggers theme preview via render)
+    // Hover previews theme without changing selection
     list.addEventListener('mouseover', e => {
-        const a = e.target.closest('a[data-idx]');
-        if (a) {
-            const idx = parseInt(a.dataset.idx, 10);
-            if (idx !== selected) {
-                selected = idx;
-                render();
-            }
-        }
+        const a = e.target.closest('a[data-theme-id]');
+        if (a) previewTheme(a.dataset.themeId);
+    });
+
+    // Mouse leaving list restores to selected item's theme (or original)
+    list.addEventListener('mouseleave', () => {
+        const cmd = filtered[selected];
+        previewTheme(cmd?.themeId || originalTheme);
     });
 
     // Restore theme when dialog closes without selection (Escape, backdrop click)
