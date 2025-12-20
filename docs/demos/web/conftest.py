@@ -21,6 +21,7 @@ import uvicorn
 
 from compose_farm.config import Config as CFConfig
 from compose_farm.config import load_config
+from compose_farm.state import load_state as _original_load_state
 from compose_farm.web.app import create_app
 from compose_farm.web.cdn import CDN_ASSETS, ensure_vendor_cache
 
@@ -51,6 +52,12 @@ def _get_filtered_config() -> CFConfig:
     )
 
 
+def _get_filtered_state(config: CFConfig) -> dict[str, str | list[str]]:
+    """Load state but filter out excluded services to prevent orphan warnings."""
+    state = _original_load_state(config)
+    return {name: host for name, host in state.items() if name not in DEMO_EXCLUDE_SERVICES}
+
+
 @pytest.fixture(scope="session")
 def vendor_cache(request: pytest.FixtureRequest) -> Path:
     """Download CDN assets once and cache to disk for faster recordings."""
@@ -77,7 +84,7 @@ def server_url() -> Generator[str, None, None]:
     """Start demo server using real config (with filtered services) and return URL."""
     os.environ["CF_CONFIG"] = str(REAL_CONFIG_PATH)
 
-    # Patch get_config in all web modules to filter out excluded services
+    # Patch get_config and load_state in all web modules to filter out excluded services
     # Must patch where it's imported, not where it's defined
     patches = [
         patch("compose_farm.web.routes.pages.get_config", _get_filtered_config),
@@ -85,6 +92,9 @@ def server_url() -> Generator[str, None, None]:
         patch("compose_farm.web.routes.actions.get_config", _get_filtered_config),
         patch("compose_farm.web.app.get_config", _get_filtered_config),
         patch("compose_farm.web.ws.get_config", _get_filtered_config),
+        # Also patch load_state to filter out excluded services from state
+        # This prevents them from showing as orphaned services
+        patch("compose_farm.web.routes.pages.load_state", _get_filtered_state),
     ]
 
     # Start all patches
