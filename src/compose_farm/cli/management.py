@@ -434,21 +434,11 @@ def refresh(
 
     Use 'cf apply' to make reality match your config (stop orphans, migrate).
     """
-    cfg = load_config_or_exit(config)
+    svc_list, cfg = get_services(services or [], all_services, config, default_all=True)
 
-    # Determine which services to refresh
-    # Default to all services if no arguments provided (like cf ps)
-    if services:
-        svc_list = list(services)
-        validate_services(cfg, svc_list)
-        partial_refresh = True
-    else:
-        svc_list = list(cfg.services.keys())
-        partial_refresh = False
-
-    # For --all flag, explicitly mark as full refresh
-    if all_services:
-        partial_refresh = False
+    # Partial refresh merges with existing state; full refresh replaces it
+    # Partial = specific services provided (not --all, not default)
+    partial_refresh = bool(services) and not all_services
 
     current_state = load_state(cfg)
 
