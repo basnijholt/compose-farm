@@ -98,8 +98,8 @@ class TestMergeState:
 
     def test_merge_adds_new_services(self) -> None:
         """Merging adds newly discovered services to existing state."""
-        current = {"plex": "nas01"}
-        discovered = {"jellyfin": "nas02"}
+        current: dict[str, str | list[str]] = {"plex": "nas01"}
+        discovered: dict[str, str | list[str]] = {"jellyfin": "nas02"}
         removed: list[str] = []
 
         result = cli_management_module._merge_state(current, discovered, removed)
@@ -108,8 +108,8 @@ class TestMergeState:
 
     def test_merge_updates_existing_services(self) -> None:
         """Merging updates services that changed hosts."""
-        current = {"plex": "nas01", "jellyfin": "nas01"}
-        discovered = {"plex": "nas02"}  # plex moved to nas02
+        current: dict[str, str | list[str]] = {"plex": "nas01", "jellyfin": "nas01"}
+        discovered: dict[str, str | list[str]] = {"plex": "nas02"}  # plex moved to nas02
         removed: list[str] = []
 
         result = cli_management_module._merge_state(current, discovered, removed)
@@ -118,8 +118,12 @@ class TestMergeState:
 
     def test_merge_removes_stopped_services(self) -> None:
         """Merging removes services that were checked but not found."""
-        current = {"plex": "nas01", "jellyfin": "nas01", "sonarr": "nas02"}
-        discovered = {"plex": "nas01"}  # only plex still running
+        current: dict[str, str | list[str]] = {
+            "plex": "nas01",
+            "jellyfin": "nas01",
+            "sonarr": "nas02",
+        }
+        discovered: dict[str, str | list[str]] = {"plex": "nas01"}  # only plex still running
         removed = ["jellyfin"]  # jellyfin was checked and not found
 
         result = cli_management_module._merge_state(current, discovered, removed)
@@ -129,8 +133,12 @@ class TestMergeState:
 
     def test_merge_preserves_unrelated_services(self) -> None:
         """Merging preserves services that weren't part of the refresh."""
-        current = {"plex": "nas01", "jellyfin": "nas01", "sonarr": "nas02"}
-        discovered = {"plex": "nas02"}  # only refreshed plex, which moved
+        current: dict[str, str | list[str]] = {
+            "plex": "nas01",
+            "jellyfin": "nas01",
+            "sonarr": "nas02",
+        }
+        discovered: dict[str, str | list[str]] = {"plex": "nas02"}  # only refreshed plex
         removed: list[str] = []  # nothing was removed
 
         result = cli_management_module._merge_state(current, discovered, removed)
