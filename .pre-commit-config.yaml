@@ -25,13 +25,18 @@ repos:
         args: [--fix]
       - id: ruff-format
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.0
+  - repo: local
     hooks:
       - id: mypy
-        exclude: ^docs/demos/
-        additional_dependencies:
-          - pydantic>=2.0.0
-          - typer>=0.9.0
-          - asyncssh>=2.14.0
-          - types-PyYAML
+        name: mypy (type checker)
+        entry: uv run mypy src tests
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: ty
+        name: ty (type checker)
+        entry: uv run ty check
+        language: system
+        types: [python]
+        pass_filenames: false

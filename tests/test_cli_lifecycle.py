@@ -16,7 +16,9 @@ def _make_config(tmp_path: Path, services: dict[str, str] | None = None) -> Conf
     compose_dir = tmp_path / "compose"
     compose_dir.mkdir()
 
-    svc_dict = services or {"svc1": "host1", "svc2": "host2"}
+    svc_dict: dict[str, str | list[str]] = (
+        dict(services) if services else {"svc1": "host1", "svc2": "host2"}
+    )
     for svc in svc_dict:
         svc_dir = compose_dir / svc
         svc_dir.mkdir()
