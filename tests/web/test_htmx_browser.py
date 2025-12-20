@@ -1921,3 +1921,36 @@ class TestThemeSwitcher:
         # Should restore original
         restored = page.locator("html").get_attribute("data-theme")
         assert restored == "nord"
+
+    def test_theme_restored_after_non_theme_command(self, page: Page, server_url: str) -> None:
+        """Theme restores when executing non-theme command after preview."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Set initial theme to dark
+        self._open_theme_palette(page)
+        self._select_theme(page, "dark")
+
+        # Open palette, navigate to a theme to preview it
+        self._open_theme_palette(page)
+        page.locator("#cmd-input").fill("theme: cupcake")
+        page.wait_for_timeout(200)
+
+        # cupcake should be previewed
+        assert page.locator("html").get_attribute("data-theme") == "cupcake"
+
+        # Now filter to Dashboard (non-theme command)
+        page.locator("#cmd-input").fill("Dashboard")
+        page.wait_for_timeout(200)
+
+        # Theme should restore since Dashboard has no themeId
+        current = page.locator("html").get_attribute("data-theme")
+        assert current == "dark", f"Expected dark after filtering to Dashboard, got {current}"
+
+        # Execute Dashboard
+        page.keyboard.press("Enter")
+        page.wait_for_selector("#cmd-palette:not([open])", timeout=2000)
+
+        # Theme should still be dark
+        final = page.locator("html").get_attribute("data-theme")
+        assert final == "dark", f"Expected dark after executing Dashboard, got {final}"

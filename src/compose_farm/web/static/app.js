@@ -646,10 +646,14 @@ function playFabIntro() {
     }
 
     function exec() {
-        if (filtered[selected]) {
-            originalTheme = null; // Don't restore - we're committing the change
+        const cmd = filtered[selected];
+        if (cmd) {
+            if (cmd.themeId) {
+                // Theme command commits the previewed choice.
+                originalTheme = null;
+            }
             dialog.close();
-            filtered[selected].action();
+            cmd.action();
         }
     }
 
