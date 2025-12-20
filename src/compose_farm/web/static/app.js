@@ -677,3 +677,29 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     // FAB click to open
     if (fab) fab.addEventListener('click', open);
 })();
+
+// Theme Switcher
+(function() {
+    const THEME_KEY = 'cf_theme';
+
+    // Apply saved theme on load (also in inline script to prevent flash)
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem(THEME_KEY, theme);
+    }
+
+    // Initialize theme from localStorage
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved) applyTheme(saved);
+
+    // Theme selector handlers (use mousedown to fire before dropdown closes)
+    document.addEventListener('mousedown', (e) => {
+        const btn = e.target.closest('[data-theme-select]');
+        if (btn) {
+            e.preventDefault();
+            applyTheme(btn.dataset.themeSelect);
+            // Close dropdown by removing focus
+            document.activeElement?.blur();
+        }
+    });
+})();

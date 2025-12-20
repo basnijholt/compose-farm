@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
 # CDN assets to vendor locally for faster/more reliable tests
 CDN_ASSETS = {
+    "https://cdn.jsdelivr.net/npm/daisyui@5/themes.css": ("daisyui-themes.css", "text/css"),
     "https://cdn.jsdelivr.net/npm/daisyui@5": ("daisyui.css", "text/css"),
     "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4": (
         "tailwind.js",
@@ -1690,3 +1691,108 @@ class TestServicePagePalette:
         # Verify Apply API was called
         assert len(api_calls) >= 1
         assert "/api/apply" in api_calls[0]
+
+
+class TestThemeSwitcher:
+    """Test theme switcher dropdown functionality."""
+
+    @staticmethod
+    def _open_theme_dropdown(page: Page) -> None:
+        """Open the theme dropdown by clicking the palette button."""
+        # The dropdown trigger has the palette icon with title="Change theme"
+        page.locator("[title='Change theme']").click()
+        # Wait for dropdown content to be visible
+        page.wait_for_selector("[data-theme-select='light']", state="visible", timeout=2000)
+
+    def test_theme_dropdown_exists(self, page: Page, server_url: str) -> None:
+        """Theme dropdown button exists in sidebar header."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Theme dropdown trigger should exist
+        trigger = page.locator("[title='Change theme']")
+        assert trigger.count() == 1
+
+    def test_theme_buttons_show_different_colors(self, page: Page, server_url: str) -> None:
+        """Each theme button shows its own theme colors via data-theme attribute."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+        self._open_theme_dropdown(page)
+
+        # Get two different theme buttons
+        light_btn = page.locator("[data-theme-select='light']")
+        dark_btn = page.locator("[data-theme-select='dark']")
+
+        # Each button should have data-theme set to show its colors
+        assert light_btn.get_attribute("data-theme") == "light"
+        assert dark_btn.get_attribute("data-theme") == "dark"
+
+        # Get the primary color swatch from each button
+        light_primary = light_btn.locator(".bg-primary").first
+        dark_primary = dark_btn.locator(".bg-primary").first
+
+        # Get computed background colors - they should be different
+        light_bg = light_primary.evaluate("el => getComputedStyle(el).backgroundColor")
+        dark_bg = dark_primary.evaluate("el => getComputedStyle(el).backgroundColor")
+
+        assert light_bg != dark_bg, f"Theme colors should differ: light={light_bg}, dark={dark_bg}"
+
+    def test_clicking_theme_changes_html_data_theme(self, page: Page, server_url: str) -> None:
+        """Clicking a theme button changes the data-theme attribute on <html>."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Get initial theme
+        initial_theme = page.locator("html").get_attribute("data-theme")
+
+        # Open dropdown and click a different theme
+        self._open_theme_dropdown(page)
+        target_theme = "cupcake" if initial_theme != "cupcake" else "dracula"
+        page.locator(f"[data-theme-select='{target_theme}']").click()
+
+        # Verify the html element's data-theme changed
+        new_theme = page.locator("html").get_attribute("data-theme")
+        assert new_theme == target_theme, f"Expected {target_theme}, got {new_theme}"
+
+    def test_theme_persists_in_localstorage(self, page: Page, server_url: str) -> None:
+        """Selected theme is saved to localStorage."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Open dropdown and click synthwave theme
+        self._open_theme_dropdown(page)
+        page.locator("[data-theme-select='synthwave']").click()
+
+        # Check localStorage
+        stored = page.evaluate("localStorage.getItem('cf_theme')")
+        assert stored == "synthwave"
+
+    def test_theme_restored_on_page_load(self, page: Page, server_url: str) -> None:
+        """Theme is restored from localStorage on page load."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Set theme via dropdown
+        self._open_theme_dropdown(page)
+        page.locator("[data-theme-select='retro']").click()
+
+        # Reload page
+        page.reload()
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Theme should be restored
+        theme = page.locator("html").get_attribute("data-theme")
+        assert theme == "retro"
+
+    def test_theme_can_be_changed_multiple_times(self, page: Page, server_url: str) -> None:
+        """Theme can be changed multiple times in a session."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        themes_to_test = ["light", "dark", "nord", "sunset"]
+
+        for theme in themes_to_test:
+            self._open_theme_dropdown(page)
+            page.locator(f"[data-theme-select='{theme}']").click()
+            current = page.locator("html").get_attribute("data-theme")
+            assert current == theme, f"Failed to switch to {theme}, got {current}"
