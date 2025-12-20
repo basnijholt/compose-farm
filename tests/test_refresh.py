@@ -19,7 +19,7 @@ def mock_config(tmp_path: Path) -> Config:
     compose_dir.mkdir()
 
     # Create service directories with compose files
-    for service in ["plex", "jellyfin", "sonarr"]:
+    for service in ["plex", "jellyfin", "grafana"]:
         svc_dir = compose_dir / service
         svc_dir.mkdir()
         (svc_dir / "compose.yaml").write_text(f"# {service} compose file\n")
@@ -33,7 +33,7 @@ def mock_config(tmp_path: Path) -> Config:
         services={
             "plex": "nas01",
             "jellyfin": "nas01",
-            "sonarr": "nas02",
+            "grafana": "nas02",
         },
     )
 
@@ -121,22 +121,22 @@ class TestMergeState:
         current: dict[str, str | list[str]] = {
             "plex": "nas01",
             "jellyfin": "nas01",
-            "sonarr": "nas02",
+            "grafana": "nas02",
         }
         discovered: dict[str, str | list[str]] = {"plex": "nas01"}  # only plex still running
         removed = ["jellyfin"]  # jellyfin was checked and not found
 
         result = cli_management_module._merge_state(current, discovered, removed)
 
-        # jellyfin removed, sonarr untouched (wasn't in the refresh scope)
-        assert result == {"plex": "nas01", "sonarr": "nas02"}
+        # jellyfin removed, grafana untouched (wasn't in the refresh scope)
+        assert result == {"plex": "nas01", "grafana": "nas02"}
 
     def test_merge_preserves_unrelated_services(self) -> None:
         """Merging preserves services that weren't part of the refresh."""
         current: dict[str, str | list[str]] = {
             "plex": "nas01",
             "jellyfin": "nas01",
-            "sonarr": "nas02",
+            "grafana": "nas02",
         }
         discovered: dict[str, str | list[str]] = {"plex": "nas02"}  # only refreshed plex
         removed: list[str] = []  # nothing was removed
@@ -144,7 +144,7 @@ class TestMergeState:
         result = cli_management_module._merge_state(current, discovered, removed)
 
         # plex updated, others preserved
-        assert result == {"plex": "nas02", "jellyfin": "nas01", "sonarr": "nas02"}
+        assert result == {"plex": "nas02", "jellyfin": "nas01", "grafana": "nas02"}
 
 
 class TestReportSyncChanges:
@@ -168,14 +168,14 @@ class TestReportSyncChanges:
         """Reports services that are no longer running."""
         cli_management_module._report_sync_changes(
             added=[],
-            removed=["sonarr"],
+            removed=["grafana"],
             changed=[],
             discovered={},
-            current_state={"sonarr": "nas01"},
+            current_state={"grafana": "nas01"},
         )
         captured = capsys.readouterr()
         assert "Services no longer running (1)" in captured.out
-        assert "- sonarr (was on nas01)" in captured.out
+        assert "- grafana (was on nas01)" in captured.out
 
     def test_reports_changed(self, capsys: pytest.CaptureFixture[str]) -> None:
         """Reports services that moved to a different host."""
@@ -199,7 +199,7 @@ class TestRefreshCommand:
     ) -> None:
         """Refreshing specific services merges with existing state."""
         # Mock existing state
-        existing_state = {"plex": "nas01", "jellyfin": "nas01", "sonarr": "nas02"}
+        existing_state = {"plex": "nas01", "jellyfin": "nas01", "grafana": "nas02"}
 
         with (
             patch(
@@ -229,7 +229,7 @@ class TestRefreshCommand:
             # Should have merged: plex updated, others preserved
             mock_save.assert_called_once()
             saved_state = mock_save.call_args[0][1]
-            assert saved_state == {"plex": "nas02", "jellyfin": "nas01", "sonarr": "nas02"}
+            assert saved_state == {"plex": "nas02", "jellyfin": "nas01", "grafana": "nas02"}
 
     def test_refresh_all_replaces_state(
         self, mock_config: Config, capsys: pytest.CaptureFixture[str]
@@ -240,7 +240,7 @@ class TestRefreshCommand:
         with (
             patch(
                 "compose_farm.cli.management.get_services",
-                return_value=(["plex", "jellyfin", "sonarr"], mock_config),
+                return_value=(["plex", "jellyfin", "grafana"], mock_config),
             ),
             patch(
                 "compose_farm.cli.management.load_state",
@@ -248,7 +248,7 @@ class TestRefreshCommand:
             ),
             patch(
                 "compose_farm.cli.management._discover_services",
-                return_value={"plex": "nas01", "sonarr": "nas02"},  # jellyfin not running
+                return_value={"plex": "nas01", "grafana": "nas02"},  # jellyfin not running
             ),
             patch("compose_farm.cli.management._snapshot_services"),
             patch("compose_farm.cli.management.save_state") as mock_save,
@@ -265,7 +265,7 @@ class TestRefreshCommand:
             # Should have replaced: only discovered services remain
             mock_save.assert_called_once()
             saved_state = mock_save.call_args[0][1]
-            assert saved_state == {"plex": "nas01", "sonarr": "nas02"}
+            assert saved_state == {"plex": "nas01", "grafana": "nas02"}
 
     def test_refresh_with_all_flag_full_refresh(self, mock_config: Config) -> None:
         """Using --all flag forces full refresh even with service names."""
@@ -274,7 +274,7 @@ class TestRefreshCommand:
         with (
             patch(
                 "compose_farm.cli.management.get_services",
-                return_value=(["plex", "jellyfin", "sonarr"], mock_config),
+                return_value=(["plex", "jellyfin", "grafana"], mock_config),
             ),
             patch(
                 "compose_farm.cli.management.load_state",
@@ -303,7 +303,7 @@ class TestRefreshCommand:
 
     def test_refresh_partial_removes_stopped_service(self, mock_config: Config) -> None:
         """Partial refresh removes a service if it was checked but not found."""
-        existing_state = {"plex": "nas01", "jellyfin": "nas01", "sonarr": "nas02"}
+        existing_state = {"plex": "nas01", "jellyfin": "nas01", "grafana": "nas02"}
 
         with (
             patch(
@@ -331,8 +331,8 @@ class TestRefreshCommand:
 
             mock_save.assert_called_once()
             saved_state = mock_save.call_args[0][1]
-            # jellyfin removed (was checked), sonarr preserved (wasn't checked)
-            assert saved_state == {"plex": "nas01", "sonarr": "nas02"}
+            # jellyfin removed (was checked), grafana preserved (wasn't checked)
+            assert saved_state == {"plex": "nas01", "grafana": "nas02"}
 
     def test_refresh_dry_run_no_state_change(
         self, mock_config: Config, capsys: pytest.CaptureFixture[str]
