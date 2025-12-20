@@ -1830,6 +1830,23 @@ class TestThemeSwitcher:
         cmd_list = page.locator("#cmd-list").inner_text()
         assert "theme: light" in cmd_list
 
+    def test_current_theme_is_preselected(self, page: Page, server_url: str) -> None:
+        """Opening theme picker pre-selects the current theme."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Set a specific theme first
+        self._open_theme_palette(page)
+        self._select_theme(page, "dracula")
+
+        # Reopen theme palette
+        self._open_theme_palette(page)
+
+        # The selected item (with bg-base-300) should be dracula
+        selected_item = page.locator("#cmd-list a.bg-base-300")
+        assert selected_item.count() == 1
+        assert "dracula" in selected_item.inner_text()
+
     def test_theme_shows_color_swatches(self, page: Page, server_url: str) -> None:
         """Theme commands show color preview swatches."""
         page.goto(server_url)

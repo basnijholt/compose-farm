@@ -630,6 +630,11 @@ function playFabIntro() {
         selected = 0;
         input.value = initialFilter;
         filter();
+        // If opening theme picker, select current theme
+        if (initialFilter === 'theme:') {
+            const currentIdx = filtered.findIndex(c => c.themeId === originalTheme);
+            if (currentIdx >= 0) selected = currentIdx;
+        }
         render();
         dialog.showModal();
         input.focus();
