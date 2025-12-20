@@ -1,5 +1,5 @@
 # Logs Demo
-# Shows viewing service logs
+# Shows viewing stack logs
 
 Output docs/assets/logs.gif
 Output docs/assets/logs.webm

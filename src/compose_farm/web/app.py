@@ -48,7 +48,7 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     app = FastAPI(
         title="Compose Farm",
-        description="Web UI for managing Docker Compose services across multiple hosts",
+        description="Web UI for managing Docker Compose stacks across multiple hosts",
         lifespan=lifespan,
     )
 

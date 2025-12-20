@@ -11,90 +11,88 @@ from compose_farm.cli.common import (
     AllOption,
     ConfigOption,
     HostOption,
-    ServicesArg,
+    StacksArg,
     format_host,
-    get_services,
+    get_stacks,
     load_config_or_exit,
     maybe_regenerate_traefik,
     report_results,
     run_async,
 )
 from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success
-from compose_farm.executor import run_on_services, run_sequential_on_services
-from compose_farm.operations import stop_orphaned_services, up_services
+from compose_farm.executor import run_on_stacks, run_sequential_on_stacks
+from compose_farm.operations import stop_orphaned_stacks, up_stacks
 from compose_farm.state import (
-    get_orphaned_services,
-    get_service_host,
-    get_services_needing_migration,
-    get_services_not_in_state,
-    remove_service,
+    get_orphaned_stacks,
+    get_stack_host,
+    get_stacks_needing_migration,
+    get_stacks_not_in_state,
+    remove_stack,
 )
 
 
 @app.command(rich_help_panel="Lifecycle")
 def up(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
+    stacks: StacksArg = None,
+    all_stacks: AllOption = False,
     host: HostOption = None,
     config: ConfigOption = None,
 ) -> None:
-    """Start services (docker compose up -d). Auto-migrates if host changed."""
-    svc_list, cfg = get_services(services or [], all_services, config, host=host)
-    results = run_async(up_services(cfg, svc_list, raw=True))
+    """Start stacks (docker compose up -d). Auto-migrates if host changed."""
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
+    results = run_async(up_stacks(cfg, stack_list, raw=True))
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
 
 
 @app.command(rich_help_panel="Lifecycle")
 def down(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
+    stacks: StacksArg = None,
+    all_stacks: AllOption = False,
     orphaned: Annotated[
         bool,
-        typer.Option(
-            "--orphaned", help="Stop orphaned services (in state but removed from config)"
-        ),
+        typer.Option("--orphaned", help="Stop orphaned stacks (in state but removed from config)"),
     ] = False,
     host: HostOption = None,
     config: ConfigOption = None,
 ) -> None:
-    """Stop services (docker compose down)."""
+    """Stop stacks (docker compose down)."""
     # Handle --orphaned flag (mutually exclusive with other selection methods)
     if orphaned:
-        if services or all_services or host:
+        if stacks or all_stacks or host:
             print_error(
-                "Cannot combine [bold]--orphaned[/] with services, [bold]--all[/], or [bold]--host[/]"
+                "Cannot combine [bold]--orphaned[/] with stacks, [bold]--all[/], or [bold]--host[/]"
             )
             raise typer.Exit(1)
 
         cfg = load_config_or_exit(config)
-        orphaned_services = get_orphaned_services(cfg)
+        orphaned_stacks = get_orphaned_stacks(cfg)
 
-        if not orphaned_services:
-            print_success("No orphaned services to stop")
+        if not orphaned_stacks:
+            print_success("No orphaned stacks to stop")
             return
 
         console.print(
-            f"[yellow]Stopping {len(orphaned_services)} orphaned service(s):[/] "
-            f"{', '.join(orphaned_services.keys())}"
+            f"[yellow]Stopping {len(orphaned_stacks)} orphaned stack(s):[/] "
+            f"{', '.join(orphaned_stacks.keys())}"
         )
-        results = run_async(stop_orphaned_services(cfg))
+        results = run_async(stop_orphaned_stacks(cfg))
         report_results(results)
         return
 
-    svc_list, cfg = get_services(services or [], all_services, config, host=host)
-    raw = len(svc_list) == 1
-    results = run_async(run_on_services(cfg, svc_list, "down", raw=raw))
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
+    raw = len(stack_list) == 1
+    results = run_async(run_on_stacks(cfg, stack_list, "down", raw=raw))
 
     # Remove from state on success
-    # For multi-host services, result.service is "svc@host", extract base name
-    removed_services: set[str] = set()
+    # For multi-host stacks, result.stack is "stack@host", extract base name
+    removed_stacks: set[str] = set()
     for result in results:
         if result.success:
-            base_service = result.service.split("@")[0]
-            if base_service not in removed_services:
-                remove_service(cfg, base_service)
-                removed_services.add(base_service)
+            base_stack = result.stack.split("@")[0]
+            if base_stack not in removed_stacks:
+                remove_stack(cfg, base_stack)
+                removed_stacks.add(base_stack)
 
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
@@ -102,43 +100,43 @@ def down(
 
 @app.command(rich_help_panel="Lifecycle")
 def pull(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
+    stacks: StacksArg = None,
+    all_stacks: AllOption = False,
     config: ConfigOption = None,
 ) -> None:
     """Pull latest images (docker compose pull)."""
-    svc_list, cfg = get_services(services or [], all_services, config)
-    raw = len(svc_list) == 1
-    results = run_async(run_on_services(cfg, svc_list, "pull", raw=raw))
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
+    raw = len(stack_list) == 1
+    results = run_async(run_on_stacks(cfg, stack_list, "pull", raw=raw))
     report_results(results)
 
 
 @app.command(rich_help_panel="Lifecycle")
 def restart(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
+    stacks: StacksArg = None,
+    all_stacks: AllOption = False,
     config: ConfigOption = None,
 ) -> None:
-    """Restart services (down + up)."""
-    svc_list, cfg = get_services(services or [], all_services, config)
-    raw = len(svc_list) == 1
-    results = run_async(run_sequential_on_services(cfg, svc_list, ["down", "up -d"], raw=raw))
+    """Restart stacks (down + up)."""
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
+    raw = len(stack_list) == 1
+    results = run_async(run_sequential_on_stacks(cfg, stack_list, ["down", "up -d"], raw=raw))
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
 
 
 @app.command(rich_help_panel="Lifecycle")
 def update(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
+    stacks: StacksArg = None,
+    all_stacks: AllOption = False,
     config: ConfigOption = None,
 ) -> None:
-    """Update services (pull + build + down + up)."""
-    svc_list, cfg = get_services(services or [], all_services, config)
-    raw = len(svc_list) == 1
+    """Update stacks (pull + build + down + up)."""
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
+    raw = len(stack_list) == 1
     results = run_async(
-        run_sequential_on_services(
-            cfg, svc_list, ["pull --ignore-buildable", "build", "down", "up -d"], raw=raw
+        run_sequential_on_stacks(
+            cfg, stack_list, ["pull --ignore-buildable", "build", "down", "up -d"], raw=raw
         )
     )
     maybe_regenerate_traefik(cfg, results)
@@ -153,35 +151,35 @@ def apply(  # noqa: PLR0912 (multi-phase reconciliation needs these branches)
     ] = False,
     no_orphans: Annotated[
         bool,
-        typer.Option("--no-orphans", help="Only migrate, don't stop orphaned services"),
+        typer.Option("--no-orphans", help="Only migrate, don't stop orphaned stacks"),
     ] = False,
     full: Annotated[
         bool,
-        typer.Option("--full", "-f", help="Also run up on all services to apply config changes"),
+        typer.Option("--full", "-f", help="Also run up on all stacks to apply config changes"),
     ] = False,
     config: ConfigOption = None,
 ) -> None:
     """Make reality match config (start, migrate, stop as needed).
 
-    This is the "reconcile" command that ensures running services match your
+    This is the "reconcile" command that ensures running stacks match your
     config file. It will:
 
-    1. Stop orphaned services (in state but removed from config)
-    2. Migrate services on wrong host (host in state ≠ host in config)
-    3. Start missing services (in config but not in state)
+    1. Stop orphaned stacks (in state but removed from config)
+    2. Migrate stacks on wrong host (host in state ≠ host in config)
+    3. Start missing stacks (in config but not in state)
 
     Use --dry-run to preview changes before applying.
-    Use --no-orphans to only migrate/start without stopping orphaned services.
-    Use --full to also run 'up' on all services (picks up compose/env changes).
+    Use --no-orphans to only migrate/start without stopping orphaned stacks.
+    Use --full to also run 'up' on all stacks (picks up compose/env changes).
     """
     cfg = load_config_or_exit(config)
-    orphaned = get_orphaned_services(cfg)
-    migrations = get_services_needing_migration(cfg)
-    missing = get_services_not_in_state(cfg)
+    orphaned = get_orphaned_stacks(cfg)
+    migrations = get_stacks_needing_migration(cfg)
+    missing = get_stacks_not_in_state(cfg)
 
-    # For --full: refresh all services not already being started/migrated
+    # For --full: refresh all stacks not already being started/migrated
     handled = set(migrations) | set(missing)
-    to_refresh = [svc for svc in cfg.services if svc not in handled] if full else []
+    to_refresh = [stack for stack in cfg.stacks if stack not in handled] if full else []
 
     has_orphans = bool(orphaned) and not no_orphans
     has_migrations = bool(migrations)
@@ -194,23 +192,23 @@ def apply(  # noqa: PLR0912 (multi-phase reconciliation needs these branches)
 
     # Report what will be done
     if has_orphans:
-        console.print(f"[yellow]Orphaned services to stop ({len(orphaned)}):[/]")
+        console.print(f"[yellow]Orphaned stacks to stop ({len(orphaned)}):[/]")
         for svc, hosts in orphaned.items():
             console.print(f"  [cyan]{svc}[/] on [magenta]{format_host(hosts)}[/]")
     if has_migrations:
-        console.print(f"[cyan]Services to migrate ({len(migrations)}):[/]")
-        for svc in migrations:
-            current = get_service_host(cfg, svc)
-            target = cfg.get_hosts(svc)[0]
-            console.print(f"  [cyan]{svc}[/]: [magenta]{current}[/] → [magenta]{target}[/]")
+        console.print(f"[cyan]Stacks to migrate ({len(migrations)}):[/]")
+        for stack in migrations:
+            current = get_stack_host(cfg, stack)
+            target = cfg.get_hosts(stack)[0]
+            console.print(f"  [cyan]{stack}[/]: [magenta]{current}[/] → [magenta]{target}[/]")
     if has_missing:
-        console.print(f"[green]Services to start ({len(missing)}):[/]")
-        for svc in missing:
-            console.print(f"  [cyan]{svc}[/] on [magenta]{format_host(cfg.get_hosts(svc))}[/]")
+        console.print(f"[green]Stacks to start ({len(missing)}):[/]")
+        for stack in missing:
+            console.print(f"  [cyan]{stack}[/] on [magenta]{format_host(cfg.get_hosts(stack))}[/]")
     if has_refresh:
-        console.print(f"[blue]Services to refresh ({len(to_refresh)}):[/]")
-        for svc in to_refresh:
-            console.print(f"  [cyan]{svc}[/] on [magenta]{format_host(cfg.get_hosts(svc))}[/]")
+        console.print(f"[blue]Stacks to refresh ({len(to_refresh)}):[/]")
+        for stack in to_refresh:
+            console.print(f"  [cyan]{stack}[/] on [magenta]{format_host(cfg.get_hosts(stack))}[/]")
 
     if dry_run:
         console.print(f"\n{MSG_DRY_RUN}")
@@ -220,29 +218,29 @@ def apply(  # noqa: PLR0912 (multi-phase reconciliation needs these branches)
     console.print()
     all_results = []
 
-    # 1. Stop orphaned services first
+    # 1. Stop orphaned stacks first
     if has_orphans:
-        console.print("[yellow]Stopping orphaned services...[/]")
-        all_results.extend(run_async(stop_orphaned_services(cfg)))
+        console.print("[yellow]Stopping orphaned stacks...[/]")
+        all_results.extend(run_async(stop_orphaned_stacks(cfg)))
 
-    # 2. Migrate services on wrong host
+    # 2. Migrate stacks on wrong host
     if has_migrations:
-        console.print("[cyan]Migrating services...[/]")
-        migrate_results = run_async(up_services(cfg, migrations, raw=True))
+        console.print("[cyan]Migrating stacks...[/]")
+        migrate_results = run_async(up_stacks(cfg, migrations, raw=True))
         all_results.extend(migrate_results)
         maybe_regenerate_traefik(cfg, migrate_results)
 
-    # 3. Start missing services (reuse up_services which handles state updates)
+    # 3. Start missing stacks (reuse up_stacks which handles state updates)
     if has_missing:
-        console.print("[green]Starting missing services...[/]")
-        start_results = run_async(up_services(cfg, missing, raw=True))
+        console.print("[green]Starting missing stacks...[/]")
+        start_results = run_async(up_stacks(cfg, missing, raw=True))
         all_results.extend(start_results)
         maybe_regenerate_traefik(cfg, start_results)
 
-    # 4. Refresh remaining services (--full: run up to apply config changes)
+    # 4. Refresh remaining stacks (--full: run up to apply config changes)
     if has_refresh:
-        console.print("[blue]Refreshing services...[/]")
-        refresh_results = run_async(up_services(cfg, to_refresh, raw=True))
+        console.print("[blue]Refreshing stacks...[/]")
+        refresh_results = run_async(up_stacks(cfg, to_refresh, raw=True))
         all_results.extend(refresh_results)
         maybe_regenerate_traefik(cfg, refresh_results)
 

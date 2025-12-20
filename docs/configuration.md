@@ -4,7 +4,7 @@ icon: lucide/settings
 
 # Configuration Reference
 
-Compose Farm uses a YAML configuration file to define hosts and service assignments.
+Compose Farm uses a YAML configuration file to define hosts and stack assignments.
 
 ## Config File Location
 
@@ -27,15 +27,34 @@ Or set the environment variable:
 export CF_CONFIG=/path/to/config.yaml
 ```
 
-## Full Example
+## Examples
+
+### Single host (local-only)
 
 ```yaml
 # Required: directory containing compose files
+compose_dir: /opt/stacks
+
+# Define local host
+hosts:
+  local: localhost
+
+# Map stacks to the local host
+stacks:
+  plex: local
+  sonarr: local
+  radarr: local
+```
+
+### Multi-host (full example)
+
+```yaml
+# Required: directory containing compose files (same path on all hosts)
 compose_dir: /opt/compose
 
 # Optional: auto-regenerate Traefik config
 traefik_file: /opt/traefik/dynamic.d/compose-farm.yml
-traefik_service: traefik
+traefik_stack: traefik
 
 # Define Docker hosts
 hosts:
@@ -45,17 +64,15 @@ hosts:
   hp:
     address: 192.168.1.11
     user: admin
-  local: localhost
 
-# Map services to hosts
-services:
-  # Single-host services
+# Map stacks to hosts
+stacks:
+  # Single-host stacks
   plex: nuc
   sonarr: nuc
   radarr: hp
-  jellyfin: local
 
-  # Multi-host services
+  # Multi-host stacks
   dozzle: all                    # Run on ALL hosts
   node-exporter: [nuc, hp]       # Run on specific hosts
 ```
@@ -64,7 +81,7 @@ services:
 
 ### compose_dir (required)
 
-Directory containing your compose service folders. Must be the same path on all hosts.
+Directory containing your compose stack folders. Must be the same path on all hosts.
 
 ```yaml
 compose_dir: /opt/compose
@@ -96,12 +113,12 @@ Path to auto-generated Traefik file-provider config. When set, Compose Farm rege
 traefik_file: /opt/traefik/dynamic.d/compose-farm.yml
 ```
 
-### traefik_service
+### traefik_stack
 
-Service name running Traefik. Services on the same host are skipped in file-provider config (Traefik's docker provider handles them).
+Stack name running Traefik. Stacks on the same host are skipped in file-provider config (Traefik's docker provider handles them).
 
 ```yaml
-traefik_service: traefik
+traefik_stack: traefik
 ```
 
 ## Hosts Configuration
@@ -137,14 +154,14 @@ hosts:
 
 ### Localhost
 
-For services running on the same machine where you invoke Compose Farm:
+For stacks running on the same machine where you invoke Compose Farm:
 
 ```yaml
 hosts:
   local: localhost
 ```
 
-No SSH is used for localhost services.
+No SSH is used for localhost stacks.
 
 ### Multiple Hosts
 
@@ -161,23 +178,23 @@ hosts:
   local: localhost
 ```
 
-## Services Configuration
+## Stacks Configuration
 
-### Single-Host Service
+### Single-Host Stack
 
 ```yaml
-services:
+stacks:
   plex: nuc
   sonarr: nuc
   radarr: hp
 ```
 
-### Multi-Host Service
+### Multi-Host Stack
 
-For services that need to run on every host (e.g., log shippers, monitoring agents):
+For stacks that need to run on every host (e.g., log shippers, monitoring agents):
 
 ```yaml
-services:
+stacks:
   # Run on ALL configured hosts
   dozzle: all
   promtail: all
@@ -186,19 +203,19 @@ services:
   node-exporter: [nuc, hp, truenas]
 ```
 
-**Common multi-host services:**
+**Common multi-host stacks:**
 - **Dozzle** - Docker log viewer (needs local socket)
 - **Promtail/Alloy** - Log shipping (needs local socket)
 - **node-exporter** - Host metrics (needs /proc, /sys)
 - **AutoKuma** - Uptime Kuma monitors (needs local socket)
 
-### Service Names
+### Stack Names
 
-Service names must match directory names in `compose_dir`:
+Stack names must match directory names in `compose_dir`:
 
 ```yaml
 compose_dir: /opt/compose
-services:
+stacks:
   plex: nuc      # expects /opt/compose/plex/docker-compose.yml
   my-app: hp     # expects /opt/compose/my-app/docker-compose.yml
 ```
@@ -215,7 +232,7 @@ deployed:
   sonarr: nuc
 ```
 
-This file records which services are deployed and on which host.
+This file records which stacks are deployed and on which host.
 
 **Don't edit manually.** Use `cf refresh` to sync state with reality.
 
@@ -237,7 +254,7 @@ Compose Farm runs `docker compose` which handles `.env` automatically.
 
 When generating Traefik config, Compose Farm resolves `${VAR}` and `${VAR:-default}` from:
 
-1. The service's `.env` file
+1. The stack's `.env` file
 2. Current environment
 
 ## Config Commands
@@ -303,7 +320,7 @@ cf check --local
 
 Checks:
 - Config syntax
-- Service-to-host mappings
+- Stack-to-host mappings
 - Compose file existence
 
 ### Full Validation
@@ -318,13 +335,13 @@ Additional SSH-based checks:
 - Docker network existence
 - Traefik label validation
 
-### Service-Specific Check
+### Stack-Specific Check
 
 ```bash
 cf check jellyfin
 ```
 
-Shows which hosts can run the service (have required mounts/networks).
+Shows which hosts can run the stack (have required mounts/networks).
 
 ## Example Configurations
 
@@ -336,7 +353,7 @@ compose_dir: /opt/compose
 hosts:
   server: 192.168.1.10
 
-services:
+stacks:
   myapp: server
 ```
 
@@ -353,7 +370,7 @@ hosts:
     address: 192.168.1.100
     user: admin
 
-services:
+stacks:
   # Media
   plex: nuc
   sonarr: nuc
@@ -373,7 +390,7 @@ services:
 compose_dir: /opt/compose
 network: production
 traefik_file: /opt/traefik/dynamic.d/cf.yml
-traefik_service: traefik
+traefik_stack: traefik
 
 hosts:
   web-1:
@@ -386,7 +403,7 @@ hosts:
     address: 10.0.1.20
     user: deploy
 
-services:
+stacks:
   # Load balanced
   api: [web-1, web-2]
 

@@ -1,4 +1,4 @@
-"""Action routes for service operations."""
+"""Action routes for stack operations."""
 
 from __future__ import annotations
 
@@ -32,27 +32,27 @@ def _start_task(coro_factory: Callable[[str], Coroutine[Any, Any, None]]) -> str
     return task_id
 
 
-# Allowed service commands
+# Allowed stack commands
 ALLOWED_COMMANDS = {"up", "down", "restart", "pull", "update", "logs"}
 
 
-@router.post("/service/{name}/{command}")
-async def service_action(name: str, command: str) -> dict[str, Any]:
-    """Run a compose command for a service (up, down, restart, pull, update, logs)."""
+@router.post("/stack/{name}/{command}")
+async def stack_action(name: str, command: str) -> dict[str, Any]:
+    """Run a compose command for a stack (up, down, restart, pull, update, logs)."""
     if command not in ALLOWED_COMMANDS:
         raise HTTPException(status_code=404, detail=f"Unknown command '{command}'")
 
     config = get_config()
-    if name not in config.services:
-        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
+    if name not in config.stacks:
+        raise HTTPException(status_code=404, detail=f"Stack '{name}' not found")
 
     task_id = _start_task(lambda tid: run_compose_streaming(config, name, command, tid))
-    return {"task_id": task_id, "service": name, "command": command}
+    return {"task_id": task_id, "stack": name, "command": command}
 
 
 @router.post("/apply")
 async def apply_all() -> dict[str, Any]:
-    """Run cf apply to reconcile all services."""
+    """Run cf apply to reconcile all stacks."""
     config = get_config()
     task_id = _start_task(lambda tid: run_cli_streaming(config, ["apply"], tid))
     return {"task_id": task_id, "command": "apply"}
@@ -60,7 +60,7 @@ async def apply_all() -> dict[str, Any]:
 
 @router.post("/refresh")
 async def refresh_state() -> dict[str, Any]:
-    """Refresh state from running services."""
+    """Refresh state from running stacks."""
     config = get_config()
     task_id = _start_task(lambda tid: run_cli_streaming(config, ["refresh"], tid))
     return {"task_id": task_id, "command": "refresh"}

@@ -4,7 +4,7 @@ icon: lucide/layout-dashboard
 
 # Web UI
 
-Compose Farm includes a web interface for managing services from your browser. Start it with:
+Compose Farm includes a web interface for managing stacks from your browser. Start it with:
 
 ```bash
 cf web
@@ -22,12 +22,12 @@ Press `Ctrl+K` (or `Cmd+K` on macOS) to open the command palette. Use fuzzy sear
   <source src="/assets/web-navigation.webm" type="video/webm">
 </video>
 
-### Service Actions
+### Stack Actions
 
-Navigate to any service and use the command palette to trigger actions like restart, pull, update, or view logs. Output streams in real-time via WebSocket.
+Navigate to any stack and use the command palette to trigger actions like restart, pull, update, or view logs. Output streams in real-time via WebSocket.
 
 <video autoplay loop muted playsinline>
-  <source src="/assets/web-service.webm" type="video/webm">
+  <source src="/assets/web-stack.webm" type="video/webm">
 </video>
 
 ### Theme Switching
@@ -40,7 +40,7 @@ Navigate to any service and use the command palette to trigger actions like rest
 
 ### Full Workflow
 
-Dashboard overview, sidebar filtering, service navigation, terminal streaming, and theme switching - all in one flow.
+Dashboard overview, sidebar filtering, stack navigation, terminal streaming, and theme switching - all in one flow.
 
 <video autoplay loop muted playsinline>
   <source src="/assets/web-workflow.webm" type="video/webm">
@@ -50,12 +50,12 @@ Dashboard overview, sidebar filtering, service navigation, terminal streaming, a
 
 ### Dashboard (`/`)
 
-- Service overview with status indicators
+- Stack overview with status indicators
 - Host statistics
-- Pending operations (migrations, orphaned services)
+- Pending operations (migrations, orphaned stacks)
 - Quick actions via command palette
 
-### Service Detail (`/service/{name}`)
+### Stack Detail (`/stack/{name}`)
 
 - Compose file editor (Monaco)
 - Environment file editor

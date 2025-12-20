@@ -1,4 +1,4 @@
-"""State tracking for deployed services."""
+"""State tracking for deployed stacks."""
 
 from __future__ import annotations
 
@@ -13,44 +13,44 @@ if TYPE_CHECKING:
     from .config import Config
 
 
-def group_services_by_host(
-    services: dict[str, str | list[str]],
+def group_stacks_by_host(
+    stacks: dict[str, str | list[str]],
     hosts: Mapping[str, object],
     all_hosts: list[str] | None = None,
 ) -> dict[str, list[str]]:
-    """Group services by their assigned host(s).
+    """Group stacks by their assigned host(s).
 
-    For multi-host services (list or "all"), the service appears in multiple host lists.
+    For multi-host stacks (list or "all"), the stack appears in multiple host lists.
     """
     by_host: dict[str, list[str]] = {h: [] for h in hosts}
-    for service, host_value in services.items():
+    for stack, host_value in stacks.items():
         if isinstance(host_value, list):
             for host_name in host_value:
                 if host_name in by_host:
-                    by_host[host_name].append(service)
+                    by_host[host_name].append(stack)
         elif host_value == "all" and all_hosts:
             for host_name in all_hosts:
                 if host_name in by_host:
-                    by_host[host_name].append(service)
+                    by_host[host_name].append(stack)
         elif host_value in by_host:
-            by_host[host_value].append(service)
+            by_host[host_value].append(stack)
     return by_host
 
 
-def group_running_services_by_host(
+def group_running_stacks_by_host(
     state: dict[str, str | list[str]],
     hosts: Mapping[str, object],
 ) -> dict[str, list[str]]:
-    """Group running services by host, filtering out hosts with no services."""
-    by_host = group_services_by_host(state, hosts)
+    """Group running stacks by host, filtering out hosts with no stacks."""
+    by_host = group_stacks_by_host(state, hosts)
     return {h: svcs for h, svcs in by_host.items() if svcs}
 
 
 def load_state(config: Config) -> dict[str, str | list[str]]:
     """Load the current deployment state.
 
-    Returns a dict mapping service names to host name(s).
-    Multi-host services store a list of hosts.
+    Returns a dict mapping stack names to host name(s).
+    Multi-host stacks store a list of hosts.
     """
     state_path = config.get_state_path()
     if not state_path.exists():
@@ -83,13 +83,13 @@ def _modify_state(config: Config) -> Generator[dict[str, str | list[str]], None,
     save_state(config, state)
 
 
-def get_service_host(config: Config, service: str) -> str | None:
-    """Get the host where a service is currently deployed.
+def get_stack_host(config: Config, stack: str) -> str | None:
+    """Get the host where a stack is currently deployed.
 
-    For multi-host services, returns the first host or None.
+    For multi-host stacks, returns the first host or None.
     """
     state = load_state(config)
-    value = state.get(service)
+    value = state.get(stack)
     if value is None:
         return None
     if isinstance(value, list):
@@ -97,59 +97,59 @@ def get_service_host(config: Config, service: str) -> str | None:
     return value
 
 
-def set_service_host(config: Config, service: str, host: str) -> None:
-    """Record that a service is deployed on a host."""
+def set_stack_host(config: Config, stack: str, host: str) -> None:
+    """Record that a stack is deployed on a host."""
     with _modify_state(config) as state:
-        state[service] = host
+        state[stack] = host
 
 
-def set_multi_host_service(config: Config, service: str, hosts: list[str]) -> None:
-    """Record that a multi-host service is deployed on multiple hosts."""
+def set_multi_host_stack(config: Config, stack: str, hosts: list[str]) -> None:
+    """Record that a multi-host stack is deployed on multiple hosts."""
     with _modify_state(config) as state:
-        state[service] = hosts
+        state[stack] = hosts
 
 
-def remove_service(config: Config, service: str) -> None:
-    """Remove a service from the state (after down)."""
+def remove_stack(config: Config, stack: str) -> None:
+    """Remove a stack from the state (after down)."""
     with _modify_state(config) as state:
-        state.pop(service, None)
+        state.pop(stack, None)
 
 
-def get_services_needing_migration(config: Config) -> list[str]:
-    """Get services where current host differs from configured host.
+def get_stacks_needing_migration(config: Config) -> list[str]:
+    """Get stacks where current host differs from configured host.
 
-    Multi-host services are never considered for migration.
+    Multi-host stacks are never considered for migration.
     """
     needs_migration = []
-    for service in config.services:
-        # Skip multi-host services
-        if config.is_multi_host(service):
+    for stack in config.stacks:
+        # Skip multi-host stacks
+        if config.is_multi_host(stack):
             continue
 
-        configured_host = config.get_hosts(service)[0]
-        current_host = get_service_host(config, service)
+        configured_host = config.get_hosts(stack)[0]
+        current_host = get_stack_host(config, stack)
         if current_host and current_host != configured_host:
-            needs_migration.append(service)
+            needs_migration.append(stack)
     return needs_migration
 
 
-def get_orphaned_services(config: Config) -> dict[str, str | list[str]]:
-    """Get services that are in state but not in config.
+def get_orphaned_stacks(config: Config) -> dict[str, str | list[str]]:
+    """Get stacks that are in state but not in config.
 
-    These are services that were previously deployed but have been
+    These are stacks that were previously deployed but have been
     removed from the config file (e.g., commented out).
 
-    Returns a dict mapping service name to host(s) where it's deployed.
+    Returns a dict mapping stack name to host(s) where it's deployed.
     """
     state = load_state(config)
-    return {service: hosts for service, hosts in state.items() if service not in config.services}
+    return {stack: hosts for stack, hosts in state.items() if stack not in config.stacks}
 
 
-def get_services_not_in_state(config: Config) -> list[str]:
-    """Get services that are in config but not in state.
+def get_stacks_not_in_state(config: Config) -> list[str]:
+    """Get stacks that are in config but not in state.
 
-    These are services that should be running but aren't tracked
+    These are stacks that should be running but aren't tracked
     (e.g., newly added to config, or previously stopped as orphans).
     """
     state = load_state(config)
-    return [service for service in config.services if service not in state]
+    return [stack for stack in config.stacks if stack not in state]

@@ -36,43 +36,43 @@ class TestConfig:
         config = Config(
             compose_dir=Path("/opt/compose"),
             hosts={"nas01": Host(address="192.168.1.10")},
-            services={"plex": "nas01"},
+            stacks={"plex": "nas01"},
         )
         assert config.compose_dir == Path("/opt/compose")
         assert "nas01" in config.hosts
-        assert config.services["plex"] == "nas01"
+        assert config.stacks["plex"] == "nas01"
 
-    def test_config_invalid_service_host(self) -> None:
+    def test_config_invalid_stack_host(self) -> None:
         with pytest.raises(ValueError, match="unknown host"):
             Config(
                 compose_dir=Path("/opt/compose"),
                 hosts={"nas01": Host(address="192.168.1.10")},
-                services={"plex": "nonexistent"},
+                stacks={"plex": "nonexistent"},
             )
 
     def test_get_host(self) -> None:
         config = Config(
             compose_dir=Path("/opt/compose"),
             hosts={"nas01": Host(address="192.168.1.10")},
-            services={"plex": "nas01"},
+            stacks={"plex": "nas01"},
         )
         host = config.get_host("plex")
         assert host.address == "192.168.1.10"
 
-    def test_get_host_unknown_service(self) -> None:
+    def test_get_host_unknown_stack(self) -> None:
         config = Config(
             compose_dir=Path("/opt/compose"),
             hosts={"nas01": Host(address="192.168.1.10")},
-            services={"plex": "nas01"},
+            stacks={"plex": "nas01"},
         )
-        with pytest.raises(ValueError, match="Unknown service"):
+        with pytest.raises(ValueError, match="Unknown stack"):
             config.get_host("unknown")
 
     def test_get_compose_path(self) -> None:
         config = Config(
             compose_dir=Path("/opt/compose"),
             hosts={"nas01": Host(address="192.168.1.10")},
-            services={"plex": "nas01"},
+            stacks={"plex": "nas01"},
         )
         path = config.get_compose_path("plex")
         # Defaults to compose.yaml when no file exists
@@ -88,7 +88,7 @@ class TestLoadConfig:
             "hosts": {
                 "nas01": {"address": "192.168.1.10", "user": "docker", "port": 2222},
             },
-            "services": {"plex": "nas01"},
+            "stacks": {"plex": "nas01"},
         }
         config_file = tmp_path / "sdc.yaml"
         config_file.write_text(yaml.dump(config_data))
@@ -102,7 +102,7 @@ class TestLoadConfig:
         config_data = {
             "compose_dir": "/opt/compose",
             "hosts": {"nas01": "192.168.1.10"},
-            "services": {"plex": "nas01"},
+            "stacks": {"plex": "nas01"},
         }
         config_file = tmp_path / "sdc.yaml"
         config_file.write_text(yaml.dump(config_data))
@@ -117,7 +117,7 @@ class TestLoadConfig:
                 "nas01": {"address": "192.168.1.10", "user": "docker"},
                 "nas02": "192.168.1.11",
             },
-            "services": {"plex": "nas01", "jellyfin": "nas02"},
+            "stacks": {"plex": "nas01", "jellyfin": "nas02"},
         }
         config_file = tmp_path / "sdc.yaml"
         config_file.write_text(yaml.dump(config_data))
@@ -137,7 +137,7 @@ class TestLoadConfig:
         config_data = {
             "compose_dir": "/opt/compose",
             "hosts": {"local": "localhost"},
-            "services": {"test": "local"},
+            "stacks": {"test": "local"},
         }
         config_file = tmp_path / "sdc.yaml"
         config_file.write_text(yaml.dump(config_data))

@@ -1,24 +1,24 @@
 {% from "partials/components.html" import collapse %}
 {% from "partials/icons.html" import layers, search %}
-{% call collapse("Services by Host", id="services-by-host-collapse", checked=expanded|default(true), icon=layers()) %}
+{% call collapse("Stacks by Host", id="stacks-by-host-collapse", checked=expanded|default(true), icon=layers()) %}
     <div class="flex flex-wrap gap-2 mb-4 items-center">
         <label class="input input-sm input-bordered flex items-center gap-2 bg-base-200">
             {{ search() }}<input type="text" id="sbh-filter" class="w-32" placeholder="Filter..." onkeyup="sbhFilter()" />
         </label>
         <select id="sbh-host-select" class="select select-sm select-bordered bg-base-200" onchange="sbhFilter()">
             <option value="">All hosts</option>
-            {% for h in services_by_host.keys() | sort %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
+            {% for h in stacks_by_host.keys() | sort %}<option value="{{ h }}">{{ h }}</option>{% endfor %}
         </select>
     </div>
-    {% for host_name, host_services in services_by_host.items() | sort %}
+    {% for host_name, host_stacks in stacks_by_host.items() | sort %}
     <div class="sbh-group" data-h="{{ host_name }}">
         <h4 class="font-semibold mt-3 mb-1">{{ host_name }}{% if host_name in hosts %}<code class="text-xs ml-2 opacity-60">{{ hosts[host_name].address }}</code>{% endif %}</h4>
         <ul class="menu menu-horizontal bg-base-200 rounded-box mb-2 flex-wrap">
-            {% for svc in host_services | sort %}<li data-s="{{ svc | lower }}"><a href="/service/{{ svc }}">{{ svc }}</a></li>{% endfor %}
+            {% for stack in host_stacks | sort %}<li data-s="{{ stack | lower }}"><a href="/stack/{{ stack }}">{{ stack }}</a></li>{% endfor %}
         </ul>
     </div>
     {% else %}
-    <p class="text-base-content/60 italic">No services currently running.</p>
+    <p class="text-base-content/60 italic">No stacks currently running.</p>
     {% endfor %}
     <script>
     function sbhFilter() {

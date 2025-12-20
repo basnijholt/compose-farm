@@ -76,12 +76,12 @@ def _save_with_backup(file_path: Path, content: str) -> bool:
     return True
 
 
-def _get_service_compose_path(name: str) -> Path:
-    """Get compose path for service, raising HTTPException if not found."""
+def _get_stack_compose_path(name: str) -> Path:
+    """Get compose path for stack, raising HTTPException if not found."""
     config = get_config()
 
-    if name not in config.services:
-        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
+    if name not in config.stacks:
+        raise HTTPException(status_code=404, detail=f"Stack '{name}' not found")
 
     compose_path = config.get_compose_path(name)
     if not compose_path:
@@ -90,12 +90,12 @@ def _get_service_compose_path(name: str) -> Path:
     return compose_path
 
 
-def _get_compose_services(config: Any, service: str, hosts: list[str]) -> list[dict[str, Any]]:
+def _get_compose_services(config: Any, stack: str, hosts: list[str]) -> list[dict[str, Any]]:
     """Get container info from compose file (fast, local read).
 
-    Returns one entry per container per host for multi-host services.
+    Returns one entry per container per host for multi-host stacks.
     """
-    compose_path = config.get_compose_path(service)
+    compose_path = config.get_compose_path(stack)
     if not compose_path or not compose_path.exists():
         return []
 
@@ -127,7 +127,7 @@ def _get_compose_services(config: Any, service: str, hosts: list[str]) -> list[d
 
 
 async def _get_container_states(
-    config: Any, service: str, containers: list[dict[str, Any]]
+    config: Any, stack: str, containers: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
     """Query Docker for actual container states on a single host."""
     if not containers:
@@ -138,7 +138,7 @@ async def _get_container_states(
 
     # Use -a to include stopped/exited containers
     result = await run_compose_on_host(
-        config, service, host_name, "ps -a --format json", stream=False
+        config, stack, host_name, "ps -a --format json", stream=False
     )
     if not result.success:
         return containers
@@ -169,33 +169,33 @@ async def _get_container_states(
 
 
 def _render_containers(
-    service: str, host: str, containers: list[dict[str, Any]], *, show_header: bool = False
+    stack: str, host: str, containers: list[dict[str, Any]], *, show_header: bool = False
 ) -> str:
     """Render containers HTML using Jinja template."""
     templates = get_templates()
     template = templates.env.get_template("partials/containers.html")
     module = template.make_module()
-    result: str = module.host_containers(service, host, containers, show_header=show_header)
+    result: str = module.host_containers(stack, host, containers, show_header=show_header)
     return result
 
 
-@router.get("/service/{name}/containers", response_class=HTMLResponse)
+@router.get("/stack/{name}/containers", response_class=HTMLResponse)
 async def get_containers(name: str, host: str | None = None) -> HTMLResponse:
-    """Get containers for a service as HTML buttons.
+    """Get containers for a stack as HTML buttons.
 
     If host is specified, queries Docker for that host's status.
     Otherwise returns all hosts with loading spinners that auto-fetch.
     """
     config = get_config()
 
-    if name not in config.services:
-        raise HTTPException(status_code=404, detail=f"Service '{name}' not found")
+    if name not in config.stacks:
+        raise HTTPException(status_code=404, detail=f"Stack '{name}' not found")
 
-    # Get hosts where service is running from state
+    # Get hosts where stack is running from state
     state = load_state(config)
     current_hosts = state.get(name)
     if not current_hosts:
-        return HTMLResponse('<span class="text-base-content/60">Service not running</span>')
+        return HTMLResponse('<span class="text-base-content/60">Stack not running</span>')
 
     all_hosts = current_hosts if isinstance(current_hosts, list) else [current_hosts]
 
@@ -222,7 +222,7 @@ async def get_containers(name: str, host: str | None = None) -> HTMLResponse:
         # Container for this host that auto-fetches its own status
         html_parts.append(f"""
             <div id="{host_id}"
-                 hx-get="/api/service/{name}/containers?host={h}"
+                 hx-get="/api/stack/{name}/containers?host={h}"
                  hx-trigger="load"
                  hx-target="this"
                  hx-select="unset"
@@ -234,24 +234,24 @@ async def get_containers(name: str, host: str | None = None) -> HTMLResponse:
     return HTMLResponse("".join(html_parts))
 
 
-@router.put("/service/{name}/compose")
+@router.put("/stack/{name}/compose")
 async def save_compose(
     name: str, content: Annotated[str, Body(media_type="text/plain")]
 ) -> dict[str, Any]:
     """Save compose file content."""
-    compose_path = _get_service_compose_path(name)
+    compose_path = _get_stack_compose_path(name)
     _validate_yaml(content)
     saved = _save_with_backup(compose_path, content)
     msg = "Compose file saved" if saved else "No changes to save"
     return {"success": True, "message": msg}
 
 
-@router.put("/service/{name}/env")
+@router.put("/stack/{name}/env")
 async def save_env(
     name: str, content: Annotated[str, Body(media_type="text/plain")]
 ) -> dict[str, Any]:
     """Save .env file content."""
-    env_path = _get_service_compose_path(name).parent / ".env"
+    env_path = _get_stack_compose_path(name).parent / ".env"
     saved = _save_with_backup(env_path, content)
     msg = ".env file saved" if saved else "No changes to save"
     return {"success": True, "message": msg}

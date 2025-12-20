@@ -9,7 +9,7 @@ from compose_farm import executor as executor_module
 from compose_farm import state as state_module
 from compose_farm.cli import management as cli_management_module
 from compose_farm.config import Config, Host
-from compose_farm.executor import CommandResult, check_service_running
+from compose_farm.executor import CommandResult, check_stack_running
 
 
 @pytest.fixture
@@ -18,11 +18,11 @@ def mock_config(tmp_path: Path) -> Config:
     compose_dir = tmp_path / "stacks"
     compose_dir.mkdir()
 
-    # Create service directories with compose files
-    for service in ["plex", "jellyfin", "grafana"]:
-        svc_dir = compose_dir / service
-        svc_dir.mkdir()
-        (svc_dir / "compose.yaml").write_text(f"# {service} compose file\n")
+    # Create stack directories with compose files
+    for stack in ["plex", "jellyfin", "grafana"]:
+        stack_dir = compose_dir / stack
+        stack_dir.mkdir()
+        (stack_dir / "compose.yaml").write_text(f"# {stack} compose file\n")
 
     return Config(
         compose_dir=compose_dir,
@@ -30,7 +30,7 @@ def mock_config(tmp_path: Path) -> Config:
             "nas01": Host(address="192.168.1.10", user="admin", port=22),
             "nas02": Host(address="192.168.1.11", user="admin", port=22),
         },
-        services={
+        stacks={
             "plex": "nas01",
             "jellyfin": "nas01",
             "grafana": "nas02",
@@ -51,33 +51,33 @@ def state_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return state_path
 
 
-class TestCheckServiceRunning:
-    """Tests for check_service_running function."""
+class TestCheckStackRunning:
+    """Tests for check_stack_running function."""
 
     @pytest.mark.asyncio
-    async def test_service_running(self, mock_config: Config) -> None:
-        """Returns True when service has running containers."""
+    async def test_stack_running(self, mock_config: Config) -> None:
+        """Returns True when stack has running containers."""
         with patch.object(executor_module, "run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = CommandResult(
-                service="plex",
+                stack="plex",
                 exit_code=0,
                 success=True,
                 stdout="abc123\ndef456\n",
             )
-            result = await check_service_running(mock_config, "plex", "nas01")
+            result = await check_stack_running(mock_config, "plex", "nas01")
             assert result is True
 
     @pytest.mark.asyncio
-    async def test_service_not_running(self, mock_config: Config) -> None:
-        """Returns False when service has no running containers."""
+    async def test_stack_not_running(self, mock_config: Config) -> None:
+        """Returns False when stack has no running containers."""
         with patch.object(executor_module, "run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = CommandResult(
-                service="plex",
+                stack="plex",
                 exit_code=0,
                 success=True,
                 stdout="",
             )
-            result = await check_service_running(mock_config, "plex", "nas01")
+            result = await check_stack_running(mock_config, "plex", "nas01")
             assert result is False
 
     @pytest.mark.asyncio
@@ -85,19 +85,19 @@ class TestCheckServiceRunning:
         """Returns False when command fails."""
         with patch.object(executor_module, "run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = CommandResult(
-                service="plex",
+                stack="plex",
                 exit_code=1,
                 success=False,
             )
-            result = await check_service_running(mock_config, "plex", "nas01")
+            result = await check_stack_running(mock_config, "plex", "nas01")
             assert result is False
 
 
 class TestMergeState:
     """Tests for _merge_state helper function."""
 
-    def test_merge_adds_new_services(self) -> None:
-        """Merging adds newly discovered services to existing state."""
+    def test_merge_adds_new_stacks(self) -> None:
+        """Merging adds newly discovered stacks to existing state."""
         current: dict[str, str | list[str]] = {"plex": "nas01"}
         discovered: dict[str, str | list[str]] = {"jellyfin": "nas02"}
         removed: list[str] = []
@@ -106,8 +106,8 @@ class TestMergeState:
 
         assert result == {"plex": "nas01", "jellyfin": "nas02"}
 
-    def test_merge_updates_existing_services(self) -> None:
-        """Merging updates services that changed hosts."""
+    def test_merge_updates_existing_stacks(self) -> None:
+        """Merging updates stacks that changed hosts."""
         current: dict[str, str | list[str]] = {"plex": "nas01", "jellyfin": "nas01"}
         discovered: dict[str, str | list[str]] = {"plex": "nas02"}  # plex moved to nas02
         removed: list[str] = []
@@ -116,8 +116,8 @@ class TestMergeState:
 
         assert result == {"plex": "nas02", "jellyfin": "nas01"}
 
-    def test_merge_removes_stopped_services(self) -> None:
-        """Merging removes services that were checked but not found."""
+    def test_merge_removes_stopped_stacks(self) -> None:
+        """Merging removes stacks that were checked but not found."""
         current: dict[str, str | list[str]] = {
             "plex": "nas01",
             "jellyfin": "nas01",
@@ -131,8 +131,8 @@ class TestMergeState:
         # jellyfin removed, grafana untouched (wasn't in the refresh scope)
         assert result == {"plex": "nas01", "grafana": "nas02"}
 
-    def test_merge_preserves_unrelated_services(self) -> None:
-        """Merging preserves services that weren't part of the refresh."""
+    def test_merge_preserves_unrelated_stacks(self) -> None:
+        """Merging preserves stacks that weren't part of the refresh."""
         current: dict[str, str | list[str]] = {
             "plex": "nas01",
             "jellyfin": "nas01",
@@ -151,7 +151,7 @@ class TestReportSyncChanges:
     """Tests for _report_sync_changes function."""
 
     def test_reports_added(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Reports newly discovered services."""
+        """Reports newly discovered stacks."""
         cli_management_module._report_sync_changes(
             added=["plex", "jellyfin"],
             removed=[],
@@ -160,12 +160,12 @@ class TestReportSyncChanges:
             current_state={},
         )
         captured = capsys.readouterr()
-        assert "New services found (2)" in captured.out
+        assert "New stacks found (2)" in captured.out
         assert "+ plex on nas01" in captured.out
         assert "+ jellyfin on nas02" in captured.out
 
     def test_reports_removed(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Reports services that are no longer running."""
+        """Reports stacks that are no longer running."""
         cli_management_module._report_sync_changes(
             added=[],
             removed=["grafana"],
@@ -174,11 +174,11 @@ class TestReportSyncChanges:
             current_state={"grafana": "nas01"},
         )
         captured = capsys.readouterr()
-        assert "Services no longer running (1)" in captured.out
+        assert "Stacks no longer running (1)" in captured.out
         assert "- grafana (was on nas01)" in captured.out
 
     def test_reports_changed(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """Reports services that moved to a different host."""
+        """Reports stacks that moved to a different host."""
         cli_management_module._report_sync_changes(
             added=[],
             removed=[],
@@ -187,23 +187,23 @@ class TestReportSyncChanges:
             current_state={"plex": "nas01"},
         )
         captured = capsys.readouterr()
-        assert "Services on different hosts (1)" in captured.out
+        assert "Stacks on different hosts (1)" in captured.out
         assert "~ plex: nas01 → nas02" in captured.out
 
 
 class TestRefreshCommand:
-    """Tests for the refresh command with service arguments."""
+    """Tests for the refresh command with stack arguments."""
 
-    def test_refresh_specific_service_partial_merge(
+    def test_refresh_specific_stack_partial_merge(
         self, mock_config: Config, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Refreshing specific services merges with existing state."""
+        """Refreshing specific stacks merges with existing state."""
         # Mock existing state
         existing_state = {"plex": "nas01", "jellyfin": "nas01", "grafana": "nas02"}
 
         with (
             patch(
-                "compose_farm.cli.management.get_services",
+                "compose_farm.cli.management.get_stacks",
                 return_value=(["plex"], mock_config),
             ),
             patch(
@@ -211,16 +211,16 @@ class TestRefreshCommand:
                 return_value=existing_state,
             ),
             patch(
-                "compose_farm.cli.management._discover_services",
+                "compose_farm.cli.management._discover_stacks",
                 return_value={"plex": "nas02"},  # plex moved to nas02
             ),
-            patch("compose_farm.cli.management._snapshot_services"),
+            patch("compose_farm.cli.management._snapshot_stacks"),
             patch("compose_farm.cli.management.save_state") as mock_save,
         ):
-            # services=["plex"], all_services=False -> partial refresh
+            # stacks=["plex"], all_stacks=False -> partial refresh
             cli_management_module.refresh(
-                services=["plex"],
-                all_services=False,
+                stacks=["plex"],
+                all_stacks=False,
                 config=None,
                 log_path=None,
                 dry_run=False,
@@ -234,12 +234,12 @@ class TestRefreshCommand:
     def test_refresh_all_replaces_state(
         self, mock_config: Config, capsys: pytest.CaptureFixture[str]
     ) -> None:
-        """Refreshing all services replaces the entire state."""
+        """Refreshing all stacks replaces the entire state."""
         existing_state = {"plex": "nas01", "jellyfin": "nas01", "old-service": "nas02"}
 
         with (
             patch(
-                "compose_farm.cli.management.get_services",
+                "compose_farm.cli.management.get_stacks",
                 return_value=(["plex", "jellyfin", "grafana"], mock_config),
             ),
             patch(
@@ -247,33 +247,33 @@ class TestRefreshCommand:
                 return_value=existing_state,
             ),
             patch(
-                "compose_farm.cli.management._discover_services",
+                "compose_farm.cli.management._discover_stacks",
                 return_value={"plex": "nas01", "grafana": "nas02"},  # jellyfin not running
             ),
-            patch("compose_farm.cli.management._snapshot_services"),
+            patch("compose_farm.cli.management._snapshot_stacks"),
             patch("compose_farm.cli.management.save_state") as mock_save,
         ):
-            # services=None, all_services=False -> defaults to all (full refresh)
+            # stacks=None, all_stacks=False -> defaults to all (full refresh)
             cli_management_module.refresh(
-                services=None,
-                all_services=False,
+                stacks=None,
+                all_stacks=False,
                 config=None,
                 log_path=None,
                 dry_run=False,
             )
 
-            # Should have replaced: only discovered services remain
+            # Should have replaced: only discovered stacks remain
             mock_save.assert_called_once()
             saved_state = mock_save.call_args[0][1]
             assert saved_state == {"plex": "nas01", "grafana": "nas02"}
 
     def test_refresh_with_all_flag_full_refresh(self, mock_config: Config) -> None:
-        """Using --all flag forces full refresh even with service names."""
+        """Using --all flag forces full refresh even with stack names."""
         existing_state = {"plex": "nas01", "jellyfin": "nas01"}
 
         with (
             patch(
-                "compose_farm.cli.management.get_services",
+                "compose_farm.cli.management.get_stacks",
                 return_value=(["plex", "jellyfin", "grafana"], mock_config),
             ),
             patch(
@@ -281,16 +281,16 @@ class TestRefreshCommand:
                 return_value=existing_state,
             ),
             patch(
-                "compose_farm.cli.management._discover_services",
+                "compose_farm.cli.management._discover_stacks",
                 return_value={"plex": "nas01"},  # only plex running
             ),
-            patch("compose_farm.cli.management._snapshot_services"),
+            patch("compose_farm.cli.management._snapshot_stacks"),
             patch("compose_farm.cli.management.save_state") as mock_save,
         ):
-            # all_services=True -> full refresh (replaces state)
+            # all_stacks=True -> full refresh (replaces state)
             cli_management_module.refresh(
-                services=["plex"],  # ignored when --all is set
-                all_services=True,
+                stacks=["plex"],  # ignored when --all is set
+                all_stacks=True,
                 config=None,
                 log_path=None,
                 dry_run=False,
@@ -298,16 +298,16 @@ class TestRefreshCommand:
 
             mock_save.assert_called_once()
             saved_state = mock_save.call_args[0][1]
-            # Full refresh: only discovered services
+            # Full refresh: only discovered stacks
             assert saved_state == {"plex": "nas01"}
 
-    def test_refresh_partial_removes_stopped_service(self, mock_config: Config) -> None:
-        """Partial refresh removes a service if it was checked but not found."""
+    def test_refresh_partial_removes_stopped_stack(self, mock_config: Config) -> None:
+        """Partial refresh removes a stack if it was checked but not found."""
         existing_state = {"plex": "nas01", "jellyfin": "nas01", "grafana": "nas02"}
 
         with (
             patch(
-                "compose_farm.cli.management.get_services",
+                "compose_farm.cli.management.get_stacks",
                 return_value=(["plex", "jellyfin"], mock_config),
             ),
             patch(
@@ -315,15 +315,15 @@ class TestRefreshCommand:
                 return_value=existing_state,
             ),
             patch(
-                "compose_farm.cli.management._discover_services",
+                "compose_farm.cli.management._discover_stacks",
                 return_value={"plex": "nas01"},  # jellyfin not running
             ),
-            patch("compose_farm.cli.management._snapshot_services"),
+            patch("compose_farm.cli.management._snapshot_stacks"),
             patch("compose_farm.cli.management.save_state") as mock_save,
         ):
             cli_management_module.refresh(
-                services=["plex", "jellyfin"],
-                all_services=False,
+                stacks=["plex", "jellyfin"],
+                all_stacks=False,
                 config=None,
                 log_path=None,
                 dry_run=False,
@@ -342,7 +342,7 @@ class TestRefreshCommand:
 
         with (
             patch(
-                "compose_farm.cli.management.get_services",
+                "compose_farm.cli.management.get_stacks",
                 return_value=(["plex"], mock_config),
             ),
             patch(
@@ -350,14 +350,14 @@ class TestRefreshCommand:
                 return_value=existing_state,
             ),
             patch(
-                "compose_farm.cli.management._discover_services",
+                "compose_farm.cli.management._discover_stacks",
                 return_value={"plex": "nas02"},  # would change
             ),
             patch("compose_farm.cli.management.save_state") as mock_save,
         ):
             cli_management_module.refresh(
-                services=["plex"],
-                all_services=False,
+                stacks=["plex"],
+                all_stacks=False,
                 config=None,
                 log_path=None,
                 dry_run=True,

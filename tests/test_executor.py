@@ -14,7 +14,7 @@ from compose_farm.executor import (
     is_local,
     run_command,
     run_compose,
-    run_on_services,
+    run_on_stacks,
 )
 
 # These tests run actual shell commands that only work on Linux
@@ -48,7 +48,7 @@ class TestRunLocalCommand:
         result = await _run_local_command("echo hello", "test-service")
         assert result.success is True
         assert result.exit_code == 0
-        assert result.service == "test-service"
+        assert result.stack == "test-service"
 
     async def test_run_local_command_failure(self) -> None:
         result = await _run_local_command("exit 1", "test-service")
@@ -77,7 +77,7 @@ class TestRunCommand:
         host = Host(address="local")
         result = await run_command(host, "true", "my-service")
         assert isinstance(result, CommandResult)
-        assert result.service == "my-service"
+        assert result.stack == "my-service"
         assert result.exit_code == 0
         assert result.success is True
 
@@ -88,40 +88,40 @@ class TestRunCompose:
     async def test_run_compose_builds_correct_command(self, tmp_path: Path) -> None:
         # Create a minimal compose file
         compose_dir = tmp_path / "compose"
-        service_dir = compose_dir / "test-service"
-        service_dir.mkdir(parents=True)
-        compose_file = service_dir / "docker-compose.yml"
+        stack_dir = compose_dir / "test-service"
+        stack_dir.mkdir(parents=True)
+        compose_file = stack_dir / "docker-compose.yml"
         compose_file.write_text("services: {}")
 
         config = Config(
             compose_dir=compose_dir,
             hosts={"local": Host(address="localhost")},
-            services={"test-service": "local"},
+            stacks={"test-service": "local"},
         )
 
         # This will fail because docker compose isn't running,
         # but we can verify the command structure works
         result = await run_compose(config, "test-service", "config", stream=False)
         # Command may fail due to no docker, but structure is correct
-        assert result.service == "test-service"
+        assert result.stack == "test-service"
 
 
-class TestRunOnServices:
-    """Tests for parallel service execution."""
+class TestRunOnStacks:
+    """Tests for parallel stack execution."""
 
-    async def test_run_on_services_parallel(self) -> None:
+    async def test_run_on_stacks_parallel(self) -> None:
         config = Config(
             compose_dir=Path("/tmp"),
             hosts={"local": Host(address="localhost")},
-            services={"svc1": "local", "svc2": "local"},
+            stacks={"svc1": "local", "svc2": "local"},
         )
 
         # Use a simple command that will work without docker
         # We'll test the parallelism structure
-        results = await run_on_services(config, ["svc1", "svc2"], "version", stream=False)
+        results = await run_on_stacks(config, ["svc1", "svc2"], "version", stream=False)
         assert len(results) == 2
-        assert results[0].service == "svc1"
-        assert results[1].service == "svc2"
+        assert results[0].stack == "svc1"
+        assert results[1].stack == "svc2"
 
 
 @linux_only
@@ -133,7 +133,7 @@ class TestCheckPathsExist:
         config = Config(
             compose_dir=tmp_path,
             hosts={"local": Host(address="localhost")},
-            services={},
+            stacks={},
         )
         # Create test paths
         (tmp_path / "dir1").mkdir()
@@ -151,7 +151,7 @@ class TestCheckPathsExist:
         config = Config(
             compose_dir=tmp_path,
             hosts={"local": Host(address="localhost")},
-            services={},
+            stacks={},
         )
 
         result = await check_paths_exist(
@@ -166,7 +166,7 @@ class TestCheckPathsExist:
         config = Config(
             compose_dir=tmp_path,
             hosts={"local": Host(address="localhost")},
-            services={},
+            stacks={},
         )
         (tmp_path / "exists").mkdir()
 
@@ -182,7 +182,7 @@ class TestCheckPathsExist:
         config = Config(
             compose_dir=tmp_path,
             hosts={"local": Host(address="localhost")},
-            services={},
+            stacks={},
         )
 
         result = await check_paths_exist(config, "local", [])
@@ -198,7 +198,7 @@ class TestCheckNetworksExist:
         config = Config(
             compose_dir=tmp_path,
             hosts={"local": Host(address="localhost")},
-            services={},
+            stacks={},
         )
 
         result = await check_networks_exist(config, "local", ["bridge"])
@@ -209,7 +209,7 @@ class TestCheckNetworksExist:
         config = Config(
             compose_dir=tmp_path,
             hosts={"local": Host(address="localhost")},
-            services={},
+            stacks={},
         )
 
         result = await check_networks_exist(config, "local", ["nonexistent_network_xyz_123"])
@@ -220,7 +220,7 @@ class TestCheckNetworksExist:
         config = Config(
             compose_dir=tmp_path,
             hosts={"local": Host(address="localhost")},
-            services={},
+            stacks={},
         )
 
         result = await check_networks_exist(
@@ -234,7 +234,7 @@ class TestCheckNetworksExist:
         config = Config(
             compose_dir=tmp_path,
             hosts={"local": Host(address="localhost")},
-            services={},
+            stacks={},
         )
 
         result = await check_networks_exist(config, "local", [])

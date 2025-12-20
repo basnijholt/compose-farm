@@ -8,9 +8,10 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 ## What is Compose Farm?
 
-Compose Farm lets you manage Docker Compose services across multiple machines from a single command line. Think [Dockge](https://dockge.kuma.pet/) but with a CLI and [web interface](web-ui.md), designed for multi-host deployments.
+Compose Farm lets you manage Docker Compose stacks across multiple machines from a single command line. Think [Dockge](https://dockge.kuma.pet/) but with a CLI and web interface, designed for multi-host deployments.
 
-Define which services run where in one YAML file, then use `cf apply` to make reality match your configuration.
+Define which stacks run where in one YAML file, then use `cf apply` to make reality match your configuration.
+It also works great on a single host with one folder per stack; just map stacks to `localhost`.
 
 ## Quick Demo
 
@@ -37,6 +38,31 @@ Define which services run where in one YAML file, then use `cf apply` to make re
 
 ## Quick Start
 
+### Single host
+
+No SSH, shared storage, or Traefik file-provider required.
+
+```yaml
+# compose-farm.yaml
+compose_dir: /opt/stacks
+
+hosts:
+  local: localhost
+
+stacks:
+  plex: local
+  jellyfin: local
+  traefik: local
+```
+
+```bash
+cf apply  # Start/stop stacks to match config
+```
+
+### Multi-host
+
+Requires SSH plus a shared `compose_dir` path on all hosts (NFS or sync).
+
 ```yaml
 # compose-farm.yaml
 compose_dir: /opt/compose
@@ -47,16 +73,19 @@ hosts:
   server-2:
     address: 192.168.1.11
 
-services:
+stacks:
   plex: server-1
   jellyfin: server-2
   sonarr: server-1
 ```
 
 ```bash
-cf apply  # Services start, migrate, or stop as needed
+cf apply  # Stacks start, migrate, or stop as needed
 ```
 
+Each entry in `stacks:` maps to a folder under `compose_dir` that contains a compose file.
+
+For cross-host HTTP routing, add Traefik labels and configure `traefik_file` to generate file-provider config.
 ### Installation
 
 ```bash
@@ -79,7 +108,7 @@ hosts:
   hp:
     address: 192.168.1.11
 
-services:
+stacks:
   plex: nuc
   sonarr: nuc
   radarr: hp
@@ -91,7 +120,7 @@ services:
 # Make reality match config
 cf apply
 
-# Start specific services
+# Start specific stacks
 cf up plex sonarr
 
 # Check status
@@ -104,13 +133,13 @@ cf logs -f plex
 ## Key Features
 
 - **Declarative configuration**: One YAML defines where everything runs
-- **Auto-migration**: Change a host assignment, run `cf up`, service moves automatically
+- **Auto-migration**: Change a host assignment, run `cf up`, stack moves automatically
 
 <video autoplay loop muted playsinline>
   <source src="/assets/migration.webm" type="video/webm">
 </video>
-- **Parallel execution**: Multiple services start/stop concurrently
-- **State tracking**: Knows which services are running where
+- **Parallel execution**: Multiple stacks start/stop concurrently
+- **State tracking**: Knows which stacks are running where
 - **Traefik integration**: Generate file-provider config for cross-host routing
 - **Zero changes**: Your compose files work as-is
 

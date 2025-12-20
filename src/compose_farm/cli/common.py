@@ -20,7 +20,7 @@ from rich.progress import (
 
 from compose_farm.console import (
     MSG_HOST_NOT_FOUND,
-    MSG_SERVICE_NOT_FOUND,
+    MSG_STACK_NOT_FOUND,
     console,
     print_error,
     print_hint,
@@ -39,13 +39,13 @@ _R = TypeVar("_R")
 
 
 # --- Shared CLI Options ---
-ServicesArg = Annotated[
+StacksArg = Annotated[
     list[str] | None,
-    typer.Argument(help="Services to operate on"),
+    typer.Argument(help="Stacks to operate on"),
 ]
 AllOption = Annotated[
     bool,
-    typer.Option("--all", "-a", help="Run on all services"),
+    typer.Option("--all", "-a", help="Run on all stacks"),
 ]
 ConfigOption = Annotated[
     Path | None,
@@ -57,7 +57,7 @@ LogPathOption = Annotated[
 ]
 HostOption = Annotated[
     str | None,
-    typer.Option("--host", "-H", help="Filter to services on this host"),
+    typer.Option("--host", "-H", help="Filter to stacks on this host"),
 ]
 
 # --- Constants (internal) ---
@@ -140,57 +140,57 @@ def load_config_or_exit(config_path: Path | None) -> Config:
         raise typer.Exit(1) from e
 
 
-def get_services(
-    services: list[str],
-    all_services: bool,
+def get_stacks(
+    stacks: list[str],
+    all_stacks: bool,
     config_path: Path | None,
     *,
     host: str | None = None,
     default_all: bool = False,
 ) -> tuple[list[str], Config]:
-    """Resolve service list and load config.
+    """Resolve stack list and load config.
 
     Handles three mutually exclusive selection methods:
-    - Explicit service names
+    - Explicit stack names
     - --all flag
     - --host filter
 
     Args:
-        services: Explicit service names
-        all_services: Whether --all was specified
+        stacks: Explicit stack names
+        all_stacks: Whether --all was specified
         config_path: Path to config file
-        host: Filter to services on this host
-        default_all: If True, default to all services when nothing specified (for ps)
+        host: Filter to stacks on this host
+        default_all: If True, default to all stacks when nothing specified (for ps)
 
     Supports "." as shorthand for the current directory name.
 
     """
-    validate_service_selection(services, all_services, host)
+    validate_stack_selection(stacks, all_stacks, host)
     config = load_config_or_exit(config_path)
 
     if host is not None:
         validate_hosts(config, host)
-        svc_list = [s for s in config.services if host in config.get_hosts(s)]
-        if not svc_list:
-            print_warning(f"No services configured for host [magenta]{host}[/]")
+        stack_list = [s for s in config.stacks if host in config.get_hosts(s)]
+        if not stack_list:
+            print_warning(f"No stacks configured for host [magenta]{host}[/]")
             raise typer.Exit(0)
-        return svc_list, config
+        return stack_list, config
 
-    if all_services:
-        return list(config.services.keys()), config
+    if all_stacks:
+        return list(config.stacks.keys()), config
 
-    if not services:
+    if not stacks:
         if default_all:
-            return list(config.services.keys()), config
-        print_error("Specify services or use [bold]--all[/] / [bold]--host[/]")
+            return list(config.stacks.keys()), config
+        print_error("Specify stacks or use [bold]--all[/] / [bold]--host[/]")
         raise typer.Exit(1)
 
     # Resolve "." to current directory name
-    resolved = [Path.cwd().name if svc == "." else svc for svc in services]
+    resolved = [Path.cwd().name if stack == "." else stack for stack in stacks]
 
-    # Validate all services exist in config
-    validate_services(
-        config, resolved, hint="Add the service to compose-farm.yaml or use [bold]--all[/]"
+    # Validate all stacks exist in config
+    validate_stacks(
+        config, resolved, hint="Add the stack to compose-farm.yaml or use [bold]--all[/]"
     )
 
     return resolved, config
@@ -215,19 +215,19 @@ def report_results(results: list[CommandResult]) -> None:
         console.print()  # Blank line before summary
         if failed:
             for r in failed:
-                print_error(f"[cyan]{r.service}[/] failed with exit code {r.exit_code}")
+                print_error(f"[cyan]{r.stack}[/] failed with exit code {r.exit_code}")
             console.print()
             console.print(
-                f"[green]✓[/] {len(succeeded)}/{len(results)} services succeeded, "
+                f"[green]✓[/] {len(succeeded)}/{len(results)} stacks succeeded, "
                 f"[red]✗[/] {len(failed)} failed"
             )
         else:
-            print_success(f"All {len(results)} services succeeded")
+            print_success(f"All {len(results)} stacks succeeded")
 
     elif failed:
-        # Single service failed
+        # Single stack failed
         r = failed[0]
-        print_error(f"[cyan]{r.service}[/] failed with exit code {r.exit_code}")
+        print_error(f"[cyan]{r.stack}[/] failed with exit code {r.exit_code}")
 
     if failed:
         raise typer.Exit(1)
@@ -239,12 +239,12 @@ def maybe_regenerate_traefik(
 ) -> None:
     """Regenerate traefik config if traefik_file is configured.
 
-    If results are provided, skips regeneration if all services failed.
+    If results are provided, skips regeneration if all stacks failed.
     """
     if cfg.traefik_file is None:
         return
 
-    # Skip if all services failed
+    # Skip if all stacks failed
     if results and not any(r.success for r in results):
         return
 
@@ -255,7 +255,7 @@ def maybe_regenerate_traefik(
     )
 
     try:
-        dynamic, warnings = generate_traefik_config(cfg, list(cfg.services.keys()))
+        dynamic, warnings = generate_traefik_config(cfg, list(cfg.stacks.keys()))
         new_content = render_traefik_config(dynamic)
 
         # Check if content changed
@@ -275,12 +275,12 @@ def maybe_regenerate_traefik(
         print_warning(f"Failed to update traefik config: {exc}")
 
 
-def validate_services(cfg: Config, services: list[str], *, hint: str | None = None) -> None:
-    """Validate that all services exist in config. Exits with error if any not found."""
-    invalid = [s for s in services if s not in cfg.services]
+def validate_stacks(cfg: Config, stacks: list[str], *, hint: str | None = None) -> None:
+    """Validate that all stacks exist in config. Exits with error if any not found."""
+    invalid = [s for s in stacks if s not in cfg.stacks]
     if invalid:
         for svc in invalid:
-            print_error(MSG_SERVICE_NOT_FOUND.format(name=svc))
+            print_error(MSG_STACK_NOT_FOUND.format(name=svc))
         if hint:
             print_hint(hint)
         raise typer.Exit(1)
@@ -296,29 +296,29 @@ def validate_hosts(cfg: Config, hosts: str | list[str]) -> None:
         raise typer.Exit(1)
 
 
-def validate_host_for_service(cfg: Config, service: str, host: str) -> None:
-    """Validate that a host is valid for a service."""
+def validate_host_for_stack(cfg: Config, stack: str, host: str) -> None:
+    """Validate that a host is valid for a stack."""
     validate_hosts(cfg, host)
-    allowed_hosts = cfg.get_hosts(service)
+    allowed_hosts = cfg.get_hosts(stack)
     if host not in allowed_hosts:
         print_error(
-            f"Service [cyan]{service}[/] is not configured for host [magenta]{host}[/] "
+            f"Stack [cyan]{stack}[/] is not configured for host [magenta]{host}[/] "
             f"(configured: {', '.join(allowed_hosts)})"
         )
         raise typer.Exit(1)
 
 
-def validate_service_selection(
-    services: list[str] | None,
-    all_services: bool,
+def validate_stack_selection(
+    stacks: list[str] | None,
+    all_stacks: bool,
     host: str | None,
 ) -> None:
-    """Validate that only one service selection method is used.
+    """Validate that only one stack selection method is used.
 
-    The three selection methods (explicit services, --all, --host) are mutually
+    The three selection methods (explicit stacks, --all, --host) are mutually
     exclusive. This ensures consistent behavior across all commands.
     """
-    methods = sum([bool(services), all_services, host is not None])
+    methods = sum([bool(stacks), all_stacks, host is not None])
     if methods > 1:
-        print_error("Use only one of: service names, [bold]--all[/], or [bold]--host[/]")
+        print_error("Use only one of: stack names, [bold]--all[/], or [bold]--host[/]")
         raise typer.Exit(1)

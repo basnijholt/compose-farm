@@ -18,7 +18,7 @@ def test_generate_traefik_config_with_published_port(tmp_path: Path) -> None:
     cfg = Config(
         compose_dir=tmp_path,
         hosts={"nas01": Host(address="192.168.1.10")},
-        services={"plex": "nas01"},
+        stacks={"plex": "nas01"},
     )
     compose_path = tmp_path / "plex" / "docker-compose.yml"
     _write_compose(
@@ -56,7 +56,7 @@ def test_generate_traefik_config_without_published_port_warns(tmp_path: Path) ->
     cfg = Config(
         compose_dir=tmp_path,
         hosts={"nas01": Host(address="192.168.1.10")},
-        services={"app": "nas01"},
+        stacks={"app": "nas01"},
     )
     compose_path = tmp_path / "app" / "docker-compose.yml"
     _write_compose(
@@ -84,7 +84,7 @@ def test_generate_interpolates_env_and_infers_router_service(tmp_path: Path) -> 
     cfg = Config(
         compose_dir=tmp_path,
         hosts={"nas01": Host(address="192.168.1.10")},
-        services={"wakapi": "nas01"},
+        stacks={"wakapi": "nas01"},
     )
     compose_dir = tmp_path / "wakapi"
     compose_dir.mkdir(parents=True, exist_ok=True)
@@ -126,7 +126,7 @@ def test_generate_interpolates_label_keys_and_ports(tmp_path: Path) -> None:
     cfg = Config(
         compose_dir=tmp_path,
         hosts={"nas01": Host(address="192.168.1.10")},
-        services={"supabase": "nas01"},
+        stacks={"supabase": "nas01"},
     )
     compose_dir = tmp_path / "supabase"
     compose_dir.mkdir(parents=True, exist_ok=True)
@@ -171,7 +171,7 @@ def test_generate_skips_services_with_enable_false(tmp_path: Path) -> None:
     cfg = Config(
         compose_dir=tmp_path,
         hosts={"nas01": Host(address="192.168.1.10")},
-        services={"stack": "nas01"},
+        stacks={"stack": "nas01"},
     )
     compose_path = tmp_path / "stack" / "docker-compose.yml"
     _write_compose(
@@ -201,7 +201,7 @@ def test_generate_follows_network_mode_service_for_ports(tmp_path: Path) -> None
     cfg = Config(
         compose_dir=tmp_path,
         hosts={"nas01": Host(address="192.168.1.10")},
-        services={"vpn-stack": "nas01"},
+        stacks={"vpn-stack": "nas01"},
     )
     compose_path = tmp_path / "vpn-stack" / "docker-compose.yml"
     _write_compose(
@@ -249,7 +249,7 @@ def test_parse_external_networks_single(tmp_path: Path) -> None:
     cfg = Config(
         compose_dir=tmp_path,
         hosts={"host1": Host(address="192.168.1.10")},
-        services={"app": "host1"},
+        stacks={"app": "host1"},
     )
     compose_path = tmp_path / "app" / "compose.yaml"
     _write_compose(
@@ -269,7 +269,7 @@ def test_parse_external_networks_multiple(tmp_path: Path) -> None:
     cfg = Config(
         compose_dir=tmp_path,
         hosts={"host1": Host(address="192.168.1.10")},
-        services={"app": "host1"},
+        stacks={"app": "host1"},
     )
     compose_path = tmp_path / "app" / "compose.yaml"
     _write_compose(
@@ -293,7 +293,7 @@ def test_parse_external_networks_none(tmp_path: Path) -> None:
     cfg = Config(
         compose_dir=tmp_path,
         hosts={"host1": Host(address="192.168.1.10")},
-        services={"app": "host1"},
+        stacks={"app": "host1"},
     )
     compose_path = tmp_path / "app" / "compose.yaml"
     _write_compose(
@@ -313,7 +313,7 @@ def test_parse_external_networks_no_networks_section(tmp_path: Path) -> None:
     cfg = Config(
         compose_dir=tmp_path,
         hosts={"host1": Host(address="192.168.1.10")},
-        services={"app": "host1"},
+        stacks={"app": "host1"},
     )
     compose_path = tmp_path / "app" / "compose.yaml"
     _write_compose(
@@ -330,7 +330,7 @@ def test_parse_external_networks_missing_compose(tmp_path: Path) -> None:
     cfg = Config(
         compose_dir=tmp_path,
         hosts={"host1": Host(address="192.168.1.10")},
-        services={"app": "host1"},
+        stacks={"app": "host1"},
     )
     # Don't create compose file
 
