@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
 # CDN assets to vendor locally for faster/more reliable tests
 CDN_ASSETS = {
+    "https://cdn.jsdelivr.net/npm/daisyui@5/themes.css": ("daisyui-themes.css", "text/css"),
     "https://cdn.jsdelivr.net/npm/daisyui@5": ("daisyui.css", "text/css"),
     "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4": (
         "tailwind.js",
@@ -1499,17 +1500,15 @@ class TestTerminalStreaming:
         # Wait for terminal to be created and WebSocket to connect
         page.wait_for_selector("#terminal-output .xterm", timeout=5000)
 
-        # Check terminal buffer for [Connected] message
-        # xterm.js stores content in buffer, accessible via the terminal instance
-        has_connected = page.evaluate("""() => {
-            const container = document.getElementById('terminal-output');
-            if (!container) return false;
-            // Check if xterm viewport contains text (rendered content)
-            const viewport = container.querySelector('.xterm-rows');
-            if (!viewport) return false;
-            return viewport.textContent.includes('Connected');
-        }""")
-        assert has_connected, "Terminal should display [Connected] message"
+        # Wait for [Connected] message to appear in terminal
+        # xterm.js renders content into .xterm-rows
+        page.wait_for_function(
+            """() => {
+                const viewport = document.querySelector('#terminal-output .xterm-rows');
+                return viewport && viewport.textContent.includes('Connected');
+            }""",
+            timeout=5000,
+        )
 
 
 class TestExecTerminal:
@@ -1690,3 +1689,266 @@ class TestServicePagePalette:
         # Verify Apply API was called
         assert len(api_calls) >= 1
         assert "/api/apply" in api_calls[0]
+
+
+class TestThemeSwitcher:
+    """Test theme switcher via command palette."""
+
+    @staticmethod
+    def _open_theme_palette(page: Page) -> None:
+        """Open the command palette with theme filter by clicking the theme button."""
+        page.locator("#theme-btn").click()
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+    @staticmethod
+    def _select_theme(page: Page, theme: str) -> None:
+        """Select a theme from the command palette."""
+        # Filter to the specific theme
+        page.locator("#cmd-input").fill(f"theme: {theme}")
+        page.keyboard.press("Enter")
+
+    def test_theme_button_exists(self, page: Page, server_url: str) -> None:
+        """Theme button exists in sidebar header."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Theme button should exist
+        assert page.locator("#theme-btn").count() == 1
+
+    def test_theme_button_opens_palette_with_filter(self, page: Page, server_url: str) -> None:
+        """Clicking theme button opens command palette pre-filtered to themes."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        self._open_theme_palette(page)
+
+        # Input should have "theme:" filter
+        assert page.locator("#cmd-input").input_value() == "theme:"
+
+        # Should show theme options
+        cmd_list = page.locator("#cmd-list").inner_text()
+        assert "light" in cmd_list
+        assert "dark" in cmd_list
+
+    def test_clicking_theme_changes_html_data_theme(self, page: Page, server_url: str) -> None:
+        """Selecting a theme changes the data-theme attribute on <html>."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Get initial theme
+        initial_theme = page.locator("html").get_attribute("data-theme")
+
+        # Select a different theme
+        target_theme = "cupcake" if initial_theme != "cupcake" else "dracula"
+        self._open_theme_palette(page)
+        self._select_theme(page, target_theme)
+
+        # Verify the html element's data-theme changed
+        new_theme = page.locator("html").get_attribute("data-theme")
+        assert new_theme == target_theme, f"Expected {target_theme}, got {new_theme}"
+
+    def test_theme_persists_in_localstorage(self, page: Page, server_url: str) -> None:
+        """Selected theme is saved to localStorage."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Select synthwave theme
+        self._open_theme_palette(page)
+        self._select_theme(page, "synthwave")
+
+        # Check localStorage
+        stored = page.evaluate("localStorage.getItem('cf_theme')")
+        assert stored == "synthwave"
+
+    def test_theme_restored_on_page_load(self, page: Page, server_url: str) -> None:
+        """Theme is restored from localStorage on page load."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Set theme
+        self._open_theme_palette(page)
+        self._select_theme(page, "retro")
+
+        # Reload page
+        page.reload()
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Theme should be restored
+        theme = page.locator("html").get_attribute("data-theme")
+        assert theme == "retro"
+
+    def test_theme_can_be_changed_multiple_times(self, page: Page, server_url: str) -> None:
+        """Theme can be changed multiple times in a session."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        themes_to_test = ["light", "dark", "nord", "sunset"]
+
+        for theme in themes_to_test:
+            self._open_theme_palette(page)
+            self._select_theme(page, theme)
+            current = page.locator("html").get_attribute("data-theme")
+            assert current == theme, f"Failed to switch to {theme}, got {current}"
+
+    def test_themes_available_in_regular_palette(self, page: Page, server_url: str) -> None:
+        """Themes are also available when opening regular command palette."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Open with Cmd+K
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type theme filter
+        page.locator("#cmd-input").fill("theme:")
+
+        # Should show theme options
+        cmd_list = page.locator("#cmd-list").inner_text()
+        assert "theme: light" in cmd_list
+        assert "theme: dark" in cmd_list
+
+    def test_theme_command_opens_theme_picker(self, page: Page, server_url: str) -> None:
+        """Selecting 'Theme' command reopens palette with theme filter."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Open palette and select Theme command
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Filter to Theme command and select it
+        page.locator("#cmd-input").fill("Theme")
+        page.keyboard.press("Enter")
+
+        # Palette should reopen with "theme:" filter
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+        assert page.locator("#cmd-input").input_value() == "theme:"
+
+        # Should show theme options
+        cmd_list = page.locator("#cmd-list").inner_text()
+        assert "theme: light" in cmd_list
+
+    def test_current_theme_is_preselected(self, page: Page, server_url: str) -> None:
+        """Opening theme picker pre-selects the current theme."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Set a specific theme first
+        self._open_theme_palette(page)
+        self._select_theme(page, "dracula")
+
+        # Reopen theme palette
+        self._open_theme_palette(page)
+
+        # The selected item (with bg-base-300) should be dracula
+        selected_item = page.locator("#cmd-list a.bg-base-300")
+        assert selected_item.count() == 1
+        assert "dracula" in selected_item.inner_text()
+
+    def test_theme_shows_color_swatches(self, page: Page, server_url: str) -> None:
+        """Theme commands show color preview swatches."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        self._open_theme_palette(page)
+
+        # Theme items should have color swatches with data-theme attribute
+        light_swatch = page.locator("#cmd-list [data-theme='light']")
+        assert light_swatch.count() >= 1
+
+        # Swatch should contain bg-primary, bg-secondary, etc.
+        swatch_html = light_swatch.first.inner_html()
+        assert "bg-primary" in swatch_html
+        assert "bg-secondary" in swatch_html
+
+    def test_theme_preview_on_arrow_navigation(self, page: Page, server_url: str) -> None:
+        """Arrow key navigation previews themes without persisting."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Set initial theme
+        self._open_theme_palette(page)
+        self._select_theme(page, "dark")
+
+        # Reopen palette
+        self._open_theme_palette(page)
+
+        # Navigate to a different theme with arrow keys
+        page.locator("#cmd-input").fill("theme: cupcake")
+        page.keyboard.press("ArrowDown")  # Select cupcake
+
+        # Theme should be previewed
+        current = page.locator("html").get_attribute("data-theme")
+        assert current == "cupcake"
+
+        # But localStorage should still have original
+        stored = page.evaluate("localStorage.getItem('cf_theme')")
+        assert stored == "dark"
+
+        # Press Escape to cancel
+        page.keyboard.press("Escape")
+
+        # Theme should be restored
+        current = page.locator("html").get_attribute("data-theme")
+        assert current == "dark"
+
+    def test_theme_preview_restored_on_escape(self, page: Page, server_url: str) -> None:
+        """Pressing Escape restores original theme."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Set initial theme
+        self._open_theme_palette(page)
+        self._select_theme(page, "nord")
+
+        initial = page.locator("html").get_attribute("data-theme")
+        assert initial == "nord"
+
+        # Open palette and navigate to different theme
+        self._open_theme_palette(page)
+        page.locator("#cmd-input").fill("theme: synthwave")
+
+        # Preview should change
+        page.wait_for_function(
+            "document.documentElement.getAttribute('data-theme') === 'synthwave'"
+        )
+
+        # Press Escape
+        page.keyboard.press("Escape")
+
+        # Should restore original
+        restored = page.locator("html").get_attribute("data-theme")
+        assert restored == "nord"
+
+    def test_theme_restored_after_non_theme_command(self, page: Page, server_url: str) -> None:
+        """Theme restores when executing non-theme command after preview."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Set initial theme to dark
+        self._open_theme_palette(page)
+        self._select_theme(page, "dark")
+
+        # Open palette, navigate to a theme to preview it
+        self._open_theme_palette(page)
+        page.locator("#cmd-input").fill("theme: cupcake")
+        page.wait_for_timeout(200)
+
+        # cupcake should be previewed
+        assert page.locator("html").get_attribute("data-theme") == "cupcake"
+
+        # Now filter to Dashboard (non-theme command)
+        page.locator("#cmd-input").fill("Dashboard")
+        page.wait_for_timeout(200)
+
+        # Theme should restore since Dashboard has no themeId
+        current = page.locator("html").get_attribute("data-theme")
+        assert current == "dark", f"Expected dark after filtering to Dashboard, got {current}"
+
+        # Execute Dashboard
+        page.keyboard.press("Enter")
+        page.wait_for_selector("#cmd-palette:not([open])", timeout=2000)
+
+        # Theme should still be dark
+        final = page.locator("html").get_attribute("data-theme")
+        assert final == "dark", f"Expected dark after executing Dashboard, got {final}"

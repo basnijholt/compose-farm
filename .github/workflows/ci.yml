@@ -28,7 +28,7 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Run tests (excluding browser tests)
-        run: uv run pytest --ignore=tests/web/test_htmx_browser.py
+        run: uv run pytest -m "not browser"
 
       - name: Upload coverage reports to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
@@ -54,7 +54,7 @@ jobs:
         run: uv run playwright install chromium --with-deps
 
       - name: Run browser tests
-        run: uv run pytest tests/web/test_htmx_browser.py -v --no-cov
+        run: uv run pytest -m browser -v --no-cov
 
   lint:
     runs-on: ubuntu-latest

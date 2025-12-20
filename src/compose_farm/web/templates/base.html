@@ -1,4 +1,4 @@
-{% from "partials/icons.html" import github, hamburger %}
+{% from "partials/icons.html" import github, hamburger, palette %}
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -8,6 +8,7 @@
 
     <!-- daisyUI + Tailwind -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5" data-vendor="daisyui.css" rel="stylesheet" type="text/css" />
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5/themes.css" data-vendor="daisyui-themes.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" data-vendor="tailwind.js"></script>
 
     <!-- xterm.js -->
@@ -15,6 +16,14 @@
 
     <!-- Custom styles -->
     <link rel="stylesheet" href="/static/app.css">
+
+    <!-- Apply saved theme before render to prevent flash -->
+    <script>
+        (function() {
+            const t = localStorage.getItem('cf_theme');
+            if (t) document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
 </head>
 <body class="min-h-screen bg-base-200">
     <div class="drawer lg:drawer-open">
@@ -45,6 +54,9 @@
                         <a href="https://github.com/basnijholt/compose-farm" target="_blank" title="GitHub" class="opacity-50 hover:opacity-100 transition-opacity">
                             {{ github() }}
                         </a>
+                        <button type="button" id="theme-btn" class="opacity-50 hover:opacity-100 transition-opacity cursor-pointer" title="Change theme (opens command palette)">
+                            {{ palette() }}
+                        </button>
                     </h2>
                 </header>
                 <nav class="flex-1 overflow-y-auto p-2" hx-get="/partials/sidebar" hx-trigger="load, cf:refresh from:body" hx-swap="innerHTML">
