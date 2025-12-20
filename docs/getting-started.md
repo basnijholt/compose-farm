@@ -19,7 +19,6 @@ Before you begin, ensure you have:
 
 <video autoplay loop muted playsinline>
   <source src="assets/install.webm" type="video/webm">
-  <img src="assets/install.gif" alt="Installation demo">
 </video>
 
 ### Using uv (recommended)

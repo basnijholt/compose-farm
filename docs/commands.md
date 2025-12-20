@@ -44,7 +44,6 @@ Make reality match your configuration. The primary reconciliation command.
 
 <video autoplay loop muted playsinline>
   <source src="assets/apply.webm" type="video/webm">
-  <img src="assets/apply.gif" alt="Apply demo">
 </video>
 
 ```bash
@@ -189,7 +188,6 @@ Update services (pull + build + down + up).
 
 <video autoplay loop muted playsinline>
   <source src="assets/update.webm" type="video/webm">
-  <img src="assets/update.gif" alt="Update demo">
 </video>
 
 ```bash
@@ -278,7 +276,6 @@ Show service logs.
 
 <video autoplay loop muted playsinline>
   <source src="assets/logs.webm" type="video/webm">
-  <img src="assets/logs.gif" alt="Logs demo">
 </video>
 
 ```bash
