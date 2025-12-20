@@ -15,7 +15,7 @@ Define which services run where in one YAML file, then use `cf apply` to make re
 ## Quick Demo
 
 <video autoplay loop muted playsinline>
-  <source src="assets/quickstart.webm" type="video/webm">
+  <source src="/assets/quickstart.webm" type="video/webm">
 </video>
 
 ## Why Compose Farm?
@@ -101,7 +101,7 @@ cf logs -f plex
 - **Auto-migration**: Change a host assignment, run `cf up`, service moves automatically
 
 <video autoplay loop muted playsinline>
-  <source src="assets/migration.webm" type="video/webm">
+  <source src="/assets/migration.webm" type="video/webm">
 </video>
 - **Parallel execution**: Multiple services start/stop concurrently
 - **State tracking**: Knows which services are running where
