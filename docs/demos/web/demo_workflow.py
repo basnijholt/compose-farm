@@ -31,8 +31,12 @@ def _demo_console_terminal(page: Page, server_url: str) -> None:
     wait_for_sidebar(page)
     pause(page, 800)
 
-    # Navigate to Console page via sidebar menu
-    page.locator(".menu a", has_text="Console").click()
+    # Navigate to Console page via command palette
+    open_command_palette(page)
+    pause(page, 300)
+    slow_type(page, "#cmd-input", "cons", delay=100)
+    pause(page, 400)
+    page.keyboard.press("Enter")
     page.wait_for_url("**/console", timeout=5000)
     pause(page, 800)
 
@@ -142,7 +146,11 @@ def _demo_dashboard_and_themes(page: Page, server_url: str) -> None:
     pause(page, 400)
     page.keyboard.press("Enter")
     page.wait_for_url(server_url, timeout=5000)
-    pause(page, 1200)
+    pause(page, 800)
+
+    # Scroll to top of page to ensure dashboard is fully visible
+    page.evaluate("window.scrollTo(0, 0)")
+    pause(page, 600)
 
     # Open theme picker and arrow down to Luxury (shows live preview)
     # Theme order: light, dark, cupcake, bumblebee, emerald, corporate, synthwave,
