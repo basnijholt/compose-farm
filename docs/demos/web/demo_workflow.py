@@ -72,11 +72,31 @@ def _demo_config_editor(page: Page) -> None:
 
 def _demo_service_actions(page: Page) -> None:
     """Demo part 3: Navigate to service and run actions."""
-    # Navigate to service via sidebar (since terminal has keyboard focus)
-    # Click on sidebar first to take focus away from terminal
-    page.locator("#sidebar-services a", has_text="grocy").click()
+    # Click on sidebar to take focus away from terminal, then use command palette
+    page.locator("#sidebar-services").click()
+    pause(page, 300)
+
+    # Navigate to grocy via command palette
+    open_command_palette(page)
+    pause(page, 300)
+    slow_type(page, "#cmd-input", "grocy", delay=100)
+    pause(page, 400)
+    page.keyboard.press("Enter")
     page.wait_for_url("**/service/grocy", timeout=5000)
     pause(page, 1000)
+
+    # Open Compose File editor to show the compose.yaml
+    compose_collapse = page.locator(".collapse", has_text="Compose File").first
+    compose_collapse.locator("input[type=checkbox]").click(force=True)
+    pause(page, 500)
+
+    # Wait for Monaco editor to load and show content
+    page.wait_for_selector("#compose-editor .monaco-editor", timeout=10000)
+    pause(page, 2000)  # Let viewer see the compose file
+
+    # Close the compose file section
+    compose_collapse.locator("input[type=checkbox]").click(force=True)
+    pause(page, 500)
 
     # Run Up action via command palette
     open_command_palette(page)
