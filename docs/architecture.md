@@ -115,7 +115,7 @@ cli/
    └─► Validate service exists
 
 2. Check state
-   └─► Load state.yaml
+   └─► Load compose-farm-state.yaml
    └─► Is plex already running?
    └─► Is it on a different host? (migration needed)
 
@@ -135,7 +135,7 @@ cli/
    └─► Run: docker compose up -d
 
 6. Update state
-   └─► Write new state to state.yaml
+   └─► Write new state to compose-farm-state.yaml
 
 7. Generate Traefik config (if configured)
    └─► Regenerate traefik file-provider
@@ -232,7 +232,7 @@ Syncs state with reality by querying Docker on each host:
 docker ps --format '{{.Names}}'
 ```
 
-Updates state.yaml to match what's actually running.
+Updates compose-farm-state.yaml to match what's actually running.
 
 ## Compose File Discovery
 

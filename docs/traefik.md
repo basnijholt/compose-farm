@@ -6,6 +6,8 @@ icon: lucide/globe
 
 Compose Farm can generate Traefik file-provider configuration for routing traffic across multiple hosts.
 
+If everything runs on a single host, you can skip this and rely on Traefik's Docker provider.
+
 ## The Problem
 
 When you run Traefik on one host but services on others, Traefik's docker provider can't see remote containers. The file provider bridges this gap.
