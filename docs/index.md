@@ -8,7 +8,28 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 ## What is Compose Farm?
 
-Compose Farm lets you manage Docker Compose services across multiple machines from a single command line. Define which services run where in one YAML file, then use `cf apply` to make reality match your configuration.
+Compose Farm lets you manage Docker Compose services across multiple machines from a single command line. Think [Dockge](https://dockge.kuma.pet/) but with a CLI and web interface, designed for multi-host deployments.
+
+Define which services run where in one YAML file, then use `cf apply` to make reality match your configuration.
+
+## Quick Demo
+
+<video autoplay loop muted playsinline>
+  <source src="assets/quickstart.webm" type="video/webm">
+</video>
+
+## Why Compose Farm?
+
+| Problem | Compose Farm Solution |
+|---------|----------------------|
+| 100+ containers on one machine | Distribute across multiple hosts |
+| Kubernetes too complex | Just SSH + docker compose |
+| Swarm in maintenance mode | Zero infrastructure changes |
+| Manual SSH for each host | Single command for all |
+
+**It's a convenience wrapper, not a new paradigm.** Your existing `docker-compose.yml` files work unchanged.
+
+## Quick Start
 
 ```yaml
 # compose-farm.yaml
@@ -29,23 +50,6 @@ services:
 ```bash
 cf apply  # Services start, migrate, or stop as needed
 ```
-
-## Why Compose Farm?
-
-| Problem | Compose Farm Solution |
-|---------|----------------------|
-| 100+ containers on one machine | Distribute across multiple hosts |
-| Kubernetes too complex | Just SSH + docker compose |
-| Swarm in maintenance mode | Zero infrastructure changes |
-| Manual SSH for each host | Single command for all |
-
-**It's a convenience wrapper, not a new paradigm.** Your existing `docker-compose.yml` files work unchanged.
-
-## Quick Start
-
-<video autoplay loop muted playsinline>
-  <source src="assets/quickstart.webm" type="video/webm">
-</video>
 
 ### Installation
 
