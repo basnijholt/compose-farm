@@ -60,11 +60,14 @@ from compose_farm.traefik import generate_traefik_config, render_traefik_config
 # --- Sync helpers ---
 
 
-def _discover_services(cfg: Config) -> dict[str, str | list[str]]:
+def _discover_services(
+    cfg: Config, services: list[str] | None = None
+) -> dict[str, str | list[str]]:
     """Discover running services with a progress bar."""
+    svc_list = services if services is not None else list(cfg.services)
     results = run_parallel_with_progress(
         "Discovering",
-        list(cfg.services),
+        svc_list,
         lambda s: discover_service_host(cfg, s),
     )
     return {svc: host for svc, host in results if host is not None}
@@ -102,6 +105,18 @@ def _snapshot_services(
     meta = {"generated_at": now_iso, "compose_dir": str(cfg.compose_dir)}
     write_toml(effective_log_path, meta=meta, entries=merged_entries)
     return effective_log_path
+
+
+def _merge_state(
+    current_state: dict[str, str | list[str]],
+    discovered: dict[str, str | list[str]],
+    removed: list[str],
+) -> dict[str, str | list[str]]:
+    """Merge discovered services into existing state for partial refresh."""
+    new_state = {**current_state, **discovered}
+    for svc in removed:
+        new_state.pop(svc, None)
+    return new_state
 
 
 def _report_sync_changes(
@@ -399,6 +414,8 @@ def traefik_file(
 
 @app.command(rich_help_panel="Configuration")
 def refresh(
+    services: ServicesArg = None,
+    all_services: AllOption = False,
     config: ConfigOption = None,
     log_path: LogPathOption = None,
     dry_run: Annotated[
@@ -412,16 +429,29 @@ def refresh(
     file, and captures image digests. This is a read operation - it updates
     your local state to match reality, not the other way around.
 
+    Without arguments: refreshes all services (same as --all).
+    With service names: refreshes only those services.
+
     Use 'cf apply' to make reality match your config (stop orphans, migrate).
     """
-    cfg = load_config_or_exit(config)
+    svc_list, cfg = get_services(services or [], all_services, config, default_all=True)
+
+    # Partial refresh merges with existing state; full refresh replaces it
+    # Partial = specific services provided (not --all, not default)
+    partial_refresh = bool(services) and not all_services
+
     current_state = load_state(cfg)
 
-    discovered = _discover_services(cfg)
+    discovered = _discover_services(cfg, svc_list)
 
-    # Calculate changes
+    # Calculate changes (only for the services we're refreshing)
     added = [s for s in discovered if s not in current_state]
-    removed = [s for s in current_state if s not in discovered]
+    # Only mark as "removed" if we're doing a full refresh
+    if partial_refresh:
+        # In partial refresh, a service not running is just "not found"
+        removed = [s for s in svc_list if s in current_state and s not in discovered]
+    else:
+        removed = [s for s in current_state if s not in discovered]
     changed = [
         (s, current_state[s], discovered[s])
         for s in discovered
@@ -441,8 +471,11 @@ def refresh(
 
     # Update state file
     if state_changed:
-        save_state(cfg, discovered)
-        print_success(f"State updated: {len(discovered)} services tracked.")
+        new_state = (
+            _merge_state(current_state, discovered, removed) if partial_refresh else discovered
+        )
+        save_state(cfg, new_state)
+        print_success(f"State updated: {len(new_state)} services tracked.")
 
     # Capture image digests for running services
     if discovered:
