@@ -19,7 +19,7 @@ Then open [http://localhost:8000](http://localhost:8000).
 Press `Ctrl+K` (or `Cmd+K` on macOS) to open the command palette. Use fuzzy search to quickly navigate, trigger actions, or change themes.
 
 <video autoplay loop muted playsinline>
-  <source src="assets/web-navigation.webm" type="video/webm">
+  <source src="/assets/web-navigation.webm" type="video/webm">
 </video>
 
 ### Service Actions
@@ -27,7 +27,7 @@ Press `Ctrl+K` (or `Cmd+K` on macOS) to open the command palette. Use fuzzy sear
 Navigate to any service and use the command palette to trigger actions like restart, pull, update, or view logs. Output streams in real-time via WebSocket.
 
 <video autoplay loop muted playsinline>
-  <source src="assets/web-service.webm" type="video/webm">
+  <source src="/assets/web-service.webm" type="video/webm">
 </video>
 
 ### Theme Switching
@@ -35,7 +35,7 @@ Navigate to any service and use the command palette to trigger actions like rest
 35 themes available via the command palette. Type `theme:` to filter, then use arrow keys to preview themes live before selecting.
 
 <video autoplay loop muted playsinline>
-  <source src="assets/web-themes.webm" type="video/webm">
+  <source src="/assets/web-themes.webm" type="video/webm">
 </video>
 
 ### Full Workflow
@@ -43,7 +43,7 @@ Navigate to any service and use the command palette to trigger actions like rest
 Dashboard overview, sidebar filtering, service navigation, terminal streaming, and theme switching - all in one flow.
 
 <video autoplay loop muted playsinline>
-  <source src="assets/web-workflow.webm" type="video/webm">
+  <source src="/assets/web-workflow.webm" type="video/webm">
 </video>
 
 ## Pages
@@ -70,7 +70,7 @@ Dashboard overview, sidebar filtering, service navigation, terminal streaming, a
 - Monaco editor with syntax highlighting
 
 <video autoplay loop muted playsinline>
-  <source src="assets/web-console.webm" type="video/webm">
+  <source src="/assets/web-console.webm" type="video/webm">
 </video>
 
 ### Container Shell
@@ -78,7 +78,7 @@ Dashboard overview, sidebar filtering, service navigation, terminal streaming, a
 Click the Shell button on any running container to exec into it directly from the browser.
 
 <video autoplay loop muted playsinline>
-  <source src="assets/web-shell.webm" type="video/webm">
+  <source src="/assets/web-shell.webm" type="video/webm">
 </video>
 
 ## Keyboard Shortcuts
