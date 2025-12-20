@@ -517,7 +517,6 @@ function playFabIntro() {
     let filtered = [];
     let selected = 0;
     let originalTheme = null; // Store theme when palette opens for preview/restore
-    let keyboardNav = false; // Track if user is using keyboard navigation
 
     const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
     const nav = (url) => () => {
@@ -627,7 +626,6 @@ function playFabIntro() {
     function open(initialFilter = '') {
         // Store original theme for preview/restore
         originalTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-        keyboardNav = false;
         buildCommands();
         selected = 0;
         input.value = initialFilter;
@@ -669,8 +667,8 @@ function playFabIntro() {
     // Keyboard nav inside palette
     dialog.addEventListener('keydown', e => {
         if (!dialog.open) return;
-        if (e.key === 'ArrowDown') { e.preventDefault(); keyboardNav = true; selected = Math.min(selected + 1, filtered.length - 1); render(); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); keyboardNav = true; selected = Math.max(selected - 1, 0); render(); }
+        if (e.key === 'ArrowDown') { e.preventDefault(); selected = Math.min(selected + 1, filtered.length - 1); render(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); selected = Math.max(selected - 1, 0); render(); }
         else if (e.key === 'Enter') { e.preventDefault(); exec(); }
     });
 
@@ -683,28 +681,15 @@ function playFabIntro() {
         }
     });
 
-    // Hover to preview theme (only if not using keyboard navigation)
+    // Hover updates selection (and triggers theme preview via render)
     list.addEventListener('mouseover', e => {
-        if (keyboardNav) return; // Ignore mouse while using keyboard
-        const a = e.target.closest('a[data-theme-id]');
+        const a = e.target.closest('a[data-idx]');
         if (a) {
-            previewTheme(a.dataset.themeId);
-        }
-    });
-
-    // Reset keyboard mode when mouse moves
-    list.addEventListener('mousemove', () => {
-        keyboardNav = false;
-    });
-
-    // Restore theme when mouse leaves list (back to selected or original)
-    list.addEventListener('mouseleave', () => {
-        if (keyboardNav) return; // Keyboard is in control
-        const selectedCmd = filtered[selected];
-        if (selectedCmd?.themeId) {
-            previewTheme(selectedCmd.themeId);
-        } else if (originalTheme) {
-            previewTheme(originalTheme);
+            const idx = parseInt(a.dataset.idx, 10);
+            if (idx !== selected) {
+                selected = idx;
+                render();
+            }
         }
     });
 
