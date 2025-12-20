@@ -210,7 +210,7 @@ class TestConfigValidate:
         assert result.exit_code == 0
         assert "Valid config" in result.stdout
         assert "Hosts: 1" in result.stdout
-        assert "Services: 1" in result.stdout
+        assert "Stacks: 1" in result.stdout
 
     def test_validate_invalid_config(self, runner: CliRunner, tmp_path: Path) -> None:
         config_file = tmp_path / "invalid.yaml"

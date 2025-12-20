@@ -25,7 +25,7 @@ src/compose_farm/
 ├── console.py         # Shared Rich console instances
 ├── executor.py        # SSH/local command execution, streaming output
 ├── operations.py      # Business logic (up, migrate, discover, preflight checks)
-├── state.py           # Deployment state tracking (which service on which host)
+├── state.py           # Deployment state tracking (which stack on which host)
 ├── logs.py            # Image digest snapshots (dockerfarm-log.toml)
 ├── paths.py           # Path utilities, config file discovery
 ├── ssh_keys.py        # SSH key path constants and utilities
@@ -46,12 +46,12 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 ## Key Design Decisions
 
 1. **Hybrid SSH approach**: asyncssh for parallel streaming with prefixes; native `ssh -t` for raw mode (progress bars)
-2. **Parallel by default**: Multiple services run concurrently via `asyncio.gather`
-3. **Streaming output**: Real-time stdout/stderr with `[service]` prefix using Rich
+2. **Parallel by default**: Multiple stacks run concurrently via `asyncio.gather`
+3. **Streaming output**: Real-time stdout/stderr with `[stack]` prefix using Rich
 4. **SSH key auth only**: Uses ssh-agent, no password handling (YAGNI)
 5. **NFS assumption**: Compose files at same path on all hosts
 6. **Local IP auto-detection**: Skips SSH when target host matches local machine's IP
-7. **State tracking**: Tracks where services are deployed for auto-migration
+7. **State tracking**: Tracks where stacks are deployed for auto-migration
 8. **Pre-flight checks**: Verifies NFS mounts and Docker networks exist before starting/migrating
 
 ## Code Style
@@ -114,16 +114,16 @@ CLI available as `cf` or `compose-farm`.
 
 | Command | Description |
 |---------|-------------|
-| `up`    | Start services (`docker compose up -d`), auto-migrates if host changed |
-| `down`  | Stop services (`docker compose down`). Use `--orphaned` to stop services removed from config |
+| `up`    | Start stacks (`docker compose up -d`), auto-migrates if host changed |
+| `down`  | Stop stacks (`docker compose down`). Use `--orphaned` to stop stacks removed from config |
 | `pull`  | Pull latest images |
 | `restart` | `down` + `up -d` |
 | `update` | `pull` + `build` + `down` + `up -d` |
-| `apply` | Make reality match config: migrate services + stop orphans. Use `--dry-run` to preview |
-| `logs`  | Show service logs |
-| `ps`    | Show status of all services |
-| `stats` | Show overview (hosts, services, pending migrations; `--live` for container counts) |
-| `refresh` | Update state from reality: discover running services, capture image digests |
+| `apply` | Make reality match config: migrate stacks + stop orphans. Use `--dry-run` to preview |
+| `logs`  | Show stack logs |
+| `ps`    | Show status of all stacks |
+| `stats` | Show overview (hosts, stacks, pending migrations; `--live` for container counts) |
+| `refresh` | Update state from reality: discover running stacks, capture image digests |
 | `check` | Validate config, traefik labels, mounts, networks; show host compatibility |
 | `init-network` | Create Docker network on hosts with consistent subnet/gateway |
 | `traefik-file` | Generate Traefik file-provider config from compose labels |

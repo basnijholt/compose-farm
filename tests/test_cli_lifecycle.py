@@ -86,7 +86,7 @@ class TestApplyCommand:
             apply(dry_run=True, no_orphans=False, full=False, config=None)
 
         captured = capsys.readouterr()
-        assert "Services to migrate" in captured.out
+        assert "Stacks to migrate" in captured.out
         assert "svc1" in captured.out
         assert "Orphaned stacks to stop" in captured.out
         assert "old-svc" in captured.out
