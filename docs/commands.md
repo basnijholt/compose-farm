@@ -14,7 +14,7 @@ The Compose Farm CLI is available as both `compose-farm` and the shorter alias `
 | | `up` | Start services |
 | | `down` | Stop services |
 | | `restart` | Restart services (down + up) |
-| | `update` | Update services (pull + build + down + up) |
+| | `update` | Update services (pull + down + up) |
 | | `pull` | Pull latest images |
 | **Monitoring** | `ps` | Show service status |
 | | `logs` | Show service logs |

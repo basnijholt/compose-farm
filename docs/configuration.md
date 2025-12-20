@@ -27,29 +27,10 @@ Or set the environment variable:
 export CF_CONFIG=/path/to/config.yaml
 ```
 
-## Examples
-
-### Single host (local-only)
+## Full Example
 
 ```yaml
 # Required: directory containing compose files
-compose_dir: /opt/stacks
-
-# Define local host
-hosts:
-  local: localhost
-
-# Map services to the local host
-services:
-  plex: local
-  sonarr: local
-  radarr: local
-```
-
-### Multi-host (full example)
-
-```yaml
-# Required: directory containing compose files (same path on all hosts)
 compose_dir: /opt/compose
 
 # Optional: auto-regenerate Traefik config
@@ -64,6 +45,7 @@ hosts:
   hp:
     address: 192.168.1.11
     user: admin
+  local: localhost
 
 # Map services to hosts
 services:
@@ -71,6 +53,7 @@ services:
   plex: nuc
   sonarr: nuc
   radarr: hp
+  jellyfin: local
 
   # Multi-host services
   dozzle: all                    # Run on ALL hosts

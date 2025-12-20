@@ -1,5 +1,5 @@
 # Update Demo
-# Shows updating services (pull + build + down + up)
+# Shows updating services (pull + down + up)
 
 Output docs/assets/update.gif
 Output docs/assets/update.webm

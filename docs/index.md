@@ -11,7 +11,6 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 Compose Farm lets you manage Docker Compose services across multiple machines from a single command line. Think [Dockge](https://dockge.kuma.pet/) but with a CLI and web interface, designed for multi-host deployments.
 
 Define which services run where in one YAML file, then use `cf apply` to make reality match your configuration.
-It also works great on a single host with one folder per stack; just map services to `localhost`.
 
 ## Quick Demo
 
@@ -32,31 +31,6 @@ It also works great on a single host with one folder per stack; just map service
 
 ## Quick Start
 
-### Single host
-
-No SSH, shared storage, or Traefik file-provider required.
-
-```yaml
-# compose-farm.yaml
-compose_dir: /opt/stacks
-
-hosts:
-  local: localhost
-
-services:
-  plex: local
-  jellyfin: local
-  traefik: local
-```
-
-```bash
-cf apply  # Start/stop services to match config
-```
-
-### Multi-host
-
-Requires SSH plus a shared `compose_dir` path on all hosts (NFS or sync).
-
 ```yaml
 # compose-farm.yaml
 compose_dir: /opt/compose
@@ -76,10 +50,6 @@ services:
 ```bash
 cf apply  # Services start, migrate, or stop as needed
 ```
-
-Each entry in `services:` maps to a folder under `compose_dir` that contains a compose file.
-
-For cross-host HTTP routing, add Traefik labels and configure `traefik_file` to generate file-provider config.
 
 ### Installation
 
@@ -140,25 +110,17 @@ cf logs -f plex
 
 ## Requirements
 
-### Single host
-
 - [uv](https://docs.astral.sh/uv/) (recommended) or Python 3.11+
-- Docker and Docker Compose installed
-- One folder per stack under `compose_dir`
-
-### Multi-host
-
-- Everything above, plus:
-- Docker and Docker Compose installed on all target hosts
-- SSH key-based authentication to your Docker hosts (ssh-agent or `cf ssh setup` key)
-- Shared storage or sync so `compose_dir` is the same path on all hosts
-- Optional for ingress: Traefik file provider (labels + published ports)
+- SSH key-based authentication to your Docker hosts
+- Docker and Docker Compose on all target hosts
+- Shared storage (compose files at same path on all hosts)
 
 ## Documentation
 
 - [Getting Started](getting-started.md) - Installation and first steps
 - [Configuration](configuration.md) - All configuration options
 - [Commands](commands.md) - CLI reference
+- [Web UI](web-ui.md) - Browser-based management interface
 - [Architecture](architecture.md) - How it works under the hood
 - [Traefik Integration](traefik.md) - Multi-host routing setup
 - [Best Practices](best-practices.md) - Tips and limitations

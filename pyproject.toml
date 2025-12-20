@@ -133,6 +133,10 @@ disallow_untyped_decorators = false
 module = "compose_farm.web.*"
 disallow_untyped_decorators = false
 
+[[tool.mypy.overrides]]
+module = "docs.demos.web.*"
+disallow_untyped_decorators = false
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

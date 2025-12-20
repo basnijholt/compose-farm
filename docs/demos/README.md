@@ -1,26 +1,17 @@
-# Terminal Demos
+# Demo Recordings
 
-[VHS](https://github.com/charmbracelet/vhs) tape files for recording terminal demos.
+Demo recording infrastructure for Compose Farm documentation.
 
-## Demos
+## Structure
 
-| File | Shows |
-|------|-------|
-| `install.tape` | Installing with `uv tool install` |
-| `quickstart.tape` | `cf ps`, `cf up`, `cf logs` |
-| `logs.tape` | Viewing logs |
-| `update.tape` | `cf update` |
-| `migration.tape` | Service migration |
-| `apply.tape` | `cf apply` |
-
-## Recording
-
-```bash
-# Record all demos (outputs to docs/assets/)
-./docs/demos/record.sh
-
-# Single demo
-cd /opt/stacks && vhs /path/to/docs/demos/quickstart.tape
+```
+docs/demos/
+├── cli/        # VHS-based CLI terminal recordings
+└── web/        # Playwright-based web UI recordings
 ```
 
-Output files (GIF + WebM) are tracked with Git LFS.
+## Output
+
+All recordings output to `docs/assets/` as WebM (primary) and GIF (fallback).
+
+See subdirectory READMEs for usage.
