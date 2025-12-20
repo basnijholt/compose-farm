@@ -1500,17 +1500,15 @@ class TestTerminalStreaming:
         # Wait for terminal to be created and WebSocket to connect
         page.wait_for_selector("#terminal-output .xterm", timeout=5000)
 
-        # Check terminal buffer for [Connected] message
-        # xterm.js stores content in buffer, accessible via the terminal instance
-        has_connected = page.evaluate("""() => {
-            const container = document.getElementById('terminal-output');
-            if (!container) return false;
-            // Check if xterm viewport contains text (rendered content)
-            const viewport = container.querySelector('.xterm-rows');
-            if (!viewport) return false;
-            return viewport.textContent.includes('Connected');
-        }""")
-        assert has_connected, "Terminal should display [Connected] message"
+        # Wait for [Connected] message to appear in terminal
+        # xterm.js renders content into .xterm-rows
+        page.wait_for_function(
+            """() => {
+                const viewport = document.querySelector('#terminal-output .xterm-rows');
+                return viewport && viewport.textContent.includes('Connected');
+            }""",
+            timeout=5000,
+        )
 
 
 class TestExecTerminal:
