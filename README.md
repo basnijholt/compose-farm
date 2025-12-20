@@ -311,7 +311,7 @@ The CLI is available as both `compose-farm` and the shorter `cf` alias.
 | `cf check` | Validate config, mounts, networks |
 | `cf init-network` | Create Docker network on hosts |
 | `cf traefik-file` | Generate Traefik file-provider config |
-| `cf config <cmd>` | Manage config files (init, show, path, validate, edit) |
+| `cf config <cmd>` | Manage config files (init, show, path, validate, edit, symlink) |
 
 All commands support `--all` to operate on all services.
 

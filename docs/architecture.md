@@ -42,7 +42,7 @@ Compose Farm follows three core principles:
 
 ## Core Components
 
-### Configuration (`compose_farm/config.py`)
+### Configuration (`src/compose_farm/config.py`)
 
 Pydantic models for YAML configuration:
 
@@ -55,18 +55,14 @@ Key features:
 - Multi-host service expansion (`all` → list of hosts)
 - YAML loading with sensible defaults
 
-### State Tracking (`compose_farm/state.py`)
+### State Tracking (`src/compose_farm/state.py`)
 
-Tracks deployment state in `~/.config/compose-farm/state.yaml`:
+Tracks deployment state in `compose-farm-state.yaml` (stored alongside the config file):
 
 ```yaml
-services:
-  plex:
-    host: nuc
-    running: true
-  sonarr:
-    host: nuc
-    running: true
+deployed:
+  plex: nuc
+  sonarr: nuc
 ```
 
 Used for:
@@ -74,7 +70,7 @@ Used for:
 - Identifying orphans (services removed from config)
 - `cf ps` status display
 
-### Operations (`compose_farm/operations.py`)
+### Operations (`src/compose_farm/operations.py`)
 
 Business logic for service operations:
 
@@ -84,7 +80,7 @@ Business logic for service operations:
 - **discover** - Find running services on hosts
 - **migrate** - Down on old host, up on new host
 
-### Executor (`compose_farm/executor.py`)
+### Executor (`src/compose_farm/executor.py`)
 
 SSH and local command execution:
 
@@ -93,7 +89,7 @@ SSH and local command execution:
 - **Streaming output**: Real-time stdout/stderr with `[service]` prefix
 - **Local detection**: Skips SSH when target matches local machine IP
 
-### CLI (`compose_farm/cli/`)
+### CLI (`src/compose_farm/cli/`)
 
 Typer-based CLI with subcommand modules:
 
@@ -101,10 +97,12 @@ Typer-based CLI with subcommand modules:
 cli/
 ├── app.py          # Shared Typer app, version callback
 ├── common.py       # Shared helpers, options, progress utilities
-├── config.py       # config subcommand
+├── config.py       # config subcommand (init, show, path, validate, edit, symlink)
 ├── lifecycle.py    # up, down, pull, restart, update, apply
 ├── management.py   # refresh, check, init-network, traefik-file
-└── monitoring.py   # logs, ps, stats
+├── monitoring.py   # logs, ps, stats
+├── ssh.py          # SSH key management (setup, status, keygen)
+└── web.py          # Web UI server command
 ```
 
 ## Command Flow
@@ -205,19 +203,15 @@ else:
 
 ### State File
 
-Location: `~/.config/compose-farm/state.yaml`
+Location: `compose-farm-state.yaml` (stored alongside the config file)
 
 ```yaml
-services:
-  plex:
-    host: nuc
-    running: true
-    digests:
-      plex: sha256:abc123...
-  sonarr:
-    host: nuc
-    running: true
+deployed:
+  plex: nuc
+  sonarr: nuc
 ```
+
+Image digests are stored separately in `dockerfarm-log.toml` (also in the config directory).
 
 ### State Transitions
 

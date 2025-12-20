@@ -9,15 +9,17 @@
 ## Architecture
 
 ```
-compose_farm/
+src/compose_farm/
 ├── cli/               # CLI subpackage
 │   ├── __init__.py    # Imports modules to trigger command registration
 │   ├── app.py         # Shared Typer app instance, version callback
 │   ├── common.py      # Shared helpers, options, progress bar utilities
-│   ├── config.py      # Config subcommand (init, show, path, validate, edit)
+│   ├── config.py      # Config subcommand (init, show, path, validate, edit, symlink)
 │   ├── lifecycle.py   # up, down, pull, restart, update, apply commands
 │   ├── management.py  # refresh, check, init-network, traefik-file commands
-│   └── monitoring.py  # logs, ps, stats commands
+│   ├── monitoring.py  # logs, ps, stats commands
+│   ├── ssh.py         # SSH key management (setup, status, keygen)
+│   └── web.py         # Web UI server command
 ├── config.py          # Pydantic models, YAML loading
 ├── compose.py         # Compose file parsing (.env, ports, volumes, networks)
 ├── console.py         # Shared Rich console instances
@@ -25,7 +27,10 @@ compose_farm/
 ├── operations.py      # Business logic (up, migrate, discover, preflight checks)
 ├── state.py           # Deployment state tracking (which service on which host)
 ├── logs.py            # Image digest snapshots (dockerfarm-log.toml)
-└── traefik.py         # Traefik file-provider config generation from labels
+├── paths.py           # Path utilities, config file discovery
+├── ssh_keys.py        # SSH key path constants and utilities
+├── traefik.py         # Traefik file-provider config generation from labels
+└── web/               # Web UI (FastAPI + HTMX)
 ```
 
 ## Web UI Icons
@@ -113,7 +118,7 @@ CLI available as `cf` or `compose-farm`.
 | `down`  | Stop services (`docker compose down`). Use `--orphaned` to stop services removed from config |
 | `pull`  | Pull latest images |
 | `restart` | `down` + `up -d` |
-| `update` | `pull` + `down` + `up -d` |
+| `update` | `pull` + `build` + `down` + `up -d` |
 | `apply` | Make reality match config: migrate services + stop orphans. Use `--dry-run` to preview |
 | `logs`  | Show service logs |
 | `ps`    | Show status of all services |
@@ -122,4 +127,6 @@ CLI available as `cf` or `compose-farm`.
 | `check` | Validate config, traefik labels, mounts, networks; show host compatibility |
 | `init-network` | Create Docker network on hosts with consistent subnet/gateway |
 | `traefik-file` | Generate Traefik file-provider config from compose labels |
-| `config` | Manage config files (init, show, path, validate, edit) |
+| `config` | Manage config files (init, show, path, validate, edit, symlink) |
+| `ssh`   | Manage SSH keys (setup, status, keygen) |
+| `web`   | Start web UI server |
