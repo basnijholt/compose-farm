@@ -8,16 +8,18 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 ## What is Compose Farm?
 
-Compose Farm lets you manage Docker Compose services across multiple machines from a single command line. Think [Dockge](https://dockge.kuma.pet/) but with a CLI and web interface, designed for multi-host deployments.
+Compose Farm lets you manage Docker Compose services across multiple machines from a single command line. Think [Dockge](https://dockge.kuma.pet/) but with a CLI and [web interface](web-ui.md), designed for multi-host deployments.
 
 Define which services run where in one YAML file, then use `cf apply` to make reality match your configuration.
 
 ## Quick Demo
 
+**CLI:**
 <video autoplay loop muted playsinline>
   <source src="/assets/quickstart.webm" type="video/webm">
 </video>
 
+**[Web UI](web-ui.md):**
 <video autoplay loop muted playsinline>
   <source src="/assets/web-workflow.webm" type="video/webm">
 </video>
