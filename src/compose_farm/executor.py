@@ -23,6 +23,27 @@ LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
 _DEFAULT_SSH_PORT = 22
 
 
+def _print_compose_command(
+    host_name: str,
+    compose_dir: str,
+    compose_path: str,
+    compose_cmd: str,
+) -> None:
+    """Print the docker compose command being executed.
+
+    Shows the host and a simplified command with relative path from compose_dir.
+    """
+    # Show relative path from compose_dir for cleaner output
+    if compose_path.startswith(compose_dir):
+        rel_path = compose_path[len(compose_dir) :].lstrip("/")
+    else:
+        rel_path = compose_path
+
+    console.print(
+        f"[dim][magenta]{host_name}[/magenta]: docker compose -f {rel_path} {compose_cmd}[/dim]"
+    )
+
+
 async def _stream_output_lines(
     reader: Any,
     prefix: str,
@@ -32,12 +53,16 @@ async def _stream_output_lines(
     """Stream lines from a reader to console with a service prefix.
 
     Works with both asyncio.StreamReader (bytes) and asyncssh readers (str).
+    If prefix is empty, output is printed without a prefix.
     """
     out = err_console if is_stderr else console
     async for line in reader:
         text = line.decode() if isinstance(line, bytes) else line
         if text.strip():
-            out.print(f"[cyan]\\[{prefix}][/] {escape(text)}", end="")
+            if prefix:
+                out.print(f"[cyan]\\[{prefix}][/] {escape(text)}", end="")
+            else:
+                out.print(escape(text), end="")
 
 
 def build_ssh_command(host: Host, command: str, *, tty: bool = False) -> list[str]:
@@ -151,6 +176,7 @@ async def _run_local_command(
     *,
     stream: bool = True,
     raw: bool = False,
+    prefix: str = "",
 ) -> CommandResult:
     """Run a command locally with streaming output."""
     try:
@@ -176,8 +202,8 @@ async def _run_local_command(
 
         if stream and proc.stdout and proc.stderr:
             await asyncio.gather(
-                _stream_output_lines(proc.stdout, service),
-                _stream_output_lines(proc.stderr, service, is_stderr=True),
+                _stream_output_lines(proc.stdout, prefix),
+                _stream_output_lines(proc.stderr, prefix, is_stderr=True),
             )
 
         stdout_data = b""
@@ -206,6 +232,7 @@ async def _run_ssh_command(
     *,
     stream: bool = True,
     raw: bool = False,
+    prefix: str = "",
 ) -> CommandResult:
     """Run a command on a remote host via SSH with streaming output."""
     if raw:
@@ -228,8 +255,8 @@ async def _run_ssh_command(
             async with conn.create_process(command) as proc:
                 if stream:
                     await asyncio.gather(
-                        _stream_output_lines(proc.stdout, service),
-                        _stream_output_lines(proc.stderr, service, is_stderr=True),
+                        _stream_output_lines(proc.stdout, prefix),
+                        _stream_output_lines(proc.stderr, prefix, is_stderr=True),
                     )
 
                 stdout_data = ""
@@ -258,20 +285,27 @@ async def run_command(
     *,
     stream: bool = True,
     raw: bool = False,
+    prefix: str | None = None,
 ) -> CommandResult:
     """Run a command on a host (locally or via SSH).
 
     Args:
         host: Host configuration
         command: Command to run
-        service: Service name (used as prefix in output)
+        service: Service name (stored in result)
         stream: Whether to stream output (default True)
         raw: Whether to use raw mode with TTY (default False)
+        prefix: Output prefix. None=use service name, ""=no prefix.
 
     """
+    output_prefix = service if prefix is None else prefix
     if is_local(host):
-        return await _run_local_command(command, service, stream=stream, raw=raw)
-    return await _run_ssh_command(host, command, service, stream=stream, raw=raw)
+        return await _run_local_command(
+            command, service, stream=stream, raw=raw, prefix=output_prefix
+        )
+    return await _run_ssh_command(
+        host, command, service, stream=stream, raw=raw, prefix=output_prefix
+    )
 
 
 async def run_compose(
@@ -281,13 +315,17 @@ async def run_compose(
     *,
     stream: bool = True,
     raw: bool = False,
+    prefix: str | None = None,
 ) -> CommandResult:
     """Run a docker compose command for a service."""
-    host = config.get_host(service)
+    host_name = config.get_hosts(service)[0]
+    host = config.hosts[host_name]
     compose_path = config.get_compose_path(service)
 
+    _print_compose_command(host_name, str(config.compose_dir), str(compose_path), compose_cmd)
+
     command = f"docker compose -f {compose_path} {compose_cmd}"
-    return await run_command(host, command, service, stream=stream, raw=raw)
+    return await run_command(host, command, service, stream=stream, raw=raw, prefix=prefix)
 
 
 async def run_compose_on_host(
@@ -298,6 +336,7 @@ async def run_compose_on_host(
     *,
     stream: bool = True,
     raw: bool = False,
+    prefix: str | None = None,
 ) -> CommandResult:
     """Run a docker compose command for a service on a specific host.
 
@@ -306,8 +345,10 @@ async def run_compose_on_host(
     host = config.hosts[host_name]
     compose_path = config.get_compose_path(service)
 
+    _print_compose_command(host_name, str(config.compose_dir), str(compose_path), compose_cmd)
+
     command = f"docker compose -f {compose_path} {compose_cmd}"
-    return await run_command(host, command, service, stream=stream, raw=raw)
+    return await run_command(host, command, service, stream=stream, raw=raw, prefix=prefix)
 
 
 async def run_on_services(
@@ -333,10 +374,11 @@ async def _run_sequential_commands(
     *,
     stream: bool = True,
     raw: bool = False,
+    prefix: str | None = None,
 ) -> CommandResult:
     """Run multiple compose commands sequentially for a service."""
     for cmd in commands:
-        result = await run_compose(config, service, cmd, stream=stream, raw=raw)
+        result = await run_compose(config, service, cmd, stream=stream, raw=raw, prefix=prefix)
         if not result.success:
             return result
     return CommandResult(service=service, exit_code=0, success=True)
@@ -349,10 +391,12 @@ async def _run_sequential_commands_multi_host(
     *,
     stream: bool = True,
     raw: bool = False,
+    prefix: str | None = None,
 ) -> list[CommandResult]:
     """Run multiple compose commands sequentially for a multi-host service.
 
     Commands are run sequentially, but each command runs on all hosts in parallel.
+    For multi-host services, prefix defaults to service@host format.
     """
     host_names = config.get_hosts(service)
     compose_path = config.get_compose_path(service)
@@ -362,9 +406,16 @@ async def _run_sequential_commands_multi_host(
         command = f"docker compose -f {compose_path} {cmd}"
         tasks = []
         for host_name in host_names:
+            _print_compose_command(host_name, str(config.compose_dir), str(compose_path), cmd)
             host = config.hosts[host_name]
+            # For multi-host services, always use service@host prefix to distinguish output
             label = f"{service}@{host_name}" if len(host_names) > 1 else service
-            tasks.append(run_command(host, command, label, stream=stream, raw=raw))
+            # Multi-host services always need prefixes to distinguish output from different hosts
+            # (ignore empty prefix from single-service batches - we still need to distinguish hosts)
+            effective_prefix = label if len(host_names) > 1 else prefix
+            tasks.append(
+                run_command(host, command, label, stream=stream, raw=raw, prefix=effective_prefix)
+            )
 
         results = await asyncio.gather(*tasks)
         final_results = list(results)
@@ -389,6 +440,9 @@ async def run_sequential_on_services(
     For multi-host services, runs on all configured hosts.
     Note: raw=True only makes sense for single-service operations.
     """
+    # Skip prefix for single-service operations (command line already shows context)
+    prefix: str | None = "" if len(services) == 1 else None
+
     # Separate multi-host and single-host services for type-safe gathering
     multi_host_tasks = []
     single_host_tasks = []
@@ -397,12 +451,14 @@ async def run_sequential_on_services(
         if config.is_multi_host(service):
             multi_host_tasks.append(
                 _run_sequential_commands_multi_host(
-                    config, service, commands, stream=stream, raw=raw
+                    config, service, commands, stream=stream, raw=raw, prefix=prefix
                 )
             )
         else:
             single_host_tasks.append(
-                _run_sequential_commands(config, service, commands, stream=stream, raw=raw)
+                _run_sequential_commands(
+                    config, service, commands, stream=stream, raw=raw, prefix=prefix
+                )
             )
 
     # Gather results separately to maintain type safety
