@@ -2,6 +2,10 @@
  * Compose Farm Web UI JavaScript
  */
 
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
 // ANSI escape codes for terminal output
 const ANSI = {
     RED: '\x1b[31m',
@@ -10,45 +14,6 @@ const ANSI = {
     RESET: '\x1b[0m',
     CRLF: '\r\n'
 };
-
-// Store active terminals and editors
-const terminals = {};
-const editors = {};
-let monacoLoaded = false;
-let monacoLoading = false;
-
-// LocalStorage key prefix for active tasks (scoped by page)
-const TASK_KEY_PREFIX = 'cf_task:';
-const getTaskKey = () => TASK_KEY_PREFIX + window.location.pathname;
-
-// Language detection from file path
-const LANGUAGE_MAP = {
-    'yaml': 'yaml', 'yml': 'yaml',
-    'json': 'json',
-    'js': 'javascript', 'mjs': 'javascript',
-    'ts': 'typescript', 'tsx': 'typescript',
-    'py': 'python',
-    'sh': 'shell', 'bash': 'shell',
-    'md': 'markdown',
-    'html': 'html', 'htm': 'html',
-    'css': 'css',
-    'sql': 'sql',
-    'toml': 'toml',
-    'ini': 'ini', 'conf': 'ini',
-    'dockerfile': 'dockerfile',
-    'env': 'plaintext'
-};
-
-/**
- * Get Monaco language from file path
- * @param {string} path - File path
- * @returns {string} Monaco language identifier
- */
-function getLanguageFromPath(path) {
-    const ext = path.split('.').pop().toLowerCase();
-    return LANGUAGE_MAP[ext] || 'plaintext';
-}
-window.getLanguageFromPath = getLanguageFromPath;
 
 // Terminal color theme (dark mode matching PicoCSS)
 const TERMINAL_THEME = {
@@ -73,6 +38,91 @@ const TERMINAL_THEME = {
     brightCyan: '#22d3ee',
     brightWhite: '#fafafa'
 };
+
+// Language detection from file path
+const LANGUAGE_MAP = {
+    'yaml': 'yaml', 'yml': 'yaml',
+    'json': 'json',
+    'js': 'javascript', 'mjs': 'javascript',
+    'ts': 'typescript', 'tsx': 'typescript',
+    'py': 'python',
+    'sh': 'shell', 'bash': 'shell',
+    'md': 'markdown',
+    'html': 'html', 'htm': 'html',
+    'css': 'css',
+    'sql': 'sql',
+    'toml': 'toml',
+    'ini': 'ini', 'conf': 'ini',
+    'dockerfile': 'dockerfile',
+    'env': 'plaintext'
+};
+
+// ============================================================================
+// STATE
+// ============================================================================
+
+// Store active terminals and editors
+const terminals = {};
+const editors = {};
+let monacoLoaded = false;
+let monacoLoading = false;
+
+// LocalStorage key prefix for active tasks (scoped by page)
+const TASK_KEY_PREFIX = 'cf_task:';
+const getTaskKey = () => TASK_KEY_PREFIX + window.location.pathname;
+
+// Exec terminal state
+let execTerminalWrapper = null;  // {term, dispose}
+let execWs = null;
+
+// ============================================================================
+// UTILITIES
+// ============================================================================
+
+/**
+ * Get Monaco language from file path
+ * @param {string} path - File path
+ * @returns {string} Monaco language identifier
+ */
+function getLanguageFromPath(path) {
+    const ext = path.split('.').pop().toLowerCase();
+    return LANGUAGE_MAP[ext] || 'plaintext';
+}
+window.getLanguageFromPath = getLanguageFromPath;
+
+/**
+ * Create WebSocket connection with standard handlers
+ * @param {string} path - WebSocket path
+ * @returns {WebSocket}
+ */
+function createWebSocket(path) {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return new WebSocket(`${protocol}//${window.location.host}${path}`);
+}
+window.createWebSocket = createWebSocket;
+
+/**
+ * Wait for xterm.js to load, then execute callback
+ * @param {function} callback - Function to call when xterm is ready
+ * @param {number} maxAttempts - Max attempts (default 20 = 2 seconds)
+ */
+function whenXtermReady(callback, maxAttempts = 20) {
+    const tryInit = (attempts) => {
+        if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
+            callback();
+        } else if (attempts > 0) {
+            setTimeout(() => tryInit(attempts - 1), 100);
+        } else {
+            console.error('xterm.js failed to load');
+        }
+    };
+    tryInit(maxAttempts);
+}
+window.whenXtermReady = whenXtermReady;
+
+// ============================================================================
+// TERMINAL
+// ============================================================================
 
 /**
  * Create a terminal with fit addon and resize observer
@@ -119,36 +169,6 @@ function createTerminal(container, extraOptions = {}, onResize = null) {
 }
 
 /**
- * Create WebSocket connection with standard handlers
- * @param {string} path - WebSocket path
- * @returns {WebSocket}
- */
-function createWebSocket(path) {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return new WebSocket(`${protocol}//${window.location.host}${path}`);
-}
-window.createWebSocket = createWebSocket;
-
-/**
- * Wait for xterm.js to load, then execute callback
- * @param {function} callback - Function to call when xterm is ready
- * @param {number} maxAttempts - Max attempts (default 20 = 2 seconds)
- */
-function whenXtermReady(callback, maxAttempts = 20) {
-    const tryInit = (attempts) => {
-        if (typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
-            callback();
-        } else if (attempts > 0) {
-            setTimeout(() => tryInit(attempts - 1), 100);
-        } else {
-            console.error('xterm.js failed to load');
-        }
-    };
-    tryInit(maxAttempts);
-}
-window.whenXtermReady = whenXtermReady;
-
-/**
  * Initialize a terminal and connect to WebSocket for streaming
  */
 function initTerminal(elementId, taskId) {
@@ -190,9 +210,6 @@ window.initTerminal = initTerminal;
 /**
  * Initialize an interactive exec terminal
  */
-let execTerminalWrapper = null;  // {term, dispose}
-let execWs = null;
-
 function initExecTerminal(service, container, host) {
     const containerEl = document.getElementById('exec-terminal-container');
     const terminalEl = document.getElementById('exec-terminal');
@@ -239,28 +256,31 @@ function initExecTerminal(service, container, host) {
 window.initExecTerminal = initExecTerminal;
 
 /**
- * Refresh dashboard partials by dispatching a custom event.
- * Elements with hx-trigger="cf:refresh from:body" will automatically refresh.
+ * Expand terminal collapse and scroll to it
  */
-function refreshDashboard() {
-    document.body.dispatchEvent(new CustomEvent('cf:refresh'));
+function expandTerminal() {
+    const toggle = document.getElementById('terminal-toggle');
+    if (toggle) toggle.checked = true;
+
+    const collapse = document.getElementById('terminal-collapse');
+    if (collapse) {
+        collapse.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 }
 
 /**
- * Filter sidebar services by name and host
+ * Show/hide terminal loading spinner
  */
-function sidebarFilter() {
-    const q = (document.getElementById('sidebar-filter')?.value || '').toLowerCase();
-    const h = document.getElementById('sidebar-host-select')?.value || '';
-    let n = 0;
-    document.querySelectorAll('#sidebar-services li').forEach(li => {
-        const show = (!q || li.dataset.svc.includes(q)) && (!h || !li.dataset.h || li.dataset.h === h);
-        li.hidden = !show;
-        if (show) n++;
-    });
-    document.getElementById('sidebar-count').textContent = '(' + n + ')';
+function setTerminalLoading(loading) {
+    const spinner = document.getElementById('terminal-spinner');
+    if (spinner) {
+        spinner.classList.toggle('hidden', !loading);
+    }
 }
-window.sidebarFilter = sidebarFilter;
+
+// ============================================================================
+// EDITOR (Monaco)
+// ============================================================================
 
 /**
  * Load Monaco editor dynamically (only once)
@@ -423,46 +443,33 @@ function initSaveButton() {
     saveBtn.onclick = saveAllEditors;
 }
 
+// ============================================================================
+// UI HELPERS
+// ============================================================================
+
 /**
- * Global keyboard shortcut handler
+ * Refresh dashboard partials by dispatching a custom event.
+ * Elements with hx-trigger="cf:refresh from:body" will automatically refresh.
  */
-function initKeyboardShortcuts() {
-    document.addEventListener('keydown', function(e) {
-        // Command+S (Mac) or Ctrl+S (Windows/Linux)
-        if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-            // Only handle if we have editors and no Monaco editor is focused
-            if (Object.keys(editors).length > 0) {
-                // Check if any Monaco editor is focused
-                const focusedEditor = Object.values(editors).find(ed => ed?.hasTextFocus?.());
-                if (!focusedEditor) {
-                    e.preventDefault();
-                    saveAllEditors();
-                }
-            }
-        }
+function refreshDashboard() {
+    document.body.dispatchEvent(new CustomEvent('cf:refresh'));
+}
+
+/**
+ * Filter sidebar services by name and host
+ */
+function sidebarFilter() {
+    const q = (document.getElementById('sidebar-filter')?.value || '').toLowerCase();
+    const h = document.getElementById('sidebar-host-select')?.value || '';
+    let n = 0;
+    document.querySelectorAll('#sidebar-services li').forEach(li => {
+        const show = (!q || li.dataset.svc.includes(q)) && (!h || !li.dataset.h || li.dataset.h === h);
+        li.hidden = !show;
+        if (show) n++;
     });
+    document.getElementById('sidebar-count').textContent = '(' + n + ')';
 }
-
-/**
- * Initialize page components
- */
-function initPage() {
-    initMonacoEditors();
-    initSaveButton();
-}
-
-/**
- * Attempt to reconnect to an active task from localStorage
- */
-function tryReconnectToTask() {
-    const taskId = localStorage.getItem(getTaskKey());
-    if (!taskId) return;
-
-    whenXtermReady(() => {
-        expandTerminal();
-        initTerminal('terminal-output', taskId);
-    });
-}
+window.sidebarFilter = sidebarFilter;
 
 // Play intro animation on command palette button
 function playFabIntro() {
@@ -480,68 +487,10 @@ function playFabIntro() {
     }, 500);
 }
 
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-    initPage();
-    initKeyboardShortcuts();
-    playFabIntro();
+// ============================================================================
+// COMMAND PALETTE
+// ============================================================================
 
-    // Try to reconnect to any active task
-    tryReconnectToTask();
-});
-
-// Re-initialize after HTMX swaps main content
-document.body.addEventListener('htmx:afterSwap', function(evt) {
-    if (evt.detail.target.id === 'main-content') {
-        initPage();
-        // Try to reconnect when navigating back to dashboard
-        tryReconnectToTask();
-    }
-});
-
-/**
- * Expand terminal collapse and scroll to it
- */
-function expandTerminal() {
-    const toggle = document.getElementById('terminal-toggle');
-    if (toggle) toggle.checked = true;
-
-    const collapse = document.getElementById('terminal-collapse');
-    if (collapse) {
-        collapse.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-}
-
-/**
- * Show/hide terminal loading spinner
- */
-function setTerminalLoading(loading) {
-    const spinner = document.getElementById('terminal-spinner');
-    if (spinner) {
-        spinner.classList.toggle('hidden', !loading);
-    }
-}
-
-// Handle action responses (terminal streaming)
-document.body.addEventListener('htmx:afterRequest', function(evt) {
-    if (!evt.detail.successful || !evt.detail.xhr) return;
-
-    const text = evt.detail.xhr.responseText;
-    // Only try to parse if it looks like JSON (starts with {)
-    if (!text || !text.trim().startsWith('{')) return;
-
-    try {
-        const response = JSON.parse(text);
-        if (response.task_id) {
-            expandTerminal();
-            whenXtermReady(() => initTerminal('terminal-output', response.task_id));
-        }
-    } catch (e) {
-        // Not valid JSON, ignore
-    }
-});
-
-// Command Palette
 (function() {
     const dialog = document.getElementById('cmd-palette');
     const input = document.getElementById('cmd-input');
@@ -677,3 +626,86 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
     // FAB click to open
     if (fab) fab.addEventListener('click', open);
 })();
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+/**
+ * Global keyboard shortcut handler
+ */
+function initKeyboardShortcuts() {
+    document.addEventListener('keydown', function(e) {
+        // Command+S (Mac) or Ctrl+S (Windows/Linux)
+        if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+            // Only handle if we have editors and no Monaco editor is focused
+            if (Object.keys(editors).length > 0) {
+                // Check if any Monaco editor is focused
+                const focusedEditor = Object.values(editors).find(ed => ed?.hasTextFocus?.());
+                if (!focusedEditor) {
+                    e.preventDefault();
+                    saveAllEditors();
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Initialize page components
+ */
+function initPage() {
+    initMonacoEditors();
+    initSaveButton();
+}
+
+/**
+ * Attempt to reconnect to an active task from localStorage
+ */
+function tryReconnectToTask() {
+    const taskId = localStorage.getItem(getTaskKey());
+    if (!taskId) return;
+
+    whenXtermReady(() => {
+        expandTerminal();
+        initTerminal('terminal-output', taskId);
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initPage();
+    initKeyboardShortcuts();
+    playFabIntro();
+
+    // Try to reconnect to any active task
+    tryReconnectToTask();
+});
+
+// Re-initialize after HTMX swaps main content
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.id === 'main-content') {
+        initPage();
+        // Try to reconnect when navigating back to dashboard
+        tryReconnectToTask();
+    }
+});
+
+// Handle action responses (terminal streaming)
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+    if (!evt.detail.successful || !evt.detail.xhr) return;
+
+    const text = evt.detail.xhr.responseText;
+    // Only try to parse if it looks like JSON (starts with {)
+    if (!text || !text.trim().startsWith('{')) return;
+
+    try {
+        const response = JSON.parse(text);
+        if (response.task_id) {
+            expandTerminal();
+            whenXtermReady(() => initTerminal('terminal-output', response.task_id));
+        }
+    } catch (e) {
+        // Not valid JSON, ignore
+    }
+});
