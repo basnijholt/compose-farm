@@ -559,12 +559,15 @@ function playFabIntro() {
     };
 
     function buildCommands() {
+        const openExternal = (url) => () => window.open(url, '_blank');
+
         const actions = [
             cmd('action', 'Apply', 'Make reality match config', dashboardAction('apply'), icons.check),
             cmd('action', 'Refresh', 'Update state from reality', dashboardAction('refresh'), icons.refresh_cw),
             cmd('app', 'Theme', 'Change color theme', openThemePicker, icons.palette),
             cmd('app', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
             cmd('app', 'Console', 'Go to console', nav('/console'), icons.terminal),
+            cmd('app', 'Docs', 'Open documentation', openExternal('https://compose-farm.nijho.lt/'), icons.book_open),
         ];
 
         // Add service-specific actions if on a service page
