@@ -477,16 +477,47 @@ cf config COMMAND
 | `path` | Print config file path |
 | `validate` | Validate syntax and schema |
 | `edit` | Open in $EDITOR |
-| `symlink PATH` | Symlink from default location |
+| `symlink` | Create symlink from default location |
+
+**Options by subcommand:**
+
+| Subcommand | Options |
+|------------|---------|
+| `init` | `--path/-p PATH`, `--force/-f` |
+| `show` | `--path/-p PATH`, `--raw/-r` |
+| `edit` | `--path/-p PATH` |
+| `path` | `--path/-p PATH` |
+| `validate` | `--path/-p PATH` |
+| `symlink` | `--force/-f` |
 
 **Examples:**
 
 ```bash
+# Create config at default location
 cf config init
+
+# Create config at custom path
+cf config init --path /opt/compose-farm/config.yaml
+
+# Show config with syntax highlighting
 cf config show
+
+# Show raw config (for copy-paste)
+cf config show --raw
+
+# Validate config
 cf config validate
+
+# Edit config in $EDITOR
 cf config edit
+
+# Print config path
 cf config path
+
+# Create symlink to local config
+cf config symlink
+
+# Create symlink to specific file
 cf config symlink /opt/compose-farm/config.yaml
 ```
 
@@ -505,16 +536,26 @@ cf ssh COMMAND
 | Command | Description |
 |---------|-------------|
 | `setup` | Generate key and copy to all hosts |
-| `status` | Show SSH key status |
+| `status` | Show SSH key status and host connectivity |
+| `keygen` | Generate key without distributing |
+
+**Options for `cf ssh setup` and `cf ssh keygen`:**
+
+| Option | Description |
+|--------|-------------|
+| `--force, -f` | Regenerate key even if it exists |
 
 **Examples:**
 
 ```bash
-# Set up SSH keys
+# Set up SSH keys (generates and distributes)
 cf ssh setup
 
-# Check status
+# Check status and connectivity
 cf ssh status
+
+# Generate key only (don't distribute)
+cf ssh keygen
 ```
 
 ---
@@ -529,7 +570,28 @@ Start the web UI server.
 cf web [OPTIONS]
 ```
 
-See `cf web --help` for available options.
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--host, -H TEXT` | Host to bind to (default: 0.0.0.0) |
+| `--port, -p INTEGER` | Port to listen on (default: 8000) |
+| `--reload, -r` | Enable auto-reload for development |
+
+**Note:** Requires web dependencies: `pip install compose-farm[web]`
+
+**Examples:**
+
+```bash
+# Start on default port
+cf web
+
+# Start on custom port
+cf web --port 3000
+
+# Development mode with auto-reload
+cf web --reload
+```
 
 ---
 

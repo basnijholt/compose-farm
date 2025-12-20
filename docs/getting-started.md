@@ -21,15 +21,19 @@ Before you begin, ensure you have:
   <source src="assets/install.webm" type="video/webm">
 </video>
 
-### Using uv (recommended)
-
-[uv](https://docs.astral.sh/uv/) is the recommended way to install Compose Farm. It handles Python installation automatically.
+### One-liner (recommended)
 
 ```bash
-# Install uv first (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/basnijholt/compose-farm/main/bootstrap.sh | sh
+```
 
-# Install compose-farm
+This installs [uv](https://docs.astral.sh/uv/) if needed, then installs compose-farm.
+
+### Using uv
+
+If you already have [uv](https://docs.astral.sh/uv/) installed:
+
+```bash
 uv tool install compose-farm
 ```
 
