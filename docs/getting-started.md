@@ -18,7 +18,7 @@ Before you begin, ensure you have:
 ## Installation
 
 <video autoplay loop muted playsinline>
-  <source src="assets/install.webm" type="video/webm">
+  <source src="/assets/install.webm" type="video/webm">
 </video>
 
 ### One-liner (recommended)
