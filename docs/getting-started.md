@@ -18,7 +18,7 @@ This guide walks you through installing Compose Farm and setting up your first d
 
 - Everything above, plus:
 - **Docker and Docker Compose** installed on all target hosts
-- **SSH key-based authentication** to your Docker hosts
+- **SSH key-based authentication** to your Docker hosts (ssh-agent or `cf ssh setup` key)
 - **Shared storage or sync** for compose files (NFS, Syncthing, etc.)
 
 ## Installation

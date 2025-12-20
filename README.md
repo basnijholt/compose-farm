@@ -103,7 +103,7 @@ If you're on a single host, you can skip SSH, shared storage, and Traefik. Compo
 
 - Everything above, plus:
 - Docker and Docker Compose installed on all target hosts
-- SSH key-based authentication to your hosts (uses ssh-agent)
+- SSH key-based authentication to your hosts (ssh-agent or `cf ssh setup` dedicated key)
 - **Shared storage or synced folders** so `compose_dir` is the same path on all hosts (NFS recommended)
 - **Docker networks**: External networks must exist on all hosts (use `cf init-network` to create)
 - **Optional for ingress**: Traefik file provider for cross-host routing (labels + published ports, generated via `cf traefik-file`)

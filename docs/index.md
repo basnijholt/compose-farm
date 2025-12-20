@@ -148,7 +148,7 @@ cf logs -f plex
 
 - Everything above, plus:
 - Docker and Docker Compose installed on all target hosts
-- SSH key-based authentication to your Docker hosts
+- SSH key-based authentication to your Docker hosts (ssh-agent or `cf ssh setup` key)
 - Shared storage or sync so `compose_dir` is the same path on all hosts
 - Optional for ingress: Traefik file provider (labels + published ports)
 
