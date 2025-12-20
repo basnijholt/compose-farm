@@ -10,8 +10,10 @@ Compose Farm uses a YAML configuration file to define hosts and service assignme
 
 Compose Farm looks for configuration in this order:
 
-1. `./compose-farm.yaml` (current directory)
-2. `~/.config/compose-farm/compose-farm.yaml`
+1. `-c` / `--config` flag (if provided)
+2. `CF_CONFIG` environment variable
+3. `./compose-farm.yaml` (current directory)
+4. `$XDG_CONFIG_HOME/compose-farm/compose-farm.yaml` (defaults to `~/.config`)
 
 Use `-c` / `--config` to specify a custom path:
 
@@ -19,14 +21,17 @@ Use `-c` / `--config` to specify a custom path:
 cf ps -c /path/to/config.yaml
 ```
 
+Or set the environment variable:
+
+```bash
+export CF_CONFIG=/path/to/config.yaml
+```
+
 ## Full Example
 
 ```yaml
 # Required: directory containing compose files
 compose_dir: /opt/compose
-
-# Optional: Docker network name (default: mynetwork)
-network: mynetwork
 
 # Optional: auto-regenerate Traefik config
 traefik_file: /opt/traefik/dynamic.d/compose-farm.yml
@@ -83,14 +88,6 @@ Supported compose file names (checked in order):
 - `docker-compose.yml`
 - `docker-compose.yaml`
 
-### network
-
-Docker network name for `cf init-network`.
-
-```yaml
-network: mynetwork  # default
-```
-
 ### traefik_file
 
 Path to auto-generated Traefik file-provider config. When set, Compose Farm regenerates this file after `up`, `down`, `restart`, and `update` commands.
@@ -127,6 +124,16 @@ hosts:
 ```
 
 If `user` is omitted, the current user is used.
+
+### With Custom SSH Port
+
+```yaml
+hosts:
+  myserver:
+    address: 192.168.1.10
+    user: docker
+    port: 2222  # SSH port (default: 22)
+```
 
 ### Localhost
 
@@ -198,16 +205,17 @@ services:
 
 ## State File
 
-Compose Farm tracks deployment state in:
+Compose Farm tracks deployment state in `compose-farm-state.yaml`, stored alongside the config file.
 
-```
-~/.config/compose-farm/state.yaml
+For example, if your config is at `~/.config/compose-farm/compose-farm.yaml`, the state file will be at `~/.config/compose-farm/compose-farm-state.yaml`.
+
+```yaml
+deployed:
+  plex: nuc
+  sonarr: nuc
 ```
 
-This file records:
-- Which services are running
-- Which host each service runs on
-- Last known state
+This file records which services are deployed and on which host.
 
 **Don't edit manually.** Use `cf refresh` to sync state with reality.
 
@@ -277,10 +285,11 @@ Prints the config file location (useful for scripting).
 ### Create Symlink
 
 ```bash
-cf config symlink /path/to/my-config.yaml
+cf config symlink                          # Link to ./compose-farm.yaml
+cf config symlink /path/to/my-config.yaml  # Link to specific file
 ```
 
-Creates a symlink from the default location to your config file.
+Creates a symlink from the default location (`~/.config/compose-farm/compose-farm.yaml`) to your config file. Use `--force` to overwrite an existing symlink.
 
 ## Validation
 
