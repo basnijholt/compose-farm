@@ -496,6 +496,7 @@ function playFabIntro() {
     const input = document.getElementById('cmd-input');
     const list = document.getElementById('cmd-list');
     const fab = document.getElementById('cmd-fab');
+    const themeBtn = document.getElementById('theme-btn');
     if (!dialog || !input || !list) return;
 
     // Load icons from template (rendered server-side from icons.html)
@@ -507,7 +508,11 @@ function playFabIntro() {
         });
     }
 
-    const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6', app: '#a855f7' };
+    // All available DaisyUI themes
+    const THEMES = ['light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate', 'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween', 'garden', 'forest', 'aqua', 'lofi', 'pastel', 'fantasy', 'wireframe', 'black', 'luxury', 'dracula', 'cmyk', 'autumn', 'business', 'acid', 'lemonade', 'night', 'coffee', 'winter', 'dim', 'nord', 'sunset', 'caramellatte', 'abyss', 'silk'];
+    const THEME_KEY = 'cf_theme';
+
+    const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6', app: '#a855f7', theme: '#ec4899' };
     let commands = [];
     let filtered = [];
     let selected = 0;
@@ -525,6 +530,11 @@ function playFabIntro() {
             history.pushState({}, '', '/');
         }
         htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
+    };
+    // Apply theme and save to localStorage
+    const setTheme = (theme) => () => {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem(THEME_KEY, theme);
     };
     const cmd = (type, name, desc, action, icon = null) => ({ type, name, desc, action, icon });
 
@@ -557,7 +567,13 @@ function playFabIntro() {
             return cmd('nav', name, 'Go to service', nav(`/service/${name}`), icons.box);
         });
 
-        commands = [...actions, ...services];
+        // Add theme commands
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const themeCommands = THEMES.map(theme =>
+            cmd('theme', `theme: ${theme}`, theme === currentTheme ? '(current)' : 'Switch theme', setTheme(theme), icons.palette)
+        );
+
+        commands = [...actions, ...services, ...themeCommands];
     }
 
     function filter() {
@@ -578,10 +594,10 @@ function playFabIntro() {
         if (sel) sel.scrollIntoView({ block: 'nearest' });
     }
 
-    function open() {
+    function open(initialFilter = '') {
         buildCommands();
         selected = 0;
-        input.value = '';
+        input.value = initialFilter;
         filter();
         render();
         dialog.showModal();
@@ -624,36 +640,20 @@ function playFabIntro() {
     });
 
     // FAB click to open
-    if (fab) fab.addEventListener('click', open);
+    if (fab) fab.addEventListener('click', () => open());
+
+    // Theme button opens palette with "theme:" filter
+    if (themeBtn) themeBtn.addEventListener('click', () => open('theme:'));
 })();
 
 // ============================================================================
-// THEME SWITCHER
+// THEME PERSISTENCE
 // ============================================================================
 
+// Restore saved theme on load (also handled in inline script to prevent flash)
 (function() {
-    const THEME_KEY = 'cf_theme';
-
-    // Apply saved theme on load (also in inline script to prevent flash)
-    function applyTheme(theme) {
-        document.documentElement.setAttribute('data-theme', theme);
-        localStorage.setItem(THEME_KEY, theme);
-    }
-
-    // Initialize theme from localStorage
-    const saved = localStorage.getItem(THEME_KEY);
-    if (saved) applyTheme(saved);
-
-    // Theme selector handlers (use mousedown to fire before dropdown closes)
-    document.addEventListener('mousedown', (e) => {
-        const btn = e.target.closest('[data-theme-select]');
-        if (btn) {
-            e.preventDefault();
-            applyTheme(btn.dataset.themeSelect);
-            // Close dropdown by removing focus
-            document.activeElement?.blur();
-        }
-    });
+    const saved = localStorage.getItem('cf_theme');
+    if (saved) document.documentElement.setAttribute('data-theme', saved);
 })();
 
 // ============================================================================

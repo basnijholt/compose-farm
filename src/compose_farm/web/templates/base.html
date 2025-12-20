@@ -54,25 +54,9 @@
                         <a href="https://github.com/basnijholt/compose-farm" target="_blank" title="GitHub" class="opacity-50 hover:opacity-100 transition-opacity">
                             {{ github() }}
                         </a>
-                        <div class="dropdown dropdown-end">
-                            <div tabindex="0" role="button" class="opacity-50 hover:opacity-100 transition-opacity cursor-pointer" title="Change theme">
-                                {{ palette() }}
-                            </div>
-                            <div tabindex="0" class="dropdown-content z-50 p-2 shadow-lg bg-base-200 rounded-box w-48 max-h-96 overflow-y-auto">
-                                {% set themes = ['light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate', 'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween', 'garden', 'forest', 'aqua', 'lofi', 'pastel', 'fantasy', 'wireframe', 'black', 'luxury', 'dracula', 'cmyk', 'autumn', 'business', 'acid', 'lemonade', 'night', 'coffee', 'winter', 'dim', 'nord', 'sunset', 'caramellatte', 'abyss', 'silk'] %}
-                                {% for theme in themes %}
-                                <button type="button" data-theme-select="{{ theme }}" data-theme="{{ theme }}" class="w-full flex items-center gap-2 px-3 py-1.5 rounded hover:bg-base-300 text-left bg-base-100 mb-1">
-                                    <div class="flex gap-0.5">
-                                        <span class="w-2 h-4 rounded-l bg-primary"></span>
-                                        <span class="w-2 h-4 bg-secondary"></span>
-                                        <span class="w-2 h-4 bg-accent"></span>
-                                        <span class="w-2 h-4 rounded-r bg-neutral"></span>
-                                    </div>
-                                    <span class="text-base-content text-sm capitalize">{{ theme }}</span>
-                                </button>
-                                {% endfor %}
-                            </div>
-                        </div>
+                        <button type="button" id="theme-btn" class="opacity-50 hover:opacity-100 transition-opacity cursor-pointer" title="Change theme (opens command palette)">
+                            {{ palette() }}
+                        </button>
                     </h2>
                 </header>
                 <nav class="flex-1 overflow-y-auto p-2" hx-get="/partials/sidebar" hx-trigger="load, cf:refresh from:body" hx-swap="innerHTML">

@@ -1694,61 +1694,56 @@ class TestServicePagePalette:
 
 
 class TestThemeSwitcher:
-    """Test theme switcher dropdown functionality."""
+    """Test theme switcher via command palette."""
 
     @staticmethod
-    def _open_theme_dropdown(page: Page) -> None:
-        """Open the theme dropdown by clicking the palette button."""
-        # The dropdown trigger has the palette icon with title="Change theme"
-        page.locator("[title='Change theme']").click()
-        # Wait for dropdown content to be visible
-        page.wait_for_selector("[data-theme-select='light']", state="visible", timeout=2000)
+    def _open_theme_palette(page: Page) -> None:
+        """Open the command palette with theme filter by clicking the theme button."""
+        page.locator("#theme-btn").click()
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
-    def test_theme_dropdown_exists(self, page: Page, server_url: str) -> None:
-        """Theme dropdown button exists in sidebar header."""
+    @staticmethod
+    def _select_theme(page: Page, theme: str) -> None:
+        """Select a theme from the command palette."""
+        # Filter to the specific theme
+        page.locator("#cmd-input").fill(f"theme: {theme}")
+        page.keyboard.press("Enter")
+
+    def test_theme_button_exists(self, page: Page, server_url: str) -> None:
+        """Theme button exists in sidebar header."""
         page.goto(server_url)
         page.wait_for_selector("#sidebar-services", timeout=5000)
 
-        # Theme dropdown trigger should exist
-        trigger = page.locator("[title='Change theme']")
-        assert trigger.count() == 1
+        # Theme button should exist
+        assert page.locator("#theme-btn").count() == 1
 
-    def test_theme_buttons_show_different_colors(self, page: Page, server_url: str) -> None:
-        """Each theme button shows its own theme colors via data-theme attribute."""
+    def test_theme_button_opens_palette_with_filter(self, page: Page, server_url: str) -> None:
+        """Clicking theme button opens command palette pre-filtered to themes."""
         page.goto(server_url)
         page.wait_for_selector("#sidebar-services", timeout=5000)
-        self._open_theme_dropdown(page)
 
-        # Get two different theme buttons
-        light_btn = page.locator("[data-theme-select='light']")
-        dark_btn = page.locator("[data-theme-select='dark']")
+        self._open_theme_palette(page)
 
-        # Each button should have data-theme set to show its colors
-        assert light_btn.get_attribute("data-theme") == "light"
-        assert dark_btn.get_attribute("data-theme") == "dark"
+        # Input should have "theme:" filter
+        assert page.locator("#cmd-input").input_value() == "theme:"
 
-        # Get the primary color swatch from each button
-        light_primary = light_btn.locator(".bg-primary").first
-        dark_primary = dark_btn.locator(".bg-primary").first
-
-        # Get computed background colors - they should be different
-        light_bg = light_primary.evaluate("el => getComputedStyle(el).backgroundColor")
-        dark_bg = dark_primary.evaluate("el => getComputedStyle(el).backgroundColor")
-
-        assert light_bg != dark_bg, f"Theme colors should differ: light={light_bg}, dark={dark_bg}"
+        # Should show theme options
+        cmd_list = page.locator("#cmd-list").inner_text()
+        assert "light" in cmd_list
+        assert "dark" in cmd_list
 
     def test_clicking_theme_changes_html_data_theme(self, page: Page, server_url: str) -> None:
-        """Clicking a theme button changes the data-theme attribute on <html>."""
+        """Selecting a theme changes the data-theme attribute on <html>."""
         page.goto(server_url)
         page.wait_for_selector("#sidebar-services", timeout=5000)
 
         # Get initial theme
         initial_theme = page.locator("html").get_attribute("data-theme")
 
-        # Open dropdown and click a different theme
-        self._open_theme_dropdown(page)
+        # Select a different theme
         target_theme = "cupcake" if initial_theme != "cupcake" else "dracula"
-        page.locator(f"[data-theme-select='{target_theme}']").click()
+        self._open_theme_palette(page)
+        self._select_theme(page, target_theme)
 
         # Verify the html element's data-theme changed
         new_theme = page.locator("html").get_attribute("data-theme")
@@ -1759,9 +1754,9 @@ class TestThemeSwitcher:
         page.goto(server_url)
         page.wait_for_selector("#sidebar-services", timeout=5000)
 
-        # Open dropdown and click synthwave theme
-        self._open_theme_dropdown(page)
-        page.locator("[data-theme-select='synthwave']").click()
+        # Select synthwave theme
+        self._open_theme_palette(page)
+        self._select_theme(page, "synthwave")
 
         # Check localStorage
         stored = page.evaluate("localStorage.getItem('cf_theme')")
@@ -1772,9 +1767,9 @@ class TestThemeSwitcher:
         page.goto(server_url)
         page.wait_for_selector("#sidebar-services", timeout=5000)
 
-        # Set theme via dropdown
-        self._open_theme_dropdown(page)
-        page.locator("[data-theme-select='retro']").click()
+        # Set theme
+        self._open_theme_palette(page)
+        self._select_theme(page, "retro")
 
         # Reload page
         page.reload()
@@ -1792,7 +1787,24 @@ class TestThemeSwitcher:
         themes_to_test = ["light", "dark", "nord", "sunset"]
 
         for theme in themes_to_test:
-            self._open_theme_dropdown(page)
-            page.locator(f"[data-theme-select='{theme}']").click()
+            self._open_theme_palette(page)
+            self._select_theme(page, theme)
             current = page.locator("html").get_attribute("data-theme")
             assert current == theme, f"Failed to switch to {theme}, got {current}"
+
+    def test_themes_available_in_regular_palette(self, page: Page, server_url: str) -> None:
+        """Themes are also available when opening regular command palette."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-services", timeout=5000)
+
+        # Open with Cmd+K
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type theme filter
+        page.locator("#cmd-input").fill("theme:")
+
+        # Should show theme options
+        cmd_list = page.locator("#cmd-list").inner_text()
+        assert "theme: light" in cmd_list
+        assert "theme: dark" in cmd_list
