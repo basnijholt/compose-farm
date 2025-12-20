@@ -46,7 +46,7 @@ Verify against src/compose_farm/config.py (Pydantic models):
 
 Verify against actual directory structure:
 
-- [ ] File paths are correct (src/compose_farm/ not compose_farm/)
+- [ ] File paths match actual source code location
 - [ ] All modules listed actually exist
 - [ ] No modules are missing from the list
 - [ ] Component descriptions match code functionality
