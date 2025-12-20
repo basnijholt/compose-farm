@@ -58,6 +58,39 @@ def _get_filtered_state(config: CFConfig) -> dict[str, str | list[str]]:
     return {name: host for name, host in state.items() if name not in DEMO_EXCLUDE_SERVICES}
 
 
+def _get_filtered_orphaned_services(config: CFConfig) -> dict[str, str | list[str]]:
+    """Get orphaned services, excluding demo-filtered services."""
+    state = _get_filtered_state(config)
+    return {service: hosts for service, hosts in state.items() if service not in config.services}
+
+
+def _get_filtered_services_needing_migration(config: CFConfig) -> list[str]:
+    """Get services needing migration, excluding demo-filtered services."""
+    from compose_farm.state import get_service_host  # noqa: PLC0415
+
+    needs_migration = []
+    for service in config.services:
+        if service in DEMO_EXCLUDE_SERVICES:
+            continue
+        if config.is_multi_host(service):
+            continue
+        configured_host = config.get_hosts(service)[0]
+        current_host = get_service_host(config, service)
+        if current_host and current_host != configured_host:
+            needs_migration.append(service)
+    return needs_migration
+
+
+def _get_filtered_services_not_in_state(config: CFConfig) -> list[str]:
+    """Get services not in state, excluding demo-filtered services."""
+    state = _get_filtered_state(config)
+    return [
+        service
+        for service in config.services
+        if service not in state and service not in DEMO_EXCLUDE_SERVICES
+    ]
+
+
 @pytest.fixture(scope="session")
 def vendor_cache(request: pytest.FixtureRequest) -> Path:
     """Download CDN assets once and cache to disk for faster recordings."""
@@ -84,7 +117,7 @@ def server_url() -> Generator[str, None, None]:
     """Start demo server using real config (with filtered services) and return URL."""
     os.environ["CF_CONFIG"] = str(REAL_CONFIG_PATH)
 
-    # Patch get_config and load_state in all web modules to filter out excluded services
+    # Patch get_config and state functions in all web modules to filter out excluded services
     # Must patch where it's imported, not where it's defined
     patches = [
         patch("compose_farm.web.routes.pages.get_config", _get_filtered_config),
@@ -92,9 +125,20 @@ def server_url() -> Generator[str, None, None]:
         patch("compose_farm.web.routes.actions.get_config", _get_filtered_config),
         patch("compose_farm.web.app.get_config", _get_filtered_config),
         patch("compose_farm.web.ws.get_config", _get_filtered_config),
-        # Also patch load_state to filter out excluded services from state
-        # This prevents them from showing as orphaned services
+        # Also patch state functions to filter out excluded services
+        # This prevents them from showing as orphaned services or pending operations
         patch("compose_farm.web.routes.pages.load_state", _get_filtered_state),
+        patch(
+            "compose_farm.web.routes.pages.get_orphaned_services", _get_filtered_orphaned_services
+        ),
+        patch(
+            "compose_farm.web.routes.pages.get_services_needing_migration",
+            _get_filtered_services_needing_migration,
+        ),
+        patch(
+            "compose_farm.web.routes.pages.get_services_not_in_state",
+            _get_filtered_services_not_in_state,
+        ),
     ]
 
     # Start all patches
