@@ -5,7 +5,7 @@ Records a comprehensive demo (~60 seconds) combining all major features:
 2. Editor showing Compose Farm YAML config
 3. Command palette navigation to grocy stack
 4. Stack actions: up, logs
-5. Switch to mealie stack via command palette, run update
+5. Switch to dozzle stack via command palette, run update
 6. Dashboard overview
 7. Theme cycling via command palette
 
@@ -126,13 +126,13 @@ def _demo_stack_actions(page: Page) -> None:
     page.wait_for_selector("#terminal-output .xterm", timeout=5000)
     pause(page, 2500)
 
-    # Switch to mealie via command palette
+    # Switch to dozzle via command palette (on nas for lower latency)
     open_command_palette(page)
     pause(page, 300)
-    slow_type(page, "#cmd-input", "mealie", delay=100)
+    slow_type(page, "#cmd-input", "dozzle", delay=100)
     pause(page, 400)
     page.keyboard.press("Enter")
-    page.wait_for_url("**/stack/mealie", timeout=5000)
+    page.wait_for_url("**/stack/dozzle", timeout=5000)
     pause(page, 1000)
 
     # Run update action

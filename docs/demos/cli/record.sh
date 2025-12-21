@@ -71,7 +71,10 @@ record_tape "$SCRIPT_DIR/update.tape"
 
 echo -e "${YELLOW}=== Phase 3: Migration demo ===${NC}"
 record_tape "$SCRIPT_DIR/migration.tape"
-git -C /opt/stacks checkout compose-farm.yaml  # Reset after migration
+# Revert only the migration change (audiobookshelf: anton -> nas)
+# Don't use git checkout - it would discard unrelated unstaged changes!
+sed -i 's/audiobookshelf: anton/audiobookshelf: nas/' /opt/stacks/compose-farm.yaml
+cf apply  # Reset running state to match config
 
 echo -e "${YELLOW}=== Phase 4: Apply demo ===${NC}"
 record_tape "$SCRIPT_DIR/apply.tape"

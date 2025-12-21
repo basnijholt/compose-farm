@@ -42,8 +42,9 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     page.wait_for_selector("#containers-list button", timeout=10000)
     pause(page, 800)
 
-    # Click Shell button on the first container
-    shell_btn = page.locator("#containers-list button", has_text="Shell").first
+    # Click Shell button on the first container (last button in the join group)
+    # Buttons use icons, not text. Shell button has data-tip="Open shell"
+    shell_btn = page.locator('#containers-list [data-tip="Open shell"]').first
     shell_btn.click()
     pause(page, 1000)
 
