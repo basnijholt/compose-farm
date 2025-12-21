@@ -7,9 +7,9 @@
     </ul>
 </div>
 
-<!-- Services Section -->
+<!-- Stacks Section -->
 <div class="mb-4">
-    <h4 class="text-xs uppercase tracking-wide text-base-content/60 px-3 py-1">Services <span class="opacity-50" id="sidebar-count">({{ services | length }})</span></h4>
+    <h4 class="text-xs uppercase tracking-wide text-base-content/60 px-3 py-1">Stacks <span class="opacity-50" id="sidebar-count">({{ stacks | length }})</span></h4>
     <div class="px-2 mb-2 flex flex-col gap-1">
         <label class="input input-xs flex items-center gap-2 bg-base-200">
             {{ search(14) }}<input type="text" id="sidebar-filter" placeholder="Filter..." onkeyup="sidebarFilter()" />
@@ -19,13 +19,13 @@
             {% for h in hosts %}<option value="{{ h }}">{{ h }}{% if h == local_host %} (local){% endif %}</option>{% endfor %}
         </select>
     </div>
-    <ul class="menu menu-sm" id="sidebar-services" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
-        {% for service in services %}
-        <li data-svc="{{ service | lower }}" data-h="{{ service_hosts.get(service, '') }}">
-            <a href="/service/{{ service }}" class="flex items-center gap-2">
-                {% if service in state %}<span class="status status-success" title="In state file"></span>
+    <ul class="menu menu-sm" id="sidebar-stacks" hx-boost="true" hx-target="#main-content" hx-select="#main-content" hx-swap="outerHTML">
+        {% for stack in stacks %}
+        <li data-stack="{{ stack | lower }}" data-h="{{ stack_hosts.get(stack, '') }}">
+            <a href="/stack/{{ stack }}" class="flex items-center gap-2">
+                {% if stack in state %}<span class="status status-success" title="In state file"></span>
                 {% else %}<span class="status status-neutral" title="Not in state file"></span>{% endif %}
-                {{ service }}
+                {{ stack }}
             </a>
         </li>
         {% endfor %}

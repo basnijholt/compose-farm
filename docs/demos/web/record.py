@@ -32,7 +32,7 @@ OUTPUT_DIR = REPO_DIR / "docs" / "assets"
 
 DEMOS = [
     "navigation",
-    "service",
+    "stack",
     "themes",
     "workflow",
     "console",

@@ -25,9 +25,9 @@ _DIGEST_HEX_LENGTH = 64
 
 @dataclass(frozen=True)
 class SnapshotEntry:
-    """Normalized image snapshot for a single service."""
+    """Normalized image snapshot for a single stack."""
 
-    service: str
+    stack: str
     host: str
     compose_file: Path
     image: str
@@ -37,7 +37,7 @@ class SnapshotEntry:
     def as_dict(self, first_seen: str, last_seen: str) -> dict[str, str]:
         """Render snapshot as a TOML-friendly dict."""
         return {
-            "service": self.service,
+            "stack": self.stack,
             "host": self.host,
             "compose_file": str(self.compose_file),
             "image": self.image,
@@ -103,24 +103,24 @@ def _extract_image_fields(record: dict[str, Any]) -> tuple[str, str]:
     return image, digest
 
 
-async def collect_service_entries(
+async def collect_stack_entries(
     config: Config,
-    service: str,
+    stack: str,
     *,
     now: datetime,
     run_compose_fn: Callable[..., Awaitable[CommandResult]] = run_compose,
 ) -> list[SnapshotEntry]:
-    """Run `docker compose images` for a service and normalize results."""
-    result = await run_compose_fn(config, service, "images --format json", stream=False)
+    """Run `docker compose images` for a stack and normalize results."""
+    result = await run_compose_fn(config, stack, "images --format json", stream=False)
     if not result.success:
         msg = result.stderr or f"compose images exited with {result.exit_code}"
-        error = f"[{service}] Unable to read images: {msg}"
+        error = f"[{stack}] Unable to read images: {msg}"
         raise RuntimeError(error)
 
     records = _parse_images_output(result.stdout)
-    # Use first host for snapshots (multi-host services use same images on all hosts)
-    host_name = config.get_hosts(service)[0]
-    compose_path = config.get_compose_path(service)
+    # Use first host for snapshots (multi-host stacks use same images on all hosts)
+    host_name = config.get_hosts(stack)[0]
+    compose_path = config.get_compose_path(stack)
 
     entries: list[SnapshotEntry] = []
     for record in records:
@@ -129,7 +129,7 @@ async def collect_service_entries(
             continue
         entries.append(
             SnapshotEntry(
-                service=service,
+                stack=stack,
                 host=host_name,
                 compose_file=compose_path,
                 image=image,
@@ -145,7 +145,14 @@ def load_existing_entries(log_path: Path) -> list[dict[str, str]]:
     if not log_path.exists():
         return []
     data = tomllib.loads(log_path.read_text())
-    return list(data.get("entries", []))
+    entries = list(data.get("entries", []))
+    normalized: list[dict[str, str]] = []
+    for entry in entries:
+        normalized_entry = dict(entry)
+        if "stack" not in normalized_entry and "service" in normalized_entry:
+            normalized_entry["stack"] = normalized_entry.pop("service")
+        normalized.append(normalized_entry)
+    return normalized
 
 
 def merge_entries(
@@ -156,11 +163,11 @@ def merge_entries(
 ) -> list[dict[str, str]]:
     """Merge new snapshot entries with existing ones, preserving first_seen timestamps."""
     merged: dict[tuple[str, str, str], dict[str, str]] = {
-        (e["service"], e["host"], e["digest"]): dict(e) for e in existing
+        (e["stack"], e["host"], e["digest"]): dict(e) for e in existing
     }
 
     for entry in new_entries:
-        key = (entry.service, entry.host, entry.digest)
+        key = (entry.stack, entry.host, entry.digest)
         first_seen = merged.get(key, {}).get("first_seen", now_iso)
         merged[key] = entry.as_dict(first_seen, now_iso)
 
@@ -175,10 +182,10 @@ def write_toml(log_path: Path, *, meta: dict[str, str], entries: list[dict[str, 
     if entries:
         lines.append("")
 
-    for entry in sorted(entries, key=lambda e: (e["service"], e["host"], e["digest"])):
+    for entry in sorted(entries, key=lambda e: (e["stack"], e["host"], e["digest"])):
         lines.append("[[entries]]")
         for field in [
-            "service",
+            "stack",
             "host",
             "compose_file",
             "image",

@@ -197,10 +197,10 @@ async def _run_exec_session(
         await _run_remote_exec(websocket, host, exec_cmd)
 
 
-@router.websocket("/ws/exec/{service}/{container}/{host}")
+@router.websocket("/ws/exec/{stack}/{container}/{host}")
 async def exec_websocket(
     websocket: WebSocket,
-    service: str,  # noqa: ARG001
+    stack: str,  # noqa: ARG001
     container: str,
     host: str,
 ) -> None:

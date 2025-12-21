@@ -3,8 +3,8 @@
 Records a comprehensive demo (~60 seconds) combining all major features:
 1. Console page: terminal with fastfetch, cf pull command
 2. Editor showing Compose Farm YAML config
-3. Command palette navigation to a service
-4. Service actions: up, logs, pull
+3. Command palette navigation to a stack
+4. Stack actions: up, logs, pull
 5. Dashboard overview
 6. Theme cycling via command palette
 
@@ -50,7 +50,7 @@ def _demo_console_terminal(page: Page, server_url: str) -> None:
     page.keyboard.press("Enter")
     pause(page, 2000)  # Wait for output
 
-    # Run cf pull on a service to show Compose Farm in action
+    # Run cf pull on a stack to show Compose Farm in action
     slow_type(page, "#console-terminal .xterm-helper-textarea", "cf pull grocy", delay=60)
     pause(page, 200)
     page.keyboard.press("Enter")
@@ -74,10 +74,10 @@ def _demo_config_editor(page: Page) -> None:
     pause(page, 2000)  # Let viewer see the Compose Farm config file
 
 
-def _demo_service_actions(page: Page) -> None:
-    """Demo part 3: Navigate to service and run actions."""
+def _demo_stack_actions(page: Page) -> None:
+    """Demo part 3: Navigate to stack and run actions."""
     # Click on sidebar to take focus away from terminal, then use command palette
-    page.locator("#sidebar-services").click()
+    page.locator("#sidebar-stacks").click()
     pause(page, 300)
 
     # Navigate to grocy via command palette
@@ -86,7 +86,7 @@ def _demo_service_actions(page: Page) -> None:
     slow_type(page, "#cmd-input", "grocy", delay=100)
     pause(page, 400)
     page.keyboard.press("Enter")
-    page.wait_for_url("**/service/grocy", timeout=5000)
+    page.wait_for_url("**/stack/grocy", timeout=5000)
     pause(page, 1000)
 
     # Open Compose File editor to show the compose.yaml
@@ -187,5 +187,5 @@ def test_demo_workflow(recording_page: Page, server_url: str) -> None:
 
     _demo_console_terminal(page, server_url)
     _demo_config_editor(page)
-    _demo_service_actions(page)
+    _demo_stack_actions(page)
     _demo_dashboard_and_themes(page, server_url)

@@ -27,9 +27,9 @@ class Config(BaseModel):
 
     compose_dir: Path = Path("/opt/compose")
     hosts: dict[str, Host]
-    services: dict[str, str | list[str]]  # service_name -> host_name or list of hosts
+    stacks: dict[str, str | list[str]]  # stack_name -> host_name or list of hosts
     traefik_file: Path | None = None  # Auto-regenerate traefik config after up/down
-    traefik_service: str | None = None  # Service name for Traefik (skip its host in file-provider)
+    traefik_stack: str | None = None  # Stack name for Traefik (skip its host in file-provider)
     config_path: Path = Path()  # Set by load_config()
 
     def get_state_path(self) -> Path:
@@ -37,70 +37,70 @@ class Config(BaseModel):
         return self.config_path.parent / "compose-farm-state.yaml"
 
     @model_validator(mode="after")
-    def validate_hosts_and_services(self) -> Config:
-        """Validate host names and service configurations."""
+    def validate_hosts_and_stacks(self) -> Config:
+        """Validate host names and stack configurations."""
         # "all" is reserved keyword, cannot be used as host name
         if "all" in self.hosts:
             msg = "'all' is a reserved keyword and cannot be used as a host name"
             raise ValueError(msg)
 
-        for service, host_value in self.services.items():
+        for stack, host_value in self.stacks.items():
             # Validate list configurations
             if isinstance(host_value, list):
                 if not host_value:
-                    msg = f"Service '{service}' has empty host list"
+                    msg = f"Stack '{stack}' has empty host list"
                     raise ValueError(msg)
                 if len(host_value) != len(set(host_value)):
-                    msg = f"Service '{service}' has duplicate hosts in list"
+                    msg = f"Stack '{stack}' has duplicate hosts in list"
                     raise ValueError(msg)
 
             # Validate all referenced hosts exist
-            host_names = self.get_hosts(service)
+            host_names = self.get_hosts(stack)
             for host_name in host_names:
                 if host_name not in self.hosts:
-                    msg = f"Service '{service}' references unknown host '{host_name}'"
+                    msg = f"Stack '{stack}' references unknown host '{host_name}'"
                     raise ValueError(msg)
         return self
 
-    def get_hosts(self, service: str) -> list[str]:
-        """Get list of host names for a service.
+    def get_hosts(self, stack: str) -> list[str]:
+        """Get list of host names for a stack.
 
         Supports:
         - Single host: "truenas-debian" -> ["truenas-debian"]
         - All hosts: "all" -> list of all configured hosts
         - Explicit list: ["host1", "host2"] -> ["host1", "host2"]
         """
-        if service not in self.services:
-            msg = f"Unknown service: {service}"
+        if stack not in self.stacks:
+            msg = f"Unknown stack: {stack}"
             raise ValueError(msg)
-        host_value = self.services[service]
+        host_value = self.stacks[stack]
         if isinstance(host_value, list):
             return host_value
         if host_value == "all":
             return list(self.hosts.keys())
         return [host_value]
 
-    def is_multi_host(self, service: str) -> bool:
-        """Check if a service runs on multiple hosts."""
-        return len(self.get_hosts(service)) > 1
+    def is_multi_host(self, stack: str) -> bool:
+        """Check if a stack runs on multiple hosts."""
+        return len(self.get_hosts(stack)) > 1
 
-    def get_host(self, service: str) -> Host:
-        """Get host config for a service (first host if multi-host)."""
-        if service not in self.services:
-            msg = f"Unknown service: {service}"
+    def get_host(self, stack: str) -> Host:
+        """Get host config for a stack (first host if multi-host)."""
+        if stack not in self.stacks:
+            msg = f"Unknown stack: {stack}"
             raise ValueError(msg)
-        host_names = self.get_hosts(service)
+        host_names = self.get_hosts(stack)
         return self.hosts[host_names[0]]
 
-    def get_compose_path(self, service: str) -> Path:
-        """Get compose file path for a service (tries compose.yaml first)."""
-        service_dir = self.compose_dir / service
+    def get_compose_path(self, stack: str) -> Path:
+        """Get compose file path for a stack (tries compose.yaml first)."""
+        stack_dir = self.compose_dir / stack
         for filename in COMPOSE_FILENAMES:
-            candidate = service_dir / filename
+            candidate = stack_dir / filename
             if candidate.exists():
                 return candidate
         # Default to compose.yaml if none exist (will error later)
-        return service_dir / "compose.yaml"
+        return stack_dir / "compose.yaml"
 
     def discover_compose_dirs(self) -> set[str]:
         """Find all directories in compose_dir that contain a compose file."""
@@ -122,7 +122,11 @@ def _parse_hosts(raw_hosts: dict[str, str | dict[str, str | int]]) -> dict[str, 
             hosts[name] = Host(address=value)
         else:
             # Full form: hostname: {address: ..., user: ..., port: ...}
-            hosts[name] = Host(**value)
+            hosts[name] = Host(
+                address=str(value.get("address", "")),
+                user=str(value["user"]) if "user" in value else getpass.getuser(),
+                port=int(value["port"]) if "port" in value else 22,
+            )
     return hosts
 
 

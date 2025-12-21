@@ -14,16 +14,16 @@ from compose_farm.cli.common import (
     AllOption,
     ConfigOption,
     HostOption,
-    ServicesArg,
-    get_services,
+    StacksArg,
+    get_stacks,
     load_config_or_exit,
     report_results,
     run_async,
     run_parallel_with_progress,
 )
 from compose_farm.console import console
-from compose_farm.executor import run_command, run_on_services
-from compose_farm.state import get_services_needing_migration, group_services_by_host, load_state
+from compose_farm.executor import run_command, run_on_stacks
+from compose_farm.state import get_stacks_needing_migration, group_stacks_by_host, load_state
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
@@ -51,7 +51,7 @@ def _get_container_counts(cfg: Config) -> dict[str, int]:
 
 def _build_host_table(
     cfg: Config,
-    services_by_host: dict[str, list[str]],
+    stacks_by_host: dict[str, list[str]],
     running_by_host: dict[str, list[str]],
     container_counts: dict[str, int],
     *,
@@ -68,7 +68,7 @@ def _build_host_table(
 
     for host_name in sorted(cfg.hosts.keys()):
         host = cfg.hosts[host_name]
-        configured = len(services_by_host[host_name])
+        configured = len(stacks_by_host[host_name])
         running = len(running_by_host[host_name])
 
         row = [
@@ -96,8 +96,8 @@ def _build_summary_table(
     table.add_column("Value", style="bold")
 
     table.add_row("Total hosts", str(len(cfg.hosts)))
-    table.add_row("Services (configured)", str(len(cfg.services)))
-    table.add_row("Services (tracked)", str(len(state)))
+    table.add_row("Stacks (configured)", str(len(cfg.stacks)))
+    table.add_row("Stacks (tracked)", str(len(state)))
     table.add_row("Compose files on disk", str(len(on_disk)))
 
     if pending:
@@ -115,8 +115,8 @@ def _build_summary_table(
 
 @app.command(rich_help_panel="Monitoring")
 def logs(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
+    stacks: StacksArg = None,
+    all_stacks: AllOption = False,
     host: HostOption = None,
     follow: Annotated[bool, typer.Option("--follow", "-f", help="Follow logs")] = False,
     tail: Annotated[
@@ -125,34 +125,34 @@ def logs(
     ] = None,
     config: ConfigOption = None,
 ) -> None:
-    """Show service logs."""
-    svc_list, cfg = get_services(services or [], all_services, config, host=host)
+    """Show stack logs."""
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
 
-    # Default to fewer lines when showing multiple services
-    many_services = all_services or host is not None or len(svc_list) > 1
-    effective_tail = tail if tail is not None else (20 if many_services else 100)
+    # Default to fewer lines when showing multiple stacks
+    many_stacks = all_stacks or host is not None or len(stack_list) > 1
+    effective_tail = tail if tail is not None else (20 if many_stacks else 100)
     cmd = f"logs --tail {effective_tail}"
     if follow:
         cmd += " -f"
-    results = run_async(run_on_services(cfg, svc_list, cmd))
+    results = run_async(run_on_stacks(cfg, stack_list, cmd))
     report_results(results)
 
 
 @app.command(rich_help_panel="Monitoring")
 def ps(
-    services: ServicesArg = None,
-    all_services: AllOption = False,
+    stacks: StacksArg = None,
+    all_stacks: AllOption = False,
     host: HostOption = None,
     config: ConfigOption = None,
 ) -> None:
-    """Show status of services.
+    """Show status of stacks.
 
-    Without arguments: shows all services (same as --all).
-    With service names: shows only those services.
-    With --host: shows services on that host.
+    Without arguments: shows all stacks (same as --all).
+    With stack names: shows only those stacks.
+    With --host: shows stacks on that host.
     """
-    svc_list, cfg = get_services(services or [], all_services, config, host=host, default_all=True)
-    results = run_async(run_on_services(cfg, svc_list, "ps"))
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host, default_all=True)
+    results = run_async(run_on_stacks(cfg, stack_list, "ps"))
     report_results(results)
 
 
@@ -164,25 +164,25 @@ def stats(
     ] = False,
     config: ConfigOption = None,
 ) -> None:
-    """Show overview statistics for hosts and services.
+    """Show overview statistics for hosts and stacks.
 
-    Without --live: Shows config/state info (hosts, services, pending migrations).
+    Without --live: Shows config/state info (hosts, stacks, pending migrations).
     With --live: Also queries Docker on each host for container counts.
     """
     cfg = load_config_or_exit(config)
     state = load_state(cfg)
-    pending = get_services_needing_migration(cfg)
+    pending = get_stacks_needing_migration(cfg)
 
     all_hosts = list(cfg.hosts.keys())
-    services_by_host = group_services_by_host(cfg.services, cfg.hosts, all_hosts)
-    running_by_host = group_services_by_host(state, cfg.hosts, all_hosts)
+    stacks_by_host = group_stacks_by_host(cfg.stacks, cfg.hosts, all_hosts)
+    running_by_host = group_stacks_by_host(state, cfg.hosts, all_hosts)
 
     container_counts: dict[str, int] = {}
     if live:
         container_counts = _get_container_counts(cfg)
 
     host_table = _build_host_table(
-        cfg, services_by_host, running_by_host, container_counts, show_containers=live
+        cfg, stacks_by_host, running_by_host, container_counts, show_containers=live
     )
     console.print(host_table)
 

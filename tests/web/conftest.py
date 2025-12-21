@@ -13,11 +13,11 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def compose_dir(tmp_path: Path) -> Path:
-    """Create a temporary compose directory with sample services."""
+    """Create a temporary compose directory with sample stacks."""
     compose_path = tmp_path / "compose"
     compose_path.mkdir()
 
-    # Create a sample service
+    # Create a sample stack
     plex_dir = compose_path / "plex"
     plex_dir.mkdir()
     (plex_dir / "compose.yaml").write_text("""
@@ -30,7 +30,7 @@ services:
 """)
     (plex_dir / ".env").write_text("PLEX_CLAIM=claim-xxx\n")
 
-    # Create another service
+    # Create another stack
     sonarr_dir = compose_path / "sonarr"
     sonarr_dir.mkdir()
     (sonarr_dir / "compose.yaml").write_text("""
@@ -56,7 +56,7 @@ hosts:
   server-2:
     address: 192.168.1.11
 
-services:
+stacks:
   plex: server-1
   sonarr: server-2
 """)
