@@ -11,9 +11,19 @@ def xdg_config_home() -> Path:
     return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
 
 
+def config_dir() -> Path:
+    """Get the compose-farm config directory."""
+    return xdg_config_home() / "compose-farm"
+
+
 def default_config_path() -> Path:
     """Get the default user config path."""
-    return xdg_config_home() / "compose-farm" / "compose-farm.yaml"
+    return config_dir() / "compose-farm.yaml"
+
+
+def backup_dir() -> Path:
+    """Get the backup directory for file edits."""
+    return config_dir() / "backups"
 
 
 def config_search_paths() -> list[Path]:
