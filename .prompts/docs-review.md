@@ -179,6 +179,19 @@ For each command, run `cf <command> --help` and verify:
 - Default values in help match documented defaults
 - Argument descriptions match
 
+### 12. Review This Prompt
+
+This prompt itself can become outdated. Verify it's still accurate:
+
+- Check the Quick Reference table lists all current doc files
+- Verify source file paths still exist (`ls` the paths mentioned)
+- Confirm the bash commands in "Quick Checks First" still work
+- Check if new commands/subcommands were added that aren't in the loops
+- Verify the Common Gotchas are still relevant
+- Add any new gotchas discovered during this review
+
+If this prompt needs updates, include them in your fixes.
+
 ## Common Gotchas
 
 - **Subcommand options**: `cf config` and `cf ssh` have subcommands with their own options. Check each subcommand's `--help`, not just the parent.
