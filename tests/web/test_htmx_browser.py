@@ -123,8 +123,9 @@ def test_config(tmp_path_factory: pytest.TempPathFactory) -> Path:
         svc.mkdir()
         if name == "plex":
             # Multi-service stack for testing service commands
+            # Includes hyphenated name (plex-server) to test word-boundary matching
             (svc / "compose.yaml").write_text(
-                "services:\n  plex:\n    image: test/plex\n  redis:\n    image: redis:alpine\n"
+                "services:\n  plex-server:\n    image: test/plex\n  redis:\n    image: redis:alpine\n"
             )
         else:
             (svc / "compose.yaml").write_text(f"services:\n  {name}:\n    image: test/{name}\n")
@@ -1641,7 +1642,7 @@ class TestServicePagePalette:
         cmd_list = page.locator("#cmd-list").inner_text()
 
         # Should show restart commands for both services
-        assert "Restart: plex" in cmd_list
+        assert "Restart: plex-server" in cmd_list
         assert "Restart: redis" in cmd_list
 
     def test_palette_service_commands_for_all_actions(self, page: Page, server_url: str) -> None:
@@ -1657,12 +1658,12 @@ class TestServicePagePalette:
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
-        # Check all service action types exist for the plex service
+        # Check all service action types exist for the plex-server service
         actions = ["Restart", "Pull", "Logs", "Stop", "Up"]
         for action in actions:
-            page.locator("#cmd-input").fill(f"{action}: plex")
+            page.locator("#cmd-input").fill(f"{action}: plex-server")
             cmd_list = page.locator("#cmd-list").inner_text()
-            assert f"{action}: plex" in cmd_list, f"Missing {action}: plex command"
+            assert f"{action}: plex-server" in cmd_list, f"Missing {action}: plex-server command"
 
     def test_palette_service_command_triggers_api(self, page: Page, server_url: str) -> None:
         """Selecting service command triggers correct service API endpoint."""
@@ -1717,10 +1718,10 @@ class TestServicePagePalette:
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
         # Filter to a service command
-        page.locator("#cmd-input").fill("Restart: plex")
+        page.locator("#cmd-input").fill("Restart: plex-server")
 
         # Get the command element and check its border color
-        cmd_item = page.locator("#cmd-list a", has_text="Restart: plex").first
+        cmd_item = page.locator("#cmd-list a", has_text="Restart: plex-server").first
         style = cmd_item.get_attribute("style") or ""
 
         # Service commands should have teal color (#14b8a6)
@@ -1747,7 +1748,7 @@ class TestServicePagePalette:
         assert "Restart: sonarr" in cmd_list
 
     def test_palette_filter_without_colon(self, page: Page, server_url: str) -> None:
-        """Filter matches service commands without colon (e.g., 'Up plex' matches 'Up: plex')."""
+        """Filter matches service commands without colon (e.g., 'Up redis' matches 'Up: redis')."""
         page.goto(server_url)
         page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
@@ -1759,15 +1760,15 @@ class TestServicePagePalette:
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
-        # Type "Restart plex" without colon
-        page.locator("#cmd-input").fill("Restart plex")
+        # Type "Restart redis" without colon
+        page.locator("#cmd-input").fill("Restart redis")
         cmd_list = page.locator("#cmd-list").inner_text()
 
-        # Should still match "Restart: plex"
-        assert "Restart: plex" in cmd_list
+        # Should still match "Restart: redis"
+        assert "Restart: redis" in cmd_list
 
     def test_palette_fuzzy_filter_partial_words(self, page: Page, server_url: str) -> None:
-        """Filter matches with partial words (e.g., 'rest plex' matches 'Restart: plex')."""
+        """Filter matches with partial words (e.g., 'rest red' matches 'Restart: redis')."""
         page.goto(server_url)
         page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
@@ -1779,15 +1780,15 @@ class TestServicePagePalette:
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
-        # Type partial words "rest ple"
-        page.locator("#cmd-input").fill("rest ple")
+        # Type partial words "rest red"
+        page.locator("#cmd-input").fill("rest red")
         cmd_list = page.locator("#cmd-list").inner_text()
 
-        # Should match "Restart: plex"
-        assert "Restart: plex" in cmd_list
+        # Should match "Restart: redis"
+        assert "Restart: redis" in cmd_list
 
     def test_palette_fuzzy_filter_any_order(self, page: Page, server_url: str) -> None:
-        """Filter matches words in any order (e.g., 'plex rest' matches 'Restart: plex')."""
+        """Filter matches words in any order (e.g., 'redis rest' matches 'Restart: redis')."""
         page.goto(server_url)
         page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
@@ -1799,12 +1800,12 @@ class TestServicePagePalette:
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
-        # Type words in reverse order "plex rest"
-        page.locator("#cmd-input").fill("plex rest")
+        # Type words in reverse order "redis rest"
+        page.locator("#cmd-input").fill("redis rest")
         cmd_list = page.locator("#cmd-list").inner_text()
 
-        # Should match "Restart: plex"
-        assert "Restart: plex" in cmd_list
+        # Should match "Restart: redis"
+        assert "Restart: redis" in cmd_list
 
     def test_palette_filter_without_colon_triggers_api(self, page: Page, server_url: str) -> None:
         """Service command filtered without colon still triggers correct API."""
@@ -1842,6 +1843,31 @@ class TestServicePagePalette:
         # Verify correct service API was called
         assert len(api_calls) >= 1
         assert "/api/stack/plex/service/redis/pull" in api_calls[0]
+
+    def test_palette_hyphenated_service_name(self, page: Page, server_url: str) -> None:
+        """Filter matches hyphenated service names by second word (e.g., 'server' matches 'plex-server')."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack (has plex-server service)
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type just "server" - should match "plex-server" because hyphen splits words
+        page.locator("#cmd-input").fill("Restart server")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should match "Restart: plex-server"
+        assert "Restart: plex-server" in cmd_list
+
+        # Also verify "rest plex" matches via the first part of hyphenated name
+        page.locator("#cmd-input").fill("rest plex")
+        cmd_list = page.locator("#cmd-list").inner_text()
+        assert "Restart: plex-server" in cmd_list
 
 
 class TestThemeSwitcher:
