@@ -1730,10 +1730,12 @@ class TestServicePagePalette:
     def test_single_service_stack_shows_service_commands(self, page: Page, server_url: str) -> None:
         """Single-service stacks also show service commands."""
         page.goto(server_url)
-        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+        page.wait_for_selector("#sidebar-stacks li", timeout=5000)
 
         # Navigate to sonarr stack (has only sonarr service)
-        page.locator("#sidebar-stacks a", has_text="sonarr").click()
+        sonarr_link = page.locator("#sidebar-stacks a", has_text="sonarr")
+        sonarr_link.wait_for(timeout=5000)
+        sonarr_link.click()
         page.wait_for_url("**/stack/sonarr", timeout=5000)
 
         # Open command palette
