@@ -741,15 +741,10 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Run any docker compose command on a stack.
 
- Passthrough to docker compose for commands not wrapped by cf.
-
- \b
- Examples:
-   cf compose mystack top
-   cf compose mystack images
-   cf compose mystack exec web bash
-   cf compose mystack run --rm web pytest
-   cf compose mystack config --services
+ Passthrough to docker compose for commands not wrapped by cf. Options after
+ COMMAND are passed to docker compose, not cf.
+ Examples: cf compose mystack top, cf compose mystack images, cf compose
+ mystack exec web bash, cf compose mystack config --services
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │ *    stack        TEXT       Stack to operate on (use '.' for current dir)   │

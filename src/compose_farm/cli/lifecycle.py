@@ -312,7 +312,10 @@ def apply(  # noqa: PLR0912 (multi-phase reconciliation needs these branches)
     report_results(all_results)
 
 
-@app.command(rich_help_panel="Lifecycle")
+@app.command(
+    rich_help_panel="Lifecycle",
+    context_settings={"allow_interspersed_args": False},
+)
 def compose(
     stack: Annotated[str, typer.Argument(help="Stack to operate on (use '.' for current dir)")],
     command: Annotated[str, typer.Argument(help="Docker compose command")],
@@ -320,17 +323,13 @@ def compose(
     host: HostOption = None,
     config: ConfigOption = None,
 ) -> None:
-    r"""Run any docker compose command on a stack.
+    """Run any docker compose command on a stack.
 
     Passthrough to docker compose for commands not wrapped by cf.
+    Options after COMMAND are passed to docker compose, not cf.
 
-    \b
-    Examples:
-      cf compose mystack top
-      cf compose mystack images
-      cf compose mystack exec web bash
-      cf compose mystack run --rm web pytest
-      cf compose mystack config --services
+    Examples: cf compose mystack top, cf compose mystack images,
+    cf compose mystack exec web bash, cf compose mystack config --services
     """
     cfg = load_config_or_exit(config)
 
