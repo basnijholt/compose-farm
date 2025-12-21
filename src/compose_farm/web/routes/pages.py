@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
-from compose_farm.compose import get_container_name
+from compose_farm.compose import extract_website_urls, get_container_name
 from compose_farm.paths import find_config_path
 from compose_farm.state import (
     get_orphaned_stacks,
@@ -180,6 +180,9 @@ async def stack_detail(request: Request, name: str) -> HTMLResponse:
                     for svc, svc_def in raw_services.items()
                 }
 
+    # Extract website URLs from Traefik labels
+    website_urls = extract_website_urls(config, name)
+
     return templates.TemplateResponse(
         "stack.html",
         {
@@ -193,6 +196,7 @@ async def stack_detail(request: Request, name: str) -> HTMLResponse:
             "env_path": str(env_path) if env_path else None,
             "services": services,
             "containers": containers,
+            "website_urls": website_urls,
         },
     )
 
