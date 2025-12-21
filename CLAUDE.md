@@ -116,6 +116,7 @@ CLI available as `cf` or `compose-farm`.
 |---------|-------------|
 | `up`    | Start stacks (`docker compose up -d`), auto-migrates if host changed |
 | `down`  | Stop stacks (`docker compose down`). Use `--orphaned` to stop stacks removed from config |
+| `stop`  | Stop services without removing containers (`docker compose stop`) |
 | `pull`  | Pull latest images |
 | `restart` | `down` + `up -d` |
 | `update` | `pull` + `build` + `down` + `up -d` |

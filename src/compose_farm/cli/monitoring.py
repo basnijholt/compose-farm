@@ -14,6 +14,7 @@ from compose_farm.cli.common import (
     AllOption,
     ConfigOption,
     HostOption,
+    ServiceOption,
     StacksArg,
     get_stacks,
     load_config_or_exit,
@@ -21,7 +22,7 @@ from compose_farm.cli.common import (
     run_async,
     run_parallel_with_progress,
 )
-from compose_farm.console import console
+from compose_farm.console import console, print_error
 from compose_farm.executor import run_command, run_on_stacks
 from compose_farm.state import get_stacks_needing_migration, group_stacks_by_host, load_state
 
@@ -118,6 +119,7 @@ def logs(
     stacks: StacksArg = None,
     all_stacks: AllOption = False,
     host: HostOption = None,
+    service: ServiceOption = None,
     follow: Annotated[bool, typer.Option("--follow", "-f", help="Follow logs")] = False,
     tail: Annotated[
         int | None,
@@ -125,8 +127,11 @@ def logs(
     ] = None,
     config: ConfigOption = None,
 ) -> None:
-    """Show stack logs."""
+    """Show stack logs. With --service, shows logs for just that service."""
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
+    if service and len(stack_list) != 1:
+        print_error("--service requires exactly one stack")
+        raise typer.Exit(1)
 
     # Default to fewer lines when showing multiple stacks
     many_stacks = all_stacks or host is not None or len(stack_list) > 1
@@ -134,6 +139,8 @@ def logs(
     cmd = f"logs --tail {effective_tail}"
     if follow:
         cmd += " -f"
+    if service:
+        cmd += f" {service}"
     results = run_async(run_on_stacks(cfg, stack_list, cmd))
     report_results(results)
 
@@ -143,6 +150,7 @@ def ps(
     stacks: StacksArg = None,
     all_stacks: AllOption = False,
     host: HostOption = None,
+    service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
     """Show status of stacks.
@@ -150,9 +158,14 @@ def ps(
     Without arguments: shows all stacks (same as --all).
     With stack names: shows only those stacks.
     With --host: shows stacks on that host.
+    With --service: filters to a specific service within the stack.
     """
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host, default_all=True)
-    results = run_async(run_on_stacks(cfg, stack_list, "ps"))
+    if service and len(stack_list) != 1:
+        print_error("--service requires exactly one stack")
+        raise typer.Exit(1)
+    cmd = f"ps {service}" if service else "ps"
+    results = run_async(run_on_stacks(cfg, stack_list, cmd))
     report_results(results)
 
 

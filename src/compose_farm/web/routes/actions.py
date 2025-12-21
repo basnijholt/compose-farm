@@ -33,12 +33,15 @@ def _start_task(coro_factory: Callable[[str], Coroutine[Any, Any, None]]) -> str
 
 
 # Allowed stack commands
-ALLOWED_COMMANDS = {"up", "down", "restart", "pull", "update", "logs"}
+ALLOWED_COMMANDS = {"up", "down", "restart", "pull", "update", "logs", "stop"}
+
+# Allowed service-level commands (no 'down' - use 'stop' for individual services)
+ALLOWED_SERVICE_COMMANDS = {"logs", "pull", "restart", "up", "stop"}
 
 
 @router.post("/stack/{name}/{command}")
 async def stack_action(name: str, command: str) -> dict[str, Any]:
-    """Run a compose command for a stack (up, down, restart, pull, update, logs)."""
+    """Run a compose command for a stack (up, down, restart, pull, update, logs, stop)."""
     if command not in ALLOWED_COMMANDS:
         raise HTTPException(status_code=404, detail=f"Unknown command '{command}'")
 
@@ -48,6 +51,23 @@ async def stack_action(name: str, command: str) -> dict[str, Any]:
 
     task_id = _start_task(lambda tid: run_compose_streaming(config, name, command, tid))
     return {"task_id": task_id, "stack": name, "command": command}
+
+
+@router.post("/stack/{name}/service/{service}/{command}")
+async def service_action(name: str, service: str, command: str) -> dict[str, Any]:
+    """Run a compose command for a specific service within a stack."""
+    if command not in ALLOWED_SERVICE_COMMANDS:
+        raise HTTPException(status_code=404, detail=f"Unknown command '{command}'")
+
+    config = get_config()
+    if name not in config.stacks:
+        raise HTTPException(status_code=404, detail=f"Stack '{name}' not found")
+
+    # Append service name to command
+    task_id = _start_task(
+        lambda tid: run_compose_streaming(config, name, f"{command} {service}", tid)
+    )
+    return {"task_id": task_id, "stack": name, "service": service, "command": command}
 
 
 @router.post("/apply")
