@@ -518,3 +518,148 @@ class TestExtractWebsiteUrls:
         config = self._create_config(tmp_path)
         urls = extract_website_urls(config, "mystack")
         assert urls == ["https://app.example.com"]
+
+    def test_multiple_hosts_in_one_rule_with_or(self, tmp_path: Path) -> None:
+        """Extracts multiple hosts from a single rule with || operator."""
+        stack_dir = tmp_path / "mystack"
+        stack_dir.mkdir()
+        compose_file = stack_dir / "compose.yaml"
+        compose_data = {
+            "services": {
+                "web": {
+                    "image": "nginx",
+                    "labels": {
+                        "traefik.enable": "true",
+                        "traefik.http.routers.web.rule": "Host(`app.example.com`) || Host(`app.backup.com`)",
+                        "traefik.http.routers.web.entrypoints": "websecure",
+                    },
+                }
+            }
+        }
+        compose_file.write_text(yaml.dump(compose_data))
+
+        config = self._create_config(tmp_path)
+        urls = extract_website_urls(config, "mystack")
+        assert urls == ["https://app.backup.com", "https://app.example.com"]
+
+    def test_host_with_path_prefix(self, tmp_path: Path) -> None:
+        """Extracts host from rule that includes PathPrefix."""
+        stack_dir = tmp_path / "mystack"
+        stack_dir.mkdir()
+        compose_file = stack_dir / "compose.yaml"
+        compose_data = {
+            "services": {
+                "web": {
+                    "image": "nginx",
+                    "labels": {
+                        "traefik.enable": "true",
+                        "traefik.http.routers.web.rule": "Host(`app.example.com`) && PathPrefix(`/api`)",
+                        "traefik.http.routers.web.entrypoints": "websecure",
+                    },
+                }
+            }
+        }
+        compose_file.write_text(yaml.dump(compose_data))
+
+        config = self._create_config(tmp_path)
+        urls = extract_website_urls(config, "mystack")
+        assert urls == ["https://app.example.com"]
+
+    def test_multiple_services_in_stack(self, tmp_path: Path) -> None:
+        """Extracts URLs from multiple services in one stack (like arr stack)."""
+        stack_dir = tmp_path / "mystack"
+        stack_dir.mkdir()
+        compose_file = stack_dir / "compose.yaml"
+        compose_data = {
+            "services": {
+                "radarr": {
+                    "image": "radarr",
+                    "labels": {
+                        "traefik.enable": "true",
+                        "traefik.http.routers.radarr.rule": "Host(`radarr.example.com`)",
+                        "traefik.http.routers.radarr.entrypoints": "websecure",
+                    },
+                },
+                "sonarr": {
+                    "image": "sonarr",
+                    "labels": {
+                        "traefik.enable": "true",
+                        "traefik.http.routers.sonarr.rule": "Host(`sonarr.example.com`)",
+                        "traefik.http.routers.sonarr.entrypoints": "websecure",
+                    },
+                },
+            }
+        }
+        compose_file.write_text(yaml.dump(compose_data))
+
+        config = self._create_config(tmp_path)
+        urls = extract_website_urls(config, "mystack")
+        assert urls == ["https://radarr.example.com", "https://sonarr.example.com"]
+
+    def test_labels_in_list_format(self, tmp_path: Path) -> None:
+        """Handles labels in list format (- key=value)."""
+        stack_dir = tmp_path / "mystack"
+        stack_dir.mkdir()
+        compose_file = stack_dir / "compose.yaml"
+        compose_data = {
+            "services": {
+                "web": {
+                    "image": "nginx",
+                    "labels": [
+                        "traefik.enable=true",
+                        "traefik.http.routers.web.rule=Host(`app.example.com`)",
+                        "traefik.http.routers.web.entrypoints=websecure",
+                    ],
+                }
+            }
+        }
+        compose_file.write_text(yaml.dump(compose_data))
+
+        config = self._create_config(tmp_path)
+        urls = extract_website_urls(config, "mystack")
+        assert urls == ["https://app.example.com"]
+
+    def test_no_entrypoints_defaults_to_http(self, tmp_path: Path) -> None:
+        """When no entrypoints specified, defaults to http."""
+        stack_dir = tmp_path / "mystack"
+        stack_dir.mkdir()
+        compose_file = stack_dir / "compose.yaml"
+        compose_data = {
+            "services": {
+                "web": {
+                    "image": "nginx",
+                    "labels": {
+                        "traefik.enable": "true",
+                        "traefik.http.routers.web.rule": "Host(`app.example.com`)",
+                    },
+                }
+            }
+        }
+        compose_file.write_text(yaml.dump(compose_data))
+
+        config = self._create_config(tmp_path)
+        urls = extract_website_urls(config, "mystack")
+        assert urls == ["http://app.example.com"]
+
+    def test_multiple_entrypoints_with_websecure(self, tmp_path: Path) -> None:
+        """When entrypoints includes websecure, use https."""
+        stack_dir = tmp_path / "mystack"
+        stack_dir.mkdir()
+        compose_file = stack_dir / "compose.yaml"
+        compose_data = {
+            "services": {
+                "web": {
+                    "image": "nginx",
+                    "labels": {
+                        "traefik.enable": "true",
+                        "traefik.http.routers.web.rule": "Host(`app.example.com`)",
+                        "traefik.http.routers.web.entrypoints": "web,websecure",
+                    },
+                }
+            }
+        }
+        compose_file.write_text(yaml.dump(compose_data))
+
+        config = self._create_config(tmp_path)
+        urls = extract_website_urls(config, "mystack")
+        assert urls == ["https://app.example.com"]
