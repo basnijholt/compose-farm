@@ -328,8 +328,13 @@ def compose(
     Passthrough to docker compose for commands not wrapped by cf.
     Options after COMMAND are passed to docker compose, not cf.
 
-    Examples: cf compose mystack top, cf compose mystack images,
-    cf compose mystack exec web bash, cf compose mystack config --services
+    Examples:
+      cf compose mystack --help        - show docker compose help
+      cf compose mystack top           - view running processes
+      cf compose mystack images        - list images
+      cf compose mystack exec web bash - interactive shell
+      cf compose mystack config        - view parsed config
+
     """
     cfg = load_config_or_exit(config)
 
