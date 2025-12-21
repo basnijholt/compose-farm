@@ -96,7 +96,7 @@ pip install compose-farm
 
 ### Configuration
 
-Create `~/.config/compose-farm/compose-farm.yaml`:
+Create `compose-farm.yaml` in the directory where you'll run commands (e.g., `/opt/stacks`), or in `~/.config/compose-farm/`:
 
 ```yaml
 compose_dir: /opt/compose
@@ -113,6 +113,8 @@ stacks:
   sonarr: nuc
   radarr: hp
 ```
+
+See [Configuration](configuration.md) for all options and the full search order.
 
 ### Usage
 
