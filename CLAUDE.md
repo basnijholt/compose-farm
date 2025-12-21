@@ -15,7 +15,7 @@ src/compose_farm/
 │   ├── app.py         # Shared Typer app instance, version callback
 │   ├── common.py      # Shared helpers, options, progress bar utilities
 │   ├── config.py      # Config subcommand (init, show, path, validate, edit, symlink)
-│   ├── lifecycle.py   # up, down, pull, restart, update, apply commands
+│   ├── lifecycle.py   # up, down, stop, pull, restart, update, apply, compose commands
 │   ├── management.py  # refresh, check, init-network, traefik-file commands
 │   ├── monitoring.py  # logs, ps, stats commands
 │   ├── ssh.py         # SSH key management (setup, status, keygen)

@@ -114,8 +114,8 @@ cf up --all
 # Start all stacks on a specific host
 cf up --all --host nuc
 
-# Start just one service within a stack
-cf up mystack --service web
+# Start a specific service within a stack
+cf up immich --service database
 ```
 
 **Auto-migration:**
@@ -189,8 +189,8 @@ cf stop plex
 # Stop all stacks
 cf stop --all
 
-# Stop just one service within a stack
-cf stop mystack --service worker
+# Stop a specific service within a stack
+cf stop immich --service database
 ```
 
 ---
@@ -217,8 +217,8 @@ cf restart [OPTIONS] [STACKS]...
 cf restart plex
 cf restart --all
 
-# Restart just one service within a stack
-cf restart mystack --service web
+# Restart a specific service
+cf restart immich --service database
 ```
 
 ---
@@ -252,8 +252,8 @@ cf update plex
 # Update all stacks
 cf update --all
 
-# Update just one service within a stack
-cf update mystack --service api
+# Update a specific service
+cf update immich --service database
 ```
 
 ---
@@ -280,25 +280,25 @@ cf pull [OPTIONS] [STACKS]...
 cf pull plex
 cf pull --all
 
-# Pull image for just one service
-cf pull mystack --service web
+# Pull a specific service
+cf pull immich --service database
 ```
 
 ---
 
 ### cf compose
 
-Run any docker compose command on a stack. This is a passthrough to `docker compose` for commands not wrapped by cf.
+Run any docker compose command on a stack. This is a passthrough to docker compose for commands not wrapped by cf.
 
 ```bash
-cf compose STACK COMMAND [ARGS]...
+cf compose [OPTIONS] STACK COMMAND [ARGS]...
 ```
 
 **Arguments:**
 
 | Argument | Description |
 |----------|-------------|
-| `STACK` | Stack to operate on (use `.` for current directory) |
+| `STACK` | Stack to operate on (use `.` for current dir) |
 | `COMMAND` | Docker compose command to run |
 | `ARGS` | Additional arguments passed to docker compose |
 
@@ -306,7 +306,7 @@ cf compose STACK COMMAND [ARGS]...
 
 | Option | Description |
 |--------|-------------|
-| `--host, -H TEXT` | Specify host for multi-host stacks |
+| `--host, -H TEXT` | Filter to stacks on this host (required for multi-host stacks) |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
@@ -318,21 +318,18 @@ cf compose mystack --help
 # View running processes
 cf compose mystack top
 
-# List images used by the stack
+# List images
 cf compose mystack images
 
-# Open interactive shell in a service
+# Interactive shell
 cf compose mystack exec web bash
 
-# View parsed compose config
+# View parsed config
 cf compose mystack config
 
-# Run from within a stack directory
-cd /opt/compose/mystack
+# Use current directory as stack
 cf compose . ps
 ```
-
-**Note:** Options after `COMMAND` are passed to docker compose, not cf.
 
 ---
 
@@ -352,7 +349,7 @@ cf ps [OPTIONS] [STACKS]...
 |--------|-------------|
 | `--all, -a` | Show all stacks (default) |
 | `--host, -H TEXT` | Filter to stacks on this host |
-| `--service, -s TEXT` | Filter to a specific service within the stack |
+| `--service, -s TEXT` | Target a specific service within the stack |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
@@ -368,14 +365,14 @@ cf ps plex sonarr
 cf ps --host nuc
 
 # Show status of a specific service
-cf ps mystack --service web
+cf ps immich --service database
 ```
 
 ---
 
 ### cf logs
 
-Show stack logs. With `--service`, shows logs for just that service.
+Show stack logs.
 
 <video autoplay loop muted playsinline>
   <source src="/assets/logs.webm" type="video/webm">
@@ -391,7 +388,7 @@ cf logs [OPTIONS] [STACKS]...
 |--------|-------------|
 | `--all, -a` | Show logs for all stacks |
 | `--host, -H TEXT` | Filter to stacks on this host |
-| `--service, -s TEXT` | Show logs for just that service |
+| `--service, -s TEXT` | Target a specific service within the stack |
 | `--follow, -f` | Follow logs (live stream) |
 | `--tail, -n INTEGER` | Number of lines (default: 20 for --all, 100 otherwise) |
 | `--config, -c PATH` | Path to config file |
@@ -412,7 +409,7 @@ cf logs -n 50 plex sonarr
 cf logs --all
 
 # Show logs for a specific service
-cf logs mystack --service web
+cf logs immich --service database
 ```
 
 ---
@@ -481,25 +478,31 @@ cf check jellyfin
 Update local state from running stacks.
 
 ```bash
-cf refresh [OPTIONS]
+cf refresh [OPTIONS] [STACKS]...
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
+| `--all, -a` | Refresh all stacks |
 | `--dry-run, -n` | Show what would change |
 | `--log-path, -l PATH` | Path to Dockerfarm TOML log |
 | `--config, -c PATH` | Path to config file |
 
+Without arguments, refreshes all stacks (same as `--all`). With stack names, refreshes only those stacks.
+
 **Examples:**
 
 ```bash
-# Sync state with reality
+# Sync state with reality (all stacks)
 cf refresh
 
 # Preview changes
 cf refresh --dry-run
+
+# Refresh specific stacks only
+cf refresh plex sonarr
 ```
 
 ---
