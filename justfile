@@ -17,8 +17,8 @@ test:
 test-cli:
     uv run pytest -m "not browser" -n auto
 
-# Run browser tests only (parallel)
-test-browser:
+# Run web UI tests only (parallel)
+test-web:
     uv run pytest -m browser -n auto
 
 # Lint, format, and type check
