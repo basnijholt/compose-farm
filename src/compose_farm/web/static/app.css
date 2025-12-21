@@ -1,3 +1,8 @@
+/* Allow tooltips to escape collapse content overflow */
+.collapse-content {
+    overflow: visible;
+}
+
 /* Sidebar inputs - remove focus outline (DaisyUI 5 uses outline + outline-offset) */
 #sidebar .input:focus,
 #sidebar .input:focus-within,
