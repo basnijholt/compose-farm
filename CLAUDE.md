@@ -121,6 +121,7 @@ CLI available as `cf` or `compose-farm`.
 | `restart` | `down` + `up -d` |
 | `update` | `pull` + `build` + `down` + `up -d` |
 | `apply` | Make reality match config: migrate stacks + stop orphans. Use `--dry-run` to preview |
+| `compose` | Run any docker compose command on a stack (passthrough) |
 | `logs`  | Show stack logs |
 | `ps`    | Show status of all stacks |
 | `stats` | Show overview (hosts, stacks, pending migrations; `--live` for container counts) |

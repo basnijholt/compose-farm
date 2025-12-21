@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -19,9 +20,11 @@ from compose_farm.cli.common import (
     maybe_regenerate_traefik,
     report_results,
     run_async,
+    validate_host_for_stack,
+    validate_stacks,
 )
 from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success
-from compose_farm.executor import run_on_stacks, run_sequential_on_stacks
+from compose_farm.executor import run_compose_on_host, run_on_stacks, run_sequential_on_stacks
 from compose_farm.operations import stop_orphaned_stacks, up_stacks
 from compose_farm.state import (
     get_orphaned_stacks,
@@ -307,6 +310,59 @@ def apply(  # noqa: PLR0912 (multi-phase reconciliation needs these branches)
         maybe_regenerate_traefik(cfg, refresh_results)
 
     report_results(all_results)
+
+
+@app.command(rich_help_panel="Lifecycle")
+def compose(
+    stack: Annotated[str, typer.Argument(help="Stack to operate on (use '.' for current dir)")],
+    command: Annotated[str, typer.Argument(help="Docker compose command")],
+    args: Annotated[list[str] | None, typer.Argument(help="Additional arguments")] = None,
+    host: HostOption = None,
+    config: ConfigOption = None,
+) -> None:
+    r"""Run any docker compose command on a stack.
+
+    Passthrough to docker compose for commands not wrapped by cf.
+
+    \b
+    Examples:
+      cf compose mystack top
+      cf compose mystack images
+      cf compose mystack exec web bash
+      cf compose mystack run --rm web pytest
+      cf compose mystack config --services
+    """
+    cfg = load_config_or_exit(config)
+
+    # Resolve "." to current directory name
+    resolved_stack = Path.cwd().name if stack == "." else stack
+    validate_stacks(cfg, [resolved_stack])
+
+    # Handle multi-host stacks
+    hosts = cfg.get_hosts(resolved_stack)
+    if len(hosts) > 1:
+        if host is None:
+            print_error(
+                f"Stack [cyan]{resolved_stack}[/] runs on multiple hosts: {', '.join(hosts)}\n"
+                f"Use [bold]--host[/] to specify which host"
+            )
+            raise typer.Exit(1)
+        validate_host_for_stack(cfg, resolved_stack, host)
+        target_host = host
+    else:
+        target_host = hosts[0]
+
+    # Build the full compose command
+    full_cmd = command
+    if args:
+        full_cmd += " " + " ".join(args)
+
+    # Run with raw=True for proper TTY handling (progress bars, interactive)
+    result = run_async(run_compose_on_host(cfg, resolved_stack, target_host, full_cmd, raw=True))
+    print()  # Ensure newline after raw output
+
+    if not result.success:
+        raise typer.Exit(result.exit_code)
 
 
 # Alias: cf a = cf apply
