@@ -25,12 +25,13 @@
 
 {# Action button with htmx #}
 {% macro action_btn(label, url, style="outline", title=None, icon=None) %}
+{% if title %}<div class="tooltip" data-tip="{{ title }}">{% endif %}
 <button hx-post="{{ url }}"
         hx-swap="none"
-        class="btn btn-{{ style }}"
-        {% if title %}title="{{ title }}"{% endif %}>
+        class="btn btn-{{ style }}">
     {% if icon %}{{ icon }}{% endif %}{{ label }}
 </button>
+{% if title %}</div>{% endif %}
 {% endmacro %}
 
 {# Stat card for dashboard #}
