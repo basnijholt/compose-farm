@@ -1,9 +1,3 @@
-/* Tooltips - ensure they appear above sidebar (drawer-side z-index is high) */
-.tooltip::before,
-.tooltip::after {
-    z-index: 1000;
-}
-
 /* Sidebar inputs - remove focus outline (DaisyUI 5 uses outline + outline-offset) */
 #sidebar .input:focus,
 #sidebar .input:focus-within,
