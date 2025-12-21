@@ -264,11 +264,24 @@ window.initExecTerminal = initExecTerminal;
  */
 function expandTerminal() {
     const toggle = document.getElementById('terminal-toggle');
-    if (toggle) toggle.checked = true;
-
     const collapse = document.getElementById('terminal-collapse');
-    if (collapse) {
+    if (!collapse) return;
+
+    const scrollToTerminal = () => {
         collapse.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    if (toggle && !toggle.checked) {
+        // Terminal is collapsed - expand it first, then scroll after transition
+        const onTransitionEnd = () => {
+            collapse.removeEventListener('transitionend', onTransitionEnd);
+            scrollToTerminal();
+        };
+        collapse.addEventListener('transitionend', onTransitionEnd);
+        toggle.checked = true;
+    } else {
+        // Already expanded - just scroll
+        scrollToTerminal();
     }
 }
 
