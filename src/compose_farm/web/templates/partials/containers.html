@@ -1,24 +1,26 @@
 {# Container list for a stack on a single host #}
 {% from "partials/icons.html" import terminal, rotate_ccw, scroll_text, square, play, cloud_download %}
 {% macro container_row(stack, container, host) %}
-<div class="flex items-center gap-2 mb-2">
-    {% if container.State == "running" %}
-        <span class="badge badge-success">running</span>
-    {% elif container.State == "unknown" %}
-        <span class="badge badge-ghost"><span class="loading loading-spinner loading-xs"></span></span>
-    {% elif container.State == "exited" %}
-        {% if container.ExitCode == 0 %}
-            <span class="badge badge-neutral">exited (0)</span>
+<div class="flex flex-col sm:flex-row sm:items-center gap-2 mb-3 p-2 bg-base-200 rounded-lg">
+    <div class="flex items-center gap-2 min-w-0">
+        {% if container.State == "running" %}
+            <span class="badge badge-success">running</span>
+        {% elif container.State == "unknown" %}
+            <span class="badge badge-ghost"><span class="loading loading-spinner loading-xs"></span></span>
+        {% elif container.State == "exited" %}
+            {% if container.ExitCode == 0 %}
+                <span class="badge badge-neutral">exited (0)</span>
+            {% else %}
+                <span class="badge badge-error">exited ({{ container.ExitCode }})</span>
+            {% endif %}
+        {% elif container.State == "created" %}
+            <span class="badge badge-neutral">created</span>
         {% else %}
-            <span class="badge badge-error">exited ({{ container.ExitCode }})</span>
+            <span class="badge badge-warning">{{ container.State }}</span>
         {% endif %}
-    {% elif container.State == "created" %}
-        <span class="badge badge-neutral">created</span>
-    {% else %}
-        <span class="badge badge-warning">{{ container.State }}</span>
-    {% endif %}
-    <code class="text-sm flex-1">{{ container.Name }}</code>
-    <div class="join">
+        <code class="text-sm truncate">{{ container.Name }}</code>
+    </div>
+    <div class="join sm:ml-auto shrink-0">
         <div class="tooltip tooltip-top" data-tip="View logs">
             <button class="btn btn-sm btn-outline join-item"
                     hx-post="/api/stack/{{ stack }}/service/{{ container.Service }}/logs"
