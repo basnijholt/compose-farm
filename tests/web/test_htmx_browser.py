@@ -1340,12 +1340,11 @@ class TestTerminalStreaming:
         # Click Apply
         page.locator("button", has_text="Apply").click()
 
-        # Wait for response to be processed
-        page.wait_for_timeout(500)
-
-        # Verify task ID was stored in localStorage
-        stored_task = page.evaluate("localStorage.getItem('cf_task:/')")
-        assert stored_task == "test-task-123"
+        # Poll for localStorage to be set (more reliable than fixed wait)
+        page.wait_for_function(
+            "localStorage.getItem('cf_task:/') === 'test-task-123'",
+            timeout=TIMEOUT,
+        )
 
     def test_terminal_reconnects_from_localstorage(self, page: Page, server_url: str) -> None:
         """Terminal attempts to reconnect to task stored in localStorage.
