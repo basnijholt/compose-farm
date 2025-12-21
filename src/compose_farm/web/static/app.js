@@ -223,6 +223,9 @@ function initExecTerminal(stack, container, host) {
         return;
     }
 
+    // Expand the exec collapse section and scroll to it
+    expandCollapse(document.getElementById('exec-collapse'));
+
     containerEl.classList.remove('hidden');
 
     // Clean up existing (use wrapper's dispose to clean up ResizeObserver)
@@ -260,29 +263,39 @@ function initExecTerminal(stack, container, host) {
 window.initExecTerminal = initExecTerminal;
 
 /**
- * Expand terminal collapse and scroll to it
+ * Expand a collapse component and scroll to it
+ * @param {HTMLInputElement} toggle - The checkbox input that controls the collapse
  */
-function expandTerminal() {
-    const toggle = document.getElementById('terminal-toggle');
-    const collapse = document.getElementById('terminal-collapse');
+function expandCollapse(toggle) {
+    if (!toggle) return;
+
+    // Find the parent collapse container
+    const collapse = toggle.closest('.collapse');
     if (!collapse) return;
 
-    const scrollToTerminal = () => {
+    const scrollToCollapse = () => {
         collapse.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
-    if (toggle && !toggle.checked) {
-        // Terminal is collapsed - expand it first, then scroll after transition
+    if (!toggle.checked) {
+        // Collapsed - expand first, then scroll after transition
         const onTransitionEnd = () => {
             collapse.removeEventListener('transitionend', onTransitionEnd);
-            scrollToTerminal();
+            scrollToCollapse();
         };
         collapse.addEventListener('transitionend', onTransitionEnd);
         toggle.checked = true;
     } else {
         // Already expanded - just scroll
-        scrollToTerminal();
+        scrollToCollapse();
     }
+}
+
+/**
+ * Expand terminal collapse and scroll to it
+ */
+function expandTerminal() {
+    expandCollapse(document.getElementById('terminal-toggle'));
 }
 
 /**
