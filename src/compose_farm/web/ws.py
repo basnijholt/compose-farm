@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 import fcntl
 import json
+import logging
 import os
 import pty
 import shlex
@@ -20,6 +21,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from compose_farm.executor import is_local, ssh_connect_kwargs
 from compose_farm.web.deps import get_config
 from compose_farm.web.streaming import CRLF, DIM, GREEN, RED, RESET, tasks
+
+logger = logging.getLogger(__name__)
 
 # Shell command to prefer bash over sh
 SHELL_FALLBACK = "command -v bash >/dev/null && exec bash || exec sh"
@@ -214,6 +217,7 @@ async def exec_websocket(
     except WebSocketDisconnect:
         pass
     except Exception as e:
+        logger.exception("WebSocket exec error for %s on %s", container, host)
         with contextlib.suppress(Exception):
             await websocket.send_text(f"{RED}Error: {e}{RESET}{CRLF}")
     finally:
@@ -258,6 +262,7 @@ async def shell_websocket(
     except WebSocketDisconnect:
         pass
     except Exception as e:
+        logger.exception("WebSocket shell error for host %s", host)
         with contextlib.suppress(Exception):
             await websocket.send_text(f"{RED}Error: {e}{RESET}{CRLF}")
     finally:

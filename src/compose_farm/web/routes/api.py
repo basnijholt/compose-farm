@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import shlex
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,6 +23,8 @@ from compose_farm.executor import is_local, run_compose_on_host, ssh_connect_kwa
 from compose_farm.paths import find_config_path
 from compose_farm.state import load_state
 from compose_farm.web.deps import get_config, get_templates
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["api"])
 
@@ -144,6 +147,12 @@ async def _get_container_states(
         config, stack, host_name, "ps -a --format json", stream=False
     )
     if not result.success:
+        logger.warning(
+            "Failed to get container states for %s on %s: %s",
+            stack,
+            host_name,
+            result.stderr or result.stdout,
+        )
         return containers
 
     # Build state map: name -> (state, exit_code)
@@ -350,6 +359,7 @@ async def read_console_file(
     except PermissionError:
         raise HTTPException(status_code=403, detail=f"Permission denied: {path}") from None
     except Exception as e:
+        logger.exception("Failed to read file %s from host %s", path, host)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -373,4 +383,5 @@ async def write_console_file(
     except PermissionError:
         raise HTTPException(status_code=403, detail=f"Permission denied: {path}") from None
     except Exception as e:
+        logger.exception("Failed to write file %s to host %s", path, host)
         raise HTTPException(status_code=500, detail=str(e)) from e
