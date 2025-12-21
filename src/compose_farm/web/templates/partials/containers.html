@@ -1,5 +1,5 @@
 {# Container list for a stack on a single host #}
-{% from "partials/icons.html" import terminal, rotate_ccw, scroll_text, square %}
+{% from "partials/icons.html" import terminal, rotate_ccw, scroll_text, square, play %}
 {% macro container_row(stack, container, host) %}
 <div class="flex items-center gap-2 mb-2">
     {% if container.State == "running" %}
@@ -31,6 +31,13 @@
                     hx-post="/api/stack/{{ stack }}/service/{{ container.Service }}/restart"
                     hx-swap="none">
                 {{ rotate_ccw() }}
+            </button>
+        </div>
+        <div class="tooltip tooltip-top" data-tip="Start service">
+            <button class="btn btn-sm btn-outline join-item"
+                    hx-post="/api/stack/{{ stack }}/service/{{ container.Service }}/up"
+                    hx-swap="none">
+                {{ play() }}
             </button>
         </div>
         <div class="tooltip tooltip-top" data-tip="Stop service">
