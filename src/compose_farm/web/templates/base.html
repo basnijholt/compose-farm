@@ -51,15 +51,21 @@
                 <header class="p-4 border-b border-base-300">
                     <h2 class="text-lg font-semibold flex items-center gap-2">
                         <span class="rainbow-hover">Compose Farm</span>
-                        <a href="https://compose-farm.nijho.lt/" target="_blank" title="Docs" class="opacity-50 hover:opacity-100 transition-opacity">
-                            {{ book_open() }}
-                        </a>
-                        <a href="https://github.com/basnijholt/compose-farm" target="_blank" title="GitHub" class="opacity-50 hover:opacity-100 transition-opacity">
-                            {{ github() }}
-                        </a>
-                        <button type="button" id="theme-btn" class="opacity-50 hover:opacity-100 transition-opacity cursor-pointer" title="Change theme (opens command palette)">
-                            {{ palette() }}
-                        </button>
+                        <div class="tooltip tooltip-bottom" data-tip="Docs">
+                            <a href="https://compose-farm.nijho.lt/" target="_blank" class="opacity-50 hover:opacity-100 transition-opacity">
+                                {{ book_open() }}
+                            </a>
+                        </div>
+                        <div class="tooltip tooltip-bottom" data-tip="GitHub">
+                            <a href="https://github.com/basnijholt/compose-farm" target="_blank" class="opacity-50 hover:opacity-100 transition-opacity">
+                                {{ github() }}
+                            </a>
+                        </div>
+                        <div class="tooltip tooltip-bottom" data-tip="Change theme">
+                            <button type="button" id="theme-btn" class="opacity-50 hover:opacity-100 transition-opacity cursor-pointer">
+                                {{ palette() }}
+                            </button>
+                        </div>
                     </h2>
                 </header>
                 <nav class="flex-1 overflow-y-auto p-2" hx-get="/partials/sidebar" hx-trigger="load, cf:refresh from:body" hx-swap="innerHTML">
