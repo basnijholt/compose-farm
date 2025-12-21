@@ -1746,6 +1746,63 @@ class TestServicePagePalette:
         # Should show restart command for sonarr service
         assert "restart: sonarr" in cmd_list
 
+    def test_palette_filter_without_colon(self, page: Page, server_url: str) -> None:
+        """Filter matches service commands without colon (e.g., 'up plex' matches 'up: plex')."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type "restart plex" without colon
+        page.locator("#cmd-input").fill("restart plex")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should still match "restart: plex"
+        assert "restart: plex" in cmd_list
+
+    def test_palette_filter_without_colon_triggers_api(self, page: Page, server_url: str) -> None:
+        """Service command filtered without colon still triggers correct API."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Track API calls
+        api_calls: list[str] = []
+
+        def handle_route(route: Route) -> None:
+            api_calls.append(route.request.url)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "test", "stack": "plex", "service": "redis", "command": "pull"}',
+            )
+
+        page.route("**/api/stack/plex/service/redis/pull", handle_route)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type "pull redis" without colon and execute
+        page.locator("#cmd-input").fill("pull redis")
+        page.keyboard.press("Enter")
+
+        # Wait for API call
+        page.wait_for_timeout(500)
+
+        # Verify correct service API was called
+        assert len(api_calls) >= 1
+        assert "/api/stack/plex/service/redis/pull" in api_calls[0]
+
 
 class TestThemeSwitcher:
     """Test theme switcher via command palette."""
@@ -1861,6 +1918,22 @@ class TestThemeSwitcher:
         # Should show theme options
         cmd_list = page.locator("#cmd-list").inner_text()
         assert "theme: light" in cmd_list
+        assert "theme: dark" in cmd_list
+
+    def test_theme_filter_without_colon(self, page: Page, server_url: str) -> None:
+        """Filter matches theme commands without colon (e.g., 'theme dark' matches 'theme: dark')."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
+
+        # Open with Cmd+K
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type "theme dark" without colon
+        page.locator("#cmd-input").fill("theme dark")
+
+        # Should show theme: dark option
+        cmd_list = page.locator("#cmd-list").inner_text()
         assert "theme: dark" in cmd_list
 
     def test_theme_command_opens_theme_picker(self, page: Page, server_url: str) -> None:
