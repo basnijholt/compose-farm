@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
-from compose_farm.compose import extract_website_urls, get_container_name
+from compose_farm.compose import get_container_name
 from compose_farm.paths import find_config_path
 from compose_farm.state import (
     get_orphaned_stacks,
@@ -17,6 +17,7 @@ from compose_farm.state import (
     group_running_stacks_by_host,
     load_state,
 )
+from compose_farm.traefik import extract_website_urls
 from compose_farm.web.deps import (
     extract_config_error,
     get_config,

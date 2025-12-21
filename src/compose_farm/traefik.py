@@ -8,6 +8,7 @@ use host-published ports for cross-host reachability.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -383,3 +384,53 @@ def render_traefik_config(dynamic: dict[str, Any]) -> str:
     """Render Traefik dynamic config as YAML with a header comment."""
     body = yaml.safe_dump(dynamic, sort_keys=False)
     return _TRAEFIK_CONFIG_HEADER + body
+
+
+_HOST_RULE_PATTERN = re.compile(r"Host\(`([^`]+)`\)")
+
+
+def extract_website_urls(config: Config, stack: str) -> list[str]:
+    """Extract website URLs from Traefik labels in a stack's compose file.
+
+    Reuses generate_traefik_config to parse labels, then extracts Host() rules
+    from router configurations.
+
+    Returns a list of unique URLs, preferring HTTPS over HTTP.
+    """
+    try:
+        dynamic, _ = generate_traefik_config(config, [stack], check_all=True)
+    except FileNotFoundError:
+        return []
+
+    routers = dynamic.get("http", {}).get("routers", {})
+    if not routers:
+        return []
+
+    # Track URLs with their scheme preference (https > http)
+    urls: dict[str, str] = {}  # host -> scheme
+
+    for router_info in routers.values():
+        if not isinstance(router_info, dict):
+            continue
+
+        rule = router_info.get("rule", "")
+        entrypoints = router_info.get("entrypoints", [])
+
+        # entrypoints can be a list or string
+        if isinstance(entrypoints, list):
+            entrypoints_str = ",".join(entrypoints)
+        else:
+            entrypoints_str = str(entrypoints)
+
+        # Determine scheme from entrypoint
+        scheme = "https" if "websecure" in entrypoints_str else "http"
+
+        # Extract host(s) from rule
+        for match in _HOST_RULE_PATTERN.finditer(str(rule)):
+            host = match.group(1)
+            # Prefer https over http
+            if host not in urls or scheme == "https":
+                urls[host] = scheme
+
+    # Build URL list, sorted for consistency
+    return sorted(f"{scheme}://{host}" for host, scheme in urls.items())
