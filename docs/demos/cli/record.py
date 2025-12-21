@@ -89,8 +89,8 @@ def _main() -> int:
         if not _record(demo, i, len(demos)):
             return 1
 
-        # Reset after migration demo
-        if demo == "migration":
+        # Reset after demos that change audiobookshelf
+        if demo in ("quickstart", "migration"):
             _run(
                 [
                     "sed",
