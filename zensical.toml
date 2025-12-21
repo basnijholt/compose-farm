@@ -11,6 +11,7 @@ copyright = "Copyright &copy; 2025 Bas Nijholt"
 repo_url = "https://github.com/basnijholt/compose-farm"
 repo_name = "GitHub"
 edit_uri = "edit/main/docs"
+extra_javascript = ["javascripts/video-fix.js"]
 
 nav = [
   { "Home" = "index.md" },
