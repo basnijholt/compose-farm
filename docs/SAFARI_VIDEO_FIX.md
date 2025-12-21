@@ -25,13 +25,13 @@ document.querySelectorAll('video[autoplay]').forEach(v => v.load());
 ```
 **Result:** Did not work.
 
-### 4. JavaScript `video.load()` + `video.play()` (one-liner) ✅ FINAL FIX
+### 4. JavaScript `video.load()` + `video.play()` (one-liner)
 ```js
 document.querySelectorAll('video[autoplay]').forEach(v => { v.load(); v.play().catch(() => {}); });
 ```
-**Result:** Works! This is the minimal fix.
+**Result:** Did not work reliably for larger videos.
 
-### 5. Full JavaScript with DOMContentLoaded handling (worked but overkill)
+### 5. JavaScript with DOMContentLoaded ✅ FINAL FIX
 ```js
 (function() {
   function initVideos() {
@@ -40,26 +40,23 @@ document.querySelectorAll('video[autoplay]').forEach(v => { v.load(); v.play().c
       video.play().catch(function() {});
     });
   }
-
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initVideos);
   } else {
     initVideos();
   }
-
-  if (typeof document$ !== 'undefined') {
-    document$.subscribe(initVideos);
-  }
 })();
 ```
-**Result:** This worked! But we want to find a more minimal fix.
+**Result:** Works! The DOMContentLoaded check is needed for larger videos.
+
+Note: `document$` subscription (for MkDocs Material instant navigation) is NOT needed for the first-load fix.
 
 ## Current State
 
 - The `#t=0.001` fix is already in main (all video sources in docs have it)
 - The JavaScript file exists at `docs/javascripts/video-fix.js`
 - `zensical.toml` has `extra_javascript = ["javascripts/video-fix.js"]`
-- Current JS content is the one-liner with load+play (confirmed working)
+- Current JS content is the DOMContentLoaded version (confirmed working)
 
 ## Video Elements
 
