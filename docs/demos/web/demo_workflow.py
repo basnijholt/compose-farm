@@ -3,10 +3,11 @@
 Records a comprehensive demo (~60 seconds) combining all major features:
 1. Console page: terminal with fastfetch, cf pull command
 2. Editor showing Compose Farm YAML config
-3. Command palette navigation to a stack
-4. Stack actions: up, logs, pull
-5. Dashboard overview
-6. Theme cycling via command palette
+3. Command palette navigation to grocy stack
+4. Stack actions: up, logs
+5. Switch to mealie stack via command palette, run update
+6. Dashboard overview
+7. Theme cycling via command palette
 
 This demo is used on the homepage and Web UI page as the main showcase.
 
@@ -125,10 +126,19 @@ def _demo_stack_actions(page: Page) -> None:
     page.wait_for_selector("#terminal-output .xterm", timeout=5000)
     pause(page, 2500)
 
-    # Run pull
+    # Switch to mealie via command palette
     open_command_palette(page)
     pause(page, 300)
-    slow_type(page, "#cmd-input", "pull", delay=100)
+    slow_type(page, "#cmd-input", "mealie", delay=100)
+    pause(page, 400)
+    page.keyboard.press("Enter")
+    page.wait_for_url("**/stack/mealie", timeout=5000)
+    pause(page, 1000)
+
+    # Run update action
+    open_command_palette(page)
+    pause(page, 300)
+    slow_type(page, "#cmd-input", "upda", delay=100)
     pause(page, 400)
     page.keyboard.press("Enter")
     pause(page, 200)
