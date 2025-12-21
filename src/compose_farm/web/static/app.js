@@ -223,7 +223,9 @@ function initExecTerminal(stack, container, host) {
         return;
     }
 
+    // Unhide the terminal container first, then expand/scroll
     containerEl.classList.remove('hidden');
+    expandCollapse(document.getElementById('exec-collapse'), containerEl);
 
     // Clean up existing (use wrapper's dispose to clean up ResizeObserver)
     if (execWs) { execWs.close(); execWs = null; }
@@ -260,16 +262,41 @@ function initExecTerminal(stack, container, host) {
 window.initExecTerminal = initExecTerminal;
 
 /**
+ * Expand a collapse component and scroll to a target element
+ * @param {HTMLInputElement} toggle - The checkbox input that controls the collapse
+ * @param {HTMLElement} [scrollTarget] - Element to scroll to (defaults to collapse container)
+ */
+function expandCollapse(toggle, scrollTarget = null) {
+    if (!toggle) return;
+
+    // Find the parent collapse container
+    const collapse = toggle.closest('.collapse');
+    if (!collapse) return;
+
+    const target = scrollTarget || collapse;
+    const scrollToTarget = () => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    if (!toggle.checked) {
+        // Collapsed - expand first, then scroll after transition
+        const onTransitionEnd = () => {
+            collapse.removeEventListener('transitionend', onTransitionEnd);
+            scrollToTarget();
+        };
+        collapse.addEventListener('transitionend', onTransitionEnd);
+        toggle.checked = true;
+    } else {
+        // Already expanded - just scroll
+        scrollToTarget();
+    }
+}
+
+/**
  * Expand terminal collapse and scroll to it
  */
 function expandTerminal() {
-    const toggle = document.getElementById('terminal-toggle');
-    if (toggle) toggle.checked = true;
-
-    const collapse = document.getElementById('terminal-collapse');
-    if (collapse) {
-        collapse.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    expandCollapse(document.getElementById('terminal-toggle'));
 }
 
 /**
@@ -531,6 +558,7 @@ function playFabIntro() {
         }
         htmx.ajax('GET', url, {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
             history.pushState({}, '', url);
+            window.scrollTo(0, 0);
             afterNav?.();
         });
     };
@@ -539,6 +567,7 @@ function playFabIntro() {
         if (window.location.pathname !== '/') {
             await htmx.ajax('GET', '/', {target: '#main-content', select: '#main-content', swap: 'outerHTML'});
             history.pushState({}, '', '/');
+            window.scrollTo(0, 0);
         }
         htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
     };
