@@ -16,6 +16,11 @@ def default_config_path() -> Path:
     return xdg_config_home() / "compose-farm" / "compose-farm.yaml"
 
 
+def backup_dir() -> Path:
+    """Get the backup directory for file edits."""
+    return xdg_config_home() / "compose-farm" / "backups"
+
+
 def config_search_paths() -> list[Path]:
     """Get search paths for config files."""
     return [Path("compose-farm.yaml"), default_config_path()]
