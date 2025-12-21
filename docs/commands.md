@@ -649,7 +649,20 @@ cf ssh COMMAND
 | `status` | Show SSH key status and host connectivity |
 | `keygen` | Generate key without distributing |
 
-**Options for `cf ssh setup` and `cf ssh keygen`:**
+**Options for `cf ssh setup`:**
+
+| Option | Description |
+|--------|-------------|
+| `--config, -c PATH` | Path to config file |
+| `--force, -f` | Regenerate key even if it exists |
+
+**Options for `cf ssh status`:**
+
+| Option | Description |
+|--------|-------------|
+| `--config, -c PATH` | Path to config file |
+
+**Options for `cf ssh keygen`:**
 
 | Option | Description |
 |--------|-------------|

@@ -1,118 +1,117 @@
-Review all documentation in this repository for accuracy, completeness, and consistency. Cross-reference documentation against the actual codebase to identify issues.
+Review documentation for accuracy, completeness, and consistency. Focus on things that require judgment—automated checks handle the rest.
 
-## Scope
+## What's Already Automated
 
-Review all documentation files:
-- docs/*.md (primary documentation)
-- README.md (repository landing page)
-- CLAUDE.md (development guidelines)
-- examples/README.md (example configurations)
+Don't waste time on these—CI and pre-commit hooks handle them:
 
-## Review Checklist
+- **README help output**: `markdown-code-runner` regenerates `cf --help` blocks in CI
+- **README command table**: Pre-commit hook verifies commands are listed
+- **Linting/formatting**: Handled by pre-commit
 
-### 1. Command Documentation
+## What This Review Is For
 
-For each documented command, verify against the CLI source code:
+Focus on things that require judgment:
 
-- Command exists in codebase
-- All options are documented with correct names, types, and defaults
-- Short options (-x) match long options (--xxx)
-- Examples would work as written
-- Check for undocumented commands or options
+1. **Accuracy**: Does the documentation match what the code actually does?
+2. **Completeness**: Are there undocumented features, options, or behaviors?
+3. **Clarity**: Would a new user understand this? Are examples realistic?
+4. **Consistency**: Do different docs contradict each other?
+5. **Freshness**: Has the code changed in ways the docs don't reflect?
 
-Run `--help` for each command to verify.
+## Review Process
 
-### 2. Configuration Documentation
+### 1. Check Recent Changes
 
-Verify against Pydantic models in the config module:
+```bash
+# What changed recently that might need doc updates?
+git log --oneline -20 | grep -iE "feat|fix|add|remove|change|option"
 
-- All config keys are documented
-- Types match Pydantic field types
-- Required vs optional fields are correct
-- Default values are accurate
-- Config file search order matches code
-- Example YAML is valid and uses current schema
+# What code files changed?
+git diff --name-only HEAD~20 | grep "\.py$"
+```
 
-### 3. Architecture Documentation
+Look for new features, changed defaults, renamed options, or removed functionality.
 
-Verify against actual directory structure:
+### 2. Verify docs/commands.md Options Tables
 
-- File paths match actual source code location
-- All modules listed actually exist
-- No modules are missing from the list
-- Component descriptions match code functionality
-- CLI module list includes all command files
+The README auto-updates help output, but `docs/commands.md` has **manually maintained options tables**. These can drift.
 
-### 4. State and Data Files
+For each command's options table, compare against `cf <command> --help`:
+- Are all options listed?
+- Are short flags correct?
+- Are defaults accurate?
+- Are descriptions accurate?
 
-Verify against state and path modules:
+**Pay special attention to subcommands** (`cf config *`, `cf ssh *`)—these have their own options that are easy to miss.
 
-- State file name and location are correct
-- State file format matches actual structure
-- Log file name and location are correct
-- What triggers state/log updates is accurate
+### 3. Verify docs/configuration.md
 
-### 5. Installation Documentation
+Compare against Pydantic models in the source:
 
-Verify against pyproject.toml:
+```bash
+# Find the config models
+grep -r "class.*BaseModel" src/ --include="*.py" -A 15
+```
 
-- Python version requirement matches requires-python
-- Package name is correct
-- Optional dependencies are documented
-- CLI entry points are mentioned
-- Installation methods work as documented
+Check:
+- All config keys documented
+- Types and defaults match code
+- Config file search order is accurate
+- Example YAML would actually work
 
-### 6. Feature Claims
+### 4. Verify docs/architecture.md
 
-For each claimed feature, verify it exists and works as described.
+```bash
+# What source files actually exist?
+git ls-files "src/**/*.py"
+```
 
-### 7. Cross-Reference Consistency
+Check:
+- Listed files exist
+- No files are missing from the list
+- Descriptions match what the code does
 
-Check for conflicts between documentation files:
+### 5. Check Examples
 
-- README vs docs/index.md (should be consistent)
-- CLAUDE.md vs actual code structure
-- Command tables match across files
-- Config examples are consistent
+For examples in any doc:
+- Would the YAML/commands actually work?
+- Are service names, paths, and options realistic?
+- Do examples use current syntax (not deprecated options)?
 
-### 8. Recent Changes Check
+### 6. Cross-Reference Consistency
 
-Before starting the review:
+The same info appears in multiple places. Check for conflicts:
+- README.md vs docs/index.md
+- docs/commands.md vs CLAUDE.md command tables
+- Config examples across different docs
 
-- Run `git log --oneline -20` to see recent commits
-- Look for commits with `feat:`, `fix:`, or that mention new options/commands
-- Cross-reference these against the documentation to catch undocumented features
+### 7. Self-Check This Prompt
 
-### 9. Auto-Generated Content
+This prompt can become outdated too. If you notice:
+- New automated checks that should be listed above
+- New doc files that need review guidelines
+- Patterns that caused issues
 
-For README.md or docs with `<!-- CODE:BASH:START -->` blocks:
-
-- Run `uv run markdown-code-runner <file>` to regenerate outputs
-- Check for missing `<!-- OUTPUT:START -->` markers (blocks that never ran)
-- Verify help output matches current CLI behavior
-
-### 10. CLI Options Completeness
-
-For each command, run `cf <command> --help` and verify:
-
-- Every option shown in help is documented
-- Short flags (-x) are listed alongside long flags (--xxx)
-- Default values in help match documented defaults
+Include prompt updates in your fixes.
 
 ## Output Format
 
-Provide findings in these categories:
+Categorize findings:
 
-1. **Critical Issues**: Incorrect information that would cause user problems
-2. **Inaccuracies**: Technical errors, wrong defaults, incorrect paths
-3. **Missing Documentation**: Features/commands that exist but aren't documented
-4. **Outdated Content**: Information that was once true but no longer is
-5. **Inconsistencies**: Conflicts between different documentation files
-6. **Minor Issues**: Typos, formatting, unclear wording
-7. **Verified Accurate**: Sections confirmed to be correct
+1. **Critical**: Wrong info that would break user workflows
+2. **Inaccuracy**: Technical errors (wrong defaults, paths, types)
+3. **Missing**: Undocumented features or options
+4. **Outdated**: Was true, no longer is
+5. **Inconsistency**: Docs contradict each other
+6. **Minor**: Typos, unclear wording
 
-For each issue, include:
-- File path and line number (if applicable)
-- What the documentation says
-- What the code actually does
-- Suggested fix
+For each issue, provide a ready-to-apply fix:
+
+```
+### Issue: [Brief description]
+
+- **File**: docs/commands.md:652
+- **Problem**: `cf ssh setup` has `--config` option but it's not documented
+- **Fix**: Add `--config, -c PATH` to the options table
+- **Verify**: `cf ssh setup --help`
+```
