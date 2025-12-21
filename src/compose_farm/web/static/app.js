@@ -595,8 +595,7 @@ function playFabIntro() {
             if (servicesAttr) {
                 const services = servicesAttr.split(',').filter(s => s).sort();
                 // Parse container info for shell access: {service: {container, host}}
-                let containers = {};
-                try { containers = containersAttr ? JSON.parse(containersAttr) : {}; } catch (e) { /* ignore */ }
+                const containers = containersAttr ? JSON.parse(containersAttr) : {};
 
                 const svcCmd = (action, service, desc, endpoint, icon) =>
                     cmd('service', `${action}: ${service}`, desc, post(`/api/stack/${stack}/service/${service}/${endpoint}`), icon);
