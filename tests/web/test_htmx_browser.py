@@ -122,7 +122,7 @@ def test_config(tmp_path_factory: pytest.TempPathFactory) -> Path:
     # Create compose dir with stacks
     compose_dir = tmp / "compose"
     compose_dir.mkdir()
-    for name in ["plex", "grafana", "nextcloud", "jellyfin"]:
+    for name in ["plex", "grafana", "nextcloud", "jellyfin", "redis"]:
         svc = compose_dir / name
         svc.mkdir()
         if name == "plex":
@@ -150,6 +150,7 @@ stacks:
   grafana: server-1
   nextcloud: server-2
   jellyfin: server-2
+  redis: server-1
 """)
 
     # Create state (plex and nextcloud running, grafana and jellyfin not started)
