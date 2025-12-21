@@ -426,9 +426,13 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ up             Start stacks (docker compose up -d). Auto-migrates if host    │
 │                changed.                                                      │
 │ down           Stop stacks (docker compose down).                            │
+│ stop           Stop services without removing containers (docker compose     │
+│                stop).                                                        │
 │ pull           Pull latest images (docker compose pull).                     │
-│ restart        Restart stacks (down + up).                                   │
-│ update         Update stacks (pull + build + down + up).                     │
+│ restart        Restart stacks (down + up). With --service, restarts just     │
+│                that service.                                                 │
+│ update         Update stacks (pull + build + down + up). With --service,     │
+│                updates just that service.                                    │
 │ apply          Make reality match config (start, migrate, stop as needed).   │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Configuration ──────────────────────────────────────────────────────────────╮
@@ -441,7 +445,8 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ ssh            Manage SSH keys for passwordless authentication.              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Monitoring ─────────────────────────────────────────────────────────────────╮
-│ logs           Show stack logs.                                              │
+│ logs           Show stack logs. With --service, shows logs for just that     │
+│                service.                                                      │
 │ ps             Show status of stacks.                                        │
 │ stats          Show overview statistics for hosts and stacks.                │
 ╰──────────────────────────────────────────────────────────────────────────────╯
@@ -480,10 +485,11 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │   stacks      [STACKS]...  Stacks to operate on                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a            Run on all stacks                                    │
-│ --host    -H      TEXT  Filter to stacks on this host                        │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
+│ --all      -a            Run on all stacks                                   │
+│ --host     -H      TEXT  Filter to stacks on this host                       │
+│ --service  -s      TEXT  Target a specific service within the stack          │
+│ --config   -c      PATH  Path to config file                                 │
+│ --help     -h            Show this message and exit.                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -587,9 +593,10 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │   stacks      [STACKS]...  Stacks to operate on                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a            Run on all stacks                                    │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
+│ --all      -a            Run on all stacks                                   │
+│ --service  -s      TEXT  Target a specific service within the stack          │
+│ --config   -c      PATH  Path to config file                                 │
+│ --help     -h            Show this message and exit.                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -615,15 +622,16 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Usage: cf restart [OPTIONS] [STACKS]...
 
- Restart stacks (down + up).
+ Restart stacks (down + up). With --service, restarts just that service.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │   stacks      [STACKS]...  Stacks to operate on                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a            Run on all stacks                                    │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
+│ --all      -a            Run on all stacks                                   │
+│ --service  -s      TEXT  Target a specific service within the stack          │
+│ --config   -c      PATH  Path to config file                                 │
+│ --help     -h            Show this message and exit.                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -649,15 +657,17 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Usage: cf update [OPTIONS] [STACKS]...
 
- Update stacks (pull + build + down + up).
+ Update stacks (pull + build + down + up). With --service, updates just that
+ service.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │   stacks      [STACKS]...  Stacks to operate on                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a            Run on all stacks                                    │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
+│ --all      -a            Run on all stacks                                   │
+│ --service  -s      TEXT  Target a specific service within the stack          │
+│ --config   -c      PATH  Path to config file                                 │
+│ --help     -h            Show this message and exit.                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -948,19 +958,20 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Usage: cf logs [OPTIONS] [STACKS]...
 
- Show stack logs.
+ Show stack logs. With --service, shows logs for just that service.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │   stacks      [STACKS]...  Stacks to operate on                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a               Run on all stacks                                 │
-│ --host    -H      TEXT     Filter to stacks on this host                     │
-│ --follow  -f               Follow logs                                       │
-│ --tail    -n      INTEGER  Number of lines (default: 20 for --all, 100       │
-│                            otherwise)                                        │
-│ --config  -c      PATH     Path to config file                               │
-│ --help    -h               Show this message and exit.                       │
+│ --all      -a               Run on all stacks                                │
+│ --host     -H      TEXT     Filter to stacks on this host                    │
+│ --service  -s      TEXT     Target a specific service within the stack       │
+│ --follow   -f               Follow logs                                      │
+│ --tail     -n      INTEGER  Number of lines (default: 20 for --all, 100      │
+│                             otherwise)                                       │
+│ --config   -c      PATH     Path to config file                              │
+│ --help     -h               Show this message and exit.                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -992,15 +1003,17 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Without arguments: shows all stacks (same as --all).
  With stack names: shows only those stacks.
  With --host: shows stacks on that host.
+ With --service: filters to a specific service within the stack.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │   stacks      [STACKS]...  Stacks to operate on                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --all     -a            Run on all stacks                                    │
-│ --host    -H      TEXT  Filter to stacks on this host                        │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
+│ --all      -a            Run on all stacks                                   │
+│ --host     -H      TEXT  Filter to stacks on this host                       │
+│ --service  -s      TEXT  Target a specific service within the stack          │
+│ --config   -c      PATH  Path to config file                                 │
+│ --help     -h            Show this message and exit.                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
