@@ -223,10 +223,9 @@ function initExecTerminal(stack, container, host) {
         return;
     }
 
-    // Expand the exec collapse section and scroll to the terminal
-    expandCollapse(document.getElementById('exec-collapse'), containerEl);
-
+    // Unhide the terminal container first, then expand/scroll
     containerEl.classList.remove('hidden');
+    expandCollapse(document.getElementById('exec-collapse'), containerEl);
 
     // Clean up existing (use wrapper's dispose to clean up ResizeObserver)
     if (execWs) { execWs.close(); execWs = null; }
