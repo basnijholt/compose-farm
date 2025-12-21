@@ -39,6 +39,15 @@ services:
     image: grafana/grafana
 """)
 
+    # Create a single-service stack for testing service commands
+    redis_dir = compose_path / "redis"
+    redis_dir.mkdir()
+    (redis_dir / "compose.yaml").write_text("""
+services:
+  redis:
+    image: redis:alpine
+""")
+
     return compose_path
 
 
@@ -59,6 +68,7 @@ hosts:
 stacks:
   plex: server-1
   grafana: server-2
+  redis: server-1
 """)
 
     # State file must be alongside config file

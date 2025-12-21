@@ -9,17 +9,17 @@ default:
 install:
     uv sync --all-extras --dev
 
-# Run all tests (no coverage for speed)
+# Run all tests (parallel)
 test:
-    uv run pytest --no-cov
+    uv run pytest -n auto
 
-# Run unit tests only (parallel, with coverage)
-test-unit:
+# Run CLI tests only (parallel, with coverage)
+test-cli:
     uv run pytest -m "not browser" -n auto
 
-# Run browser tests only (sequential, no coverage)
-test-browser:
-    uv run pytest -m browser --no-cov
+# Run web UI tests only (parallel)
+test-web:
+    uv run pytest -m browser -n auto
 
 # Lint, format, and type check
 lint:
