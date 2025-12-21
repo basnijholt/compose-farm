@@ -11,6 +11,7 @@ from compose_farm.cli.common import (
     AllOption,
     ConfigOption,
     HostOption,
+    ServiceOption,
     StacksArg,
     format_host,
     get_stacks,
@@ -36,11 +37,19 @@ def up(
     stacks: StacksArg = None,
     all_stacks: AllOption = False,
     host: HostOption = None,
+    service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
     """Start stacks (docker compose up -d). Auto-migrates if host changed."""
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
-    results = run_async(up_stacks(cfg, stack_list, raw=True))
+    if service:
+        if len(stack_list) != 1:
+            print_error("--service requires exactly one stack")
+            raise typer.Exit(1)
+        # For service-level up, use run_on_stacks directly (no migration logic)
+        results = run_async(run_on_stacks(cfg, stack_list, f"up -d {service}", raw=True))
+    else:
+        results = run_async(up_stacks(cfg, stack_list, raw=True))
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
 
@@ -99,15 +108,38 @@ def down(
 
 
 @app.command(rich_help_panel="Lifecycle")
+def stop(
+    stacks: StacksArg = None,
+    all_stacks: AllOption = False,
+    service: ServiceOption = None,
+    config: ConfigOption = None,
+) -> None:
+    """Stop services without removing containers (docker compose stop)."""
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
+    if service and len(stack_list) != 1:
+        print_error("--service requires exactly one stack")
+        raise typer.Exit(1)
+    cmd = f"stop {service}" if service else "stop"
+    raw = len(stack_list) == 1
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
+    report_results(results)
+
+
+@app.command(rich_help_panel="Lifecycle")
 def pull(
     stacks: StacksArg = None,
     all_stacks: AllOption = False,
+    service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
     """Pull latest images (docker compose pull)."""
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
+    if service and len(stack_list) != 1:
+        print_error("--service requires exactly one stack")
+        raise typer.Exit(1)
+    cmd = f"pull {service}" if service else "pull"
     raw = len(stack_list) == 1
-    results = run_async(run_on_stacks(cfg, stack_list, "pull", raw=raw))
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
     report_results(results)
 
 
@@ -115,12 +147,21 @@ def pull(
 def restart(
     stacks: StacksArg = None,
     all_stacks: AllOption = False,
+    service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
-    """Restart stacks (down + up)."""
+    """Restart stacks (down + up). With --service, restarts just that service."""
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
-    raw = len(stack_list) == 1
-    results = run_async(run_sequential_on_stacks(cfg, stack_list, ["down", "up -d"], raw=raw))
+    if service:
+        if len(stack_list) != 1:
+            print_error("--service requires exactly one stack")
+            raise typer.Exit(1)
+        # For service-level restart, use docker compose restart (more efficient)
+        raw = True
+        results = run_async(run_on_stacks(cfg, stack_list, f"restart {service}", raw=raw))
+    else:
+        raw = len(stack_list) == 1
+        results = run_async(run_sequential_on_stacks(cfg, stack_list, ["down", "up -d"], raw=raw))
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
 
@@ -129,16 +170,37 @@ def restart(
 def update(
     stacks: StacksArg = None,
     all_stacks: AllOption = False,
+    service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
-    """Update stacks (pull + build + down + up)."""
+    """Update stacks (pull + build + down + up). With --service, updates just that service."""
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
-    raw = len(stack_list) == 1
-    results = run_async(
-        run_sequential_on_stacks(
-            cfg, stack_list, ["pull --ignore-buildable", "build", "down", "up -d"], raw=raw
+    if service:
+        if len(stack_list) != 1:
+            print_error("--service requires exactly one stack")
+            raise typer.Exit(1)
+        # For service-level update: pull + build + stop + up (stop instead of down)
+        raw = True
+        results = run_async(
+            run_sequential_on_stacks(
+                cfg,
+                stack_list,
+                [
+                    f"pull --ignore-buildable {service}",
+                    f"build {service}",
+                    f"stop {service}",
+                    f"up -d {service}",
+                ],
+                raw=raw,
+            )
         )
-    )
+    else:
+        raw = len(stack_list) == 1
+        results = run_async(
+            run_sequential_on_stacks(
+                cfg, stack_list, ["pull --ignore-buildable", "build", "down", "up -d"], raw=raw
+            )
+        )
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
 
