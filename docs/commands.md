@@ -113,6 +113,9 @@ cf up --all
 
 # Start all stacks on a specific host
 cf up --all --host nuc
+
+# Start a specific service within a stack
+cf up immich --service database
 ```
 
 **Auto-migration:**
@@ -187,7 +190,7 @@ cf stop plex
 cf stop --all
 
 # Stop a specific service within a stack
-cf stop plex --service plexautolanguages
+cf stop immich --service database
 ```
 
 ---
@@ -215,7 +218,7 @@ cf restart plex
 cf restart --all
 
 # Restart a specific service
-cf restart plex --service plexautolanguages
+cf restart immich --service database
 ```
 
 ---
@@ -250,7 +253,7 @@ cf update plex
 cf update --all
 
 # Update a specific service
-cf update plex --service plexautolanguages
+cf update immich --service database
 ```
 
 ---
@@ -278,7 +281,7 @@ cf pull plex
 cf pull --all
 
 # Pull a specific service
-cf pull plex --service plexautolanguages
+cf pull immich --service database
 ```
 
 ---
@@ -362,7 +365,7 @@ cf ps plex sonarr
 cf ps --host nuc
 
 # Show status of a specific service
-cf ps plex --service plexautolanguages
+cf ps immich --service database
 ```
 
 ---
@@ -406,7 +409,7 @@ cf logs -n 50 plex sonarr
 cf logs --all
 
 # Show logs for a specific service
-cf logs plex --service plexautolanguages
+cf logs immich --service database
 ```
 
 ---
