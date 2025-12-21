@@ -1,5 +1,5 @@
 {# Container list for a stack on a single host #}
-{% from "partials/icons.html" import terminal %}
+{% from "partials/icons.html" import terminal, rotate_ccw, scroll_text, square %}
 {% macro container_row(stack, container, host) %}
 <div class="flex items-center gap-2 mb-2">
     {% if container.State == "running" %}
@@ -18,11 +18,34 @@
         <span class="badge badge-warning">{{ container.State }}</span>
     {% endif %}
     <code class="text-sm flex-1">{{ container.Name }}</code>
-    <div class="tooltip tooltip-left" data-tip="Open shell in container">
-        <button class="btn btn-sm btn-outline"
-                onclick="initExecTerminal('{{ stack }}', '{{ container.Name }}', '{{ host }}')">
-            {{ terminal() }} Shell
-        </button>
+    <div class="join">
+        <div class="tooltip tooltip-top" data-tip="View logs">
+            <button class="btn btn-sm btn-outline join-item"
+                    hx-post="/api/stack/{{ stack }}/service/{{ container.Service }}/logs"
+                    hx-swap="none">
+                {{ scroll_text() }}
+            </button>
+        </div>
+        <div class="tooltip tooltip-top" data-tip="Restart service">
+            <button class="btn btn-sm btn-outline join-item"
+                    hx-post="/api/stack/{{ stack }}/service/{{ container.Service }}/restart"
+                    hx-swap="none">
+                {{ rotate_ccw() }}
+            </button>
+        </div>
+        <div class="tooltip tooltip-top" data-tip="Stop service">
+            <button class="btn btn-sm btn-outline join-item"
+                    hx-post="/api/stack/{{ stack }}/service/{{ container.Service }}/stop"
+                    hx-swap="none">
+                {{ square() }}
+            </button>
+        </div>
+        <div class="tooltip tooltip-top" data-tip="Open shell">
+            <button class="btn btn-sm btn-outline join-item"
+                    onclick="initExecTerminal('{{ stack }}', '{{ container.Name }}', '{{ host }}')">
+                {{ terminal() }}
+            </button>
+        </div>
     </div>
 </div>
 {% endmacro %}

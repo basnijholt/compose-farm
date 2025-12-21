@@ -59,6 +59,10 @@ HostOption = Annotated[
     str | None,
     typer.Option("--host", "-H", help="Filter to stacks on this host"),
 ]
+ServiceOption = Annotated[
+    str | None,
+    typer.Option("--service", "-s", help="Target a specific service within the stack"),
+]
 
 # --- Constants (internal) ---
 _MISSING_PATH_PREVIEW_LIMIT = 2
