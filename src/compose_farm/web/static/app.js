@@ -597,6 +597,17 @@ function playFabIntro() {
                 stackCmd('Logs', 'View logs for', 'logs', icons.file_text),
             );
 
+            // Add Open Website commands if website URLs are available
+            const websiteUrlsAttr = document.querySelector('[data-website-urls]')?.getAttribute('data-website-urls');
+            if (websiteUrlsAttr) {
+                const websiteUrls = JSON.parse(websiteUrlsAttr);
+                for (const url of websiteUrls) {
+                    const displayUrl = url.replace(/^https?:\/\//, '');
+                    const label = websiteUrls.length > 1 ? `Open: ${displayUrl}` : 'Open Website';
+                    actions.unshift(cmd('stack', label, `Open ${displayUrl} in browser`, openExternal(url), icons.external_link));
+                }
+            }
+
             // Add service-specific commands from data-services and data-containers attributes
             // Grouped by action (all Logs together, all Pull together, etc.) with services sorted alphabetically
             const servicesAttr = document.querySelector('[data-services]')?.getAttribute('data-services');

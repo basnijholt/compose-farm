@@ -1,4 +1,4 @@
-{% from "partials/icons.html" import search, play, square, rotate_cw, cloud_download, refresh_cw, file_text, file_code, check, home, terminal, box, palette, book_open %}
+{% from "partials/icons.html" import search, play, square, rotate_cw, cloud_download, refresh_cw, file_text, file_code, check, home, terminal, box, palette, book_open, external_link %}
 
 <!-- Icons for command palette (referenced by JS) -->
 <template id="cmd-icons">
@@ -15,6 +15,7 @@
     <span data-icon="palette">{{ palette() }}</span>
     <span data-icon="book_open">{{ book_open() }}</span>
     <span data-icon="file_code">{{ file_code() }}</span>
+    <span data-icon="external_link">{{ external_link() }}</span>
 </template>
 <dialog id="cmd-palette" class="modal">
     <div class="modal-box max-w-lg p-0">

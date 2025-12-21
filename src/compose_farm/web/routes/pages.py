@@ -17,6 +17,7 @@ from compose_farm.state import (
     group_running_stacks_by_host,
     load_state,
 )
+from compose_farm.traefik import extract_website_urls
 from compose_farm.web.deps import (
     extract_config_error,
     get_config,
@@ -180,6 +181,9 @@ async def stack_detail(request: Request, name: str) -> HTMLResponse:
                     for svc, svc_def in raw_services.items()
                 }
 
+    # Extract website URLs from Traefik labels
+    website_urls = extract_website_urls(config, name)
+
     return templates.TemplateResponse(
         "stack.html",
         {
@@ -193,6 +197,7 @@ async def stack_detail(request: Request, name: str) -> HTMLResponse:
             "env_path": str(env_path) if env_path else None,
             "services": services,
             "containers": containers,
+            "website_urls": website_urls,
         },
     )
 
