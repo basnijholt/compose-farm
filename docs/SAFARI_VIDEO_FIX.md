@@ -25,13 +25,13 @@ document.querySelectorAll('video[autoplay]').forEach(v => v.load());
 ```
 **Result:** Did not work.
 
-### 4. JavaScript `video.load()` + `video.play()` (one-liner)
+### 4. JavaScript `video.load()` + `video.play()` (one-liner) ✅ FINAL FIX
 ```js
 document.querySelectorAll('video[autoplay]').forEach(v => { v.load(); v.play().catch(() => {}); });
 ```
-**Result:** Not yet tested.
+**Result:** Works! This is the minimal fix.
 
-### 5. Full JavaScript with DOMContentLoaded handling (WORKED)
+### 5. Full JavaScript with DOMContentLoaded handling (worked but overkill)
 ```js
 (function() {
   function initVideos() {
@@ -59,7 +59,7 @@ document.querySelectorAll('video[autoplay]').forEach(v => { v.load(); v.play().c
 - The `#t=0.001` fix is already in main (all video sources in docs have it)
 - The JavaScript file exists at `docs/javascripts/video-fix.js`
 - `zensical.toml` has `extra_javascript = ["javascripts/video-fix.js"]`
-- Current JS content is the one-liner with load+play (not yet confirmed working)
+- Current JS content is the one-liner with load+play (confirmed working)
 
 ## Video Elements
 
