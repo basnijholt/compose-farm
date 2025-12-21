@@ -529,17 +529,6 @@ function playFabIntro() {
             afterNav?.();
         });
     };
-    // Focus editor after navigation (waits for Monaco to initialize)
-    const focusEditor = () => {
-        const tryFocus = () => {
-            if (typeof consoleEditor !== 'undefined' && consoleEditor) {
-                consoleEditor.focus();
-            } else {
-                setTimeout(tryFocus, 100);
-            }
-        };
-        tryFocus();
-    };
     // Navigate to dashboard (if needed) and trigger action
     const dashboardAction = (endpoint) => async () => {
         if (window.location.pathname !== '/') {
@@ -585,7 +574,7 @@ function playFabIntro() {
             cmd('app', 'Theme', 'Change color theme', openThemePicker, icons.palette),
             cmd('app', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
             cmd('app', 'Console', 'Go to console', nav('/console'), icons.terminal),
-            cmd('app', 'Edit Config', 'Edit compose-farm.yaml', nav('/console', focusEditor), icons.file_code),
+            cmd('app', 'Edit Config', 'Edit compose-farm.yaml', nav('/console#editor'), icons.file_code),
             cmd('app', 'Docs', 'Open documentation', openExternal('https://compose-farm.nijho.lt/'), icons.book_open),
         ];
 
