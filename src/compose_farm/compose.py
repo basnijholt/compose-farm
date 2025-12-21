@@ -351,32 +351,3 @@ def get_container_name(
     if isinstance(service_def, dict) and service_def.get("container_name"):
         return str(service_def["container_name"])
     return f"{project_name}-{service_name}-1"
-
-
-def get_service_containers(
-    config: Config,
-    stack: str,
-    host: str,
-) -> dict[str, dict[str, str]]:
-    """Get container info for all services in a stack.
-
-    Returns a dict mapping service name to {container, host}.
-    Used by command palette for shell access.
-    """
-    compose_path = config.get_compose_path(stack)
-    if not compose_path or not compose_path.exists():
-        return {}
-
-    compose_data = yaml.safe_load(compose_path.read_text()) or {}
-    raw_services = compose_data.get("services", {})
-    if not isinstance(raw_services, dict):
-        return {}
-
-    project_name = compose_path.parent.name
-    return {
-        svc_name: {
-            "container": get_container_name(svc_name, svc_def, project_name),
-            "host": host,
-        }
-        for svc_name, svc_def in raw_services.items()
-    }

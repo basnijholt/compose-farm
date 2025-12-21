@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
-from compose_farm.compose import get_service_containers
+from compose_farm.compose import get_container_name
 from compose_farm.paths import find_config_path
 from compose_farm.state import (
     get_orphaned_stacks,
@@ -160,17 +160,25 @@ async def stack_detail(request: Request, name: str) -> HTMLResponse:
     # Get state
     current_host = get_stack_host(config, name)
 
-    # Get service names from compose file
+    # Get service names and container info from compose file
     services: list[str] = []
+    containers: dict[str, dict[str, str]] = {}
+    shell_host = current_host[0] if isinstance(current_host, list) else current_host
     if compose_content:
         compose_data = yaml.safe_load(compose_content) or {}
         raw_services = compose_data.get("services", {})
         if isinstance(raw_services, dict):
             services = list(raw_services.keys())
-
-    # Get container info for shell access (only if stack is running)
-    shell_host = current_host[0] if isinstance(current_host, list) else current_host
-    containers = get_service_containers(config, name, shell_host) if shell_host else {}
+            # Build container info for shell access (only if stack is running)
+            if shell_host:
+                project_name = compose_path.parent.name if compose_path else name
+                containers = {
+                    svc: {
+                        "container": get_container_name(svc, svc_def, project_name),
+                        "host": shell_host,
+                    }
+                    for svc, svc_def in raw_services.items()
+                }
 
     return templates.TemplateResponse(
         "stack.html",
