@@ -557,6 +557,7 @@ function playFabIntro() {
         }
         htmx.ajax('GET', url, {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
             history.pushState({}, '', url);
+            window.scrollTo(0, 0);
             afterNav?.();
         });
     };
@@ -565,6 +566,7 @@ function playFabIntro() {
         if (window.location.pathname !== '/') {
             await htmx.ajax('GET', '/', {target: '#main-content', select: '#main-content', swap: 'outerHTML'});
             history.pushState({}, '', '/');
+            window.scrollTo(0, 0);
         }
         htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
     };
