@@ -9,9 +9,9 @@ default:
 install:
     uv sync --all-extras --dev
 
-# Run all tests
+# Run all tests (parallel)
 test:
-    uv run pytest
+    uv run pytest -n auto
 
 # Run unit tests only (parallel, with coverage)
 test-unit:
