@@ -485,11 +485,11 @@ class TestSidebarFilter:
         count_badge = page.locator("#sidebar-count")
         assert "(4)" in count_badge.inner_text()
 
-        # Filter to show only stacks containing "na" (grafana)
-        self._filter_sidebar(page, "na")
+        # Filter to show only stacks containing "x" (plex, nextcloud)
+        self._filter_sidebar(page, "x")
 
-        # Count should update to (1)
-        assert "(1)" in count_badge.inner_text()
+        # Count should update to (2)
+        assert "(2)" in count_badge.inner_text()
 
     def test_text_filter_is_case_insensitive(self, page: Page, server_url: str) -> None:
         """Filter matching is case-insensitive."""
