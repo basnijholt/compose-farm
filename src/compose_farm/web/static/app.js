@@ -759,9 +759,14 @@ function initPage() {
 
 /**
  * Attempt to reconnect to an active task from localStorage
+ * @param {string} [path] - Optional path to use for task key lookup.
+ *                          If not provided, uses current window.location.pathname.
+ *                          This is important for HTMX navigation where pushState
+ *                          hasn't happened yet when htmx:afterSwap fires.
  */
-function tryReconnectToTask() {
-    const taskId = localStorage.getItem(getTaskKey());
+function tryReconnectToTask(path) {
+    const taskKey = TASK_KEY_PREFIX + (path || window.location.pathname);
+    const taskId = localStorage.getItem(taskKey);
     if (!taskId) return;
 
     whenXtermReady(() => {
@@ -784,8 +789,12 @@ document.addEventListener('DOMContentLoaded', function() {
 document.body.addEventListener('htmx:afterSwap', function(evt) {
     if (evt.detail.target.id === 'main-content') {
         initPage();
-        // Try to reconnect when navigating back to dashboard
-        tryReconnectToTask();
+        // Try to reconnect to task for the TARGET page, not current URL.
+        // When using command palette navigation (htmx.ajax + manual pushState),
+        // window.location.pathname still reflects the OLD page at this point.
+        // Use pathInfo.requestPath to get the correct target path.
+        const targetPath = evt.detail.pathInfo?.requestPath?.split('?')[0] || window.location.pathname;
+        tryReconnectToTask(targetPath);
     }
 });
 
