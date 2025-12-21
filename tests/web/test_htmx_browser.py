@@ -669,8 +669,8 @@ class TestCommandPalette:
         page.locator("#cmd-input").fill("plex")
         page.keyboard.press("Enter")
 
-        # Palette should close
-        page.wait_for_selector("#cmd-palette:not([open])", timeout=SHORT_TIMEOUT)
+        # Palette should close (use state="hidden" since closed dialog is not visible)
+        page.wait_for_selector("#cmd-palette", state="hidden", timeout=SHORT_TIMEOUT)
 
         # Should navigate to plex stack page
         page.wait_for_url("**/stack/plex", timeout=TIMEOUT)
@@ -699,8 +699,8 @@ class TestCommandPalette:
 
         page.keyboard.press("Escape")
 
-        # Palette should close, URL unchanged
-        page.wait_for_selector("#cmd-palette:not([open])", timeout=SHORT_TIMEOUT)
+        # Palette should close, URL unchanged (use state="hidden" since closed dialog is not visible)
+        page.wait_for_selector("#cmd-palette", state="hidden", timeout=SHORT_TIMEOUT)
         assert page.url.rstrip("/") == server_url.rstrip("/")
 
     def test_fab_button_opens_palette(self, page: Page, server_url: str) -> None:
