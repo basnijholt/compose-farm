@@ -1,6 +1,6 @@
 #!/bin/sh
 # Compose Farm bootstrap script
-# Usage: curl -fsSL https://raw.githubusercontent.com/basnijholt/compose-farm/main/bootstrap.sh | sh
+# Usage: curl -fsSL https://compose-farm.nijho.lt/install | sh
 #
 # This script installs uv (if needed) and then installs compose-farm as a uv tool.
 

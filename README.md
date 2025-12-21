@@ -155,7 +155,7 @@ If you need containers on different hosts to communicate seamlessly, you need Do
 
 ```bash
 # One-liner (installs uv if needed)
-curl -fsSL https://raw.githubusercontent.com/basnijholt/compose-farm/main/bootstrap.sh | sh
+curl -fsSL https://compose-farm.nijho.lt/install | sh
 
 # Or if you already have uv/pip
 uv tool install compose-farm
@@ -237,7 +237,7 @@ The keys will persist across restarts.
 
 ## Configuration
 
-Create `~/.config/compose-farm/compose-farm.yaml` (or `./compose-farm.yaml` in your working directory):
+Create `compose-farm.yaml` in the directory where you'll run commands (e.g., `/opt/stacks`). This keeps config near your stacks. Alternatively, use `~/.config/compose-farm/compose-farm.yaml` for a global config, or symlink from one to the other with `cf config symlink`.
 
 ### Single-host example
 

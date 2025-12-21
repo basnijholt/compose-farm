@@ -24,7 +24,7 @@ Before you begin, ensure you have:
 ### One-liner (recommended)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/basnijholt/compose-farm/main/bootstrap.sh | sh
+curl -fsSL https://compose-farm.nijho.lt/install | sh
 ```
 
 This installs [uv](https://docs.astral.sh/uv/) if needed, then installs compose-farm.
@@ -123,7 +123,21 @@ nas:/volume1/compose /opt/compose nfs defaults 0 0
 
 ### Create Config File
 
-Create `~/.config/compose-farm/compose-farm.yaml`:
+Create `compose-farm.yaml` in the directory where you'll run commands. For example, if your stacks are in `/opt/stacks`, place the config there too:
+
+```bash
+cd /opt/stacks
+cf config init
+```
+
+Alternatively, use `~/.config/compose-farm/compose-farm.yaml` for a global config. You can also symlink a working directory config to the global location:
+
+```bash
+# Create config in your stacks directory, symlink to ~/.config
+cf config symlink /opt/stacks/compose-farm.yaml
+```
+
+This way, `cf` commands work from anywhere while the config lives with your stacks.
 
 #### Single host example
 
