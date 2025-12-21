@@ -236,8 +236,8 @@ async def _run_shell_session(
         await websocket.send_text(f"{RED}Host '{host_name}' not found{RESET}{CRLF}")
         return
 
-    # Start interactive shell in home directory (avoid login shell to prevent job control warnings)
-    shell_cmd = "cd ~ && exec bash -i 2>/dev/null || exec sh -i"
+    # Start interactive shell in home directory
+    shell_cmd = "cd ~ && exec bash -i || exec sh -i"
 
     if is_local(host):
         # Local: use argv list with shell -c to interpret the command
