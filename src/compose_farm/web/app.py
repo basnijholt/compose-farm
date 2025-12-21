@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING
@@ -10,10 +11,21 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
+from rich.logging import RichHandler
 
 from compose_farm.web.deps import STATIC_DIR, get_config
 from compose_farm.web.routes import actions, api, pages
 from compose_farm.web.streaming import TASK_TTL_SECONDS, cleanup_stale_tasks
+
+# Configure logging with Rich handler for compose_farm.web modules
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True, show_path=False)],
+)
+# Set our web modules to INFO level (uvicorn handles its own logging)
+logging.getLogger("compose_farm.web").setLevel(logging.INFO)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
