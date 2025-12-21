@@ -581,6 +581,7 @@ function playFabIntro() {
             cmd('app', 'Console', 'Go to console', nav('/console'), icons.terminal),
             cmd('app', 'Edit Config', 'Edit compose-farm.yaml', nav('/console#editor'), icons.file_code),
             cmd('app', 'Docs', 'Open documentation', openExternal('https://compose-farm.nijho.lt/'), icons.book_open),
+            cmd('app', 'Repo', 'Open GitHub repository', openExternal('https://github.com/basnijholt/compose-farm'), icons.external_link),
         ];
 
         // Add stack-specific actions if on a stack page
