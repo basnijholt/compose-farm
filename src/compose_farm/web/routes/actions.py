@@ -63,9 +63,9 @@ async def service_action(name: str, service: str, command: str) -> dict[str, Any
     if name not in config.stacks:
         raise HTTPException(status_code=404, detail=f"Stack '{name}' not found")
 
-    # Append service name to command
+    # Use --service flag to target specific service
     task_id = _start_task(
-        lambda tid: run_compose_streaming(config, name, f"{command} {service}", tid)
+        lambda tid: run_compose_streaming(config, name, f"{command} --service {service}", tid)
     )
     return {"task_id": task_id, "stack": name, "service": service, "command": command}
 
