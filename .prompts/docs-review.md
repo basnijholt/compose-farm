@@ -8,96 +8,184 @@ Review all documentation files:
 - CLAUDE.md (development guidelines)
 - examples/README.md (example configurations)
 
+## Quick Reference: Code ↔ Docs Mapping
+
+| Documentation | Verify Against |
+|---------------|----------------|
+| docs/commands.md | `cf <cmd> --help` for each command |
+| docs/configuration.md | `src/compose_farm/config.py` (Pydantic models, `COMPOSE_FILENAMES`) |
+| docs/architecture.md | `ls src/compose_farm/` and `ls src/compose_farm/cli/` |
+| docs/web-ui.md | Actual web UI behavior and `src/compose_farm/web/` |
+| README.md (help blocks) | `uv run markdown-code-runner README.md` |
+| Installation claims | `pyproject.toml` (`requires-python`, `[project.optional-dependencies]`) |
+| State/log file info | `src/compose_farm/state.py`, `src/compose_farm/logs.py` |
+
 ## Review Checklist
+
+### 0. Quick Checks First
+
+Run these commands before the deep review to catch obvious issues:
+
+```bash
+# Recent changes that might need doc updates
+git log --oneline -20
+
+# Compare command list to docs
+cf --help
+
+# Check for new/changed options on all commands
+for cmd in up down stop pull restart update apply compose logs ps stats check refresh init-network traefik-file web; do
+  echo "=== cf $cmd ===" && cf $cmd --help
+done
+
+# Check subcommands
+cf config --help && cf ssh --help
+for sub in init show path validate edit symlink; do cf config $sub --help; done
+for sub in setup status keygen; do cf ssh $sub --help; done
+```
 
 ### 1. Command Documentation
 
-For each documented command, verify against the CLI source code:
+For each documented command in `docs/commands.md`, verify against CLI help:
 
-- Command exists in codebase
-- All options are documented with correct names, types, and defaults
+- Command exists and description matches
+- **All options are documented** with correct names, types, and defaults
 - Short options (-x) match long options (--xxx)
 - Examples would work as written
 - Check for undocumented commands or options
 
-Run `--help` for each command to verify.
+**Common gotchas:**
+- Subcommands (`cf config`, `cf ssh`) have their own options - check each subcommand's `--help`
+- Same short flag can mean different things (`-n` is `--dry-run` on some commands, `--tail` on `logs`)
+- Some commands have `--host` option, others don't
 
 ### 2. Configuration Documentation
 
-Verify against Pydantic models in the config module:
+Verify `docs/configuration.md` against `src/compose_farm/config.py`:
 
-- All config keys are documented
-- Types match Pydantic field types
-- Required vs optional fields are correct
-- Default values are accurate
-- Config file search order matches code
+| Check | Code Location |
+|-------|---------------|
+| Config keys | `Config` class fields |
+| Host options | `Host` class fields (`address`, `user`, `port`) |
+| Compose filenames | `COMPOSE_FILENAMES` tuple |
+| Default values | Field defaults in Pydantic models |
+| Search order | `load_config()` docstring and `config_search_paths()` |
+
+Also verify:
 - Example YAML is valid and uses current schema
+- Required vs optional fields are correct
 
 ### 3. Architecture Documentation
 
-Verify against actual directory structure:
+Verify `docs/architecture.md` against actual directory structure:
 
+```bash
+# Main modules
+ls src/compose_farm/*.py
+
+# CLI modules
+ls src/compose_farm/cli/*.py
+
+# Web modules (if documented)
+ls src/compose_farm/web/
+```
+
+Check:
 - File paths match actual source code location
 - All modules listed actually exist
 - No modules are missing from the list
 - Component descriptions match code functionality
-- CLI module list includes all command files
 
 ### 4. State and Data Files
 
-Verify against state and path modules:
+Verify against `src/compose_farm/state.py` and `src/compose_farm/logs.py`:
 
-- State file name and location are correct
-- State file format matches actual structure
-- Log file name and location are correct
-- What triggers state/log updates is accurate
+| Documentation Claim | Verify In |
+|---------------------|-----------|
+| State file name | `config.get_state_path()` |
+| State file location | Same method - "alongside config file" |
+| State file format | `load_state()` and `save_state()` |
+| Log file name | `logs.py:DEFAULT_LOG_PATH` |
+| What triggers updates | Search for calls to `save_state()` and `write_toml()` |
 
 ### 5. Installation Documentation
 
-Verify against pyproject.toml:
+Verify against `pyproject.toml`:
 
-- Python version requirement matches requires-python
-- Package name is correct
-- Optional dependencies are documented
-- CLI entry points are mentioned
-- Installation methods work as documented
+| Claim | Check Against |
+|-------|---------------|
+| Python version | `requires-python` field |
+| Package name | `[project] name` |
+| CLI commands | `[project.scripts]` |
+| Optional deps | `[project.optional-dependencies]` |
 
-### 6. Feature Claims
+Ensure:
+- The `[web]` extra is mentioned where `cf web` is documented
+- All installation methods actually work
+
+### 6. Web UI Documentation
+
+Verify `docs/web-ui.md` against actual web UI:
+
+- Keyboard shortcuts work as documented
+- All mentioned pages exist (`/`, `/stack/{name}`, `/console`)
+- Command palette commands are accurate
+- Requirements section mentions `compose-farm[web]`
+
+### 7. Feature Claims
 
 For each claimed feature, verify it exists and works as described.
 
-### 7. Cross-Reference Consistency
+### 8. Cross-Reference Consistency
 
 Check for conflicts between documentation files:
 
-- README vs docs/index.md (should be consistent)
+- README.md vs docs/index.md (should be consistent)
 - CLAUDE.md vs actual code structure
 - Command tables match across files
 - Config examples are consistent
 
-### 8. Recent Changes Check
+### 9. Recent Changes Check
 
 Before starting the review:
 
-- Run `git log --oneline -20` to see recent commits
+```bash
+git log --oneline -20
+```
+
 - Look for commits with `feat:`, `fix:`, or that mention new options/commands
 - Cross-reference these against the documentation to catch undocumented features
+- Pay special attention to commits touching `cli/*.py` files
 
-### 9. Auto-Generated Content
+### 10. Auto-Generated Content
 
 For README.md or docs with `<!-- CODE:BASH:START -->` blocks:
 
-- Run `uv run markdown-code-runner <file>` to regenerate outputs
-- Check for missing `<!-- OUTPUT:START -->` markers (blocks that never ran)
-- Verify help output matches current CLI behavior
+```bash
+uv run markdown-code-runner README.md
+git diff README.md
+```
 
-### 10. CLI Options Completeness
+- If diff shows only whitespace/box-drawing changes, that's OK (terminal width)
+- If diff shows actual content changes, the docs are stale
+- Check for missing `<!-- OUTPUT:START -->` markers (blocks that never ran)
+
+### 11. CLI Options Completeness
 
 For each command, run `cf <command> --help` and verify:
 
 - Every option shown in help is documented
 - Short flags (-x) are listed alongside long flags (--xxx)
 - Default values in help match documented defaults
+- Argument descriptions match
+
+## Common Gotchas
+
+- **Subcommand options**: `cf config` and `cf ssh` have subcommands with their own options. Check each subcommand's `--help`, not just the parent.
+- **Short flags**: Verify `-x` maps to `--xxx` correctly (e.g., `-n` could be `--dry-run` or `--tail` depending on command)
+- **Default values**: Check both "default:" in help output AND behavior when option is omitted
+- **Auto-generated content**: README.md has `<!-- CODE:BASH:START -->` blocks that may have stale output if terminal width differs
+- **Optional arguments**: Some commands have optional positional args (e.g., `cf config symlink [TARGET]`)
 
 ## Output Format
 
@@ -111,8 +199,30 @@ Provide findings in these categories:
 6. **Minor Issues**: Typos, formatting, unclear wording
 7. **Verified Accurate**: Sections confirmed to be correct
 
-For each issue, include:
-- File path and line number (if applicable)
-- What the documentation says
-- What the code actually does
-- Suggested fix
+For each issue, provide a **ready-to-apply fix**:
+
+```
+### Issue: [Brief description]
+
+- **File**: docs/commands.md:652
+- **Category**: Missing Documentation
+- **Current text**:
+  > `**Options for cf ssh setup and cf ssh keygen:**`
+- **Problem**: `cf ssh setup` has `--config` option, `cf ssh keygen` does not
+- **Fix**: Separate into individual tables for each subcommand
+- **Verify**: `cf ssh setup --help` vs `cf ssh keygen --help`
+```
+
+## After Fixing Issues
+
+After making fixes, verify:
+
+```bash
+# Regenerate auto-generated content
+uv run markdown-code-runner README.md
+
+# Check for unintended changes
+git diff
+
+# Run the review again to confirm fixes
+```
