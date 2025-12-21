@@ -622,15 +622,20 @@ function playFabIntro() {
     }
 
     function filter() {
-        // Fuzzy matching: all words in query must appear in command name (any order)
-        // Examples: "rest plex" matches "Restart: plex", "th dar" matches "theme: dark"
+        // Fuzzy matching: all query words must match the START of a word in the command name
+        // Examples: "r ba" matches "Restart: bazarr" but NOT "Logs: bazarr"
         const q = input.value.toLowerCase().trim();
-        const words = q.split(/\s+/).filter(w => w);
+        // Split query into words and strip non-alphanumeric chars
+        const queryWords = q.split(/[^a-z0-9]+/).filter(w => w);
 
         filtered = commands.filter(c => {
             const name = c.name.toLowerCase();
-            // All query words must be found in the command name
-            return words.every(word => name.includes(word));
+            // Split command name into words (split on non-alphanumeric)
+            const nameWords = name.split(/[^a-z0-9]+/).filter(w => w);
+            // Each query word must match the start of some word in the command name
+            return queryWords.every(qw =>
+                nameWords.some(nw => nw.startsWith(qw))
+            );
         });
         selected = Math.max(0, Math.min(selected, filtered.length - 1));
     }
