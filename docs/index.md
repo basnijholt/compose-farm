@@ -17,12 +17,12 @@ It also works great on a single host with one folder per stack; just map stacks 
 
 **CLI:**
 <video autoplay loop muted playsinline>
-  <source src="/assets/quickstart.webm" type="video/webm">
+  <source src="/assets/quickstart.webm#t=0.001" type="video/webm">
 </video>
 
 **[Web UI](web-ui.md):**
 <video autoplay loop muted playsinline>
-  <source src="/assets/web-workflow.webm" type="video/webm">
+  <source src="/assets/web-workflow.webm#t=0.001" type="video/webm">
 </video>
 
 ## Why Compose Farm?
@@ -136,7 +136,7 @@ cf logs -f plex
 - **Auto-migration**: Change a host assignment, run `cf up`, stack moves automatically
 
 <video autoplay loop muted playsinline>
-  <source src="/assets/migration.webm" type="video/webm">
+  <source src="/assets/migration.webm#t=0.001" type="video/webm">
 </video>
 - **Parallel execution**: Multiple stacks start/stop concurrently
 - **State tracking**: Knows which stacks are running where
