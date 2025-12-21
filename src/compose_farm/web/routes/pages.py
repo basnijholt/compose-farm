@@ -162,8 +162,6 @@ async def stack_detail(request: Request, name: str) -> HTMLResponse:
     # Get service names from compose file
     services: list[str] = []
     if compose_content:
-        import yaml  # noqa: PLC0415 - lazy import for CLI startup speed
-
         compose_data = yaml.safe_load(compose_content) or {}
         raw_services = compose_data.get("services", {})
         if isinstance(raw_services, dict):
