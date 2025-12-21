@@ -512,7 +512,7 @@ function playFabIntro() {
     const THEMES = ['light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate', 'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween', 'garden', 'forest', 'aqua', 'lofi', 'pastel', 'fantasy', 'wireframe', 'black', 'luxury', 'dracula', 'cmyk', 'autumn', 'business', 'acid', 'lemonade', 'night', 'coffee', 'winter', 'dim', 'nord', 'sunset', 'caramellatte', 'abyss', 'silk'];
     const THEME_KEY = 'cf_theme';
 
-    const colors = { stack: '#22c55e', action: '#eab308', nav: '#3b82f6', app: '#a855f7', theme: '#ec4899' };
+    const colors = { stack: '#22c55e', action: '#eab308', nav: '#3b82f6', app: '#a855f7', theme: '#ec4899', service: '#14b8a6' };
     let commands = [];
     let filtered = [];
     let selected = 0;
@@ -583,6 +583,23 @@ function playFabIntro() {
                 stackCmd('Update', 'Pull + restart', 'update', icons.refresh_cw),
                 stackCmd('Logs', 'View logs for', 'logs', icons.file_text),
             );
+
+            // Add service-specific commands from data-services attribute
+            const servicesAttr = document.querySelector('[data-services]')?.getAttribute('data-services');
+            if (servicesAttr) {
+                const services = servicesAttr.split(',').filter(s => s);
+                const svcCmd = (action, service, desc, endpoint, icon) =>
+                    cmd('service', `${action}: ${service}`, desc, post(`/api/stack/${stack}/service/${service}/${endpoint}`), icon);
+                for (const service of services) {
+                    actions.push(
+                        svcCmd('restart', service, `Restart service`, 'restart', icons.rotate_cw),
+                        svcCmd('pull', service, `Pull image for service`, 'pull', icons.cloud_download),
+                        svcCmd('logs', service, `View logs for service`, 'logs', icons.file_text),
+                        svcCmd('stop', service, `Stop service`, 'stop', icons.square),
+                        svcCmd('up', service, `Start service`, 'up', icons.play),
+                    );
+                }
+            }
         }
 
         // Add nav commands for all stacks from sidebar
