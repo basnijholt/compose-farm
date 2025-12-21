@@ -1875,6 +1875,47 @@ class TestServicePagePalette:
         cmd_list = page.locator("#cmd-list").inner_text()
         assert "Restart: plex-server" in cmd_list
 
+    def test_shell_commands_in_palette(self, page: Page, server_url: str) -> None:
+        """Command palette includes Shell commands for each service."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=TIMEOUT)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=TIMEOUT)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=SHORT_TIMEOUT)
+
+        # Filter to shell commands
+        page.locator("#cmd-input").fill("Shell:")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should have Shell commands for plex-server and redis services
+        assert "Shell: plex-server" in cmd_list
+        assert "Shell: redis" in cmd_list
+
+    def test_shell_command_fuzzy_match(self, page: Page, server_url: str) -> None:
+        """Shell commands can be found with fuzzy search."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=TIMEOUT)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=TIMEOUT)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=SHORT_TIMEOUT)
+
+        # Type "shell redis" without colon
+        page.locator("#cmd-input").fill("shell redis")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should match "Shell: redis"
+        assert "Shell: redis" in cmd_list
+
 
 class TestThemeSwitcher:
     """Test theme switcher via command palette."""

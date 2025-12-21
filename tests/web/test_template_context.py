@@ -84,6 +84,15 @@ class TestPageTemplatesRender:
         assert response.status_code == 200
         assert "test-service" in response.text
 
+    def test_stack_detail_has_containers_data(self, client: TestClient) -> None:
+        """Test stack detail page includes data-containers for command palette shell."""
+        response = client.get("/stack/test-service")
+        assert response.status_code == 200
+        # Should have data-containers attribute with JSON
+        assert "data-containers=" in response.text
+        # Container name should follow {project}-{service}-1 pattern
+        assert "test-service-app-1" in response.text
+
 
 class TestPartialTemplatesRender:
     """Test that partial templates render without missing variables."""
