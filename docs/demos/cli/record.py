@@ -39,16 +39,29 @@ def _check_state(demo: str) -> bool:
 
     config = load_config()
     state = load_state(config)
-    current_host = state.get("audiobookshelf")
+    state_host = state.get("audiobookshelf")
+    config_host = config.stacks.get("audiobookshelf")
 
-    if demo == "migration" and current_host != "nas":
+    # Migration needs audiobookshelf on nas in BOTH config and state
+    if demo == "migration":
+        if config_host != "nas":
+            console.print(
+                f"[red]Skipping {demo}: config has audiobookshelf on '{config_host}', needs 'nas'[/red]"
+            )
+            console.print(
+                "[yellow]Fix: sed -i 's/audiobookshelf: .*/audiobookshelf: nas/' /opt/stacks/compose-farm.yaml[/yellow]"
+            )
+            return False
+        if state_host != "nas":
+            console.print(
+                f"[red]Skipping {demo}: audiobookshelf running on '{state_host}', needs 'nas'[/red]"
+            )
+            console.print("[yellow]Fix: cf apply[/yellow]")
+            return False
+
+    if demo == "apply" and state_host != "nas":
         console.print(
-            f"[red]Skipping {demo}: audiobookshelf is on '{current_host}', needs 'nas'[/red]"
-        )
-        return False
-    if demo == "apply" and current_host != "nas":
-        console.print(
-            f"[red]Skipping {demo}: audiobookshelf is on '{current_host}', needs 'nas'[/red]"
+            f"[red]Skipping {demo}: audiobookshelf is on '{state_host}', needs 'nas'[/red]"
         )
         return False
 
