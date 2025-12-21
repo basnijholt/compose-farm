@@ -23,8 +23,8 @@ def _run(cmd: list[str], **kw) -> bool:
     return subprocess.run(cmd, check=False, **kw).returncode == 0
 
 
-def _record(name: str) -> bool:
-    console.print(f"[green]Recording:[/green] {name}")
+def _record(name: str, index: int, total: int) -> bool:
+    console.print(f"[cyan][{index}/{total}][/cyan] [green]Recording:[/green] {name}")
     if _run(["vhs", str(SCRIPT_DIR / f"{name}.tape")], cwd=STACKS_DIR):
         console.print("[green]  ✓ Done[/green]")
         return True
@@ -82,11 +82,11 @@ def _main() -> int:
         console.print(f"[red]Unknown demo. Available: {', '.join(DEMOS)}[/red]")
         return 1
 
-    for demo in demos:
+    for i, demo in enumerate(demos, 1):
         if not _check_state(demo):
             return 1
 
-        if not _record(demo):
+        if not _record(demo, i, len(demos)):
             return 1
 
         # Reset after migration demo
