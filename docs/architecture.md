@@ -46,7 +46,7 @@ Compose Farm follows three core principles:
 
 Pydantic models for YAML configuration:
 
-- **Config** - Root configuration with compose_dir, hosts, stacks, traefik settings
+- **Config** - Root configuration with compose_dir, hosts, stacks
 - **Host** - Host address, SSH user, and port
 
 Key features:
@@ -97,7 +97,7 @@ cli/
 ├── app.py          # Shared Typer app, version callback
 ├── common.py       # Shared helpers, options, progress utilities
 ├── config.py       # config subcommand (init, show, path, validate, edit, symlink)
-├── lifecycle.py    # up, down, pull, restart, update, apply
+├── lifecycle.py    # up, down, stop, pull, restart, update, apply, compose
 ├── management.py   # refresh, check, init-network, traefik-file
 ├── monitoring.py   # logs, ps, stats
 ├── ssh.py          # SSH key management (setup, status, keygen)

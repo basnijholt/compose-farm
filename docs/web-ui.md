@@ -116,7 +116,7 @@ The web UI requires additional dependencies:
 pip install compose-farm[web]
 
 # If installed via uv
-uv tool install compose-farm --with web
+uv tool install 'compose-farm[web]'
 ```
 
 ## Architecture
