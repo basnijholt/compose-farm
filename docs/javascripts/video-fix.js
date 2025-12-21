@@ -6,9 +6,14 @@
       video.play().catch(function() {});
     });
   }
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initVideos);
   } else {
     initVideos();
+  }
+
+  if (typeof document$ !== 'undefined') {
+    document$.subscribe(initVideos);
   }
 })();
