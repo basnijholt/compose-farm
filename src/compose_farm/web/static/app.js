@@ -223,8 +223,8 @@ function initExecTerminal(stack, container, host) {
         return;
     }
 
-    // Expand the exec collapse section and scroll to it
-    expandCollapse(document.getElementById('exec-collapse'));
+    // Expand the exec collapse section and scroll to the terminal
+    expandCollapse(document.getElementById('exec-collapse'), containerEl);
 
     containerEl.classList.remove('hidden');
 
@@ -263,31 +263,33 @@ function initExecTerminal(stack, container, host) {
 window.initExecTerminal = initExecTerminal;
 
 /**
- * Expand a collapse component and scroll to it
+ * Expand a collapse component and scroll to a target element
  * @param {HTMLInputElement} toggle - The checkbox input that controls the collapse
+ * @param {HTMLElement} [scrollTarget] - Element to scroll to (defaults to collapse container)
  */
-function expandCollapse(toggle) {
+function expandCollapse(toggle, scrollTarget = null) {
     if (!toggle) return;
 
     // Find the parent collapse container
     const collapse = toggle.closest('.collapse');
     if (!collapse) return;
 
-    const scrollToCollapse = () => {
-        collapse.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const target = scrollTarget || collapse;
+    const scrollToTarget = () => {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     if (!toggle.checked) {
         // Collapsed - expand first, then scroll after transition
         const onTransitionEnd = () => {
             collapse.removeEventListener('transitionend', onTransitionEnd);
-            scrollToCollapse();
+            scrollToTarget();
         };
         collapse.addEventListener('transitionend', onTransitionEnd);
         toggle.checked = true;
     } else {
         // Already expanded - just scroll
-        scrollToCollapse();
+        scrollToTarget();
     }
 }
 
