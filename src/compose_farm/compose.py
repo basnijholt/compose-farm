@@ -336,3 +336,18 @@ def get_ports_for_service(
             if isinstance(ref_def, dict):
                 return _parse_ports(ref_def.get("ports"), env)
     return _parse_ports(definition.get("ports"), env)
+
+
+def get_container_name(
+    service_name: str,
+    service_def: dict[str, Any] | None,
+    project_name: str,
+) -> str:
+    """Get the container name for a service.
+
+    Uses container_name from compose if set, otherwise defaults to {project}-{service}-1.
+    This matches Docker Compose's default naming convention.
+    """
+    if isinstance(service_def, dict) and service_def.get("container_name"):
+        return str(service_def["container_name"])
+    return f"{project_name}-{service_name}-1"

@@ -4,7 +4,7 @@
 {% block title %}{{ name }} - Compose Farm{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl" data-services="{{ services | join(',') }}">
+<div class="max-w-5xl" data-services="{{ services | join(',') }}" data-containers='{{ containers | tojson }}'>
     <div class="mb-6">
         <h1 class="text-3xl font-bold rainbow-hover">{{ name }}</h1>
         <div class="flex flex-wrap items-center gap-2 mt-2">
