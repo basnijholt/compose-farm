@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
+import sys
 
+import pytest
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="ws.py uses Unix-only fcntl module")
 class TestShellCommand:
     """Tests for shell command configuration."""
 
