@@ -139,7 +139,10 @@ function initConsoleEditor() {
         // Focus editor if #editor hash is present (command palette Edit Config)
         if (window.location.hash === '#editor') {
             // Small delay for Monaco to fully initialize before focusing
-            setTimeout(() => consoleEditor.focus(), 100);
+            setTimeout(() => {
+                consoleEditor.focus();
+                editorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
         }
     });
 }
