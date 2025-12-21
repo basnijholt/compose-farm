@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import getpass
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field, model_validator
@@ -14,7 +15,7 @@ from .paths import config_search_paths, find_config_path
 COMPOSE_FILENAMES = ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml")
 
 
-class Host(BaseModel):
+class Host(BaseModel, extra="forbid"):
     """SSH host configuration."""
 
     address: str
@@ -22,7 +23,7 @@ class Host(BaseModel):
     port: int = 22
 
 
-class Config(BaseModel):
+class Config(BaseModel, extra="forbid"):
     """Main configuration."""
 
     compose_dir: Path = Path("/opt/compose")
@@ -113,7 +114,7 @@ class Config(BaseModel):
         return found
 
 
-def _parse_hosts(raw_hosts: dict[str, str | dict[str, str | int]]) -> dict[str, Host]:
+def _parse_hosts(raw_hosts: dict[str, Any]) -> dict[str, Host]:
     """Parse hosts from config, handling both simple and full forms."""
     hosts = {}
     for name, value in raw_hosts.items():
@@ -122,11 +123,7 @@ def _parse_hosts(raw_hosts: dict[str, str | dict[str, str | int]]) -> dict[str, 
             hosts[name] = Host(address=value)
         else:
             # Full form: hostname: {address: ..., user: ..., port: ...}
-            hosts[name] = Host(
-                address=str(value.get("address", "")),
-                user=str(value["user"]) if "user" in value else getpass.getuser(),
-                port=int(value["port"]) if "port" in value else 22,
-            )
+            hosts[name] = Host(**value)
     return hosts
 
 
