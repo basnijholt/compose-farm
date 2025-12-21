@@ -54,7 +54,7 @@ jobs:
         run: uv run playwright install chromium --with-deps
 
       - name: Run browser tests
-        run: uv run pytest -m browser -v --no-cov
+        run: uv run pytest -m browser -n auto -v
 
   lint:
     runs-on: ubuntu-latest

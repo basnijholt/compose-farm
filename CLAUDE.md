@@ -78,17 +78,17 @@ Use `just` for common tasks. Run `just` to list available commands:
 Run tests with `just test` or `uv run pytest`. Browser tests require Chromium (system-installed or via `playwright install chromium`):
 
 ```bash
-# Unit tests only (skip browser tests, can parallelize)
+# Unit tests only (parallel)
 uv run pytest -m "not browser" -n auto
 
-# Browser tests only (run sequentially, no coverage)
-uv run pytest -m browser --no-cov
+# Browser tests only (parallel)
+uv run pytest -m browser -n auto
 
 # All tests
-uv run pytest --no-cov
+uv run pytest
 ```
 
-Browser tests are marked with `@pytest.mark.browser`. They use Playwright to test HTMX behavior, JavaScript functionality (sidebar filter, command palette, terminals), and content stability during navigation. Run sequentially (no `-n`) to avoid resource contention.
+Browser tests are marked with `@pytest.mark.browser`. They use Playwright to test HTMX behavior, JavaScript functionality (sidebar filter, command palette, terminals), and content stability during navigation.
 
 ## Communication Notes
 
