@@ -75,6 +75,30 @@ Check for conflicts between documentation files:
 - Command tables match across files
 - Config examples are consistent
 
+### 8. Recent Changes Check
+
+Before starting the review:
+
+- Run `git log --oneline -20` to see recent commits
+- Look for commits with `feat:`, `fix:`, or that mention new options/commands
+- Cross-reference these against the documentation to catch undocumented features
+
+### 9. Auto-Generated Content
+
+For README.md or docs with `<!-- CODE:BASH:START -->` blocks:
+
+- Run `uv run markdown-code-runner <file>` to regenerate outputs
+- Check for missing `<!-- OUTPUT:START -->` markers (blocks that never ran)
+- Verify help output matches current CLI behavior
+
+### 10. CLI Options Completeness
+
+For each command, run `cf <command> --help` and verify:
+
+- Every option shown in help is documented
+- Short flags (-x) are listed alongside long flags (--xxx)
+- Default values in help match documented defaults
+
 ## Output Format
 
 Provide findings in these categories:
