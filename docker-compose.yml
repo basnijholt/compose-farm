@@ -36,6 +36,8 @@ services:
       - ${CF_SSH_DIR:-~/.ssh/compose-farm}:${CF_HOME:-/root}/.ssh
       # Option 2: Named volume
       # - cf-ssh:${CF_HOME:-/root}/.ssh
+      # XDG config dir for backups and image digest logs (persists across restarts)
+      - ${CF_XDG_CONFIG:-~/.config/compose-farm}:${CF_HOME:-/root}/.config/compose-farm
     environment:
       - SSH_AUTH_SOCK=/ssh-agent
       - CF_CONFIG=${CF_COMPOSE_DIR:-/opt/stacks}/compose-farm.yaml

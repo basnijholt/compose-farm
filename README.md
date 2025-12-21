@@ -177,6 +177,23 @@ docker run --rm \
   ghcr.io/basnijholt/compose-farm up --all
 ```
 
+**Running as non-root user** (recommended for NFS mounts):
+
+By default, containers run as root. To preserve file ownership on mounted volumes
+(e.g., `compose-farm-state.yaml`, config edits), set these environment variables:
+
+```bash
+# Add to .env file (one-time setup)
+echo "CF_UID=$(id -u)" >> .env
+echo "CF_GID=$(id -g)" >> .env
+echo "CF_HOME=$HOME" >> .env
+```
+
+Or export inline:
+```bash
+CF_UID=$(id -u) CF_GID=$(id -g) CF_HOME=$HOME docker compose up -d
+```
+
 </details>
 
 ## SSH Authentication
@@ -216,13 +233,13 @@ When running in Docker, mount a volume to persist the SSH keys. Choose ONE optio
 **Option 1: Host path (default)** - keys at `~/.ssh/compose-farm/id_ed25519`
 ```yaml
 volumes:
-  - ~/.ssh/compose-farm:/root/.ssh
+  - ~/.ssh/compose-farm:${CF_HOME:-/root}/.ssh
 ```
 
 **Option 2: Named volume** - managed by Docker
 ```yaml
 volumes:
-  - cf-ssh:/root/.ssh
+  - cf-ssh:${CF_HOME:-/root}/.ssh
 ```
 
 Run setup once after starting the container (while the SSH agent still works):
@@ -232,6 +249,8 @@ docker compose exec web cf ssh setup
 ```
 
 The keys will persist across restarts.
+
+**Note:** When running as non-root (with `CF_UID`/`CF_GID`), set `CF_HOME` to your home directory so SSH finds the keys at the correct path.
 
 </details>
 

@@ -54,6 +54,19 @@ docker run --rm \
   ghcr.io/basnijholt/compose-farm up --all
 ```
 
+**Running as non-root user** (recommended for NFS mounts):
+
+By default, containers run as root. To preserve file ownership on mounted volumes, set these environment variables in your `.env` file:
+
+```bash
+# Add to .env file (one-time setup)
+echo "CF_UID=$(id -u)" >> .env
+echo "CF_GID=$(id -g)" >> .env
+echo "CF_HOME=$HOME" >> .env
+```
+
+This ensures files like `compose-farm-state.yaml` and web UI edits are owned by your user instead of root.
+
 ### Verify Installation
 
 ```bash
