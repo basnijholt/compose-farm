@@ -1,204 +1,232 @@
 Review all documentation in this repository for accuracy, completeness, and consistency. Cross-reference documentation against the actual codebase to identify issues.
 
+## Approach
+
+Use **discovery** rather than hardcoded checklists. The codebase structure may change, so:
+1. Find what exists (docs, commands, source files)
+2. Compare against what's documented
+3. Flag discrepancies in either direction
+
+## What This Prompt Is For
+
+This is for **manual deep review** of documentation accuracy. Some checks can be automated as pre-commit hooks (and some already are), but this prompt covers things that require judgment:
+
+- Does the description actually match what the code does?
+- Are the examples realistic and would they work?
+- Is the documentation clear and complete?
+- Are there undocumented features or options?
+
+**Already automated (pre-commit):** README command table check, linting, formatting
+
 ## Scope
 
-Review all documentation files:
-- docs/*.md (primary documentation)
-- README.md (repository landing page)
-- CLAUDE.md (development guidelines)
-- examples/README.md (example configurations)
+Discover all documentation files:
 
-## Quick Reference: Code ↔ Docs Mapping
+```bash
+# Find all tracked markdown docs
+git ls-files "*.md"
+```
 
-| Documentation | Verify Against |
-|---------------|----------------|
-| docs/commands.md | `cf <cmd> --help` for each command |
-| docs/configuration.md | `src/compose_farm/config.py` (Pydantic models, `COMPOSE_FILENAMES`) |
-| docs/architecture.md | `ls src/compose_farm/` and `ls src/compose_farm/cli/` |
-| docs/web-ui.md | Actual web UI behavior and `src/compose_farm/web/` |
-| README.md (help blocks) | `uv run markdown-code-runner README.md` |
-| Installation claims | `pyproject.toml` (`requires-python`, `[project.optional-dependencies]`) |
-| State/log file info | `src/compose_farm/state.py`, `src/compose_farm/logs.py` |
+Typical locations:
+- `docs/*.md` - Primary documentation
+- `README.md` - Repository landing page
+- `CLAUDE.md` - Development guidelines
+- `examples/` - Example configurations
 
 ## Review Checklist
 
-### 0. Quick Checks First
+### 0. Discovery Phase
 
-Run these commands before the deep review to catch obvious issues:
+Before reviewing, discover what exists:
 
 ```bash
 # Recent changes that might need doc updates
 git log --oneline -20
 
-# Compare command list to docs
+# Discover all CLI commands (don't assume a list)
 cf --help
 
-# Check for new/changed options on all commands
-for cmd in up down stop pull restart update apply compose logs ps stats check refresh init-network traefik-file web; do
-  echo "=== cf $cmd ===" && cf $cmd --help
+# Get help for each command shown
+cf --help 2>&1 | grep -E "^│\s+\w+" | awk '{print $2}' | while read cmd; do
+  echo "=== cf $cmd ===" && cf $cmd --help 2>/dev/null
 done
 
-# Check subcommands
-cf config --help && cf ssh --help
-for sub in init show path validate edit symlink; do cf config $sub --help; done
-for sub in setup status keygen; do cf ssh $sub --help; done
+# Find subcommands (commands that have their own subcommands)
+for cmd in config ssh; do
+  echo "=== cf $cmd subcommands ==="
+  cf $cmd --help 2>&1 | grep -E "^│\s+\w+" | awk '{print $2}' | while read sub; do
+    echo "--- cf $cmd $sub ---" && cf $cmd $sub --help 2>/dev/null
+  done
+done
+
+# Discover source structure
+ls src/*/
+ls src/*/*/ 2>/dev/null
+
+# Find Pydantic models (config definitions)
+grep -r "class.*BaseModel" src/ --include="*.py" -l
+
+# Find CLI entry points
+grep -A5 "\[project.scripts\]" pyproject.toml
 ```
 
 ### 1. Command Documentation
 
-For each documented command in `docs/commands.md`, verify against CLI help:
+Compare CLI reality against command documentation:
 
+```bash
+# What commands actually exist?
+cf --help
+
+# What does the doc say exists?
+grep -E "^\| \`" docs/commands.md | head -20
+```
+
+For each command, verify:
 - Command exists and description matches
 - **All options are documented** with correct names, types, and defaults
 - Short options (-x) match long options (--xxx)
 - Examples would work as written
 - Check for undocumented commands or options
 
-**Common gotchas:**
-- Subcommands (`cf config`, `cf ssh`) have their own options - check each subcommand's `--help`
-- Same short flag can mean different things (`-n` is `--dry-run` on some commands, `--tail` on `logs`)
-- Some commands have `--host` option, others don't
+**Watch for:**
+- Subcommands that have their own options (check each `--help`)
+- Same short flag meaning different things on different commands
+- Options that exist on some commands but not others
 
 ### 2. Configuration Documentation
 
-Verify `docs/configuration.md` against `src/compose_farm/config.py`:
+Find and verify config models:
 
-| Check | Code Location |
-|-------|---------------|
-| Config keys | `Config` class fields |
-| Host options | `Host` class fields (`address`, `user`, `port`) |
-| Compose filenames | `COMPOSE_FILENAMES` tuple |
-| Default values | Field defaults in Pydantic models |
-| Search order | `load_config()` docstring and `config_search_paths()` |
+```bash
+# Find config-related code
+grep -r "class.*BaseModel" src/ --include="*.py" -A 10
 
-Also verify:
-- Example YAML is valid and uses current schema
-- Required vs optional fields are correct
+# Find config file search logic
+grep -r "config.*path\|search.*path\|find.*config" src/ --include="*.py" -l
+```
+
+Verify documentation covers:
+- All config keys match model fields
+- Types and defaults are accurate
+- Config file search order matches code
+- Example YAML uses current schema
 
 ### 3. Architecture Documentation
 
-Verify `docs/architecture.md` against actual directory structure:
+Compare documented structure against reality:
 
 ```bash
-# Main modules
-ls src/compose_farm/*.py
+# What actually exists?
+find src/ -name "*.py" -type f | head -30
 
-# CLI modules
-ls src/compose_farm/cli/*.py
-
-# Web modules (if documented)
-ls src/compose_farm/web/
+# What does architecture doc claim?
+grep -E "^├|^│|^└|\.py" docs/architecture.md
 ```
 
 Check:
-- File paths match actual source code location
+- File paths match actual locations
 - All modules listed actually exist
-- No modules are missing from the list
-- Component descriptions match code functionality
+- No modules are missing
+- Descriptions match functionality
 
 ### 4. State and Data Files
 
-Verify against `src/compose_farm/state.py` and `src/compose_farm/logs.py`:
+Find state/data handling code:
 
-| Documentation Claim | Verify In |
-|---------------------|-----------|
-| State file name | `config.get_state_path()` |
-| State file location | Same method - "alongside config file" |
-| State file format | `load_state()` and `save_state()` |
-| Log file name | `logs.py:DEFAULT_LOG_PATH` |
-| What triggers updates | Search for calls to `save_state()` and `write_toml()` |
+```bash
+# Find state-related code
+grep -r "state\|\.yaml\|\.toml" src/ --include="*.py" -l
+
+# Find file path definitions
+grep -r "Path\|\.yaml\|\.toml" src/ --include="*.py" | grep -i "state\|log\|config"
+```
+
+Verify documentation accurately describes:
+- File names and locations
+- File formats
+- What triggers updates
 
 ### 5. Installation Documentation
 
-Verify against `pyproject.toml`:
-
-| Claim | Check Against |
-|-------|---------------|
-| Python version | `requires-python` field |
-| Package name | `[project] name` |
-| CLI commands | `[project.scripts]` |
-| Optional deps | `[project.optional-dependencies]` |
-
-Ensure:
-- The `[web]` extra is mentioned where `cf web` is documented
-- All installation methods actually work
-
-### 6. Web UI Documentation
-
-Verify `docs/web-ui.md` against actual web UI:
-
-- Keyboard shortcuts work as documented
-- All mentioned pages exist (`/`, `/stack/{name}`, `/console`)
-- Command palette commands are accurate
-- Requirements section mentions `compose-farm[web]`
-
-### 7. Feature Claims
-
-For each claimed feature, verify it exists and works as described.
-
-### 8. Cross-Reference Consistency
-
-Check for conflicts between documentation files:
-
-- README.md vs docs/index.md (should be consistent)
-- CLAUDE.md vs actual code structure
-- Command tables match across files
-- Config examples are consistent
-
-### 9. Recent Changes Check
-
-Before starting the review:
+Verify against pyproject.toml:
 
 ```bash
-git log --oneline -20
+cat pyproject.toml | grep -A20 "^\[project\]"
+cat pyproject.toml | grep -A10 "optional-dependencies"
+cat pyproject.toml | grep -A5 "scripts"
 ```
 
-- Look for commits with `feat:`, `fix:`, or that mention new options/commands
-- Cross-reference these against the documentation to catch undocumented features
-- Pay special attention to commits touching `cli/*.py` files
+Check:
+- Python version requirement
+- Package name
+- Optional dependencies (like `[web]`)
+- CLI entry points
 
-### 10. Auto-Generated Content
+### 6. Feature Claims
 
-For README.md or docs with `<!-- CODE:BASH:START -->` blocks:
+For each claimed feature in any doc, verify it actually exists and works as described.
+
+### 7. Cross-Reference Consistency
+
+Look for the same information in multiple places:
 
 ```bash
+# Find command tables/lists across docs
+grep -r "cf \w\+" docs/ README.md --include="*.md" | grep -v "```" | head -20
+
+# Find config examples
+grep -r "compose_dir\|stacks:" docs/ README.md --include="*.md" -A 3
+```
+
+Check for conflicts between files.
+
+### 8. Recent Changes
+
+```bash
+# Commits that might need doc updates
+git log --oneline -20 | grep -iE "feat|fix|add|new|option|command"
+
+# Files changed recently
+git diff --name-only HEAD~20 | grep -E "\.py$|\.md$"
+```
+
+Cross-reference against documentation.
+
+### 9. Auto-Generated Content
+
+For files with auto-generated blocks:
+
+```bash
+# Find auto-generated markers
+grep -r "CODE:BASH:START\|OUTPUT:START" . --include="*.md"
+
+# Regenerate and check for drift
 uv run markdown-code-runner README.md
 git diff README.md
 ```
 
-- If diff shows only whitespace/box-drawing changes, that's OK (terminal width)
-- If diff shows actual content changes, the docs are stale
-- Check for missing `<!-- OUTPUT:START -->` markers (blocks that never ran)
+Whitespace-only diffs (box drawing) are OK; content changes mean stale docs.
 
-### 11. CLI Options Completeness
+### 10. Self-Check
 
-For each command, run `cf <command> --help` and verify:
-
-- Every option shown in help is documented
-- Short flags (-x) are listed alongside long flags (--xxx)
-- Default values in help match documented defaults
-- Argument descriptions match
-
-### 12. Review This Prompt
-
-This prompt itself can become outdated. Verify it's still accurate:
-
-- Check the Quick Reference table lists all current doc files
-- Verify source file paths still exist (`ls` the paths mentioned)
-- Confirm the bash commands in "Quick Checks First" still work
-- Check if new commands/subcommands were added that aren't in the loops
-- Verify the Common Gotchas are still relevant
-- Add any new gotchas discovered during this review
+This prompt can become outdated. Verify:
+- Discovery commands still work
+- No hardcoded assumptions that are now wrong
+- Add any new gotchas found during review
 
 If this prompt needs updates, include them in your fixes.
 
 ## Common Gotchas
 
-- **Subcommand options**: `cf config` and `cf ssh` have subcommands with their own options. Check each subcommand's `--help`, not just the parent.
-- **Short flags**: Verify `-x` maps to `--xxx` correctly (e.g., `-n` could be `--dry-run` or `--tail` depending on command)
-- **Default values**: Check both "default:" in help output AND behavior when option is omitted
-- **Auto-generated content**: README.md has `<!-- CODE:BASH:START -->` blocks that may have stale output if terminal width differs
-- **Optional arguments**: Some commands have optional positional args (e.g., `cf config symlink [TARGET]`)
+These are patterns that frequently cause doc/code drift:
+
+- **Subcommand options**: Parent command help doesn't show subcommand options
+- **Short flag collisions**: `-n` might mean `--dry-run` or `--tail` depending on command
+- **Default value drift**: Code defaults change but docs don't
+- **Terminal width**: Auto-generated help output varies by terminal width
+- **Optional positional args**: Easy to miss documenting `[OPTIONAL_ARG]`
+- **New commands**: Added to CLI but not to command tables in docs
 
 ## Output Format
 
