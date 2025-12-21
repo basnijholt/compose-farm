@@ -1,4 +1,4 @@
-// Fix Safari video autoplay issues on first page load
+// Fix Safari video autoplay issues
 (function() {
   function initVideos() {
     document.querySelectorAll('video[autoplay]').forEach(function(video) {
@@ -7,12 +7,14 @@
     });
   }
 
+  // For initial page load (needed for Chrome)
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initVideos);
   } else {
     initVideos();
   }
 
+  // For MkDocs instant navigation (needed for Safari)
   if (typeof document$ !== 'undefined') {
     document$.subscribe(initVideos);
   }
