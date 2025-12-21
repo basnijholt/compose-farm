@@ -66,7 +66,7 @@ Use `just` for common tasks. Run `just` to list available commands:
 |---------|-------------|
 | `just install` | Install dev dependencies |
 | `just test` | Run all tests |
-| `just test-unit` | Run unit tests (parallel) |
+| `just test-cli` | Run CLI tests (parallel) |
 | `just test-browser` | Run browser tests |
 | `just lint` | Lint, format, and type check |
 | `just web` | Start web UI (port 9001) |

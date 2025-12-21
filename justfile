@@ -13,8 +13,8 @@ install:
 test:
     uv run pytest -n auto
 
-# Run unit tests only (parallel, with coverage)
-test-unit:
+# Run CLI tests only (parallel, with coverage)
+test-cli:
     uv run pytest -m "not browser" -n auto
 
 # Run browser tests only (parallel)
