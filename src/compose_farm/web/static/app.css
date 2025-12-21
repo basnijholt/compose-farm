@@ -1,6 +1,7 @@
-/* Allow tooltips to escape collapse content overflow */
-.collapse-content {
-    overflow: visible;
+/* Tooltips - ensure they appear above sidebar and other elements */
+.tooltip::before,
+.tooltip::after {
+    z-index: 1000;
 }
 
 /* Sidebar inputs - remove focus outline (DaisyUI 5 uses outline + outline-offset) */
