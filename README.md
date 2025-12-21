@@ -12,6 +12,16 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 > [!NOTE]
 > Run `docker compose` commands across multiple hosts via SSH. One YAML maps stacks to hosts. Run `cf apply` and reality matches your config—stacks start, migrate, or stop as needed. No Kubernetes, no Swarm, no magic.
 
+## Quick Demo
+
+**CLI:**
+
+![CLI Demo](docs/assets/quickstart.gif)
+
+**Web UI:**
+
+![Web UI Demo](docs/assets/web-workflow.gif)
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
