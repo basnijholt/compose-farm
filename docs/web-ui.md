@@ -14,12 +14,12 @@ Then open [http://localhost:8000](http://localhost:8000).
 
 ## Features
 
-### Command Palette
+### Full Workflow
 
-Press `Ctrl+K` (or `Cmd+K` on macOS) to open the command palette. Use fuzzy search to quickly navigate, trigger actions, or change themes.
+Console terminal, config editor, stack navigation, actions (up, logs, update), dashboard overview, and theme switching - all in one flow.
 
 <video autoplay loop muted playsinline>
-  <source src="/assets/web-navigation.webm" type="video/webm">
+  <source src="/assets/web-workflow.webm" type="video/webm">
 </video>
 
 ### Stack Actions
@@ -38,12 +38,12 @@ Navigate to any stack and use the command palette to trigger actions like restar
   <source src="/assets/web-themes.webm" type="video/webm">
 </video>
 
-### Full Workflow
+### Command Palette
 
-Dashboard overview, sidebar filtering, stack navigation, terminal streaming, and theme switching - all in one flow.
+Press `Ctrl+K` (or `Cmd+K` on macOS) to open the command palette. Use fuzzy search to quickly navigate, trigger actions, or change themes.
 
 <video autoplay loop muted playsinline>
-  <source src="/assets/web-workflow.webm" type="video/webm">
+  <source src="/assets/web-navigation.webm" type="video/webm">
 </video>
 
 ## Pages
