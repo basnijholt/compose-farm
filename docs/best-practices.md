@@ -297,7 +297,7 @@ http:
 |------|----------|--------|
 | Compose Farm config | `~/.config/compose-farm/` | Git or copy |
 | Compose files | `/opt/compose/` | Git |
-| State file | `~/.config/compose-farm/state.yaml` | Optional (can refresh) |
+| State file | `~/.config/compose-farm/compose-farm-state.yaml` | Optional (can refresh) |
 | App data | `/opt/appdata/` | Backup solution |
 
 ### Disaster Recovery

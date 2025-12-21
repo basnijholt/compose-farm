@@ -13,9 +13,11 @@ The Compose Farm CLI is available as both `compose-farm` and the shorter alias `
 | **Lifecycle** | `apply` | Make reality match config |
 | | `up` | Start stacks |
 | | `down` | Stop stacks |
+| | `stop` | Stop services without removing containers |
 | | `restart` | Restart stacks (down + up) |
 | | `update` | Update stacks (pull + build + down + up) |
 | | `pull` | Pull latest images |
+| | `compose` | Run any docker compose command |
 | **Monitoring** | `ps` | Show stack status |
 | | `logs` | Show stack logs |
 | | `stats` | Show overview statistics |
@@ -97,6 +99,7 @@ cf up [OPTIONS] [STACKS]...
 |--------|-------------|
 | `--all, -a` | Start all stacks |
 | `--host, -H TEXT` | Filter to stacks on this host |
+| `--service, -s TEXT` | Target a specific service within the stack |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
@@ -110,6 +113,9 @@ cf up --all
 
 # Start all stacks on a specific host
 cf up --all --host nuc
+
+# Start just one service within a stack
+cf up mystack --service web
 ```
 
 **Auto-migration:**
@@ -158,9 +164,40 @@ cf down --all --host nuc
 
 ---
 
+### cf stop
+
+Stop services without removing containers.
+
+```bash
+cf stop [OPTIONS] [STACKS]...
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--all, -a` | Stop all stacks |
+| `--service, -s TEXT` | Target a specific service within the stack |
+| `--config, -c PATH` | Path to config file |
+
+**Examples:**
+
+```bash
+# Stop specific stacks
+cf stop plex
+
+# Stop all stacks
+cf stop --all
+
+# Stop just one service within a stack
+cf stop mystack --service worker
+```
+
+---
+
 ### cf restart
 
-Restart stacks (down + up).
+Restart stacks (down + up). With `--service`, restarts just that service.
 
 ```bash
 cf restart [OPTIONS] [STACKS]...
@@ -171,6 +208,7 @@ cf restart [OPTIONS] [STACKS]...
 | Option | Description |
 |--------|-------------|
 | `--all, -a` | Restart all stacks |
+| `--service, -s TEXT` | Target a specific service within the stack |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
@@ -178,13 +216,16 @@ cf restart [OPTIONS] [STACKS]...
 ```bash
 cf restart plex
 cf restart --all
+
+# Restart just one service within a stack
+cf restart mystack --service web
 ```
 
 ---
 
 ### cf update
 
-Update stacks (pull + build + down + up).
+Update stacks (pull + build + down + up). With `--service`, updates just that service.
 
 <video autoplay loop muted playsinline>
   <source src="/assets/update.webm" type="video/webm">
@@ -199,6 +240,7 @@ cf update [OPTIONS] [STACKS]...
 | Option | Description |
 |--------|-------------|
 | `--all, -a` | Update all stacks |
+| `--service, -s TEXT` | Target a specific service within the stack |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
@@ -209,6 +251,9 @@ cf update plex
 
 # Update all stacks
 cf update --all
+
+# Update just one service within a stack
+cf update mystack --service api
 ```
 
 ---
@@ -226,6 +271,7 @@ cf pull [OPTIONS] [STACKS]...
 | Option | Description |
 |--------|-------------|
 | `--all, -a` | Pull for all stacks |
+| `--service, -s TEXT` | Target a specific service within the stack |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
@@ -233,7 +279,60 @@ cf pull [OPTIONS] [STACKS]...
 ```bash
 cf pull plex
 cf pull --all
+
+# Pull image for just one service
+cf pull mystack --service web
 ```
+
+---
+
+### cf compose
+
+Run any docker compose command on a stack. This is a passthrough to `docker compose` for commands not wrapped by cf.
+
+```bash
+cf compose STACK COMMAND [ARGS]...
+```
+
+**Arguments:**
+
+| Argument | Description |
+|----------|-------------|
+| `STACK` | Stack to operate on (use `.` for current directory) |
+| `COMMAND` | Docker compose command to run |
+| `ARGS` | Additional arguments passed to docker compose |
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--host, -H TEXT` | Specify host for multi-host stacks |
+| `--config, -c PATH` | Path to config file |
+
+**Examples:**
+
+```bash
+# Show docker compose help
+cf compose mystack --help
+
+# View running processes
+cf compose mystack top
+
+# List images used by the stack
+cf compose mystack images
+
+# Open interactive shell in a service
+cf compose mystack exec web bash
+
+# View parsed compose config
+cf compose mystack config
+
+# Run from within a stack directory
+cd /opt/compose/mystack
+cf compose . ps
+```
+
+**Note:** Options after `COMMAND` are passed to docker compose, not cf.
 
 ---
 
@@ -253,6 +352,7 @@ cf ps [OPTIONS] [STACKS]...
 |--------|-------------|
 | `--all, -a` | Show all stacks (default) |
 | `--host, -H TEXT` | Filter to stacks on this host |
+| `--service, -s TEXT` | Filter to a specific service within the stack |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
@@ -266,13 +366,16 @@ cf ps plex sonarr
 
 # Filter by host
 cf ps --host nuc
+
+# Show status of a specific service
+cf ps mystack --service web
 ```
 
 ---
 
 ### cf logs
 
-Show stack logs.
+Show stack logs. With `--service`, shows logs for just that service.
 
 <video autoplay loop muted playsinline>
   <source src="/assets/logs.webm" type="video/webm">
@@ -288,6 +391,7 @@ cf logs [OPTIONS] [STACKS]...
 |--------|-------------|
 | `--all, -a` | Show logs for all stacks |
 | `--host, -H TEXT` | Filter to stacks on this host |
+| `--service, -s TEXT` | Show logs for just that service |
 | `--follow, -f` | Follow logs (live stream) |
 | `--tail, -n INTEGER` | Number of lines (default: 20 for --all, 100 otherwise) |
 | `--config, -c PATH` | Path to config file |
@@ -306,6 +410,9 @@ cf logs -n 50 plex sonarr
 
 # Show last 20 lines of all stacks
 cf logs --all
+
+# Show logs for a specific service
+cf logs mystack --service web
 ```
 
 ---
