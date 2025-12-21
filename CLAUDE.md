@@ -58,9 +58,24 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 
 - **Imports at top level**: Never add imports inside functions unless they are explicitly marked with `# noqa: PLC0415` and a comment explaining it speeds up CLI startup. Heavy modules like `pydantic`, `yaml`, and `rich.table` are lazily imported to keep `cf --help` fast.
 
+## Development Commands
+
+Use `just` for common tasks. Run `just` to list available commands:
+
+| Command | Description |
+|---------|-------------|
+| `just install` | Install dev dependencies |
+| `just test` | Run all tests |
+| `just test-unit` | Run unit tests (parallel) |
+| `just test-browser` | Run browser tests |
+| `just lint` | Lint, format, and type check |
+| `just web` | Start web UI (port 9001) |
+| `just doc` | Build and serve docs (port 9002) |
+| `just clean` | Clean build artifacts |
+
 ## Testing
 
-Run tests with `uv run pytest`. Browser tests require Chromium (system-installed or via `playwright install chromium`):
+Run tests with `just test` or `uv run pytest`. Browser tests require Chromium (system-installed or via `playwright install chromium`):
 
 ```bash
 # Unit tests only (skip browser tests, can parallelize)
