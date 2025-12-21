@@ -245,7 +245,7 @@ class TestHTMXSidebarLoading:
 
         # Verify actual stacks from test config appear
         stacks = page.locator("#sidebar-stacks li")
-        assert stacks.count() == 4  # plex, grafana, nextcloud, jellyfin
+        assert stacks.count() == 5  # plex, grafana, nextcloud, jellyfin, redis
 
         # Check specific stacks are present
         content = page.locator("#sidebar-stacks").inner_text()
@@ -346,9 +346,9 @@ class TestDashboardContent:
 
         stats = page.locator("#stats-cards").inner_text()
 
-        # From test config: 2 hosts, 4 stacks, 2 running (plex, nextcloud)
+        # From test config: 2 hosts, 5 stacks, 2 running (plex, nextcloud)
         assert "2" in stats  # hosts count
-        assert "4" in stats  # stacks count
+        assert "5" in stats  # stacks count
 
     def test_pending_shows_not_started_stacks(self, page: Page, server_url: str) -> None:
         """Pending operations shows grafana and jellyfin as not started."""
@@ -478,7 +478,7 @@ class TestSidebarFilter:
 
         # Initially all 4 stacks visible
         visible_items = page.locator("#sidebar-stacks li:not([hidden])")
-        assert visible_items.count() == 4
+        assert visible_items.count() == 5
 
         # Type in filter to match only "plex"
         self._filter_sidebar(page, "plex")
@@ -493,9 +493,9 @@ class TestSidebarFilter:
         page.goto(server_url)
         page.wait_for_selector("#sidebar-stacks", timeout=TIMEOUT)
 
-        # Initial count should be (4)
+        # Initial count should be (5)
         count_badge = page.locator("#sidebar-count")
-        assert "(4)" in count_badge.inner_text()
+        assert "(5)" in count_badge.inner_text()
 
         # Filter to show only stacks containing "x" (plex, nextcloud)
         self._filter_sidebar(page, "x")
@@ -524,9 +524,9 @@ class TestSidebarFilter:
         # Select server-1 from dropdown
         page.locator("#sidebar-host-select").select_option("server-1")
 
-        # Only plex and grafana (server-1 stacks) should be visible
+        # Only plex, grafana, and redis (server-1 stacks) should be visible
         visible = page.locator("#sidebar-stacks li:not([hidden])")
-        assert visible.count() == 2
+        assert visible.count() == 3
 
         content = visible.all_inner_texts()
         assert any("plex" in s for s in content)
@@ -562,7 +562,7 @@ class TestSidebarFilter:
         self._filter_sidebar(page, "")
 
         # All stacks visible again
-        assert page.locator("#sidebar-stacks li:not([hidden])").count() == 4
+        assert page.locator("#sidebar-stacks li:not([hidden])").count() == 5
 
 
 class TestCommandPalette:
@@ -884,7 +884,7 @@ class TestContentStability:
 
         # Remember sidebar state
         initial_count = page.locator("#sidebar-stacks li").count()
-        assert initial_count == 4
+        assert initial_count == 5
 
         # Navigate away
         page.locator("#sidebar-stacks a", has_text="plex").click()

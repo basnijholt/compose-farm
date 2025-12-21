@@ -20,8 +20,8 @@ else:  # Linux
 
 
 @pytest.mark.skipif(
-    "PYTEST_XDIST_WORKER" in os.environ,
-    reason="Skip in parallel mode due to resource contention",
+    "GITHUB_ACTIONS" in os.environ,
+    reason="Skip in CI due to variable runner performance",
 )
 def test_cli_startup_time() -> None:
     """Verify CLI startup time stays within acceptable bounds.
