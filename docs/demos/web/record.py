@@ -22,12 +22,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Colors for output
-GREEN = "\033[0;32m"
-BLUE = "\033[0;34m"
-YELLOW = "\033[0;33m"
-RED = "\033[0;31m"
-NC = "\033[0m"  # No Color
+from rich.console import Console
+
+console = Console()
 
 SCRIPT_DIR = Path(__file__).parent
 REPO_DIR = SCRIPT_DIR.parent.parent.parent
@@ -88,16 +85,16 @@ def patch_playwright_video_quality() -> None:
     # Replace with high-quality settings
     new_content = re.sub(pattern, VIDEO_QUALITY_ARGS, content)
     video_recorder.write_text(new_content)
-    print(f"{GREEN}Patched Playwright for high-quality video recording{NC}")
+    console.print("[green]Patched Playwright for high-quality video recording[/green]")
 
 
 def record_demo(name: str) -> Path | None:
     """Run a single demo and return the video path."""
-    print(f"{GREEN}Recording:{NC} web-{name}")
+    console.print(f"[green]Recording:[/green] web-{name}")
 
     demo_file = SCRIPT_DIR / f"demo_{name}.py"
     if not demo_file.exists():
-        print(f"{RED}  Demo file not found: {demo_file}{NC}")
+        console.print(f"[red]  Demo file not found: {demo_file}[/red]")
         return None
 
     # Create temp output dir for this recording
@@ -126,20 +123,20 @@ def record_demo(name: str) -> Path | None:
     )
 
     if result.returncode != 0:
-        print(f"{RED}  Failed to record {name}{NC}")
-        print(result.stdout)
-        print(result.stderr)
+        console.print(f"[red]  Failed to record {name}[/red]")
+        console.print(result.stdout)
+        console.print(result.stderr)
         return None
 
     # Find the recorded video
     videos = list(temp_dir.rglob("*.webm"))
     if not videos:
-        print(f"{RED}  No video found for {name}{NC}")
+        console.print(f"[red]  No video found for {name}[/red]")
         return None
 
     # Use the most recent video
     video = max(videos, key=lambda p: p.stat().st_mtime)
-    print(f"{GREEN}  Recorded: {video.name}{NC}")
+    console.print(f"[green]  Recorded: {video.name}[/green]")
     return video
 
 
@@ -193,10 +190,10 @@ def move_recording(video_path: Path, name: str) -> tuple[Path, Path]:
     webm_dest = OUTPUT_DIR / f"{output_name}.webm"
 
     shutil.copy2(video_path, webm_dest)
-    print(f"{BLUE}  WebM: {webm_dest.relative_to(REPO_DIR)}{NC}")
+    console.print(f"[blue]  WebM: {webm_dest.relative_to(REPO_DIR)}[/blue]")
 
     gif_path = convert_to_gif(video_path, output_name)
-    print(f"{BLUE}  GIF:  {gif_path.relative_to(REPO_DIR)}{NC}")
+    console.print(f"[blue]  GIF:  {gif_path.relative_to(REPO_DIR)}[/blue]")
 
     return webm_dest, gif_path
 
@@ -210,9 +207,9 @@ def cleanup() -> None:
 
 def main() -> int:
     """Record all web UI demos."""
-    print(f"{BLUE}Recording web UI demos...{NC}")
-    print(f"Output directory: {OUTPUT_DIR}")
-    print()
+    console.print("[blue]Recording web UI demos...[/blue]")
+    console.print(f"Output directory: {OUTPUT_DIR}")
+    console.print()
 
     # Patch Playwright for high-quality video recording
     patch_playwright_video_quality()
@@ -221,7 +218,7 @@ def main() -> int:
     if len(sys.argv) > 1:
         demos_to_record = [d for d in sys.argv[1:] if d in DEMOS]
         if not demos_to_record:
-            print(f"{RED}Unknown demo(s). Available: {', '.join(DEMOS)}{NC}")
+            console.print(f"[red]Unknown demo(s). Available: {', '.join(DEMOS)}[/red]")
             return 1
     else:
         demos_to_record = DEMOS
@@ -230,7 +227,7 @@ def main() -> int:
 
     try:
         for i, demo in enumerate(demos_to_record, 1):
-            print(f"{YELLOW}=== Demo {i}/{len(demos_to_record)}: {demo} ==={NC}")
+            console.print(f"[yellow]=== Demo {i}/{len(demos_to_record)}: {demo} ===[/yellow]")
 
             video_path = record_demo(demo)
             if video_path:
@@ -238,23 +235,23 @@ def main() -> int:
                 results[demo] = (webm, gif)
             else:
                 results[demo] = (None, None)
-            print()
+            console.print()
     finally:
         cleanup()
 
     # Summary
-    print(f"{BLUE}=== Summary ==={NC}")
+    console.print("[blue]=== Summary ===[/blue]")
     success_count = sum(1 for w, _ in results.values() if w is not None)
-    print(f"Recorded: {success_count}/{len(demos_to_record)} demos")
-    print()
+    console.print(f"Recorded: {success_count}/{len(demos_to_record)} demos")
+    console.print()
 
     for demo, (webm, gif) in results.items():  # type: ignore[assignment]
-        status = f"{GREEN}OK{NC}" if webm else f"{RED}FAILED{NC}"
-        print(f"  {demo}: {status}")
+        status = "[green]OK[/green]" if webm else "[red]FAILED[/red]"
+        console.print(f"  {demo}: {status}")
         if webm:
-            print(f"    {webm.relative_to(REPO_DIR)}")
+            console.print(f"    {webm.relative_to(REPO_DIR)}")
         if gif:
-            print(f"    {gif.relative_to(REPO_DIR)}")
+            console.print(f"    {gif.relative_to(REPO_DIR)}")
 
     return 0 if success_count == len(demos_to_record) else 1
 
