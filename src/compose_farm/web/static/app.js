@@ -588,11 +588,16 @@ function playFabIntro() {
                 stackCmd('Logs', 'View logs for', 'logs', icons.file_text),
             );
 
-            // Add service-specific commands from data-services attribute
+            // Add service-specific commands from data-services and data-containers attributes
             // Grouped by action (all Logs together, all Pull together, etc.) with services sorted alphabetically
             const servicesAttr = document.querySelector('[data-services]')?.getAttribute('data-services');
+            const containersAttr = document.querySelector('[data-containers]')?.getAttribute('data-containers');
             if (servicesAttr) {
                 const services = servicesAttr.split(',').filter(s => s).sort();
+                // Parse container info for shell access: {service: {container, host}}
+                let containers = {};
+                try { containers = containersAttr ? JSON.parse(containersAttr) : {}; } catch (e) { /* ignore */ }
+
                 const svcCmd = (action, service, desc, endpoint, icon) =>
                     cmd('service', `${action}: ${service}`, desc, post(`/api/stack/${stack}/service/${service}/${endpoint}`), icon);
                 const svcActions = [
@@ -605,6 +610,14 @@ function playFabIntro() {
                 for (const [action, desc, endpoint, icon] of svcActions) {
                     for (const service of services) {
                         actions.push(svcCmd(action, service, desc, endpoint, icon));
+                    }
+                }
+                // Add Shell commands if container info is available
+                for (const service of services) {
+                    const info = containers[service];
+                    if (info?.container && info?.host) {
+                        actions.push(cmd('service', `Shell: ${service}`, 'Open interactive shell',
+                            () => initExecTerminal(stack, info.container, info.host), icons.terminal));
                     }
                 }
             }

@@ -19,6 +19,7 @@ import yaml
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
+from compose_farm.compose import get_container_name
 from compose_farm.executor import is_local, run_compose_on_host, ssh_connect_kwargs
 from compose_farm.paths import find_config_path
 from compose_farm.state import load_state
@@ -116,14 +117,9 @@ def _get_compose_services(config: Any, stack: str, hosts: list[str]) -> list[dic
     containers = []
     for host in hosts:
         for svc_name, svc_def in raw_services.items():
-            # Use container_name if set, otherwise default to {project}-{service}-1
-            if isinstance(svc_def, dict) and svc_def.get("container_name"):
-                container_name = svc_def["container_name"]
-            else:
-                container_name = f"{project_name}-{svc_name}-1"
             containers.append(
                 {
-                    "Name": container_name,
+                    "Name": get_container_name(svc_name, svc_def, project_name),
                     "Service": svc_name,
                     "Host": host,
                     "State": "unknown",  # Status requires Docker query
