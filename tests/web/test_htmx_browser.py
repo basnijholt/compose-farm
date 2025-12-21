@@ -1879,3 +1879,138 @@ class TestThemeSwitcher:
         # Theme should still be dark
         final = page.locator("html").get_attribute("data-theme")
         assert final == "dark", f"Expected dark after executing Dashboard, got {final}"
+
+
+class TestTerminalNavigationIsolation:
+    """Test that terminal connections are properly isolated per page.
+
+    Regression tests for a bug where navigating away from a stack page via
+    command palette would cause the new page to reconnect to the old page's
+    terminal task because history.pushState hadn't updated the URL yet when
+    tryReconnectToTask() ran.
+    """
+
+    def test_stack_terminal_not_reconnected_on_dashboard(self, page: Page, server_url: str) -> None:
+        """Terminal started on stack page should NOT reconnect when navigating to dashboard.
+
+        Bug scenario:
+        1. On /stack/plex, click Update → terminal connects, task stored at cf_task:/stack/plex
+        2. Navigate to dashboard via command palette
+        3. Dashboard loads, htmx:afterSwap fires
+        4. tryReconnectToTask() runs but window.location.pathname is still /stack/plex
+           (because pushState hasn't run yet)
+        5. Bug: Dashboard reconnects to plex's terminal task
+
+        Expected: Dashboard should NOT have any task_id in its localStorage key (cf_task:/)
+        """
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Clear any existing task state
+        page.evaluate("localStorage.clear()")
+
+        # Track WebSocket connections to see which terminals are opened
+        ws_urls: list[str] = []
+
+        def handle_ws(ws: WebSocket) -> None:
+            ws_urls.append(ws.url)
+
+        page.on("websocket", handle_ws)
+
+        # Mock Update API to return a task ID
+        page.route(
+            "**/api/stack/plex/update",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "plex-update-task-123", "stack": "plex", "command": "update"}',
+            ),
+        )
+
+        # Wait for xterm to load
+        page.wait_for_function("typeof Terminal !== 'undefined'", timeout=5000)
+
+        # Click Update button on plex stack page
+        page.locator("button", has_text="Update").click()
+
+        # Wait for terminal to connect
+        page.wait_for_selector("#terminal-output .xterm", timeout=5000)
+        page.wait_for_timeout(500)
+
+        # Verify task was stored for /stack/plex
+        plex_task = page.evaluate("localStorage.getItem('cf_task:/stack/plex')")
+        assert plex_task == "plex-update-task-123", (
+            f"Expected task stored at /stack/plex, got {plex_task}"
+        )
+
+        # Dashboard should have NO task yet
+        dashboard_task_before = page.evaluate("localStorage.getItem('cf_task:/')")
+        assert dashboard_task_before is None, (
+            f"Dashboard should have no task before navigation, got {dashboard_task_before}"
+        )
+
+        # Count current WebSocket connections
+        ws_count_before = len(ws_urls)
+
+        # Navigate to dashboard via command palette (this triggers the bug)
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+        page.locator("#cmd-input").fill("Dashboard")
+        page.keyboard.press("Enter")
+
+        # Wait for navigation to complete
+        page.wait_for_url(server_url, timeout=5000)
+        page.wait_for_selector("#stats-cards", timeout=5000)
+
+        # Give time for any erroneous reconnection attempts
+        page.wait_for_timeout(1000)
+
+        # CRITICAL ASSERTION: Dashboard should NOT have a task in localStorage
+        dashboard_task_after = page.evaluate("localStorage.getItem('cf_task:/')")
+        assert dashboard_task_after is None, (
+            f"Bug detected: Dashboard incorrectly has task '{dashboard_task_after}' in localStorage. "
+            "This means tryReconnectToTask() ran before pushState updated the URL."
+        )
+
+        # CRITICAL ASSERTION: No new WebSocket should have been opened for the plex task
+        # after navigating to dashboard
+        new_ws_urls = ws_urls[ws_count_before:]
+        plex_reconnect_attempts = [url for url in new_ws_urls if "plex-update-task-123" in url]
+        assert len(plex_reconnect_attempts) == 0, (
+            f"Bug detected: Dashboard attempted to reconnect to plex task. "
+            f"New WebSocket URLs after navigation: {new_ws_urls}"
+        )
+
+    def test_dashboard_terminal_not_shown_after_stack_navigation(
+        self, page: Page, server_url: str
+    ) -> None:
+        """Dashboard's terminal should remain collapsed when navigating away and back.
+
+        This tests that navigating from dashboard → stack → dashboard doesn't
+        cause the terminal to expand unexpectedly.
+        """
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
+
+        # Terminal should be collapsed on dashboard
+        terminal_toggle = page.locator("#terminal-toggle")
+        assert not terminal_toggle.is_checked(), "Terminal should be collapsed initially"
+
+        # Navigate to a stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Navigate back to dashboard via command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+        page.locator("#cmd-input").fill("Dashboard")
+        page.keyboard.press("Enter")
+        page.wait_for_url(server_url, timeout=5000)
+
+        # Terminal should still be collapsed (no task to reconnect to)
+        terminal_toggle = page.locator("#terminal-toggle")
+        assert not terminal_toggle.is_checked(), "Terminal should remain collapsed after navigation"
