@@ -516,7 +516,7 @@ function playFabIntro() {
     const THEMES = ['light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate', 'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween', 'garden', 'forest', 'aqua', 'lofi', 'pastel', 'fantasy', 'wireframe', 'black', 'luxury', 'dracula', 'cmyk', 'autumn', 'business', 'acid', 'lemonade', 'night', 'coffee', 'winter', 'dim', 'nord', 'sunset', 'caramellatte', 'abyss', 'silk'];
     const THEME_KEY = 'cf_theme';
 
-    const colors = { stack: '#22c55e', action: '#eab308', nav: '#3b82f6', app: '#a855f7', theme: '#ec4899' };
+    const colors = { stack: '#22c55e', action: '#eab308', nav: '#3b82f6', app: '#a855f7', theme: '#ec4899', service: '#14b8a6' };
     let commands = [];
     let filtered = [];
     let selected = 0;
@@ -587,6 +587,27 @@ function playFabIntro() {
                 stackCmd('Update', 'Pull + restart', 'update', icons.refresh_cw),
                 stackCmd('Logs', 'View logs for', 'logs', icons.file_text),
             );
+
+            // Add service-specific commands from data-services attribute
+            // Grouped by action (all Logs together, all Pull together, etc.) with services sorted alphabetically
+            const servicesAttr = document.querySelector('[data-services]')?.getAttribute('data-services');
+            if (servicesAttr) {
+                const services = servicesAttr.split(',').filter(s => s).sort();
+                const svcCmd = (action, service, desc, endpoint, icon) =>
+                    cmd('service', `${action}: ${service}`, desc, post(`/api/stack/${stack}/service/${service}/${endpoint}`), icon);
+                const svcActions = [
+                    ['Logs', 'View logs for service', 'logs', icons.file_text],
+                    ['Pull', 'Pull image for service', 'pull', icons.cloud_download],
+                    ['Restart', 'Restart service', 'restart', icons.rotate_cw],
+                    ['Stop', 'Stop service', 'stop', icons.square],
+                    ['Up', 'Start service', 'up', icons.play],
+                ];
+                for (const [action, desc, endpoint, icon] of svcActions) {
+                    for (const service of services) {
+                        actions.push(svcCmd(action, service, desc, endpoint, icon));
+                    }
+                }
+            }
         }
 
         // Add nav commands for all stacks from sidebar
@@ -605,10 +626,21 @@ function playFabIntro() {
     }
 
     function filter() {
-        // Normalize: collapse spaces and ensure space after colon for matching
-        // This allows "theme:dark", "theme: dark", "theme:  dark" to all match "theme: dark"
-        const q = input.value.toLowerCase().replace(/\s+/g, ' ').replace(/:(\S)/g, ': $1');
-        filtered = commands.filter(c => c.name.toLowerCase().includes(q));
+        // Fuzzy matching: all query words must match the START of a word in the command name
+        // Examples: "r ba" matches "Restart: bazarr" but NOT "Logs: bazarr"
+        const q = input.value.toLowerCase().trim();
+        // Split query into words and strip non-alphanumeric chars
+        const queryWords = q.split(/[^a-z0-9]+/).filter(w => w);
+
+        filtered = commands.filter(c => {
+            const name = c.name.toLowerCase();
+            // Split command name into words (split on non-alphanumeric)
+            const nameWords = name.split(/[^a-z0-9]+/).filter(w => w);
+            // Each query word must match the start of some word in the command name
+            return queryWords.every(qw =>
+                nameWords.some(nw => nw.startsWith(qw))
+            );
+        });
         selected = Math.max(0, Math.min(selected, filtered.length - 1));
     }
 

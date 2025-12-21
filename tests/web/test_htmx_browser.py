@@ -121,7 +121,14 @@ def test_config(tmp_path_factory: pytest.TempPathFactory) -> Path:
     for name in ["plex", "grafana", "nextcloud", "jellyfin"]:
         svc = compose_dir / name
         svc.mkdir()
-        (svc / "compose.yaml").write_text(f"services:\n  {name}:\n    image: test/{name}\n")
+        if name == "plex":
+            # Multi-service stack for testing service commands
+            # Includes hyphenated name (plex-server) to test word-boundary matching
+            (svc / "compose.yaml").write_text(
+                "services:\n  plex-server:\n    image: test/plex\n  redis:\n    image: redis:alpine\n"
+            )
+        else:
+            (svc / "compose.yaml").write_text(f"services:\n  {name}:\n    image: test/{name}\n")
 
     # Create config with multiple hosts
     config = tmp / "compose-farm.yaml"
@@ -1617,6 +1624,253 @@ class TestServicePagePalette:
         assert len(api_calls) >= 1
         assert "/api/apply" in api_calls[0]
 
+    def test_palette_shows_service_commands(self, page: Page, server_url: str) -> None:
+        """Command palette on stack page shows service-specific commands."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack (has plex and redis services)
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Filter to service commands
+        page.locator("#cmd-input").fill("Restart:")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should show restart commands for both services
+        assert "Restart: plex-server" in cmd_list
+        assert "Restart: redis" in cmd_list
+
+    def test_palette_service_commands_for_all_actions(self, page: Page, server_url: str) -> None:
+        """Service commands include all expected actions (restart, pull, logs, stop, up)."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Check all service action types exist for the plex-server service
+        actions = ["Restart", "Pull", "Logs", "Stop", "Up"]
+        for action in actions:
+            page.locator("#cmd-input").fill(f"{action}: plex-server")
+            cmd_list = page.locator("#cmd-list").inner_text()
+            assert f"{action}: plex-server" in cmd_list, f"Missing {action}: plex-server command"
+
+    def test_palette_service_command_triggers_api(self, page: Page, server_url: str) -> None:
+        """Selecting service command triggers correct service API endpoint."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Track API calls
+        api_calls: list[str] = []
+
+        def handle_route(route: Route) -> None:
+            api_calls.append(route.request.url)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "svc-test", "stack": "plex", "service": "redis", "command": "restart"}',
+            )
+
+        page.route("**/api/stack/plex/service/redis/restart", handle_route)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Filter to Restart:redis and execute
+        page.locator("#cmd-input").fill("Restart: redis")
+        page.keyboard.press("Enter")
+
+        # Wait for API call
+        page.wait_for_timeout(500)
+
+        # Verify correct service API was called
+        assert len(api_calls) >= 1
+        assert "/api/stack/plex/service/redis/restart" in api_calls[0]
+
+    def test_palette_service_commands_have_teal_indicator(
+        self, page: Page, server_url: str
+    ) -> None:
+        """Service commands display with teal color indicator."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Filter to a service command
+        page.locator("#cmd-input").fill("Restart: plex-server")
+
+        # Get the command element and check its border color
+        cmd_item = page.locator("#cmd-list a", has_text="Restart: plex-server").first
+        style = cmd_item.get_attribute("style") or ""
+
+        # Service commands should have teal color (#14b8a6)
+        assert "#14b8a6" in style, f"Expected teal border color, got style: {style}"
+
+    def test_single_service_stack_shows_service_commands(self, page: Page, server_url: str) -> None:
+        """Single-service stacks also show service commands."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks li", timeout=5000)
+
+        # Navigate to sonarr stack (has only sonarr service)
+        sonarr_link = page.locator("#sidebar-stacks a", has_text="sonarr")
+        sonarr_link.wait_for(timeout=5000)
+        sonarr_link.click()
+        page.wait_for_url("**/stack/sonarr", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Filter to service commands
+        page.locator("#cmd-input").fill("Restart:")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should show restart command for sonarr service
+        assert "Restart: sonarr" in cmd_list
+
+    def test_palette_filter_without_colon(self, page: Page, server_url: str) -> None:
+        """Filter matches service commands without colon (e.g., 'Up redis' matches 'Up: redis')."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type "Restart redis" without colon
+        page.locator("#cmd-input").fill("Restart redis")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should still match "Restart: redis"
+        assert "Restart: redis" in cmd_list
+
+    def test_palette_fuzzy_filter_partial_words(self, page: Page, server_url: str) -> None:
+        """Filter matches with partial words (e.g., 'rest red' matches 'Restart: redis')."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type partial words "rest red"
+        page.locator("#cmd-input").fill("rest red")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should match "Restart: redis"
+        assert "Restart: redis" in cmd_list
+
+    def test_palette_fuzzy_filter_any_order(self, page: Page, server_url: str) -> None:
+        """Filter matches words in any order (e.g., 'redis rest' matches 'Restart: redis')."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type words in reverse order "redis rest"
+        page.locator("#cmd-input").fill("redis rest")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should match "Restart: redis"
+        assert "Restart: redis" in cmd_list
+
+    def test_palette_filter_without_colon_triggers_api(self, page: Page, server_url: str) -> None:
+        """Service command filtered without colon still triggers correct API."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Track API calls
+        api_calls: list[str] = []
+
+        def handle_route(route: Route) -> None:
+            api_calls.append(route.request.url)
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"task_id": "test", "stack": "plex", "service": "redis", "command": "pull"}',
+            )
+
+        page.route("**/api/stack/plex/service/redis/pull", handle_route)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type "Pull redis" without colon and execute
+        page.locator("#cmd-input").fill("Pull redis")
+        page.keyboard.press("Enter")
+
+        # Wait for API call
+        page.wait_for_timeout(500)
+
+        # Verify correct service API was called
+        assert len(api_calls) >= 1
+        assert "/api/stack/plex/service/redis/pull" in api_calls[0]
+
+    def test_palette_hyphenated_service_name(self, page: Page, server_url: str) -> None:
+        """Filter matches hyphenated service names by second word (e.g., 'server' matches 'plex-server')."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack (has plex-server service)
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type just "server" - should match "plex-server" because hyphen splits words
+        page.locator("#cmd-input").fill("Restart server")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should match "Restart: plex-server"
+        assert "Restart: plex-server" in cmd_list
+
+        # Also verify "rest plex" matches via the first part of hyphenated name
+        page.locator("#cmd-input").fill("rest plex")
+        cmd_list = page.locator("#cmd-list").inner_text()
+        assert "Restart: plex-server" in cmd_list
+
 
 class TestThemeSwitcher:
     """Test theme switcher via command palette."""
@@ -1732,6 +1986,22 @@ class TestThemeSwitcher:
         # Should show theme options
         cmd_list = page.locator("#cmd-list").inner_text()
         assert "theme: light" in cmd_list
+        assert "theme: dark" in cmd_list
+
+    def test_theme_filter_without_colon(self, page: Page, server_url: str) -> None:
+        """Filter matches theme commands without colon (e.g., 'theme dark' matches 'theme: dark')."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks", timeout=5000)
+
+        # Open with Cmd+K
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type "theme dark" without colon
+        page.locator("#cmd-input").fill("theme dark")
+
+        # Should show theme: dark option
+        cmd_list = page.locator("#cmd-list").inner_text()
         assert "theme: dark" in cmd_list
 
     def test_theme_command_opens_theme_picker(self, page: Page, server_url: str) -> None:

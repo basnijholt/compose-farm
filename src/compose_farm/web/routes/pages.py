@@ -159,6 +159,14 @@ async def stack_detail(request: Request, name: str) -> HTMLResponse:
     # Get state
     current_host = get_stack_host(config, name)
 
+    # Get service names from compose file
+    services: list[str] = []
+    if compose_content:
+        compose_data = yaml.safe_load(compose_content) or {}
+        raw_services = compose_data.get("services", {})
+        if isinstance(raw_services, dict):
+            services = list(raw_services.keys())
+
     return templates.TemplateResponse(
         "stack.html",
         {
@@ -170,6 +178,7 @@ async def stack_detail(request: Request, name: str) -> HTMLResponse:
             "compose_path": str(compose_path) if compose_path else None,
             "env_content": env_content,
             "env_path": str(env_path) if env_path else None,
+            "services": services,
         },
     )
 
