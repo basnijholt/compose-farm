@@ -138,7 +138,8 @@ function initConsoleEditor() {
         consoleEditor = createEditor(editorEl, '', 'plaintext', { onSave: saveFile });
         // Focus editor if #editor hash is present (command palette Edit Config)
         if (window.location.hash === '#editor') {
-            consoleEditor.focus();
+            // Small delay for Monaco to fully initialize before focusing
+            setTimeout(() => consoleEditor.focus(), 100);
         }
     });
 }
