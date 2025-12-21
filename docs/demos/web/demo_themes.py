@@ -62,8 +62,8 @@ def test_demo_themes(recording_page: Page, server_url: str) -> None:
     page.wait_for_selector("#cmd-palette[open]", timeout=2000)
     pause(page, 400)
 
-    # Type to filter to a light theme (theme button pre-populates "theme:")
-    slow_type(page, "#cmd-input", " cup", delay=100)
+    # Type to filter to a light theme (theme button pre-populates "theme: ")
+    slow_type(page, "#cmd-input", "cup", delay=100)
     pause(page, 500)
     page.keyboard.press("Enter")
     pause(page, 1000)
@@ -75,7 +75,7 @@ def test_demo_themes(recording_page: Page, server_url: str) -> None:
     page.wait_for_selector("#cmd-palette[open]", timeout=2000)
     pause(page, 300)
 
-    slow_type(page, "#cmd-input", " dark", delay=100)
+    slow_type(page, "#cmd-input", "dark", delay=100)
     pause(page, 400)
     page.keyboard.press("Enter")
     pause(page, 800)
