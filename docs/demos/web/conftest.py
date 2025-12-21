@@ -21,6 +21,7 @@ import uvicorn
 
 from compose_farm.config import Config as CFConfig
 from compose_farm.config import load_config
+from compose_farm.state import load_state as _original_load_state
 from compose_farm.web.app import create_app
 from compose_farm.web.cdn import CDN_ASSETS, ensure_vendor_cache
 
@@ -36,11 +37,9 @@ DEMO_EXCLUDE_STACKS = {"arr"}
 def _get_filtered_config() -> CFConfig:
     """Load config but filter out excluded stacks."""
     config = load_config()
-    # Filter out excluded stacks
     filtered_stacks = {
         name: host for name, host in config.stacks.items() if name not in DEMO_EXCLUDE_STACKS
     }
-    # Create a new config with filtered stacks
     return CFConfig(
         compose_dir=config.compose_dir,
         hosts=config.hosts,
@@ -49,6 +48,12 @@ def _get_filtered_config() -> CFConfig:
         traefik_stack=config.traefik_stack,
         config_path=config.config_path,
     )
+
+
+def _get_filtered_state(config: CFConfig) -> dict[str, str | list[str]]:
+    """Load state but filter out excluded stacks."""
+    state = _original_load_state(config)
+    return {name: host for name, host in state.items() if name not in DEMO_EXCLUDE_STACKS}
 
 
 @pytest.fixture(scope="session")
@@ -77,9 +82,11 @@ def server_url() -> Generator[str, None, None]:
     """Start demo server using real config (with filtered stacks) and return URL."""
     os.environ["CF_CONFIG"] = str(REAL_CONFIG_PATH)
 
-    # Patch get_config in all web modules to filter out excluded stacks
-    # Must patch where it's imported, not where it's defined
+    # Patch at source module level so all callers get filtered versions
     patches = [
+        # Patch load_state at source - all functions calling it get filtered state
+        patch("compose_farm.state.load_state", _get_filtered_state),
+        # Patch get_config where imported
         patch("compose_farm.web.routes.pages.get_config", _get_filtered_config),
         patch("compose_farm.web.routes.api.get_config", _get_filtered_config),
         patch("compose_farm.web.routes.actions.get_config", _get_filtered_config),
@@ -87,7 +94,6 @@ def server_url() -> Generator[str, None, None]:
         patch("compose_farm.web.ws.get_config", _get_filtered_config),
     ]
 
-    # Start all patches
     for p in patches:
         p.start()
 
@@ -104,7 +110,6 @@ def server_url() -> Generator[str, None, None]:
 
     url = f"http://127.0.0.1:{port}"
     server_ready = False
-    # Wait up to 5 seconds for server to start
     for _ in range(50):
         try:
             urllib.request.urlopen(url, timeout=0.5)  # noqa: S310
@@ -123,7 +128,6 @@ def server_url() -> Generator[str, None, None]:
     thread.join(timeout=2)
     os.environ.pop("CF_CONFIG", None)
 
-    # Stop all patches
     for p in patches:
         p.stop()
 
