@@ -622,14 +622,15 @@ function playFabIntro() {
     }
 
     function filter() {
-        // Normalize: collapse spaces and ensure space after colon for matching
-        // This allows "theme:dark", "theme: dark", "theme:  dark" to all match "theme: dark"
-        const q = input.value.toLowerCase().replace(/\s+/g, ' ').replace(/:(\S)/g, ': $1');
-        // Also create a colon-inserted version: "up plex" -> "up: plex" for matching "up: plex"
-        const qWithColon = q.replace(/^(\w+) /, '$1: ');
+        // Fuzzy matching: all words in query must appear in command name (any order)
+        // Examples: "rest plex" matches "Restart: plex", "th dar" matches "theme: dark"
+        const q = input.value.toLowerCase().trim();
+        const words = q.split(/\s+/).filter(w => w);
+
         filtered = commands.filter(c => {
             const name = c.name.toLowerCase();
-            return name.includes(q) || name.includes(qWithColon);
+            // All query words must be found in the command name
+            return words.every(word => name.includes(word));
         });
         selected = Math.max(0, Math.min(selected, filtered.length - 1));
     }

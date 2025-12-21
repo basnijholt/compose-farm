@@ -1766,6 +1766,46 @@ class TestServicePagePalette:
         # Should still match "Restart: plex"
         assert "Restart: plex" in cmd_list
 
+    def test_palette_fuzzy_filter_partial_words(self, page: Page, server_url: str) -> None:
+        """Filter matches with partial words (e.g., 'rest plex' matches 'Restart: plex')."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type partial words "rest ple"
+        page.locator("#cmd-input").fill("rest ple")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should match "Restart: plex"
+        assert "Restart: plex" in cmd_list
+
+    def test_palette_fuzzy_filter_any_order(self, page: Page, server_url: str) -> None:
+        """Filter matches words in any order (e.g., 'plex rest' matches 'Restart: plex')."""
+        page.goto(server_url)
+        page.wait_for_selector("#sidebar-stacks a", timeout=5000)
+
+        # Navigate to plex stack
+        page.locator("#sidebar-stacks a", has_text="plex").click()
+        page.wait_for_url("**/stack/plex", timeout=5000)
+
+        # Open command palette
+        page.keyboard.press("Control+k")
+        page.wait_for_selector("#cmd-palette[open]", timeout=2000)
+
+        # Type words in reverse order "plex rest"
+        page.locator("#cmd-input").fill("plex rest")
+        cmd_list = page.locator("#cmd-list").inner_text()
+
+        # Should match "Restart: plex"
+        assert "Restart: plex" in cmd_list
+
     def test_palette_filter_without_colon_triggers_api(self, page: Page, server_url: str) -> None:
         """Service command filtered without colon still triggers correct API."""
         page.goto(server_url)
