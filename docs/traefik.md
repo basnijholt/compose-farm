@@ -133,7 +133,7 @@ hosts:
 stacks:
   traefik: nuc      # Traefik runs here
   plex: hp          # Routed via file-provider
-  sonarr: hp
+  grafana: hp
 ```
 
 With `traefik_file` set, these commands auto-regenerate the config:
@@ -256,8 +256,8 @@ stacks:
   traefik: nuc
   plex: hp
   jellyfin: nas
-  sonarr: nuc
-  radarr: nuc
+  grafana: nuc
+  nextcloud: nuc
 ```
 
 ### /opt/compose/plex/docker-compose.yml
@@ -309,7 +309,7 @@ http:
           - url: http://192.168.1.100:8096
 ```
 
-Note: `sonarr` and `radarr` are NOT in the file because they're on the same host as Traefik (`nuc`).
+Note: `grafana` and `nextcloud` are NOT in the file because they're on the same host as Traefik (`nuc`).
 
 ## Combining with Existing Config
 

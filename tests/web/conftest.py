@@ -31,12 +31,12 @@ services:
     (plex_dir / ".env").write_text("PLEX_CLAIM=claim-xxx\n")
 
     # Create another stack
-    sonarr_dir = compose_path / "sonarr"
-    sonarr_dir.mkdir()
-    (sonarr_dir / "compose.yaml").write_text("""
+    grafana_dir = compose_path / "grafana"
+    grafana_dir.mkdir()
+    (grafana_dir / "compose.yaml").write_text("""
 services:
-  sonarr:
-    image: linuxserver/sonarr
+  grafana:
+    image: grafana/grafana
 """)
 
     return compose_path
@@ -58,7 +58,7 @@ hosts:
 
 stacks:
   plex: server-1
-  sonarr: server-2
+  grafana: server-2
 """)
 
     # State file must be alongside config file

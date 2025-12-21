@@ -270,7 +270,7 @@ hosts:
 stacks:
   plex: server-1
   jellyfin: server-2
-  sonarr: server-1
+  grafana: server-1
 
   # Multi-host stacks (run on multiple/all hosts)
   autokuma: all              # Runs on ALL configured hosts

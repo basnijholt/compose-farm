@@ -26,5 +26,5 @@ stacks:
   traefik: server-1    # Traefik runs here
   plex: server-2       # Stacks on other hosts get file-provider entries
   jellyfin: server-2
-  sonarr: server-1
-  radarr: local
+  grafana: server-1
+  nextcloud: local

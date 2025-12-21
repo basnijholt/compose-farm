@@ -110,15 +110,15 @@ def test_config(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Create test config and compose files.
 
     Creates a multi-host, multi-stack config for comprehensive testing:
-    - server-1: plex (running), sonarr (not started)
-    - server-2: radarr (running), jellyfin (not started)
+    - server-1: plex (running), grafana (not started)
+    - server-2: nextcloud (running), jellyfin (not started)
     """
     tmp: Path = tmp_path_factory.mktemp("data")
 
     # Create compose dir with stacks
     compose_dir = tmp / "compose"
     compose_dir.mkdir()
-    for name in ["plex", "sonarr", "radarr", "jellyfin"]:
+    for name in ["plex", "grafana", "nextcloud", "jellyfin"]:
         svc = compose_dir / name
         svc.mkdir()
         (svc / "compose.yaml").write_text(f"services:\n  {name}:\n    image: test/{name}\n")
@@ -136,14 +136,14 @@ hosts:
     user: docker
 stacks:
   plex: server-1
-  sonarr: server-1
-  radarr: server-2
+  grafana: server-1
+  nextcloud: server-2
   jellyfin: server-2
 """)
 
-    # Create state (plex and radarr running, sonarr and jellyfin not started)
+    # Create state (plex and nextcloud running, grafana and jellyfin not started)
     (tmp / "compose-farm-state.yaml").write_text(
-        "deployed:\n  plex: server-1\n  radarr: server-2\n"
+        "deployed:\n  plex: server-1\n  nextcloud: server-2\n"
     )
 
     return config
@@ -233,13 +233,13 @@ class TestHTMXSidebarLoading:
 
         # Verify actual stacks from test config appear
         stacks = page.locator("#sidebar-stacks li")
-        assert stacks.count() == 4  # plex, sonarr, radarr, jellyfin
+        assert stacks.count() == 4  # plex, grafana, nextcloud, jellyfin
 
         # Check specific stacks are present
         content = page.locator("#sidebar-stacks").inner_text()
         assert "plex" in content
-        assert "sonarr" in content
-        assert "radarr" in content
+        assert "grafana" in content
+        assert "nextcloud" in content
         assert "jellyfin" in content
 
     def test_dashboard_content_persists_after_sidebar_loads(
@@ -268,15 +268,15 @@ class TestHTMXSidebarLoading:
         page.goto(server_url)
         page.wait_for_selector("#sidebar-stacks", timeout=5000)
 
-        # plex and radarr are in state (running) - should have success status
+        # plex and nextcloud are in state (running) - should have success status
         plex_item = page.locator("#sidebar-stacks li", has_text="plex")
         assert plex_item.locator(".status-success").count() == 1
-        radarr_item = page.locator("#sidebar-stacks li", has_text="radarr")
-        assert radarr_item.locator(".status-success").count() == 1
+        nextcloud_item = page.locator("#sidebar-stacks li", has_text="nextcloud")
+        assert nextcloud_item.locator(".status-success").count() == 1
 
-        # sonarr and jellyfin are NOT in state (not started) - should have neutral status
-        sonarr_item = page.locator("#sidebar-stacks li", has_text="sonarr")
-        assert sonarr_item.locator(".status-neutral").count() == 1
+        # grafana and jellyfin are NOT in state (not started) - should have neutral status
+        grafana_item = page.locator("#sidebar-stacks li", has_text="grafana")
+        assert grafana_item.locator(".status-neutral").count() == 1
         jellyfin_item = page.locator("#sidebar-stacks li", has_text="jellyfin")
         assert jellyfin_item.locator(".status-neutral").count() == 1
 
@@ -334,20 +334,20 @@ class TestDashboardContent:
 
         stats = page.locator("#stats-cards").inner_text()
 
-        # From test config: 2 hosts, 4 stacks, 2 running (plex, radarr)
+        # From test config: 2 hosts, 4 stacks, 2 running (plex, nextcloud)
         assert "2" in stats  # hosts count
         assert "4" in stats  # stacks count
 
     def test_pending_shows_not_started_stacks(self, page: Page, server_url: str) -> None:
-        """Pending operations shows sonarr and jellyfin as not started."""
+        """Pending operations shows grafana and jellyfin as not started."""
         page.goto(server_url)
         page.wait_for_selector("#pending-operations", timeout=5000)
 
         pending = page.locator("#pending-operations")
         content = pending.inner_text().lower()
 
-        # sonarr and jellyfin are not in state, should show as not started
-        assert "sonarr" in content or "not started" in content
+        # grafana and jellyfin are not in state, should show as not started
+        assert "grafana" in content or "not started" in content
         assert "jellyfin" in content or "not started" in content
 
     def test_dashboard_monaco_loads(self, page: Page, server_url: str) -> None:
@@ -485,8 +485,8 @@ class TestSidebarFilter:
         count_badge = page.locator("#sidebar-count")
         assert "(4)" in count_badge.inner_text()
 
-        # Filter to show only stacks containing "arr" (sonarr, radarr)
-        self._filter_sidebar(page, "arr")
+        # Filter to show only stacks containing "ll" (nextcloud, jellyfin)
+        self._filter_sidebar(page, "ll")
 
         # Count should update to (2)
         assert "(2)" in count_badge.inner_text()
@@ -512,14 +512,14 @@ class TestSidebarFilter:
         # Select server-1 from dropdown
         page.locator("#sidebar-host-select").select_option("server-1")
 
-        # Only plex and sonarr (server-1 stacks) should be visible
+        # Only plex and grafana (server-1 stacks) should be visible
         visible = page.locator("#sidebar-stacks li:not([hidden])")
         assert visible.count() == 2
 
         content = visible.all_inner_texts()
         assert any("plex" in s for s in content)
-        assert any("sonarr" in s for s in content)
-        assert not any("radarr" in s for s in content)
+        assert any("grafana" in s for s in content)
+        assert not any("nextcloud" in s for s in content)
         assert not any("jellyfin" in s for s in content)
 
     def test_combined_text_and_host_filter(self, page: Page, server_url: str) -> None:
@@ -530,12 +530,12 @@ class TestSidebarFilter:
         # Filter by server-2 host
         page.locator("#sidebar-host-select").select_option("server-2")
 
-        # Then filter by text "arr" (should match only radarr on server-2)
-        self._filter_sidebar(page, "arr")
+        # Then filter by text "next" (should match only nextcloud on server-2)
+        self._filter_sidebar(page, "next")
 
         visible = page.locator("#sidebar-stacks li:not([hidden])")
         assert visible.count() == 1
-        assert "radarr" in visible.first.inner_text()
+        assert "nextcloud" in visible.first.inner_text()
 
     def test_clearing_filter_shows_all_stacks(self, page: Page, server_url: str) -> None:
         """Clearing filter restores all stacks."""
@@ -606,7 +606,7 @@ class TestCommandPalette:
         cmd_list = page.locator("#cmd-list").inner_text()
         # Stacks should appear as navigation options
         assert "plex" in cmd_list
-        assert "radarr" in cmd_list
+        assert "nextcloud" in cmd_list
 
     def test_palette_filters_on_input(self, page: Page, server_url: str) -> None:
         """Typing in palette filters the command list."""

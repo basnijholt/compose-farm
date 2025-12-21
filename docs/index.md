@@ -76,7 +76,7 @@ hosts:
 stacks:
   plex: server-1
   jellyfin: server-2
-  sonarr: server-1
+  grafana: server-1
 ```
 
 ```bash
@@ -110,8 +110,8 @@ hosts:
 
 stacks:
   plex: nuc
-  sonarr: nuc
-  radarr: hp
+  grafana: nuc
+  nextcloud: hp
 ```
 
 See [Configuration](configuration.md) for all options and the full search order.
@@ -123,7 +123,7 @@ See [Configuration](configuration.md) for all options and the full search order.
 cf apply
 
 # Start specific stacks
-cf up plex sonarr
+cf up plex grafana
 
 # Check status
 cf ps

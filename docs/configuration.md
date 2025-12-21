@@ -42,8 +42,8 @@ hosts:
 # Map stacks to the local host
 stacks:
   plex: local
-  sonarr: local
-  radarr: local
+  grafana: local
+  nextcloud: local
 ```
 
 ### Multi-host (full example)
@@ -69,8 +69,8 @@ hosts:
 stacks:
   # Single-host stacks
   plex: nuc
-  sonarr: nuc
-  radarr: hp
+  grafana: nuc
+  nextcloud: hp
 
   # Multi-host stacks
   dozzle: all                    # Run on ALL hosts
@@ -94,7 +94,7 @@ compose_dir: /opt/compose
 ├── plex/
 │   ├── docker-compose.yml    # or compose.yaml
 │   └── .env                  # optional environment file
-├── sonarr/
+├── grafana/
 │   └── docker-compose.yml
 └── ...
 ```
@@ -185,8 +185,8 @@ hosts:
 ```yaml
 stacks:
   plex: nuc
-  sonarr: nuc
-  radarr: hp
+  grafana: nuc
+  nextcloud: hp
 ```
 
 ### Multi-Host Stack
@@ -229,7 +229,7 @@ For example, if your config is at `~/.config/compose-farm/compose-farm.yaml`, th
 ```yaml
 deployed:
   plex: nuc
-  sonarr: nuc
+  grafana: nuc
 ```
 
 This file records which stacks are deployed and on which host.
@@ -373,8 +373,8 @@ hosts:
 stacks:
   # Media
   plex: nuc
-  sonarr: nuc
-  radarr: nuc
+  jellyfin: nuc
+  immich: nuc
 
   # Infrastructure
   traefik: nuc

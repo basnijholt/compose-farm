@@ -111,9 +111,9 @@ nas:/volume1/compose /opt/compose nfs defaults 0 0
 /opt/compose/           # compose_dir in config
 ├── plex/
 │   └── docker-compose.yml
-├── sonarr/
+├── grafana/
 │   └── docker-compose.yml
-├── radarr/
+├── nextcloud/
 │   └── docker-compose.yml
 └── jellyfin/
     └── docker-compose.yml
@@ -150,8 +150,8 @@ hosts:
 
 stacks:
   plex: local
-  sonarr: local
-  radarr: local
+  grafana: local
+  nextcloud: local
 ```
 
 #### Multi-host example
@@ -171,8 +171,8 @@ hosts:
 # Map stacks to hosts
 stacks:
   plex: nuc
-  sonarr: nuc
-  radarr: hp
+  grafana: nuc
+  nextcloud: hp
 ```
 
 Each entry in `stacks:` maps to a folder under `compose_dir` that contains a compose file.
@@ -211,7 +211,7 @@ Starts all stacks on their assigned hosts.
 ### Start Specific Stacks
 
 ```bash
-cf up plex sonarr
+cf up plex grafana
 ```
 
 ### Apply Configuration
@@ -250,19 +250,19 @@ Create the compose file:
 
 ```bash
 # On any host (shared storage)
-mkdir -p /opt/compose/prowlarr
-cat > /opt/compose/prowlarr/docker-compose.yml << 'EOF'
+mkdir -p /opt/compose/gitea
+cat > /opt/compose/gitea/docker-compose.yml << 'EOF'
 services:
-  prowlarr:
-    image: lscr.io/linuxserver/prowlarr:latest
-    container_name: prowlarr
+  gitea:
+    image: gitea/gitea:latest
+    container_name: gitea
     environment:
-      - PUID=1000
-      - PGID=1000
+      - USER_UID=1000
+      - USER_GID=1000
     volumes:
-      - /opt/config/prowlarr:/config
+      - /opt/config/gitea:/data
     ports:
-      - "9696:9696"
+      - "3000:3000"
     restart: unless-stopped
 EOF
 ```
@@ -272,13 +272,13 @@ Add to config:
 ```yaml
 stacks:
   # ... existing stacks
-  prowlarr: nuc
+  gitea: nuc
 ```
 
 Start the stack:
 
 ```bash
-cf up prowlarr
+cf up gitea
 ```
 
 ### 2. Move a Stack to Another Host
