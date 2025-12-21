@@ -30,7 +30,7 @@
         <!-- Other -->
         {{ action_btn("Pull", "/api/stack/" ~ name ~ "/pull", "outline", "Pull latest images (no restart)", cloud_download()) }}
         {{ action_btn("Logs", "/api/stack/" ~ name ~ "/logs", "outline", "Show recent logs", file_text()) }}
-        <button id="save-btn" class="btn btn-outline">{{ save() }} Save All</button>
+        <div class="tooltip" data-tip="Save compose and .env files"><button id="save-btn" class="btn btn-outline">{{ save() }} Save All</button></div>
     </div>
 
     {% call collapse("Compose File", badge=compose_path, icon=file_code()) %}

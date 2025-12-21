@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/components.html" import page_header, collapse, stat_card, table, action_btn %}
-{% from "partials/icons.html" import check, refresh_cw, save, settings, server, database %}
+{% from "partials/icons.html" import check, refresh_cw, save, settings, server, database, cloud_download, rotate_cw %}
 {% block title %}Dashboard - Compose Farm{% endblock %}
 
 {% block content %}
@@ -17,7 +17,9 @@
     <div class="flex flex-wrap gap-2 mb-6">
         {{ action_btn("Apply", "/api/apply", "primary", "Make reality match config", check()) }}
         {{ action_btn("Refresh", "/api/refresh", "outline", "Update state from reality", refresh_cw()) }}
-        <button id="save-config-btn" class="btn btn-outline">{{ save() }} Save Config</button>
+        {{ action_btn("Pull All", "/api/pull-all", "outline", "Pull latest images for all stacks", cloud_download()) }}
+        {{ action_btn("Update All", "/api/update-all", "outline", "Update all stacks (pull + build + down + up)", rotate_cw()) }}
+        <div class="tooltip" data-tip="Save compose-farm.yaml config file"><button id="save-config-btn" class="btn btn-outline">{{ save() }} Save Config</button></div>
     </div>
 
     {% include "partials/terminal.html" %}

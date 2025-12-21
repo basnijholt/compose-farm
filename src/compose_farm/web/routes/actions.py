@@ -64,3 +64,19 @@ async def refresh_state() -> dict[str, Any]:
     config = get_config()
     task_id = _start_task(lambda tid: run_cli_streaming(config, ["refresh"], tid))
     return {"task_id": task_id, "command": "refresh"}
+
+
+@router.post("/pull-all")
+async def pull_all() -> dict[str, Any]:
+    """Pull latest images for all stacks."""
+    config = get_config()
+    task_id = _start_task(lambda tid: run_cli_streaming(config, ["pull", "--all"], tid))
+    return {"task_id": task_id, "command": "pull --all"}
+
+
+@router.post("/update-all")
+async def update_all() -> dict[str, Any]:
+    """Update all stacks (pull + build + down + up)."""
+    config = get_config()
+    task_id = _start_task(lambda tid: run_cli_streaming(config, ["update", "--all"], tid))
+    return {"task_id": task_id, "command": "update --all"}
