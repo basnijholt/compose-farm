@@ -21,7 +21,7 @@ from fastapi.responses import HTMLResponse
 
 from compose_farm.compose import get_container_name
 from compose_farm.executor import is_local, run_compose_on_host, ssh_connect_kwargs
-from compose_farm.paths import find_config_path
+from compose_farm.paths import backup_dir, find_config_path
 from compose_farm.state import load_state
 from compose_farm.web.deps import get_config, get_templates
 
@@ -41,26 +41,30 @@ def _validate_yaml(content: str) -> None:
 def _backup_file(file_path: Path) -> Path | None:
     """Create a timestamped backup of a file if it exists and content differs.
 
-    Backups are stored in a .backups directory alongside the file.
+    Backups are stored in XDG config dir under compose-farm/backups/.
+    The original file's absolute path is mirrored in the backup directory.
     Returns the backup path if created, None if no backup was needed.
     """
     if not file_path.exists():
         return None
 
-    # Create backup directory
-    backup_dir = file_path.parent / ".backups"
-    backup_dir.mkdir(exist_ok=True)
+    # Create backup directory mirroring original path structure
+    # e.g., /opt/stacks/plex/compose.yaml -> ~/.config/compose-farm/backups/opt/stacks/plex/
+    # On Windows: C:\Users\foo\stacks -> backups/Users/foo/stacks
+    resolved = file_path.resolve()
+    file_backup_dir = backup_dir() / resolved.parent.relative_to(resolved.anchor)
+    file_backup_dir.mkdir(parents=True, exist_ok=True)
 
     # Generate timestamped backup filename
     timestamp = datetime.now(tz=UTC).strftime("%Y%m%d_%H%M%S")
     backup_name = f"{file_path.name}.{timestamp}"
-    backup_path = backup_dir / backup_name
+    backup_path = file_backup_dir / backup_name
 
     # Copy current content to backup
     backup_path.write_text(file_path.read_text())
 
     # Clean up old backups (keep last 200)
-    backups = sorted(backup_dir.glob(f"{file_path.name}.*"), reverse=True)
+    backups = sorted(file_backup_dir.glob(f"{file_path.name}.*"), reverse=True)
     for old_backup in backups[200:]:
         old_backup.unlink()
 

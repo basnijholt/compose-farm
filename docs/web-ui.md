@@ -63,6 +63,8 @@ Press `Ctrl+K` (or `Cmd+K` on macOS) to open the command palette. Use fuzzy sear
 - Container shell access (exec into running containers)
 - Terminal output for running commands
 
+Files are automatically backed up before saving to `~/.config/compose-farm/backups/`.
+
 ### Console (`/console`)
 
 - Full shell access to any host
