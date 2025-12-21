@@ -18,7 +18,7 @@
         <span class="badge badge-warning">{{ container.State }}</span>
     {% endif %}
     <code class="text-sm flex-1">{{ container.Name }}</code>
-    <div class="tooltip" data-tip="Open shell in container">
+    <div class="tooltip tooltip-left" data-tip="Open shell in container">
         <button class="btn btn-sm btn-outline"
                 onclick="initExecTerminal('{{ stack }}', '{{ container.Name }}', '{{ host }}')">
             {{ terminal() }} Shell
