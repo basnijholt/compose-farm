@@ -140,7 +140,7 @@ def pull(
     if service and len(stack_list) != 1:
         print_error("--service requires exactly one stack")
         raise typer.Exit(1)
-    cmd = f"pull {service}" if service else "pull"
+    cmd = f"pull --ignore-buildable {service}" if service else "pull --ignore-buildable"
     raw = len(stack_list) == 1
     results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
     report_results(results)
