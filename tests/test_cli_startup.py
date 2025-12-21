@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
 import time
+
+import pytest
 
 # Thresholds in seconds, per OS
 if sys.platform == "win32":
@@ -16,6 +19,10 @@ else:  # Linux
     CLI_STARTUP_THRESHOLD = 0.25
 
 
+@pytest.mark.skipif(
+    "PYTEST_XDIST_WORKER" in os.environ,
+    reason="Skip in parallel mode due to resource contention",
+)
 def test_cli_startup_time() -> None:
     """Verify CLI startup time stays within acceptable bounds.
 
