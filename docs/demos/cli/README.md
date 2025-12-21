@@ -10,10 +10,10 @@ VHS-based terminal demo recordings for Compose Farm CLI.
 
 ```bash
 # Record all demos
-./docs/demos/cli/record.sh
+python docs/demos/cli/record.py
 
-# Record single demo
-cd /opt/stacks && vhs docs/demos/cli/quickstart.tape
+# Record specific demos
+python docs/demos/cli/record.py quickstart migration
 ```
 
 ## Demos

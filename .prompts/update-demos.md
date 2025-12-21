@@ -14,7 +14,7 @@ cf up audiobookshelf    # starts on nas (per config)
 ```
 
 The migration demo moves `audiobookshelf` from `nas` → `anton`. After recording:
-- `record.sh` reverts the config change via sed
+- `record.py` reverts the config change via sed
 - Then runs `cf apply` to reset running state
 
 **Important for AI agents:**
@@ -153,10 +153,9 @@ cf ps grocy immich dozzle
 
 ```bash
 # Test single CLI demo
-cd /opt/stacks && vhs docs/demos/cli/quickstart.tape
+python docs/demos/cli/record.py quickstart
 
 # Test single web demo
-cd /opt/stacks/compose-farm
 python docs/demos/web/record.py navigation
 ```
 
