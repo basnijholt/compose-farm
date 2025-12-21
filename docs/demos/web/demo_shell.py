@@ -1,7 +1,7 @@
 """Demo: Container shell exec.
 
 Records a ~25 second demo showing:
-- Navigating to a service page
+- Navigating to a stack page
 - Clicking Shell button on a container
 - Running top command inside the container
 
@@ -33,9 +33,9 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     wait_for_sidebar(page)
     pause(page, 800)
 
-    # Navigate to a service with a running container (grocy)
-    page.locator("#sidebar-services a", has_text="grocy").click()
-    page.wait_for_url("**/service/grocy", timeout=5000)
+    # Navigate to a stack with a running container (grocy)
+    page.locator("#sidebar-stacks a", has_text="grocy").click()
+    page.wait_for_url("**/stack/grocy", timeout=5000)
     pause(page, 1500)
 
     # Wait for containers list to load (loaded via HTMX)

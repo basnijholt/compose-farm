@@ -1,5 +1,5 @@
 # Migration Demo
-# Shows automatic service migration when host changes
+# Shows automatic stack migration when host changes
 
 Output docs/assets/migration.gif
 Output docs/assets/migration.webm
@@ -25,7 +25,7 @@ Sleep 1s
 
 Type "nvim /opt/stacks/compose-farm.yaml"
 Enter
-Wait+Screen /services:/
+Wait+Screen /stacks:/
 
 # Search for audiobookshelf
 Type "/audiobookshelf"

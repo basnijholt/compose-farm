@@ -210,7 +210,7 @@ window.initTerminal = initTerminal;
 /**
  * Initialize an interactive exec terminal
  */
-function initExecTerminal(service, container, host) {
+function initExecTerminal(stack, container, host) {
     const containerEl = document.getElementById('exec-terminal-container');
     const terminalEl = document.getElementById('exec-terminal');
 
@@ -226,7 +226,7 @@ function initExecTerminal(service, container, host) {
     if (execTerminalWrapper) { execTerminalWrapper.dispose(); execTerminalWrapper = null; }
 
     // Create WebSocket first so resize callback can use it
-    execWs = createWebSocket(`/ws/exec/${service}/${container}/${host}`);
+    execWs = createWebSocket(`/ws/exec/${stack}/${container}/${host}`);
 
     // Resize callback sends size to WebSocket
     const sendSize = (cols, rows) => {
@@ -456,14 +456,14 @@ function refreshDashboard() {
 }
 
 /**
- * Filter sidebar services by name and host
+ * Filter sidebar stacks by name and host
  */
 function sidebarFilter() {
     const q = (document.getElementById('sidebar-filter')?.value || '').toLowerCase();
     const h = document.getElementById('sidebar-host-select')?.value || '';
     let n = 0;
-    document.querySelectorAll('#sidebar-services li').forEach(li => {
-        const show = (!q || li.dataset.svc.includes(q)) && (!h || !li.dataset.h || li.dataset.h === h);
+    document.querySelectorAll('#sidebar-stacks li').forEach(li => {
+        const show = (!q || li.dataset.stack.includes(q)) && (!h || !li.dataset.h || li.dataset.h === h);
         li.hidden = !show;
         if (show) n++;
     });
@@ -512,7 +512,7 @@ function playFabIntro() {
     const THEMES = ['light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate', 'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween', 'garden', 'forest', 'aqua', 'lofi', 'pastel', 'fantasy', 'wireframe', 'black', 'luxury', 'dracula', 'cmyk', 'autumn', 'business', 'acid', 'lemonade', 'night', 'coffee', 'winter', 'dim', 'nord', 'sunset', 'caramellatte', 'abyss', 'silk'];
     const THEME_KEY = 'cf_theme';
 
-    const colors = { service: '#22c55e', action: '#eab308', nav: '#3b82f6', app: '#a855f7', theme: '#ec4899' };
+    const colors = { stack: '#22c55e', action: '#eab308', nav: '#3b82f6', app: '#a855f7', theme: '#ec4899' };
     let commands = [];
     let filtered = [];
     let selected = 0;
@@ -570,25 +570,25 @@ function playFabIntro() {
             cmd('app', 'Docs', 'Open documentation', openExternal('https://compose-farm.nijho.lt/'), icons.book_open),
         ];
 
-        // Add service-specific actions if on a service page
-        const match = window.location.pathname.match(/^\/service\/(.+)$/);
+        // Add stack-specific actions if on a stack page
+        const match = window.location.pathname.match(/^\/stack\/(.+)$/);
         if (match) {
-            const svc = decodeURIComponent(match[1]);
-            const svcCmd = (name, desc, endpoint, icon) => cmd('service', name, `${desc} ${svc}`, post(`/api/service/${svc}/${endpoint}`), icon);
+            const stack = decodeURIComponent(match[1]);
+            const stackCmd = (name, desc, endpoint, icon) => cmd('stack', name, `${desc} ${stack}`, post(`/api/stack/${stack}/${endpoint}`), icon);
             actions.unshift(
-                svcCmd('Up', 'Start', 'up', icons.play),
-                svcCmd('Down', 'Stop', 'down', icons.square),
-                svcCmd('Restart', 'Restart', 'restart', icons.rotate_cw),
-                svcCmd('Pull', 'Pull', 'pull', icons.cloud_download),
-                svcCmd('Update', 'Pull + restart', 'update', icons.refresh_cw),
-                svcCmd('Logs', 'View logs for', 'logs', icons.file_text),
+                stackCmd('Up', 'Start', 'up', icons.play),
+                stackCmd('Down', 'Stop', 'down', icons.square),
+                stackCmd('Restart', 'Restart', 'restart', icons.rotate_cw),
+                stackCmd('Pull', 'Pull', 'pull', icons.cloud_download),
+                stackCmd('Update', 'Pull + restart', 'update', icons.refresh_cw),
+                stackCmd('Logs', 'View logs for', 'logs', icons.file_text),
             );
         }
 
-        // Add nav commands for all services from sidebar
-        const services = [...document.querySelectorAll('#sidebar-services li[data-svc] a[href]')].map(a => {
-            const name = a.getAttribute('href').replace('/service/', '');
-            return cmd('nav', name, 'Go to service', nav(`/service/${name}`), icons.box);
+        // Add nav commands for all stacks from sidebar
+        const stacks = [...document.querySelectorAll('#sidebar-stacks li[data-stack] a[href]')].map(a => {
+            const name = a.getAttribute('href').replace('/stack/', '');
+            return cmd('nav', name, 'Go to stack', nav(`/stack/${name}`), icons.box);
         });
 
         // Add theme commands with color swatches
@@ -597,7 +597,7 @@ function playFabIntro() {
             cmd('theme', `theme: ${theme}`, theme === currentTheme ? '(current)' : 'Switch theme', setTheme(theme), themeSwatch(theme), theme)
         );
 
-        commands = [...actions, ...services, ...themeCommands];
+        commands = [...actions, ...stacks, ...themeCommands];
     }
 
     function filter() {

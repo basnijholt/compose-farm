@@ -11,23 +11,23 @@ import pytest
 from compose_farm.cli import lifecycle
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
-from compose_farm.operations import _migrate_service
+from compose_farm.operations import _migrate_stack
 
 
 @pytest.fixture
 def basic_config(tmp_path: Path) -> Config:
     """Create a basic test config."""
     compose_dir = tmp_path / "compose"
-    service_dir = compose_dir / "test-service"
-    service_dir.mkdir(parents=True)
-    (service_dir / "docker-compose.yml").write_text("services: {}")
+    stack_dir = compose_dir / "test-service"
+    stack_dir.mkdir(parents=True)
+    (stack_dir / "docker-compose.yml").write_text("services: {}")
     return Config(
         compose_dir=compose_dir,
         hosts={
             "host1": Host(address="localhost"),
             "host2": Host(address="localhost"),
         },
-        services={"test-service": "host2"},
+        stacks={"test-service": "host2"},
     )
 
 
@@ -38,16 +38,16 @@ class TestMigrationCommands:
     def config(self, tmp_path: Path) -> Config:
         """Create a test config."""
         compose_dir = tmp_path / "compose"
-        service_dir = compose_dir / "test-service"
-        service_dir.mkdir(parents=True)
-        (service_dir / "docker-compose.yml").write_text("services: {}")
+        stack_dir = compose_dir / "test-service"
+        stack_dir.mkdir(parents=True)
+        (stack_dir / "docker-compose.yml").write_text("services: {}")
         return Config(
             compose_dir=compose_dir,
             hosts={
                 "host1": Host(address="localhost"),
                 "host2": Host(address="localhost"),
             },
-            services={"test-service": "host2"},
+            stacks={"test-service": "host2"},
         )
 
     async def test_migration_uses_pull_ignore_buildable(self, config: Config) -> None:
@@ -56,7 +56,7 @@ class TestMigrationCommands:
 
         async def mock_run_compose_step(
             cfg: Config,
-            service: str,
+            stack: str,
             command: str,
             *,
             raw: bool,
@@ -64,7 +64,7 @@ class TestMigrationCommands:
         ) -> CommandResult:
             commands_called.append(command)
             return CommandResult(
-                service=service,
+                stack=stack,
                 exit_code=0,
                 success=True,
             )
@@ -73,7 +73,7 @@ class TestMigrationCommands:
             "compose_farm.operations._run_compose_step",
             side_effect=mock_run_compose_step,
         ):
-            await _migrate_service(
+            await _migrate_stack(
                 config,
                 "test-service",
                 current_host="host1",

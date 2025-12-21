@@ -33,22 +33,22 @@ class TestValidateYaml:
         assert "Invalid YAML" in exc_info.value.detail
 
 
-class TestGetServiceComposePath:
-    """Tests for _get_service_compose_path helper."""
+class TestGetStackComposePath:
+    """Tests for _get_stack_compose_path helper."""
 
-    def test_service_found(self, mock_config: Config) -> None:
-        from compose_farm.web.routes.api import _get_service_compose_path
+    def test_stack_found(self, mock_config: Config) -> None:
+        from compose_farm.web.routes.api import _get_stack_compose_path
 
-        path = _get_service_compose_path("plex")
+        path = _get_stack_compose_path("plex")
         assert isinstance(path, Path)
         assert path.name == "compose.yaml"
         assert path.parent.name == "plex"
 
-    def test_service_not_found(self, mock_config: Config) -> None:
-        from compose_farm.web.routes.api import _get_service_compose_path
+    def test_stack_not_found(self, mock_config: Config) -> None:
+        from compose_farm.web.routes.api import _get_stack_compose_path
 
         with pytest.raises(HTTPException) as exc_info:
-            _get_service_compose_path("nonexistent")
+            _get_stack_compose_path("nonexistent")
 
         assert exc_info.value.status_code == 404
         assert "not found" in exc_info.value.detail

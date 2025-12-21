@@ -2,9 +2,9 @@
 
 Real-world examples demonstrating compose-farm patterns for multi-host Docker deployments.
 
-## Services
+## Stacks
 
-| Service | Type | Demonstrates |
+| Stack | Type | Demonstrates |
 |---------|------|--------------|
 | [traefik](traefik/) | Infrastructure | Reverse proxy, Let's Encrypt, file-provider |
 | [mealie](mealie/) | Single container | Traefik labels, resource limits, environment vars |
@@ -16,7 +16,7 @@ Real-world examples demonstrating compose-farm patterns for multi-host Docker de
 
 ### External Network
 
-All services connect to a shared external network for inter-service communication:
+All stacks connect to a shared external network for inter-service communication:
 
 ```yaml
 networks:
@@ -32,12 +32,12 @@ compose-farm init-network --network mynetwork --subnet 172.20.0.0/16
 
 ### Traefik Labels (Dual Routes)
 
-Services expose two routes for different access patterns:
+Stacks expose two routes for different access patterns:
 
 1. **HTTPS route** (`websecure` entrypoint): For your custom domain with Let's Encrypt TLS
 2. **HTTP route** (`web` entrypoint): For `.local` domains on your LAN (no TLS needed)
 
-This pattern allows accessing services via:
+This pattern allows accessing stacks via:
 - `https://mealie.example.com` - from anywhere, with TLS
 - `http://mealie.local` - from your local network, no TLS overhead
 
@@ -57,7 +57,7 @@ labels:
 
 ### Environment Variables
 
-Each service has a `.env` file for secrets and domain configuration.
+Each stack has a `.env` file for secrets and domain configuration.
 Edit these files to set your domain and credentials:
 
 ```bash
@@ -76,15 +76,15 @@ volumes:
   - /mnt/data/myapp:/app/data
 ```
 
-This allows services to migrate between hosts without data loss.
+This allows stacks to migrate between hosts without data loss.
 
-### Multi-Host Services
+### Multi-Host Stacks
 
-Services that need to run on every host (e.g., monitoring agents):
+Stacks that need to run on every host (e.g., monitoring agents):
 
 ```yaml
 # In compose-farm.yaml
-services:
+stacks:
   autokuma: all  # Runs on every configured host
 ```
 
@@ -107,7 +107,7 @@ services:
 
 ### AutoKuma Labels (Optional)
 
-The autokuma example demonstrates compose-farm's **multi-host feature** - running the same service on all hosts using the `all` keyword. AutoKuma itself is not part of compose-farm; it's just a good example because it needs to run on every host to monitor local Docker containers.
+The autokuma example demonstrates compose-farm's **multi-host feature** - running the same stack on all hosts using the `all` keyword. AutoKuma itself is not part of compose-farm; it's just a good example because it needs to run on every host to monitor local Docker containers.
 
 [AutoKuma](https://github.com/BigBoot/AutoKuma) automatically creates Uptime Kuma monitors from Docker labels:
 
@@ -128,7 +128,7 @@ compose-farm init-network
 # 2. Start Traefik first (the reverse proxy)
 compose-farm up traefik
 
-# 3. Start other services
+# 3. Start other stacks
 compose-farm up mealie uptime-kuma
 
 # 4. Check status
@@ -148,24 +148,24 @@ compose-farm down --all
 
 The `compose-farm.yaml` shows a multi-host setup:
 
-- **primary** (192.168.1.10): Runs Traefik and heavy services
-- **secondary** (192.168.1.11): Runs lighter services
+- **primary** (192.168.1.10): Runs Traefik and heavy stacks
+- **secondary** (192.168.1.11): Runs lighter stacks
 - **autokuma**: Runs on ALL hosts to monitor local containers
 
-When Traefik runs on `primary` and a service runs on `secondary`, compose-farm
+When Traefik runs on `primary` and a stack runs on `secondary`, compose-farm
 automatically generates file-provider config so Traefik can route to it.
 
 ## Traefik File-Provider
 
-When services run on different hosts than Traefik, use `traefik-file` to generate routing config:
+When stacks run on different hosts than Traefik, use `traefik-file` to generate routing config:
 
 ```bash
-# Generate config for all services
+# Generate config for all stacks
 compose-farm traefik-file --all -o traefik/dynamic.d/compose-farm.yml
 
 # Or configure auto-generation in compose-farm.yaml:
 traefik_file: /opt/stacks/traefik/dynamic.d/compose-farm.yml
-traefik_service: traefik
+traefik_stack: traefik
 ```
 
 With `traefik_file` configured, compose-farm automatically regenerates the config after `up`, `down`, `restart`, and `update` commands.

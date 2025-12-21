@@ -11,13 +11,13 @@ The Compose Farm CLI is available as both `compose-farm` and the shorter alias `
 | Category | Command | Description |
 |----------|---------|-------------|
 | **Lifecycle** | `apply` | Make reality match config |
-| | `up` | Start services |
-| | `down` | Stop services |
-| | `restart` | Restart services (down + up) |
-| | `update` | Update services (pull + down + up) |
+| | `up` | Start stacks |
+| | `down` | Stop stacks |
+| | `restart` | Restart stacks (down + up) |
+| | `update` | Update stacks (pull + build + down + up) |
 | | `pull` | Pull latest images |
-| **Monitoring** | `ps` | Show service status |
-| | `logs` | Show service logs |
+| **Monitoring** | `ps` | Show stack status |
+| | `logs` | Show stack logs |
 | | `stats` | Show overview statistics |
 | **Configuration** | `check` | Validate config and mounts |
 | | `refresh` | Sync state from reality |
@@ -55,15 +55,15 @@ cf apply [OPTIONS]
 | Option | Description |
 |--------|-------------|
 | `--dry-run, -n` | Preview changes without executing |
-| `--no-orphans` | Skip stopping orphaned services |
-| `--full, -f` | Also refresh running services |
+| `--no-orphans` | Skip stopping orphaned stacks |
+| `--full, -f` | Also refresh running stacks |
 | `--config, -c PATH` | Path to config file |
 
 **What it does:**
 
-1. Stops orphaned services (in state but removed from config)
-2. Migrates services on wrong host
-3. Starts missing services (in config but not running)
+1. Stops orphaned stacks (in state but removed from config)
+2. Migrates stacks on wrong host
+3. Starts missing stacks (in config but not running)
 
 **Examples:**
 
@@ -77,7 +77,7 @@ cf apply
 # Only start/migrate, don't stop orphans
 cf apply --no-orphans
 
-# Also refresh all running services
+# Also refresh all running stacks
 cf apply --full
 ```
 
@@ -85,36 +85,36 @@ cf apply --full
 
 ### cf up
 
-Start services. Auto-migrates if host assignment changed.
+Start stacks. Auto-migrates if host assignment changed.
 
 ```bash
-cf up [OPTIONS] [SERVICES]...
+cf up [OPTIONS] [STACKS]...
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--all, -a` | Start all services |
-| `--host, -H TEXT` | Filter to services on this host |
+| `--all, -a` | Start all stacks |
+| `--host, -H TEXT` | Filter to stacks on this host |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
 
 ```bash
-# Start specific services
+# Start specific stacks
 cf up plex sonarr
 
-# Start all services
+# Start all stacks
 cf up --all
 
-# Start all services on a specific host
+# Start all stacks on a specific host
 cf up --all --host nuc
 ```
 
 **Auto-migration:**
 
-If you change a service's host in config and run `cf up`:
+If you change a stack's host in config and run `cf up`:
 
 1. Verifies mounts/networks exist on new host
 2. Runs `down` on old host
@@ -125,34 +125,34 @@ If you change a service's host in config and run `cf up`:
 
 ### cf down
 
-Stop services.
+Stop stacks.
 
 ```bash
-cf down [OPTIONS] [SERVICES]...
+cf down [OPTIONS] [STACKS]...
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--all, -a` | Stop all services |
-| `--orphaned` | Stop orphaned services only |
-| `--host, -H TEXT` | Filter to services on this host |
+| `--all, -a` | Stop all stacks |
+| `--orphaned` | Stop orphaned stacks only |
+| `--host, -H TEXT` | Filter to stacks on this host |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
 
 ```bash
-# Stop specific services
+# Stop specific stacks
 cf down plex
 
-# Stop all services
+# Stop all stacks
 cf down --all
 
-# Stop services removed from config
+# Stop stacks removed from config
 cf down --orphaned
 
-# Stop all services on a host
+# Stop all stacks on a host
 cf down --all --host nuc
 ```
 
@@ -160,17 +160,17 @@ cf down --all --host nuc
 
 ### cf restart
 
-Restart services (down + up).
+Restart stacks (down + up).
 
 ```bash
-cf restart [OPTIONS] [SERVICES]...
+cf restart [OPTIONS] [STACKS]...
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--all, -a` | Restart all services |
+| `--all, -a` | Restart all stacks |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
@@ -184,30 +184,30 @@ cf restart --all
 
 ### cf update
 
-Update services (pull + build + down + up).
+Update stacks (pull + build + down + up).
 
 <video autoplay loop muted playsinline>
   <source src="/assets/update.webm" type="video/webm">
 </video>
 
 ```bash
-cf update [OPTIONS] [SERVICES]...
+cf update [OPTIONS] [STACKS]...
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--all, -a` | Update all services |
+| `--all, -a` | Update all stacks |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
 
 ```bash
-# Update specific service
+# Update specific stack
 cf update plex
 
-# Update all services
+# Update all stacks
 cf update --all
 ```
 
@@ -218,14 +218,14 @@ cf update --all
 Pull latest images.
 
 ```bash
-cf pull [OPTIONS] [SERVICES]...
+cf pull [OPTIONS] [STACKS]...
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--all, -a` | Pull for all services |
+| `--all, -a` | Pull for all stacks |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
@@ -241,27 +241,27 @@ cf pull --all
 
 ### cf ps
 
-Show status of services.
+Show status of stacks.
 
 ```bash
-cf ps [OPTIONS] [SERVICES]...
+cf ps [OPTIONS] [STACKS]...
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--all, -a` | Show all services (default) |
-| `--host, -H TEXT` | Filter to services on this host |
+| `--all, -a` | Show all stacks (default) |
+| `--host, -H TEXT` | Filter to stacks on this host |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
 
 ```bash
-# Show all services
+# Show all stacks
 cf ps
 
-# Show specific services
+# Show specific stacks
 cf ps plex sonarr
 
 # Filter by host
@@ -272,22 +272,22 @@ cf ps --host nuc
 
 ### cf logs
 
-Show service logs.
+Show stack logs.
 
 <video autoplay loop muted playsinline>
   <source src="/assets/logs.webm" type="video/webm">
 </video>
 
 ```bash
-cf logs [OPTIONS] [SERVICES]...
+cf logs [OPTIONS] [STACKS]...
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--all, -a` | Show logs for all services |
-| `--host, -H TEXT` | Filter to services on this host |
+| `--all, -a` | Show logs for all stacks |
+| `--host, -H TEXT` | Filter to stacks on this host |
 | `--follow, -f` | Follow logs (live stream) |
 | `--tail, -n INTEGER` | Number of lines (default: 20 for --all, 100 otherwise) |
 | `--config, -c PATH` | Path to config file |
@@ -301,10 +301,10 @@ cf logs plex
 # Follow logs
 cf logs -f plex
 
-# Show last 50 lines of multiple services
+# Show last 50 lines of multiple stacks
 cf logs -n 50 plex sonarr
 
-# Show last 20 lines of all services
+# Show last 20 lines of all stacks
 cf logs --all
 ```
 
@@ -344,7 +344,7 @@ cf stats --live
 Validate configuration, mounts, and networks.
 
 ```bash
-cf check [OPTIONS] [SERVICES]...
+cf check [OPTIONS] [STACKS]...
 ```
 
 **Options:**
@@ -363,7 +363,7 @@ cf check
 # Fast local-only validation
 cf check --local
 
-# Check specific service and show host compatibility
+# Check specific stack and show host compatibility
 cf check jellyfin
 ```
 
@@ -371,7 +371,7 @@ cf check jellyfin
 
 ### cf refresh
 
-Update local state from running services.
+Update local state from running stacks.
 
 ```bash
 cf refresh [OPTIONS]
@@ -434,14 +434,14 @@ cf init-network -n production -s 10.0.0.0/16 -g 10.0.0.1
 Generate Traefik file-provider config from compose labels.
 
 ```bash
-cf traefik-file [OPTIONS] [SERVICES]...
+cf traefik-file [OPTIONS] [STACKS]...
 ```
 
 **Options:**
 
 | Option | Description |
 |--------|-------------|
-| `--all, -a` | Generate for all services |
+| `--all, -a` | Generate for all stacks |
 | `--output, -o PATH` | Output file (stdout if omitted) |
 | `--config, -c PATH` | Path to config file |
 
@@ -454,7 +454,7 @@ cf traefik-file --all
 # Write to file
 cf traefik-file --all -o /opt/traefik/dynamic.d/cf.yml
 
-# Specific services
+# Specific stacks
 cf traefik-file plex jellyfin -o /opt/traefik/cf.yml
 ```
 
@@ -604,7 +604,7 @@ cf web --reload
 cf ps
 cf stats --live
 
-# Update a specific service
+# Update a specific stack
 cf update plex
 
 # View logs
@@ -614,7 +614,7 @@ cf logs -f plex
 ### Maintenance
 
 ```bash
-# Update all services
+# Update all stacks
 cf update --all
 
 # Refresh state after manual changes
@@ -627,7 +627,7 @@ cf refresh
 # Preview what would change
 cf apply --dry-run
 
-# Move a service: edit config, then
+# Move a stack: edit config, then
 cf up plex  # auto-migrates
 
 # Or reconcile everything
@@ -641,7 +641,7 @@ cf apply
 cf check --local
 cf check
 
-# Check specific service
+# Check specific stack
 cf check jellyfin
 
 # Sync state

@@ -1,7 +1,7 @@
 # Compose Farm configuration
 # Documentation: https://github.com/basnijholt/compose-farm
 #
-# This file configures compose-farm to manage Docker Compose services
+# This file configures compose-farm to manage Docker Compose stacks
 # across multiple hosts via SSH.
 #
 # Place this file at:
@@ -11,7 +11,7 @@
 #   - Or set CF_CONFIG environment variable
 
 # ------------------------------------------------------------------------------
-# compose_dir: Directory containing service subdirectories with compose files
+# compose_dir: Directory containing stack subdirectories with compose files
 # ------------------------------------------------------------------------------
 # Each subdirectory should contain a compose.yaml (or docker-compose.yml).
 # This path must be the same on all hosts (NFS mount recommended).
@@ -48,28 +48,28 @@ hosts:
     port: 2222
 
 # ------------------------------------------------------------------------------
-# services: Map service names to their target host(s)
+# stacks: Map stack names to their target host(s)
 # ------------------------------------------------------------------------------
-# Each service name must match a subdirectory in compose_dir.
+# Each stack name must match a subdirectory in compose_dir.
 #
 # Single host:
-#   service-name: hostname
+#   stack-name: hostname
 #
 # Multiple hosts (explicit list):
-#   service-name: [host1, host2]
+#   stack-name: [host1, host2]
 #
 # All hosts:
-#   service-name: all
+#   stack-name: all
 #
-services:
-  # Example: service runs on a single host
+stacks:
+  # Example: stack runs on a single host
   nginx: server1
   postgres: server2
 
-  # Example: service runs on multiple specific hosts
+  # Example: stack runs on multiple specific hosts
   # prometheus: [server1, server2]
 
-  # Example: service runs on ALL hosts (e.g., monitoring agents)
+  # Example: stack runs on ALL hosts (e.g., monitoring agents)
   # node-exporter: all
 
 # ------------------------------------------------------------------------------
@@ -81,9 +81,9 @@ services:
 # traefik_file: /opt/compose/traefik/dynamic.d/compose-farm.yml
 
 # ------------------------------------------------------------------------------
-# traefik_service: (optional) Service name running Traefik
+# traefik_stack: (optional) Stack name running Traefik
 # ------------------------------------------------------------------------------
-# When generating traefik_file, services on the same host as Traefik are
+# When generating traefik_file, stacks on the same host as Traefik are
 # skipped (they're handled by Traefik's Docker provider directly).
 #
-# traefik_service: traefik
+# traefik_stack: traefik

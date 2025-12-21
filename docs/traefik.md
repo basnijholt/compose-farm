@@ -8,7 +8,7 @@ Compose Farm can generate Traefik file-provider configuration for routing traffi
 
 ## The Problem
 
-When you run Traefik on one host but services on others, Traefik's docker provider can't see remote containers. The file provider bridges this gap.
+When you run Traefik on one host but stacks on others, Traefik's docker provider can't see remote containers. The file provider bridges this gap.
 
 ```
                     Internet
@@ -20,7 +20,7 @@ When you run Traefik on one host but services on others, Traefik's docker provid
 │  ┌─────────┐                                                │
 │  │ Traefik │◄─── Docker provider sees local containers      │
 │  │         │                                                │
-│  │         │◄─── File provider sees remote services         │
+│  │         │◄─── File provider sees remote stacks           │
 │  └────┬────┘     (from compose-farm.yml)                    │
 │       │                                                     │
 └───────┼─────────────────────────────────────────────────────┘
@@ -40,7 +40,7 @@ When you run Traefik on one host but services on others, Traefik's docker provid
 1. Your compose files have standard Traefik labels
 2. Compose Farm reads labels and generates file-provider config
 3. Traefik watches the generated file
-4. Traffic routes to remote services via host IP + published port
+4. Traffic routes to remote stacks via host IP + published port
 
 ## Setup
 
@@ -122,7 +122,7 @@ Configure automatic regeneration in `compose-farm.yaml`:
 ```yaml
 compose_dir: /opt/compose
 traefik_file: /opt/traefik/dynamic.d/compose-farm.yml
-traefik_service: traefik
+traefik_stack: traefik
 
 hosts:
   nuc:
@@ -130,7 +130,7 @@ hosts:
   hp:
     address: 192.168.1.11
 
-services:
+stacks:
   traefik: nuc      # Traefik runs here
   plex: hp          # Routed via file-provider
   sonarr: hp
@@ -143,13 +143,13 @@ With `traefik_file` set, these commands auto-regenerate the config:
 - `cf update`
 - `cf apply`
 
-### traefik_service Option
+### traefik_stack Option
 
-When set, services on the **same host as Traefik** are skipped in file-provider output. Traefik's docker provider handles them directly.
+When set, stacks on the **same host as Traefik** are skipped in file-provider output. Traefik's docker provider handles them directly.
 
 ```yaml
-traefik_service: traefik  # traefik runs on nuc
-services:
+traefik_stack: traefik  # traefik runs on nuc
+stacks:
   traefik: nuc            # NOT in file-provider (docker provider)
   portainer: nuc          # NOT in file-provider (docker provider)
   plex: hp                # IN file-provider (cross-host)
@@ -215,7 +215,7 @@ labels:
 ```
 
 Compose Farm resolves variables from:
-1. Service's `.env` file
+1. Stack's `.env` file
 2. Current environment
 
 ```bash
@@ -242,7 +242,7 @@ If no suitable port is found, a warning is shown.
 ```yaml
 compose_dir: /opt/compose
 traefik_file: /opt/traefik/dynamic.d/compose-farm.yml
-traefik_service: traefik
+traefik_stack: traefik
 
 hosts:
   nuc:
@@ -252,7 +252,7 @@ hosts:
   nas:
     address: 192.168.1.100
 
-services:
+stacks:
   traefik: nuc
   plex: hp
   jellyfin: nas
@@ -331,7 +331,7 @@ Traefik merges all YAML files in the directory.
 
 ## Troubleshooting
 
-### Service Not Accessible
+### Stack Not Accessible
 
 1. **Check port is published:**
    ```yaml
@@ -341,12 +341,12 @@ Traefik merges all YAML files in the directory.
 
 2. **Check label syntax:**
    ```bash
-   cf check myservice
+   cf check mystack
    ```
 
 3. **Verify generated config:**
    ```bash
-   cf traefik-file myservice
+   cf traefik-file mystack
    ```
 
 4. **Check Traefik logs:**

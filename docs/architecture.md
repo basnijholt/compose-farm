@@ -46,13 +46,13 @@ Compose Farm follows three core principles:
 
 Pydantic models for YAML configuration:
 
-- **Config** - Root configuration with compose_dir, hosts, services
+- **Config** - Root configuration with compose_dir, hosts, stacks
 - **HostConfig** - Host address and SSH user
 - **ServiceConfig** - Service-to-host mappings
 
 Key features:
 - Validation with Pydantic
-- Multi-host service expansion (`all` → list of hosts)
+- Multi-host stack expansion (`all` → list of hosts)
 - YAML loading with sensible defaults
 
 ### State Tracking (`src/compose_farm/state.py`)
@@ -66,18 +66,18 @@ deployed:
 ```
 
 Used for:
-- Detecting migrations (service moved to different host)
-- Identifying orphans (services removed from config)
+- Detecting migrations (stack moved to different host)
+- Identifying orphans (stacks removed from config)
 - `cf ps` status display
 
 ### Operations (`src/compose_farm/operations.py`)
 
-Business logic for service operations:
+Business logic for stack operations:
 
-- **up** - Start service, handle migration if needed
-- **down** - Stop service
+- **up** - Start stack, handle migration if needed
+- **down** - Stop stack
 - **preflight checks** - Verify mounts, networks exist before operations
-- **discover** - Find running services on hosts
+- **discover** - Find running stacks on hosts
 - **migrate** - Down on old host, up on new host
 
 ### Executor (`src/compose_farm/executor.py`)
@@ -85,8 +85,8 @@ Business logic for service operations:
 SSH and local command execution:
 
 - **Hybrid SSH approach**: asyncssh for parallel streaming, native `ssh -t` for raw mode
-- **Parallel by default**: Multiple services via `asyncio.gather`
-- **Streaming output**: Real-time stdout/stderr with `[service]` prefix
+- **Parallel by default**: Multiple stacks via `asyncio.gather`
+- **Streaming output**: Real-time stdout/stderr with `[stack]` prefix
 - **Local detection**: Skips SSH when target matches local machine IP
 
 ### CLI (`src/compose_farm/cli/`)
@@ -112,7 +112,7 @@ cli/
 ```
 1. Load configuration
    └─► Parse compose-farm.yaml
-   └─► Validate service exists
+   └─► Validate stack exists
 
 2. Check state
    └─► Load state.yaml
@@ -129,7 +129,7 @@ cli/
    └─► SSH to old host
    └─► Run: docker compose down
 
-5. Start service
+5. Start stack
    └─► SSH to target host
    └─► cd /opt/compose/plex
    └─► Run: docker compose up -d
@@ -154,7 +154,7 @@ cli/
 3. Stop orphans
    └─► For each orphan: cf down
 
-4. Migrate services
+4. Migrate stacks
    └─► For each migration: down old, up new
 
 5. Start missing
@@ -176,7 +176,7 @@ async def run_command(host, command):
         return result.stdout, result.stderr
 ```
 
-Multiple services run concurrently via `asyncio.gather`.
+Multiple stacks run concurrently via `asyncio.gather`.
 
 ### Raw Mode (native ssh)
 
@@ -218,8 +218,8 @@ Image digests are stored separately in `dockerfarm-log.toml` (also in the config
 ```
 Config Change          State Change           Action
 ─────────────────────────────────────────────────────
-Add service           Missing                 cf up
-Remove service        Orphaned                cf down
+Add stack            Missing                 cf up
+Remove stack         Orphaned                cf down
 Change host           Migration               down old, up new
 No change             No change               none (or refresh)
 ```
@@ -236,10 +236,10 @@ Updates state.yaml to match what's actually running.
 
 ## Compose File Discovery
 
-For each service, Compose Farm looks for compose files in:
+For each stack, Compose Farm looks for compose files in:
 
 ```
-{compose_dir}/{service}/
+{compose_dir}/{stack}/
 ├── compose.yaml         # preferred
 ├── compose.yml
 ├── docker-compose.yml
@@ -255,7 +255,7 @@ First match wins.
 Compose Farm parses Traefik labels from compose files:
 
 ```yaml
-services:
+stacks:
   plex:
     labels:
       - traefik.enable=true
@@ -300,9 +300,9 @@ If checks fail, operation aborts with clear error.
 
 ### Partial Failures
 
-When operating on multiple services:
-- Each service is independent
-- Failures are logged, but other services continue
+When operating on multiple stacks:
+- Each stack is independent
+- Failures are logged, but other stacks continue
 - Exit code reflects overall success/failure
 
 ## Performance Considerations
@@ -313,7 +313,7 @@ Services are started/stopped in parallel:
 
 ```python
 await asyncio.gather(*[
-    up_service(service) for service in services
+    up_stack(stack) for stack in stacks
 ])
 ```
 

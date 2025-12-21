@@ -1,6 +1,6 @@
 {% from "partials/components.html" import stat_card %}
 {% from "partials/icons.html" import server, layers, circle_check, circle_x %}
 {{ stat_card("Hosts", hosts | length, icon=server()) }}
-{{ stat_card("Services", services | length, icon=layers()) }}
+{{ stat_card("Stacks", stacks | length, icon=layers()) }}
 {{ stat_card("Running", running_count, "success", circle_check()) }}
 {{ stat_card("Stopped", stopped_count, icon=circle_x()) }}

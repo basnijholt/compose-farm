@@ -9,11 +9,11 @@ from pydantic import ValidationError
 
 from compose_farm.paths import find_config_path
 from compose_farm.state import (
-    get_orphaned_services,
-    get_service_host,
-    get_services_needing_migration,
-    get_services_not_in_state,
-    group_running_services_by_host,
+    get_orphaned_stacks,
+    get_stack_host,
+    get_stacks_needing_migration,
+    get_stacks_not_in_state,
+    group_running_stacks_by_host,
     load_state,
 )
 from compose_farm.web.deps import (
@@ -74,7 +74,7 @@ async def index(request: Request) -> HTMLResponse:
                 "request": request,
                 "config_error": config_error,
                 "hosts": {},
-                "services": {},
+                "stacks": {},
                 "config_content": config_content,
                 "state_content": "",
                 "running_count": 0,
@@ -82,7 +82,7 @@ async def index(request: Request) -> HTMLResponse:
                 "orphaned": [],
                 "migrations": [],
                 "not_started": [],
-                "services_by_host": {},
+                "stacks_by_host": {},
             },
         )
 
@@ -91,15 +91,15 @@ async def index(request: Request) -> HTMLResponse:
 
     # Stats
     running_count = len(deployed)
-    stopped_count = len(config.services) - running_count
+    stopped_count = len(config.stacks) - running_count
 
     # Pending operations
-    orphaned = get_orphaned_services(config)
-    migrations = get_services_needing_migration(config)
-    not_started = get_services_not_in_state(config)
+    orphaned = get_orphaned_stacks(config)
+    migrations = get_stacks_needing_migration(config)
+    not_started = get_stacks_not_in_state(config)
 
-    # Group services by host (filter out hosts with no running services)
-    services_by_host = group_running_services_by_host(deployed, config.hosts)
+    # Group stacks by host (filter out hosts with no running stacks)
+    stacks_by_host = group_running_stacks_by_host(deployed, config.hosts)
 
     # Config file content
     config_content = ""
@@ -116,7 +116,7 @@ async def index(request: Request) -> HTMLResponse:
             "config_error": None,
             # Config data
             "hosts": config.hosts,
-            "services": config.services,
+            "stacks": config.stacks,
             "config_content": config_content,
             # State data
             "state_content": state_content,
@@ -127,15 +127,15 @@ async def index(request: Request) -> HTMLResponse:
             "orphaned": orphaned,
             "migrations": migrations,
             "not_started": not_started,
-            # Services by host
-            "services_by_host": services_by_host,
+            # Stacks by host
+            "stacks_by_host": stacks_by_host,
         },
     )
 
 
-@router.get("/service/{name}", response_class=HTMLResponse)
-async def service_detail(request: Request, name: str) -> HTMLResponse:
-    """Service detail page."""
+@router.get("/stack/{name}", response_class=HTMLResponse)
+async def stack_detail(request: Request, name: str) -> HTMLResponse:
+    """Stack detail page."""
     config = get_config()
     templates = get_templates()
 
@@ -157,10 +157,10 @@ async def service_detail(request: Request, name: str) -> HTMLResponse:
     hosts = config.get_hosts(name)
 
     # Get state
-    current_host = get_service_host(config, name)
+    current_host = get_stack_host(config, name)
 
     return templates.TemplateResponse(
-        "service.html",
+        "stack.html",
         {
             "request": request,
             "name": name,
@@ -176,24 +176,24 @@ async def service_detail(request: Request, name: str) -> HTMLResponse:
 
 @router.get("/partials/sidebar", response_class=HTMLResponse)
 async def sidebar_partial(request: Request) -> HTMLResponse:
-    """Sidebar service list partial."""
+    """Sidebar stack list partial."""
     config = get_config()
     templates = get_templates()
 
     state = load_state(config)
 
-    # Build service -> host mapping (empty string for multi-host services)
-    service_hosts = {
+    # Build stack -> host mapping (empty string for multi-host stacks)
+    stack_hosts = {
         svc: "" if host_val == "all" or isinstance(host_val, list) else host_val
-        for svc, host_val in config.services.items()
+        for svc, host_val in config.stacks.items()
     }
 
     return templates.TemplateResponse(
         "partials/sidebar.html",
         {
             "request": request,
-            "services": sorted(config.services.keys()),
-            "service_hosts": service_hosts,
+            "stacks": sorted(config.stacks.keys()),
+            "stack_hosts": stack_hosts,
             "hosts": sorted(config.hosts.keys()),
             "local_host": get_local_host(config),
             "state": state,
@@ -223,14 +223,14 @@ async def stats_partial(request: Request) -> HTMLResponse:
 
     deployed = load_state(config)
     running_count = len(deployed)
-    stopped_count = len(config.services) - running_count
+    stopped_count = len(config.stacks) - running_count
 
     return templates.TemplateResponse(
         "partials/stats.html",
         {
             "request": request,
             "hosts": config.hosts,
-            "services": config.services,
+            "stacks": config.stacks,
             "running_count": running_count,
             "stopped_count": stopped_count,
         },
@@ -243,9 +243,9 @@ async def pending_partial(request: Request, expanded: bool = True) -> HTMLRespon
     config = get_config()
     templates = get_templates()
 
-    orphaned = get_orphaned_services(config)
-    migrations = get_services_needing_migration(config)
-    not_started = get_services_not_in_state(config)
+    orphaned = get_orphaned_stacks(config)
+    migrations = get_stacks_needing_migration(config)
+    not_started = get_stacks_not_in_state(config)
 
     return templates.TemplateResponse(
         "partials/pending.html",
@@ -259,21 +259,21 @@ async def pending_partial(request: Request, expanded: bool = True) -> HTMLRespon
     )
 
 
-@router.get("/partials/services-by-host", response_class=HTMLResponse)
-async def services_by_host_partial(request: Request, expanded: bool = True) -> HTMLResponse:
-    """Services by host partial."""
+@router.get("/partials/stacks-by-host", response_class=HTMLResponse)
+async def stacks_by_host_partial(request: Request, expanded: bool = True) -> HTMLResponse:
+    """Stacks by host partial."""
     config = get_config()
     templates = get_templates()
 
     deployed = load_state(config)
-    services_by_host = group_running_services_by_host(deployed, config.hosts)
+    stacks_by_host = group_running_stacks_by_host(deployed, config.hosts)
 
     return templates.TemplateResponse(
-        "partials/services_by_host.html",
+        "partials/stacks_by_host.html",
         {
             "request": request,
             "hosts": config.hosts,
-            "services_by_host": services_by_host,
+            "stacks_by_host": stacks_by_host,
             "expanded": expanded,
         },
     )

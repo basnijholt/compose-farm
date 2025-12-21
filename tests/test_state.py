@@ -6,13 +6,13 @@ import pytest
 
 from compose_farm.config import Config, Host
 from compose_farm.state import (
-    get_orphaned_services,
-    get_service_host,
-    get_services_not_in_state,
+    get_orphaned_stacks,
+    get_stack_host,
+    get_stacks_not_in_state,
     load_state,
-    remove_service,
+    remove_stack,
     save_state,
-    set_service_host,
+    set_stack_host,
 )
 
 
@@ -24,7 +24,7 @@ def config(tmp_path: Path) -> Config:
     return Config(
         compose_dir=tmp_path / "compose",
         hosts={"nas01": Host(address="192.168.1.10")},
-        services={"plex": "nas01"},
+        stacks={"plex": "nas01"},
         config_path=config_path,
     )
 
@@ -68,174 +68,174 @@ class TestSaveState:
         assert "jellyfin: nas02" in content
 
 
-class TestGetServiceHost:
-    """Tests for get_service_host function."""
+class TestGetStackHost:
+    """Tests for get_stack_host function."""
 
-    def test_get_existing_service(self, config: Config) -> None:
-        """Returns host for existing service."""
+    def test_get_existing_stack(self, config: Config) -> None:
+        """Returns host for existing stack."""
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n")
 
-        host = get_service_host(config, "plex")
+        host = get_stack_host(config, "plex")
         assert host == "nas01"
 
-    def test_get_nonexistent_service(self, config: Config) -> None:
-        """Returns None for service not in state."""
+    def test_get_nonexistent_stack(self, config: Config) -> None:
+        """Returns None for stack not in state."""
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n")
 
-        host = get_service_host(config, "unknown")
+        host = get_stack_host(config, "unknown")
         assert host is None
 
 
-class TestSetServiceHost:
-    """Tests for set_service_host function."""
+class TestSetStackHost:
+    """Tests for set_stack_host function."""
 
-    def test_set_new_service(self, config: Config) -> None:
-        """Adds new service to state."""
-        set_service_host(config, "plex", "nas01")
+    def test_set_new_stack(self, config: Config) -> None:
+        """Adds new stack to state."""
+        set_stack_host(config, "plex", "nas01")
 
         result = load_state(config)
         assert result["plex"] == "nas01"
 
-    def test_update_existing_service(self, config: Config) -> None:
-        """Updates host for existing service."""
+    def test_update_existing_stack(self, config: Config) -> None:
+        """Updates host for existing stack."""
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n")
 
-        set_service_host(config, "plex", "nas02")
+        set_stack_host(config, "plex", "nas02")
 
         result = load_state(config)
         assert result["plex"] == "nas02"
 
 
-class TestRemoveService:
-    """Tests for remove_service function."""
+class TestRemoveStack:
+    """Tests for remove_stack function."""
 
-    def test_remove_existing_service(self, config: Config) -> None:
-        """Removes service from state."""
+    def test_remove_existing_stack(self, config: Config) -> None:
+        """Removes stack from state."""
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n  jellyfin: nas02\n")
 
-        remove_service(config, "plex")
+        remove_stack(config, "plex")
 
         result = load_state(config)
         assert "plex" not in result
         assert result["jellyfin"] == "nas02"
 
-    def test_remove_nonexistent_service(self, config: Config) -> None:
-        """Removing nonexistent service doesn't error."""
+    def test_remove_nonexistent_stack(self, config: Config) -> None:
+        """Removing nonexistent stack doesn't error."""
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n")
 
-        remove_service(config, "unknown")  # Should not raise
+        remove_stack(config, "unknown")  # Should not raise
 
         result = load_state(config)
         assert result["plex"] == "nas01"
 
 
-class TestGetOrphanedServices:
-    """Tests for get_orphaned_services function."""
+class TestGetOrphanedStacks:
+    """Tests for get_orphaned_stacks function."""
 
     def test_no_orphans(self, config: Config) -> None:
-        """Returns empty dict when all services in state are in config."""
+        """Returns empty dict when all stacks in state are in config."""
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n")
 
-        result = get_orphaned_services(config)
+        result = get_orphaned_stacks(config)
         assert result == {}
 
-    def test_finds_orphaned_service(self, config: Config) -> None:
-        """Returns services in state but not in config."""
+    def test_finds_orphaned_stack(self, config: Config) -> None:
+        """Returns stacks in state but not in config."""
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n  jellyfin: nas02\n")
 
-        result = get_orphaned_services(config)
+        result = get_orphaned_stacks(config)
         # plex is in config, jellyfin is not
         assert result == {"jellyfin": "nas02"}
 
-    def test_finds_orphaned_multi_host_service(self, config: Config) -> None:
-        """Returns multi-host orphaned services with host list."""
+    def test_finds_orphaned_multi_host_stack(self, config: Config) -> None:
+        """Returns multi-host orphaned stacks with host list."""
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n  dozzle:\n  - nas01\n  - nas02\n")
 
-        result = get_orphaned_services(config)
+        result = get_orphaned_stacks(config)
         assert result == {"dozzle": ["nas01", "nas02"]}
 
     def test_empty_state(self, config: Config) -> None:
         """Returns empty dict when state is empty."""
-        result = get_orphaned_services(config)
+        result = get_orphaned_stacks(config)
         assert result == {}
 
     def test_all_orphaned(self, tmp_path: Path) -> None:
-        """Returns all services when none are in config."""
+        """Returns all stacks when none are in config."""
         config_path = tmp_path / "compose-farm.yaml"
         config_path.write_text("")
         cfg = Config(
             compose_dir=tmp_path / "compose",
             hosts={"nas01": Host(address="192.168.1.10")},
-            services={},  # No services in config
+            stacks={},  # No stacks in config
             config_path=config_path,
         )
         state_file = cfg.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n  jellyfin: nas02\n")
 
-        result = get_orphaned_services(cfg)
+        result = get_orphaned_stacks(cfg)
         assert result == {"plex": "nas01", "jellyfin": "nas02"}
 
 
-class TestGetServicesNotInState:
-    """Tests for get_services_not_in_state function."""
+class TestGetStacksNotInState:
+    """Tests for get_stacks_not_in_state function."""
 
     def test_all_in_state(self, config: Config) -> None:
-        """Returns empty list when all services are in state."""
+        """Returns empty list when all stacks are in state."""
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n")
 
-        result = get_services_not_in_state(config)
+        result = get_stacks_not_in_state(config)
         assert result == []
 
     def test_finds_missing_service(self, tmp_path: Path) -> None:
-        """Returns services in config but not in state."""
+        """Returns stacks in config but not in state."""
         config_path = tmp_path / "compose-farm.yaml"
         config_path.write_text("")
         cfg = Config(
             compose_dir=tmp_path / "compose",
             hosts={"nas01": Host(address="192.168.1.10")},
-            services={"plex": "nas01", "jellyfin": "nas01"},
+            stacks={"plex": "nas01", "jellyfin": "nas01"},
             config_path=config_path,
         )
         state_file = cfg.get_state_path()
         state_file.write_text("deployed:\n  plex: nas01\n")
 
-        result = get_services_not_in_state(cfg)
+        result = get_stacks_not_in_state(cfg)
         assert result == ["jellyfin"]
 
     def test_empty_state(self, tmp_path: Path) -> None:
-        """Returns all services when state is empty."""
+        """Returns all stacks when state is empty."""
         config_path = tmp_path / "compose-farm.yaml"
         config_path.write_text("")
         cfg = Config(
             compose_dir=tmp_path / "compose",
             hosts={"nas01": Host(address="192.168.1.10")},
-            services={"plex": "nas01", "jellyfin": "nas01"},
+            stacks={"plex": "nas01", "jellyfin": "nas01"},
             config_path=config_path,
         )
 
-        result = get_services_not_in_state(cfg)
+        result = get_stacks_not_in_state(cfg)
         assert set(result) == {"plex", "jellyfin"}
 
     def test_empty_config(self, config: Config) -> None:
-        """Returns empty list when config has no services."""
+        """Returns empty list when config has no stacks."""
         # config fixture has plex: nas01, but we need empty config
         config_path = config.config_path
         config_path.write_text("")
         cfg = Config(
             compose_dir=config.compose_dir,
             hosts={"nas01": Host(address="192.168.1.10")},
-            services={},
+            stacks={},
             config_path=config_path,
         )
 
-        result = get_services_not_in_state(cfg)
+        result = get_stacks_not_in_state(cfg)
         assert result == []

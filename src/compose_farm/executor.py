@@ -50,7 +50,7 @@ async def _stream_output_lines(
     *,
     is_stderr: bool = False,
 ) -> None:
-    """Stream lines from a reader to console with a service prefix.
+    """Stream lines from a reader to console with a stack prefix.
 
     Works with both asyncio.StreamReader (bytes) and asyncssh readers (str).
     If prefix is empty, output is printed without a prefix.
@@ -126,7 +126,7 @@ def _get_local_ips() -> frozenset[str]:
 class CommandResult:
     """Result of a command execution."""
 
-    service: str
+    stack: str
     exit_code: int
     success: bool
     stdout: str = ""
@@ -172,7 +172,7 @@ def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
 
 async def _run_local_command(
     command: str,
-    service: str,
+    stack: str,
     *,
     stream: bool = True,
     raw: bool = False,
@@ -189,7 +189,7 @@ async def _run_local_command(
             )
             await proc.wait()
             return CommandResult(
-                service=service,
+                stack=stack,
                 exit_code=proc.returncode or 0,
                 success=proc.returncode == 0,
             )
@@ -214,21 +214,21 @@ async def _run_local_command(
             await proc.wait()
 
         return CommandResult(
-            service=service,
+            stack=stack,
             exit_code=proc.returncode or 0,
             success=proc.returncode == 0,
             stdout=stdout_data.decode() if stdout_data else "",
             stderr=stderr_data.decode() if stderr_data else "",
         )
     except OSError as e:
-        err_console.print(f"[cyan]\\[{service}][/] [red]Local error:[/] {e}")
-        return CommandResult(service=service, exit_code=1, success=False)
+        err_console.print(f"[cyan]\\[{stack}][/] [red]Local error:[/] {e}")
+        return CommandResult(stack=stack, exit_code=1, success=False)
 
 
 async def _run_ssh_command(
     host: Host,
     command: str,
-    service: str,
+    stack: str,
     *,
     stream: bool = True,
     raw: bool = False,
@@ -246,7 +246,7 @@ async def _run_ssh_command(
         # Use get_ssh_env() to auto-detect SSH agent socket
         result = await asyncio.to_thread(run_ssh)
         return CommandResult(
-            service=service,
+            stack=stack,
             exit_code=result.returncode,
             success=result.returncode == 0,
         )
@@ -271,21 +271,21 @@ async def _run_ssh_command(
 
                 await proc.wait()
                 return CommandResult(
-                    service=service,
+                    stack=stack,
                     exit_code=proc.exit_status or 0,
                     success=proc.exit_status == 0,
                     stdout=stdout_data,
                     stderr=stderr_data,
                 )
     except (OSError, asyncssh.Error) as e:
-        err_console.print(f"[cyan]\\[{service}][/] [red]SSH error:[/] {e}")
-        return CommandResult(service=service, exit_code=1, success=False)
+        err_console.print(f"[cyan]\\[{stack}][/] [red]SSH error:[/] {e}")
+        return CommandResult(stack=stack, exit_code=1, success=False)
 
 
 async def run_command(
     host: Host,
     command: str,
-    service: str,
+    stack: str,
     *,
     stream: bool = True,
     raw: bool = False,
@@ -296,45 +296,45 @@ async def run_command(
     Args:
         host: Host configuration
         command: Command to run
-        service: Service name (stored in result)
+        stack: Stack name (stored in result)
         stream: Whether to stream output (default True)
         raw: Whether to use raw mode with TTY (default False)
-        prefix: Output prefix. None=use service name, ""=no prefix.
+        prefix: Output prefix. None=use stack name, ""=no prefix.
 
     """
-    output_prefix = service if prefix is None else prefix
+    output_prefix = stack if prefix is None else prefix
     if is_local(host):
         return await _run_local_command(
-            command, service, stream=stream, raw=raw, prefix=output_prefix
+            command, stack, stream=stream, raw=raw, prefix=output_prefix
         )
     return await _run_ssh_command(
-        host, command, service, stream=stream, raw=raw, prefix=output_prefix
+        host, command, stack, stream=stream, raw=raw, prefix=output_prefix
     )
 
 
 async def run_compose(
     config: Config,
-    service: str,
+    stack: str,
     compose_cmd: str,
     *,
     stream: bool = True,
     raw: bool = False,
     prefix: str | None = None,
 ) -> CommandResult:
-    """Run a docker compose command for a service."""
-    host_name = config.get_hosts(service)[0]
+    """Run a docker compose command for a stack."""
+    host_name = config.get_hosts(stack)[0]
     host = config.hosts[host_name]
-    compose_path = config.get_compose_path(service)
+    compose_path = config.get_compose_path(stack)
 
     _print_compose_command(host_name, str(config.compose_dir), str(compose_path), compose_cmd)
 
     command = f"docker compose -f {compose_path} {compose_cmd}"
-    return await run_command(host, command, service, stream=stream, raw=raw, prefix=prefix)
+    return await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
 
 
 async def run_compose_on_host(
     config: Config,
-    service: str,
+    stack: str,
     host_name: str,
     compose_cmd: str,
     *,
@@ -342,68 +342,68 @@ async def run_compose_on_host(
     raw: bool = False,
     prefix: str | None = None,
 ) -> CommandResult:
-    """Run a docker compose command for a service on a specific host.
+    """Run a docker compose command for a stack on a specific host.
 
     Used for migration - running 'down' on the old host before 'up' on new host.
     """
     host = config.hosts[host_name]
-    compose_path = config.get_compose_path(service)
+    compose_path = config.get_compose_path(stack)
 
     _print_compose_command(host_name, str(config.compose_dir), str(compose_path), compose_cmd)
 
     command = f"docker compose -f {compose_path} {compose_cmd}"
-    return await run_command(host, command, service, stream=stream, raw=raw, prefix=prefix)
+    return await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
 
 
-async def run_on_services(
+async def run_on_stacks(
     config: Config,
-    services: list[str],
+    stacks: list[str],
     compose_cmd: str,
     *,
     stream: bool = True,
     raw: bool = False,
 ) -> list[CommandResult]:
-    """Run a docker compose command on multiple services in parallel.
+    """Run a docker compose command on multiple stacks in parallel.
 
-    For multi-host services, runs on all configured hosts.
-    Note: raw=True only makes sense for single-service operations.
+    For multi-host stacks, runs on all configured hosts.
+    Note: raw=True only makes sense for single-stack operations.
     """
-    return await run_sequential_on_services(config, services, [compose_cmd], stream=stream, raw=raw)
+    return await run_sequential_on_stacks(config, stacks, [compose_cmd], stream=stream, raw=raw)
 
 
-async def _run_sequential_commands(
+async def _run_sequential_stack_commands(
     config: Config,
-    service: str,
+    stack: str,
     commands: list[str],
     *,
     stream: bool = True,
     raw: bool = False,
     prefix: str | None = None,
 ) -> CommandResult:
-    """Run multiple compose commands sequentially for a service."""
+    """Run multiple compose commands sequentially for a stack."""
     for cmd in commands:
-        result = await run_compose(config, service, cmd, stream=stream, raw=raw, prefix=prefix)
+        result = await run_compose(config, stack, cmd, stream=stream, raw=raw, prefix=prefix)
         if not result.success:
             return result
-    return CommandResult(service=service, exit_code=0, success=True)
+    return CommandResult(stack=stack, exit_code=0, success=True)
 
 
-async def _run_sequential_commands_multi_host(
+async def _run_sequential_stack_commands_multi_host(
     config: Config,
-    service: str,
+    stack: str,
     commands: list[str],
     *,
     stream: bool = True,
     raw: bool = False,
     prefix: str | None = None,
 ) -> list[CommandResult]:
-    """Run multiple compose commands sequentially for a multi-host service.
+    """Run multiple compose commands sequentially for a multi-host stack.
 
     Commands are run sequentially, but each command runs on all hosts in parallel.
-    For multi-host services, prefix defaults to service@host format.
+    For multi-host stacks, prefix defaults to stack@host format.
     """
-    host_names = config.get_hosts(service)
-    compose_path = config.get_compose_path(service)
+    host_names = config.get_hosts(stack)
+    compose_path = config.get_compose_path(stack)
     final_results: list[CommandResult] = []
 
     for cmd in commands:
@@ -412,10 +412,10 @@ async def _run_sequential_commands_multi_host(
         for host_name in host_names:
             _print_compose_command(host_name, str(config.compose_dir), str(compose_path), cmd)
             host = config.hosts[host_name]
-            # For multi-host services, always use service@host prefix to distinguish output
-            label = f"{service}@{host_name}" if len(host_names) > 1 else service
-            # Multi-host services always need prefixes to distinguish output from different hosts
-            # (ignore empty prefix from single-service batches - we still need to distinguish hosts)
+            # For multi-host stacks, always use stack@host prefix to distinguish output
+            label = f"{stack}@{host_name}" if len(host_names) > 1 else stack
+            # Multi-host stacks always need prefixes to distinguish output from different hosts
+            # (ignore empty prefix from single-stack batches - we still need to distinguish hosts)
             effective_prefix = label if len(host_names) > 1 else prefix
             tasks.append(
                 run_command(host, command, label, stream=stream, raw=raw, prefix=effective_prefix)
@@ -431,37 +431,37 @@ async def _run_sequential_commands_multi_host(
     return final_results
 
 
-async def run_sequential_on_services(
+async def run_sequential_on_stacks(
     config: Config,
-    services: list[str],
+    stacks: list[str],
     commands: list[str],
     *,
     stream: bool = True,
     raw: bool = False,
 ) -> list[CommandResult]:
-    """Run sequential commands on multiple services in parallel.
+    """Run sequential commands on multiple stacks in parallel.
 
-    For multi-host services, runs on all configured hosts.
-    Note: raw=True only makes sense for single-service operations.
+    For multi-host stacks, runs on all configured hosts.
+    Note: raw=True only makes sense for single-stack operations.
     """
-    # Skip prefix for single-service operations (command line already shows context)
-    prefix: str | None = "" if len(services) == 1 else None
+    # Skip prefix for single-stack operations (command line already shows context)
+    prefix: str | None = "" if len(stacks) == 1 else None
 
-    # Separate multi-host and single-host services for type-safe gathering
+    # Separate multi-host and single-host stacks for type-safe gathering
     multi_host_tasks = []
     single_host_tasks = []
 
-    for service in services:
-        if config.is_multi_host(service):
+    for stack in stacks:
+        if config.is_multi_host(stack):
             multi_host_tasks.append(
-                _run_sequential_commands_multi_host(
-                    config, service, commands, stream=stream, raw=raw, prefix=prefix
+                _run_sequential_stack_commands_multi_host(
+                    config, stack, commands, stream=stream, raw=raw, prefix=prefix
                 )
             )
         else:
             single_host_tasks.append(
-                _run_sequential_commands(
-                    config, service, commands, stream=stream, raw=raw, prefix=prefix
+                _run_sequential_stack_commands(
+                    config, stack, commands, stream=stream, raw=raw, prefix=prefix
                 )
             )
 
@@ -480,18 +480,18 @@ async def run_sequential_on_services(
     return flat_results
 
 
-async def check_service_running(
+async def check_stack_running(
     config: Config,
-    service: str,
+    stack: str,
     host_name: str,
 ) -> bool:
-    """Check if a service has running containers on a specific host."""
+    """Check if a stack has running containers on a specific host."""
     host = config.hosts[host_name]
-    compose_path = config.get_compose_path(service)
+    compose_path = config.get_compose_path(stack)
 
     # Use ps --status running to check for running containers
     command = f"docker compose -f {compose_path} ps --status running -q"
-    result = await run_command(host, command, service, stream=False)
+    result = await run_command(host, command, stack, stream=False)
 
     # If command succeeded and has output, containers are running
     return result.success and bool(result.stdout.strip())

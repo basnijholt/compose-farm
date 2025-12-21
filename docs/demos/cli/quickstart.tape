@@ -13,7 +13,7 @@ Set FontFamily "FiraCode Nerd Font"
 Set TypingSpeed 50ms
 Env BAT_PAGING "always"
 
-Type "# Config is just: service  host"
+Type "# Config is just: stack  host"
 Enter
 Sleep 500ms
 
@@ -27,7 +27,7 @@ Sleep 3s
 Type "q"
 Sleep 500ms
 
-Type "# Then map each service to a host"
+Type "# Then map each stack to a host"
 Enter
 Sleep 500ms
 
@@ -37,7 +37,7 @@ Sleep 3s
 Type "q"
 Sleep 500ms
 
-Type "# Check service status"
+Type "# Check stack status"
 Enter
 Sleep 500ms
 
@@ -45,7 +45,7 @@ Type "cf ps immich"
 Enter
 Wait+Screen /PORTS/
 
-Type "# Start a service"
+Type "# Start a stack"
 Enter
 Sleep 500ms
 

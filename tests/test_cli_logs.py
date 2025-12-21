@@ -25,20 +25,20 @@ def _make_config(tmp_path: Path) -> Config:
     return Config(
         compose_dir=compose_dir,
         hosts={"local": Host(address="localhost"), "remote": Host(address="192.168.1.10")},
-        services={"svc1": "local", "svc2": "local", "svc3": "remote"},
+        stacks={"svc1": "local", "svc2": "local", "svc3": "remote"},
     )
 
 
-def _make_result(service: str) -> CommandResult:
+def _make_result(stack: str) -> CommandResult:
     """Create a successful command result."""
-    return CommandResult(service=service, exit_code=0, success=True, stdout="", stderr="")
+    return CommandResult(stack=stack, exit_code=0, success=True, stdout="", stderr="")
 
 
 def _mock_run_async_factory(
-    services: list[str],
+    stacks: list[str],
 ) -> tuple[Any, list[CommandResult]]:
-    """Create a mock run_async that returns results for given services."""
-    results = [_make_result(s) for s in services]
+    """Create a mock run_async that returns results for given stacks."""
+    results = [_make_result(s) for s in stacks]
 
     def mock_run_async(_coro: Coroutine[Any, Any, Any]) -> list[CommandResult]:
         return results
@@ -49,7 +49,7 @@ def _mock_run_async_factory(
 class TestLogsContextualDefault:
     """Tests for logs --tail contextual default behavior."""
 
-    def test_logs_all_services_defaults_to_20(self, tmp_path: Path) -> None:
+    def test_logs_all_stacks_defaults_to_20(self, tmp_path: Path) -> None:
         """When --all is specified, default tail should be 20."""
         cfg = _make_config(tmp_path)
         mock_run_async, _ = _mock_run_async_factory(["svc1", "svc2", "svc3"])
@@ -58,18 +58,18 @@ class TestLogsContextualDefault:
             patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.run_on_stacks") as mock_run,
         ):
             mock_run.return_value = None
 
-            logs(services=None, all_services=True, host=None, follow=False, tail=None, config=None)
+            logs(stacks=None, all_stacks=True, host=None, follow=False, tail=None, config=None)
 
             mock_run.assert_called_once()
             call_args = mock_run.call_args
             assert call_args[0][2] == "logs --tail 20"
 
-    def test_logs_single_service_defaults_to_100(self, tmp_path: Path) -> None:
-        """When specific services are specified, default tail should be 100."""
+    def test_logs_single_stack_defaults_to_100(self, tmp_path: Path) -> None:
+        """When specific stacks are specified, default tail should be 100."""
         cfg = _make_config(tmp_path)
         mock_run_async, _ = _mock_run_async_factory(["svc1"])
 
@@ -77,11 +77,11 @@ class TestLogsContextualDefault:
             patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.run_on_stacks") as mock_run,
         ):
             logs(
-                services=["svc1"],
-                all_services=False,
+                stacks=["svc1"],
+                all_stacks=False,
                 host=None,
                 follow=False,
                 tail=None,
@@ -101,11 +101,11 @@ class TestLogsContextualDefault:
             patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.run_on_stacks") as mock_run,
         ):
             logs(
-                services=None,
-                all_services=True,
+                stacks=None,
+                all_stacks=True,
                 host=None,
                 follow=False,
                 tail=50,
@@ -125,11 +125,11 @@ class TestLogsContextualDefault:
             patch("compose_farm.cli.monitoring.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.run_on_stacks") as mock_run,
         ):
             logs(
-                services=["svc1"],
-                all_services=False,
+                stacks=["svc1"],
+                all_stacks=False,
                 host=None,
                 follow=True,
                 tail=None,
@@ -144,19 +144,19 @@ class TestLogsContextualDefault:
 class TestLogsHostFilter:
     """Tests for logs --host filter behavior."""
 
-    def test_logs_host_filter_selects_services_on_host(self, tmp_path: Path) -> None:
-        """When --host is specified, only services on that host are included."""
+    def test_logs_host_filter_selects_stacks_on_host(self, tmp_path: Path) -> None:
+        """When --host is specified, only stacks on that host are included."""
         cfg = _make_config(tmp_path)
         mock_run_async, _ = _mock_run_async_factory(["svc1", "svc2"])
 
         with (
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.run_on_stacks") as mock_run,
         ):
             logs(
-                services=None,
-                all_services=False,
+                stacks=None,
+                all_stacks=False,
                 host="local",
                 follow=False,
                 tail=None,
@@ -169,18 +169,18 @@ class TestLogsHostFilter:
             assert set(call_args[0][1]) == {"svc1", "svc2"}
 
     def test_logs_host_filter_defaults_to_20_lines(self, tmp_path: Path) -> None:
-        """When --host is specified, default tail should be 20 (multiple services)."""
+        """When --host is specified, default tail should be 20 (multiple stacks)."""
         cfg = _make_config(tmp_path)
         mock_run_async, _ = _mock_run_async_factory(["svc1", "svc2"])
 
         with (
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
             patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
-            patch("compose_farm.cli.monitoring.run_on_services") as mock_run,
+            patch("compose_farm.cli.monitoring.run_on_stacks") as mock_run,
         ):
             logs(
-                services=None,
-                all_services=False,
+                stacks=None,
+                all_stacks=False,
                 host="local",
                 follow=False,
                 tail=None,
@@ -196,8 +196,8 @@ class TestLogsHostFilter:
         # No config mock needed - error is raised before config is loaded
         with pytest.raises(typer.Exit) as exc_info:
             logs(
-                services=None,
-                all_services=True,
+                stacks=None,
+                all_stacks=True,
                 host="local",
                 follow=False,
                 tail=None,
