@@ -43,7 +43,7 @@ cf --help, -h       # Show help
 Make reality match your configuration. The primary reconciliation command.
 
 <video autoplay loop muted playsinline>
-  <source src="/assets/apply.webm#t=0.001" type="video/webm">
+  <source src="/assets/apply.webm" type="video/webm">
 </video>
 
 ```bash
@@ -187,7 +187,7 @@ cf restart --all
 Update stacks (pull + build + down + up).
 
 <video autoplay loop muted playsinline>
-  <source src="/assets/update.webm#t=0.001" type="video/webm">
+  <source src="/assets/update.webm" type="video/webm">
 </video>
 
 ```bash
@@ -275,7 +275,7 @@ cf ps --host nuc
 Show stack logs.
 
 <video autoplay loop muted playsinline>
-  <source src="/assets/logs.webm#t=0.001" type="video/webm">
+  <source src="/assets/logs.webm" type="video/webm">
 </video>
 
 ```bash
