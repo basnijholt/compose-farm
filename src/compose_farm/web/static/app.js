@@ -524,6 +524,11 @@ function playFabIntro() {
 
     const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
     const nav = (url, afterNav) => () => {
+        // Set hash before HTMX swap so inline scripts can read it
+        const hashIndex = url.indexOf('#');
+        if (hashIndex !== -1) {
+            window.location.hash = url.substring(hashIndex);
+        }
         htmx.ajax('GET', url, {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
             history.pushState({}, '', url);
             afterNav?.();
