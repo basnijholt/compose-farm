@@ -57,6 +57,10 @@ const LANGUAGE_MAP = {
     'env': 'plaintext'
 };
 
+// Detect Mac for keyboard shortcut display
+const IS_MAC = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+const MOD_KEY = IS_MAC ? '⌘' : 'Ctrl';
+
 // ============================================================================
 // STATE
 // ============================================================================
@@ -752,11 +756,25 @@ function initKeyboardShortcuts() {
 }
 
 /**
+ * Update keyboard shortcut display based on OS
+ * Replaces ⌘ with Ctrl on non-Mac platforms
+ */
+function updateShortcutKeys() {
+    // Update elements with class 'shortcut-key' that contain ⌘
+    document.querySelectorAll('.shortcut-key').forEach(el => {
+        if (el.textContent === '⌘') {
+            el.textContent = MOD_KEY;
+        }
+    });
+}
+
+/**
  * Initialize page components
  */
 function initPage() {
     initMonacoEditors();
     initSaveButton();
+    updateShortcutKeys();
 }
 
 /**

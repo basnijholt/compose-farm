@@ -15,7 +15,7 @@
             <option value="{{ name }}">{{ name }}{% if name == local_host %} (local){% endif %}</option>
             {% endfor %}
         </select>
-        <button id="console-connect-btn" class="btn btn-sm btn-primary" onclick="connectConsole()">Connect</button>
+        <div class="tooltip" data-tip="Connect to host via SSH"><button id="console-connect-btn" class="btn btn-sm btn-primary" onclick="connectConsole()">Connect</button></div>
         <span id="console-status" class="text-sm opacity-60"></span>
     </div>
 
@@ -29,11 +29,11 @@
         <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-4">
                 <input type="text" id="console-file-path" class="input input-sm input-bordered w-96" placeholder="Enter file path (e.g., ~/docker-compose.yaml)" value="{{ config_path }}">
-                <button class="btn btn-sm btn-outline" onclick="loadFile()">Open</button>
+                <div class="tooltip" data-tip="Load file from host"><button class="btn btn-sm btn-outline" onclick="loadFile()">Open</button></div>
             </div>
             <div class="flex items-center gap-2">
                 <span id="editor-status" class="text-sm opacity-60"></span>
-                <button id="console-save-btn" class="btn btn-sm btn-primary" onclick="saveFile()">{{ save() }} Save</button>
+                <div class="tooltip" data-tip="Save file to host (⌘/Ctrl+S)"><button id="console-save-btn" class="btn btn-sm btn-primary" onclick="saveFile()">{{ save() }} Save</button></div>
             </div>
         </div>
         <div id="console-editor" class="resize-y overflow-hidden rounded-lg" style="height: 512px; min-height: 200px;"></div>
