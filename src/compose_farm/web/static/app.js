@@ -585,19 +585,23 @@ function playFabIntro() {
             );
 
             // Add service-specific commands from data-services attribute
+            // Grouped by action (all Logs together, all Pull together, etc.) with services sorted alphabetically
             const servicesAttr = document.querySelector('[data-services]')?.getAttribute('data-services');
             if (servicesAttr) {
-                const services = servicesAttr.split(',').filter(s => s);
+                const services = servicesAttr.split(',').filter(s => s).sort();
                 const svcCmd = (action, service, desc, endpoint, icon) =>
                     cmd('service', `${action}: ${service}`, desc, post(`/api/stack/${stack}/service/${service}/${endpoint}`), icon);
-                for (const service of services) {
-                    actions.push(
-                        svcCmd('Restart', service, `Restart service`, 'restart', icons.rotate_cw),
-                        svcCmd('Pull', service, `Pull image for service`, 'pull', icons.cloud_download),
-                        svcCmd('Logs', service, `View logs for service`, 'logs', icons.file_text),
-                        svcCmd('Stop', service, `Stop service`, 'stop', icons.square),
-                        svcCmd('Up', service, `Start service`, 'up', icons.play),
-                    );
+                const svcActions = [
+                    ['Logs', 'View logs for service', 'logs', icons.file_text],
+                    ['Pull', 'Pull image for service', 'pull', icons.cloud_download],
+                    ['Restart', 'Restart service', 'restart', icons.rotate_cw],
+                    ['Stop', 'Stop service', 'stop', icons.square],
+                    ['Up', 'Start service', 'up', icons.play],
+                ];
+                for (const [action, desc, endpoint, icon] of svcActions) {
+                    for (const service of services) {
+                        actions.push(svcCmd(action, service, desc, endpoint, icon));
+                    }
                 }
             }
         }
