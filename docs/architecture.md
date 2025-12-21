@@ -46,9 +46,8 @@ Compose Farm follows three core principles:
 
 Pydantic models for YAML configuration:
 
-- **Config** - Root configuration with compose_dir, hosts, stacks
-- **HostConfig** - Host address and SSH user
-- **ServiceConfig** - Service-to-host mappings
+- **Config** - Root configuration with compose_dir, hosts, stacks, traefik settings
+- **Host** - Host address, SSH user, and port
 
 Key features:
 - Validation with Pydantic

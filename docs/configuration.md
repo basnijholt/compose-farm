@@ -388,7 +388,6 @@ stacks:
 
 ```yaml
 compose_dir: /opt/compose
-network: production
 traefik_file: /opt/traefik/dynamic.d/cf.yml
 traefik_stack: traefik
 
