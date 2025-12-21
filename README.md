@@ -434,6 +434,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ update         Update stacks (pull + build + down + up). With --service,     │
 │                updates just that service.                                    │
 │ apply          Make reality match config (start, migrate, stop as needed).   │
+│ compose        Run any docker compose command on a stack.                    │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Configuration ──────────────────────────────────────────────────────────────╮
 │ traefik-file   Generate a Traefik file-provider fragment from compose        │
@@ -742,6 +743,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Passthrough to docker compose for commands not wrapped by cf.
 
+ \b
  Examples:
    cf compose mystack top
    cf compose mystack images
