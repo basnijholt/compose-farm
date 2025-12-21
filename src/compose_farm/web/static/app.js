@@ -555,7 +555,7 @@ function playFabIntro() {
     // Reopen palette with theme filter
     const openThemePicker = () => {
         // Small delay to let dialog close before reopening
-        setTimeout(() => open('theme: '), 50);
+        setTimeout(() => open('theme:'), 50);
     };
 
     function buildCommands() {
@@ -601,8 +601,9 @@ function playFabIntro() {
     }
 
     function filter() {
-        // Normalize multiple spaces to single space for matching
-        const q = input.value.toLowerCase().replace(/\s+/g, ' ');
+        // Normalize: collapse spaces and ensure space after colon for matching
+        // This allows "theme:dark", "theme: dark", "theme:  dark" to all match "theme: dark"
+        const q = input.value.toLowerCase().replace(/\s+/g, ' ').replace(/:(\S)/g, ': $1');
         filtered = commands.filter(c => c.name.toLowerCase().includes(q));
         selected = Math.max(0, Math.min(selected, filtered.length - 1));
     }
