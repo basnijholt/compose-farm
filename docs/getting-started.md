@@ -254,15 +254,18 @@ mkdir -p /opt/compose/gitea
 cat > /opt/compose/gitea/docker-compose.yml << 'EOF'
 services:
   gitea:
-    image: gitea/gitea:latest
+    image: docker.gitea.com/gitea:latest
     container_name: gitea
     environment:
       - USER_UID=1000
       - USER_GID=1000
     volumes:
       - /opt/config/gitea:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
     ports:
       - "3000:3000"
+      - "2222:22"
     restart: unless-stopped
 EOF
 ```
