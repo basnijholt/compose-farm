@@ -1637,12 +1637,12 @@ class TestServicePagePalette:
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
         # Filter to service commands
-        page.locator("#cmd-input").fill("restart:")
+        page.locator("#cmd-input").fill("Restart:")
         cmd_list = page.locator("#cmd-list").inner_text()
 
         # Should show restart commands for both services
-        assert "restart: plex" in cmd_list
-        assert "restart: redis" in cmd_list
+        assert "Restart: plex" in cmd_list
+        assert "Restart: redis" in cmd_list
 
     def test_palette_service_commands_for_all_actions(self, page: Page, server_url: str) -> None:
         """Service commands include all expected actions (restart, pull, logs, stop, up)."""
@@ -1658,7 +1658,7 @@ class TestServicePagePalette:
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
         # Check all service action types exist for the plex service
-        actions = ["restart", "pull", "logs", "stop", "up"]
+        actions = ["Restart", "Pull", "Logs", "Stop", "Up"]
         for action in actions:
             page.locator("#cmd-input").fill(f"{action}: plex")
             cmd_list = page.locator("#cmd-list").inner_text()
@@ -1690,8 +1690,8 @@ class TestServicePagePalette:
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
-        # Filter to restart:redis and execute
-        page.locator("#cmd-input").fill("restart: redis")
+        # Filter to Restart:redis and execute
+        page.locator("#cmd-input").fill("Restart: redis")
         page.keyboard.press("Enter")
 
         # Wait for API call
@@ -1717,10 +1717,10 @@ class TestServicePagePalette:
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
         # Filter to a service command
-        page.locator("#cmd-input").fill("restart: plex")
+        page.locator("#cmd-input").fill("Restart: plex")
 
         # Get the command element and check its border color
-        cmd_item = page.locator("#cmd-list a", has_text="restart: plex").first
+        cmd_item = page.locator("#cmd-list a", has_text="Restart: plex").first
         style = cmd_item.get_attribute("style") or ""
 
         # Service commands should have teal color (#14b8a6)
@@ -1740,14 +1740,14 @@ class TestServicePagePalette:
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
         # Filter to service commands
-        page.locator("#cmd-input").fill("restart:")
+        page.locator("#cmd-input").fill("Restart:")
         cmd_list = page.locator("#cmd-list").inner_text()
 
         # Should show restart command for sonarr service
-        assert "restart: sonarr" in cmd_list
+        assert "Restart: sonarr" in cmd_list
 
     def test_palette_filter_without_colon(self, page: Page, server_url: str) -> None:
-        """Filter matches service commands without colon (e.g., 'up plex' matches 'up: plex')."""
+        """Filter matches service commands without colon (e.g., 'Up plex' matches 'Up: plex')."""
         page.goto(server_url)
         page.wait_for_selector("#sidebar-stacks a", timeout=5000)
 
@@ -1759,12 +1759,12 @@ class TestServicePagePalette:
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
-        # Type "restart plex" without colon
-        page.locator("#cmd-input").fill("restart plex")
+        # Type "Restart plex" without colon
+        page.locator("#cmd-input").fill("Restart plex")
         cmd_list = page.locator("#cmd-list").inner_text()
 
-        # Should still match "restart: plex"
-        assert "restart: plex" in cmd_list
+        # Should still match "Restart: plex"
+        assert "Restart: plex" in cmd_list
 
     def test_palette_filter_without_colon_triggers_api(self, page: Page, server_url: str) -> None:
         """Service command filtered without colon still triggers correct API."""
@@ -1792,8 +1792,8 @@ class TestServicePagePalette:
         page.keyboard.press("Control+k")
         page.wait_for_selector("#cmd-palette[open]", timeout=2000)
 
-        # Type "pull redis" without colon and execute
-        page.locator("#cmd-input").fill("pull redis")
+        # Type "Pull redis" without colon and execute
+        page.locator("#cmd-input").fill("Pull redis")
         page.keyboard.press("Enter")
 
         # Wait for API call

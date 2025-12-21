@@ -592,11 +592,11 @@ function playFabIntro() {
                     cmd('service', `${action}: ${service}`, desc, post(`/api/stack/${stack}/service/${service}/${endpoint}`), icon);
                 for (const service of services) {
                     actions.push(
-                        svcCmd('restart', service, `Restart service`, 'restart', icons.rotate_cw),
-                        svcCmd('pull', service, `Pull image for service`, 'pull', icons.cloud_download),
-                        svcCmd('logs', service, `View logs for service`, 'logs', icons.file_text),
-                        svcCmd('stop', service, `Stop service`, 'stop', icons.square),
-                        svcCmd('up', service, `Start service`, 'up', icons.play),
+                        svcCmd('Restart', service, `Restart service`, 'restart', icons.rotate_cw),
+                        svcCmd('Pull', service, `Pull image for service`, 'pull', icons.cloud_download),
+                        svcCmd('Logs', service, `View logs for service`, 'logs', icons.file_text),
+                        svcCmd('Stop', service, `Stop service`, 'stop', icons.square),
+                        svcCmd('Up', service, `Start service`, 'up', icons.play),
                     );
                 }
             }
