@@ -60,10 +60,14 @@ def test_demo_console(recording_page: Page, server_url: str) -> None:
     page.keyboard.press("Enter")
     pause(page, 2500)  # Wait for output
 
-    # Scroll down to show the Editor section with Compose Farm config
-    editor_section = page.locator(".collapse", has_text="Editor").first
-    editor_section.scroll_into_view_if_needed()
-    pause(page, 800)
+    # Smoothly scroll down to show the Editor section with Compose Farm config
+    page.evaluate("""
+        const editor = document.getElementById('console-editor');
+        if (editor) {
+            editor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    """)
+    pause(page, 1200)  # Wait for smooth scroll animation
 
     # Wait for Monaco editor to load with config content
     page.wait_for_selector("#console-editor .monaco-editor", timeout=10000)

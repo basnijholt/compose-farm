@@ -55,9 +55,14 @@ def test_demo_stack(recording_page: Page, server_url: str) -> None:
     page.wait_for_selector("#compose-editor .monaco-editor", timeout=10000)
     pause(page, 2000)  # Let viewer see the compose file
 
-    # Scroll down slightly to show more of the editor
-    page.locator("#compose-editor").scroll_into_view_if_needed()
-    pause(page, 1500)
+    # Smoothly scroll down to show more of the editor
+    page.evaluate("""
+        const editor = document.getElementById('compose-editor');
+        if (editor) {
+            editor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    """)
+    pause(page, 1200)  # Wait for smooth scroll animation
 
     # Close the compose file section
     compose_collapse.locator("input[type=checkbox]").click(force=True)

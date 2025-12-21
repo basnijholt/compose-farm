@@ -51,9 +51,14 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     # Wait for exec terminal to appear
     page.wait_for_selector("#exec-terminal .xterm", timeout=10000)
 
-    # Scroll down to make the terminal visible
-    page.locator("#exec-terminal").scroll_into_view_if_needed()
-    pause(page, 2000)
+    # Smoothly scroll down to make the terminal visible
+    page.evaluate("""
+        const terminal = document.getElementById('exec-terminal');
+        if (terminal) {
+            terminal.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    """)
+    pause(page, 1200)  # Wait for smooth scroll animation
 
     # Run top command
     slow_type(page, "#exec-terminal .xterm-helper-textarea", "top", delay=100)
