@@ -97,7 +97,10 @@ function connectConsole() {
     consoleWs.onopen = () => {
         statusEl.textContent = `Connected to ${host}`;
         sendSize(term.cols, term.rows);
-        term.focus();
+        // Focus terminal unless #editor hash is present (command palette Edit Config)
+        if (window.location.hash !== '#editor') {
+            term.focus();
+        }
         // Auto-load the default file once editor is ready
         const pathInput = document.getElementById('console-file-path');
         if (pathInput && pathInput.value) {
@@ -133,6 +136,14 @@ function initConsoleEditor() {
 
     loadMonaco(() => {
         consoleEditor = createEditor(editorEl, '', 'plaintext', { onSave: saveFile });
+        // Focus editor if #editor hash is present (command palette Edit Config)
+        if (window.location.hash === '#editor') {
+            // Small delay for Monaco to fully initialize before focusing
+            setTimeout(() => {
+                consoleEditor.focus();
+                editorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+        }
     });
 }
 

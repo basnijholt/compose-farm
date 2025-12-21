@@ -523,9 +523,15 @@ function playFabIntro() {
     let originalTheme = null; // Store theme when palette opens for preview/restore
 
     const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
-    const nav = (url) => () => {
+    const nav = (url, afterNav) => () => {
+        // Set hash before HTMX swap so inline scripts can read it
+        const hashIndex = url.indexOf('#');
+        if (hashIndex !== -1) {
+            window.location.hash = url.substring(hashIndex);
+        }
         htmx.ajax('GET', url, {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
             history.pushState({}, '', url);
+            afterNav?.();
         });
     };
     // Navigate to dashboard (if needed) and trigger action
@@ -573,6 +579,7 @@ function playFabIntro() {
             cmd('app', 'Theme', 'Change color theme', openThemePicker, icons.palette),
             cmd('app', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
             cmd('app', 'Console', 'Go to console', nav('/console'), icons.terminal),
+            cmd('app', 'Edit Config', 'Edit compose-farm.yaml', nav('/console#editor'), icons.file_code),
             cmd('app', 'Docs', 'Open documentation', openExternal('https://compose-farm.nijho.lt/'), icons.book_open),
         ];
 
