@@ -8,6 +8,13 @@ repos:
         files: ^(README\.md|src/compose_farm/cli/.*)$
         pass_filenames: false
 
+      - id: check-install-sync
+        name: Check docs/install matches bootstrap.sh
+        entry: diff -q bootstrap.sh docs/install
+        language: system
+        files: ^(bootstrap\.sh|docs/install)$
+        pass_filenames: false
+
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
