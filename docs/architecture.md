@@ -61,7 +61,7 @@ Tracks deployment state in `compose-farm-state.yaml` (stored alongside the confi
 ```yaml
 deployed:
   plex: nuc
-  sonarr: nuc
+  grafana: nuc
 ```
 
 Used for:
@@ -207,7 +207,7 @@ Location: `compose-farm-state.yaml` (stored alongside the config file)
 ```yaml
 deployed:
   plex: nuc
-  sonarr: nuc
+  grafana: nuc
 ```
 
 Image digests are stored separately in `dockerfarm-log.toml` (also in the config directory).

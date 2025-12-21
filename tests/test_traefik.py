@@ -212,22 +212,22 @@ def test_generate_follows_network_mode_service_for_ports(tmp_path: Path) -> None
                     "image": "gluetun",
                     "ports": ["5080:5080", "9696:9696"],
                 },
-                "qbittorrent": {
-                    "image": "qbittorrent",
+                "syncthing": {
+                    "image": "syncthing",
                     "network_mode": "service:vpn",
                     "labels": [
                         "traefik.enable=true",
-                        "traefik.http.routers.torrent.rule=Host(`torrent.example.com`)",
-                        "traefik.http.services.torrent.loadbalancer.server.port=5080",
+                        "traefik.http.routers.sync.rule=Host(`sync.example.com`)",
+                        "traefik.http.services.sync.loadbalancer.server.port=5080",
                     ],
                 },
-                "prowlarr": {
-                    "image": "prowlarr",
+                "searxng": {
+                    "image": "searxng",
                     "network_mode": "service:vpn",
                     "labels": [
                         "traefik.enable=true",
-                        "traefik.http.routers.prowlarr.rule=Host(`prowlarr.example.com`)",
-                        "traefik.http.services.prowlarr.loadbalancer.server.port=9696",
+                        "traefik.http.routers.searxng.rule=Host(`searxng.example.com`)",
+                        "traefik.http.services.searxng.loadbalancer.server.port=9696",
                     ],
                 },
             }
@@ -238,10 +238,10 @@ def test_generate_follows_network_mode_service_for_ports(tmp_path: Path) -> None
 
     assert warnings == []
     # Both services should get their ports from the vpn service
-    torrent_servers = dynamic["http"]["services"]["torrent"]["loadbalancer"]["servers"]
-    assert torrent_servers == [{"url": "http://192.168.1.10:5080"}]
-    prowlarr_servers = dynamic["http"]["services"]["prowlarr"]["loadbalancer"]["servers"]
-    assert prowlarr_servers == [{"url": "http://192.168.1.10:9696"}]
+    sync_servers = dynamic["http"]["services"]["sync"]["loadbalancer"]["servers"]
+    assert sync_servers == [{"url": "http://192.168.1.10:5080"}]
+    searxng_servers = dynamic["http"]["services"]["searxng"]["loadbalancer"]["servers"]
+    assert searxng_servers == [{"url": "http://192.168.1.10:9696"}]
 
 
 def test_parse_external_networks_single(tmp_path: Path) -> None:

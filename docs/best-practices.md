@@ -221,7 +221,7 @@ Keep config and data separate:
 
 /opt/appdata/          # Local: per-host app data
 ├── plex/
-└── sonarr/
+└── grafana/
 ```
 
 ## Performance
@@ -235,7 +235,7 @@ Compose Farm runs operations in parallel. For large deployments:
 cf up --all
 
 # Avoid: sequential updates when possible
-for svc in plex sonarr radarr; do
+for svc in plex grafana nextcloud; do
   cf update $svc
 done
 ```
@@ -249,7 +249,7 @@ SSH connections are reused within a command. For many operations:
 cf update --all
 
 # Multiple commands, multiple connections (slower)
-cf update plex && cf update sonarr && cf update radarr
+cf update plex && cf update grafana && cf update nextcloud
 ```
 
 ## Traefik Setup

@@ -27,8 +27,8 @@ hosts:
 stacks:
   plex: nuc
   jellyfin: hp
-  sonarr: nuc
-  radarr: nuc
+  grafana: nuc
+  nextcloud: nuc
 ```
 
 Then just:

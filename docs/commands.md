@@ -106,7 +106,7 @@ cf up [OPTIONS] [STACKS]...
 
 ```bash
 # Start specific stacks
-cf up plex sonarr
+cf up plex grafana
 
 # Start all stacks
 cf up --all
@@ -359,7 +359,7 @@ cf ps [OPTIONS] [STACKS]...
 cf ps
 
 # Show specific stacks
-cf ps plex sonarr
+cf ps plex grafana
 
 # Filter by host
 cf ps --host nuc
@@ -403,7 +403,7 @@ cf logs plex
 cf logs -f plex
 
 # Show last 50 lines of multiple stacks
-cf logs -n 50 plex sonarr
+cf logs -n 50 plex grafana
 
 # Show last 20 lines of all stacks
 cf logs --all
