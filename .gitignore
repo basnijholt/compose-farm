@@ -44,3 +44,5 @@ compose-farm.yaml
 coverage.xml
 .env
 homepage/
+site/
+zensical-docs-third-party/
