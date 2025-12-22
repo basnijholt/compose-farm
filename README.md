@@ -734,13 +734,13 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Use --dry-run to preview changes before applying.
  Use --no-orphans to skip stopping orphaned stacks.
- Use --no-rogues to skip stopping rogue stacks.
+ Use --no-strays to skip stopping stray stacks.
  Use --full to also run 'up' on all stacks (picks up compose/env changes).
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
 │ --dry-run     -n            Show what would change without executing         │
 │ --no-orphans                Only migrate, don't stop orphaned stacks         │
-│ --no-rogues                 Don't stop rogue stacks (running on wrong host)  │
+│ --no-strays                 Don't stop stray stacks (running on wrong host)  │
 │ --full        -f            Also run up on all stacks to apply config        │
 │                             changes                                          │
 │ --config      -c      PATH  Path to config file                              │
