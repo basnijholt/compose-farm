@@ -37,7 +37,7 @@ def _parse_resize(msg: str) -> tuple[int, int] | None:
     """Parse a resize message, return (cols, rows) or None if not a resize."""
     try:
         data = json.loads(msg)
-        if data.get("type") == "resize":
+        if isinstance(data, dict) and data.get("type") == "resize":
             return int(data["cols"]), int(data["rows"])
     except (json.JSONDecodeError, KeyError, TypeError, ValueError):
         pass

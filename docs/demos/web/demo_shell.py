@@ -71,6 +71,10 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     page.keyboard.press("Enter")
     pause(page, 1500)
 
+    # Click outside terminal to release focus, then use command palette
+    page.locator("#sidebar-stacks").click()
+    pause(page, 300)
+
     # Use command palette to switch to server container: "sh serv" -> "Shell: immich-server"
     open_command_palette(page)
     pause(page, 300)
