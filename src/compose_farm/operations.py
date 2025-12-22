@@ -135,28 +135,6 @@ class StackDiscoveryResult(NamedTuple):
         return not self.is_multi_host and len(self.running_hosts) > 1
 
 
-async def discover_stack_on_all_hosts(cfg: Config, stack: str) -> StackDiscoveryResult:
-    """Discover where a stack is running across ALL hosts.
-
-    Unlike discover_stack_host(), this checks every host in parallel
-    to detect strays and duplicates.
-
-    Note: For bulk discovery, use discover_all_stacks_on_all_hosts() instead,
-    which is much more efficient (1 SSH call per host vs 1 per stack per host).
-    """
-    configured_hosts = cfg.get_hosts(stack)
-    all_hosts = list(cfg.hosts.keys())
-
-    checks = await asyncio.gather(*[check_stack_running(cfg, stack, h) for h in all_hosts])
-    running_hosts = [h for h, is_running in zip(all_hosts, checks, strict=True) if is_running]
-
-    return StackDiscoveryResult(
-        stack=stack,
-        configured_hosts=configured_hosts,
-        running_hosts=running_hosts,
-    )
-
-
 async def discover_all_stacks_on_all_hosts(
     cfg: Config,
     stacks: list[str] | None = None,
