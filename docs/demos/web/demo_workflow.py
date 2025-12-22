@@ -175,19 +175,10 @@ def _demo_dashboard_and_themes(page: Page, server_url: str) -> None:
         page.keyboard.press("ArrowDown")
         pause(page, 180)
 
-    # Select Luxury theme
+    # Select Luxury theme and end on it
     pause(page, 400)
     page.keyboard.press("Enter")
-    pause(page, 1000)
-
-    # Return to dark theme
-    page.locator("#theme-btn").click()
-    page.wait_for_selector("#cmd-palette[open]", timeout=2000)
-    pause(page, 300)
-    slow_type(page, "#cmd-input", " dark", delay=80)
-    pause(page, 400)
-    page.keyboard.press("Enter")
-    pause(page, 1000)
+    pause(page, 1500)
 
 
 @pytest.mark.browser  # type: ignore[misc]
