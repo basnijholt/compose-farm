@@ -1,0 +1,6 @@
+# Run containers as current user (preserves file ownership on NFS mounts)
+# Copy this file to .envrc and run: direnv allow
+export CF_UID=$(id -u)
+export CF_GID=$(id -g)
+export CF_HOME=$HOME
+export CF_USER=$USER
