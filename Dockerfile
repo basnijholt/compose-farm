@@ -3,19 +3,8 @@
 # Build stage - install with uv
 FROM ghcr.io/astral-sh/uv:python3.14-alpine AS builder
 
-# Copy local source for development builds
-COPY pyproject.toml README.md hatch_build.py ./
-COPY src ./src
-
 ARG VERSION
-# Install from local source if present, otherwise from PyPI
-# SETUPTOOLS_SCM_PRETEND_VERSION is needed when building from source without .git
-RUN if [ -d "src/compose_farm" ]; then \
-      SETUPTOOLS_SCM_PRETEND_VERSION=${VERSION:-0.0.0.dev0} \
-      uv tool install --compile-bytecode ".[web]"; \
-    else \
-      uv tool install --compile-bytecode "compose-farm[web]${VERSION:+==$VERSION}"; \
-    fi
+RUN uv tool install --compile-bytecode "compose-farm[web]${VERSION:+==$VERSION}"
 
 # Runtime stage - minimal image without uv
 FROM python:3.14-alpine
