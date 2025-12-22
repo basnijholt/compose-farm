@@ -187,11 +187,12 @@ By default, containers run as root. To preserve file ownership on mounted volume
 echo "CF_UID=$(id -u)" >> .env
 echo "CF_GID=$(id -g)" >> .env
 echo "CF_HOME=$HOME" >> .env
+echo "CF_USER=$USER" >> .env
 ```
 
 Or export inline:
 ```bash
-CF_UID=$(id -u) CF_GID=$(id -g) CF_HOME=$HOME docker compose up -d
+CF_UID=$(id -u) CF_GID=$(id -g) CF_HOME=$HOME CF_USER=$USER docker compose up -d
 ```
 
 </details>

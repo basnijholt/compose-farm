@@ -63,9 +63,10 @@ By default, containers run as root. To preserve file ownership on mounted volume
 echo "CF_UID=$(id -u)" >> .env
 echo "CF_GID=$(id -g)" >> .env
 echo "CF_HOME=$HOME" >> .env
+echo "CF_USER=$USER" >> .env
 ```
 
-This ensures files like `compose-farm-state.yaml` and web UI edits are owned by your user instead of root.
+This ensures files like `compose-farm-state.yaml` and web UI edits are owned by your user instead of root. The `CF_USER` variable is required for SSH to work when running as a non-root user.
 
 ### Verify Installation
 

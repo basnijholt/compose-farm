@@ -21,6 +21,8 @@ services:
       - CF_CONFIG=${CF_COMPOSE_DIR:-/opt/stacks}/compose-farm.yaml
       # HOME must match the user running the container for SSH to find keys
       - HOME=${CF_HOME:-/root}
+      # USER is required for SSH when running as non-root (UID not in /etc/passwd)
+      - USER=${CF_USER:-root}
 
   web:
     image: ghcr.io/basnijholt/compose-farm:latest
@@ -45,6 +47,8 @@ services:
       - CF_WEB_STACK=compose-farm
       # HOME must match the user running the container for SSH to find keys
       - HOME=${CF_HOME:-/root}
+      # USER is required for SSH when running as non-root (UID not in /etc/passwd)
+      - USER=${CF_USER:-root}
     labels:
       - traefik.enable=true
       - traefik.http.routers.compose-farm.rule=Host(`compose-farm.${DOMAIN}`)
