@@ -50,9 +50,11 @@ from compose_farm.logs import (
     write_toml,
 )
 from compose_farm.operations import (
+    StackDiscoveryResult,
     check_host_compatibility,
     check_stack_requirements,
     discover_stack_host,
+    discover_stack_on_all_hosts,
 )
 from compose_farm.state import get_orphaned_stacks, load_state, save_state
 from compose_farm.traefik import generate_traefik_config, render_traefik_config
@@ -145,6 +147,81 @@ def _report_sync_changes(
         for stack in sorted(removed):
             host_str = format_host(current_state[stack])
             console.print(f"  [red]-[/] [cyan]{stack}[/] (was on [magenta]{host_str}[/])")
+
+
+def _discover_stacks_full(
+    cfg: Config,
+    stacks: list[str] | None = None,
+) -> tuple[dict[str, str | list[str]], dict[str, list[str]], dict[str, list[str]]]:
+    """Discover running stacks with full host scanning for stray detection.
+
+    Returns:
+        Tuple of (discovered, strays, duplicates):
+        - discovered: stack -> host(s) where running correctly
+        - strays: stack -> list of unauthorized hosts
+        - duplicates: stack -> list of all hosts (for single-host stacks on multiple)
+
+    """
+    stack_list = stacks if stacks is not None else list(cfg.stacks)
+    results: list[StackDiscoveryResult] = run_parallel_with_progress(
+        "Discovering",
+        stack_list,
+        lambda s: discover_stack_on_all_hosts(cfg, s),
+    )
+
+    discovered: dict[str, str | list[str]] = {}
+    strays: dict[str, list[str]] = {}
+    duplicates: dict[str, list[str]] = {}
+
+    for result in results:
+        # Build "correct" discovered state (only authorized hosts)
+        correct_hosts = [h for h in result.running_hosts if h in result.configured_hosts]
+        if correct_hosts:
+            if result.is_multi_host:
+                discovered[result.stack] = correct_hosts
+            else:
+                discovered[result.stack] = correct_hosts[0]
+
+        if result.is_stray:
+            strays[result.stack] = result.stray_hosts
+
+        if result.is_duplicate:
+            duplicates[result.stack] = result.running_hosts
+
+    return discovered, strays, duplicates
+
+
+def _report_stray_stacks(
+    strays: dict[str, list[str]],
+    cfg: Config,
+) -> None:
+    """Report stacks running on unauthorized hosts."""
+    if strays:
+        console.print(f"\n[red]Stray stacks[/] (running on wrong host, {len(strays)}):")
+        console.print("[dim]Run [bold]cf apply[/bold] to stop them.[/]")
+        for stack in sorted(strays):
+            stray_hosts = strays[stack]
+            configured = cfg.get_hosts(stack)
+            console.print(
+                f"  [red]![/] [cyan]{stack}[/] on [magenta]{', '.join(stray_hosts)}[/] "
+                f"[dim](should be on {', '.join(configured)})[/]"
+            )
+
+
+def _report_duplicate_stacks(duplicates: dict[str, list[str]], cfg: Config) -> None:
+    """Report single-host stacks running on multiple hosts."""
+    if duplicates:
+        console.print(
+            f"\n[yellow]Duplicate stacks[/] (running on multiple hosts, {len(duplicates)}):"
+        )
+        console.print("[dim]Run [bold]cf apply[/bold] to stop extras.[/]")
+        for stack in sorted(duplicates):
+            hosts = duplicates[stack]
+            configured = cfg.get_hosts(stack)[0]
+            console.print(
+                f"  [yellow]![/] [cyan]{stack}[/] on [magenta]{', '.join(hosts)}[/] "
+                f"[dim](should only be on {configured})[/]"
+            )
 
 
 # --- Check helpers ---
@@ -440,7 +517,8 @@ def refresh(
 
     current_state = load_state(cfg)
 
-    discovered = _discover_stacks(cfg, stack_list)
+    # Use full discovery to detect strays and duplicates
+    discovered, strays, duplicates = _discover_stacks_full(cfg, stack_list)
 
     # Calculate changes (only for the stacks we're refreshing)
     added = [s for s in discovered if s not in current_state]
@@ -462,6 +540,10 @@ def refresh(
         _report_sync_changes(added, removed, changed, discovered, current_state)
     else:
         print_success("State is already in sync.")
+
+    # Report strays and duplicates (warnings only - apply will fix them)
+    _report_stray_stacks(strays, cfg)
+    _report_duplicate_stacks(duplicates, cfg)
 
     if dry_run:
         console.print(f"\n{MSG_DRY_RUN}")
