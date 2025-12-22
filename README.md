@@ -10,10 +10,10 @@
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 > [!NOTE]
-> A file-based alternative to Portainer. Your compose files stay as plain folders—version-controllable, no lock-in. Works for single-host or multi-host. Run `cf apply` and reality matches your config.
+> Like [Dockge](https://github.com/louislam/dockge), but for multiple hosts. Your compose files stay as plain folders—version-controllable, no lock-in. Run `cf apply` and reality matches your config.
 
 **Why Compose Farm?**
-- **Your files, your control** — Plain folders + YAML. Version control everything.
+- **Your files, your control** — Plain folders + YAML, not locked in Portainer. Version control everything.
 - **Zero changes required** — Existing compose files work as-is.
 - **Grows with you** — Start single-host, scale to multi-host seamlessly.
 - **Declarative** — Change config, run `cf apply`, reality matches.
