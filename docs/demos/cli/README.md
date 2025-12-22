@@ -10,10 +10,10 @@ VHS-based terminal demo recordings for Compose Farm CLI.
 
 ```bash
 # Record all demos
-./docs/demos/cli/record.sh
+python docs/demos/cli/record.py
 
-# Record single demo
-cd /opt/stacks && vhs docs/demos/cli/quickstart.tape
+# Record specific demos
+python docs/demos/cli/record.py quickstart migration
 ```
 
 ## Demos
@@ -23,6 +23,7 @@ cd /opt/stacks && vhs docs/demos/cli/quickstart.tape
 | `install.tape` | Installing with `uv tool install` |
 | `quickstart.tape` | `cf ps`, `cf up`, `cf logs` |
 | `logs.tape` | Viewing logs |
+| `compose.tape` | `cf compose` passthrough (--help, images, exec) |
 | `update.tape` | `cf update` |
 | `migration.tape` | Service migration |
 | `apply.tape` | `cf apply` |

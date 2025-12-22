@@ -45,6 +45,14 @@ doc:
 kill-doc:
     lsof -ti :9002 | xargs kill -9 2>/dev/null || true
 
+# Record CLI demos (all or specific: just record-cli quickstart)
+record-cli *demos:
+    python docs/demos/cli/record.py {{demos}}
+
+# Record web UI demos (all or specific: just record-web navigation)
+record-web *demos:
+    python docs/demos/web/record.py {{demos}}
+
 # Clean up build artifacts and caches
 clean:
     rm -rf .pytest_cache .mypy_cache .ruff_cache .coverage htmlcov dist build

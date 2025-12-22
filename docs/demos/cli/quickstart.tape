@@ -21,7 +21,7 @@ Type "# First, define your hosts..."
 Enter
 Sleep 500ms
 
-Type "bat -r 1:11 compose-farm.yaml"
+Type "bat -r 1:16 compose-farm.yaml"
 Enter
 Sleep 3s
 Type "q"
@@ -31,7 +31,7 @@ Type "# Then map each stack to a host"
 Enter
 Sleep 500ms
 
-Type "bat -r 13:30 compose-farm.yaml"
+Type "bat -r 17:35 compose-farm.yaml"
 Enter
 Sleep 3s
 Type "q"

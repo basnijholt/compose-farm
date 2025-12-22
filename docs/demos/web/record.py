@@ -88,9 +88,9 @@ def patch_playwright_video_quality() -> None:
     console.print("[green]Patched Playwright for high-quality video recording[/green]")
 
 
-def record_demo(name: str) -> Path | None:
+def record_demo(name: str, index: int, total: int) -> Path | None:
     """Run a single demo and return the video path."""
-    console.print(f"[green]Recording:[/green] web-{name}")
+    console.print(f"[cyan][{index}/{total}][/cyan] [green]Recording:[/green] web-{name}")
 
     demo_file = SCRIPT_DIR / f"demo_{name}.py"
     if not demo_file.exists():
@@ -227,9 +227,7 @@ def main() -> int:
 
     try:
         for i, demo in enumerate(demos_to_record, 1):
-            console.print(f"[yellow]=== Demo {i}/{len(demos_to_record)}: {demo} ===[/yellow]")
-
-            video_path = record_demo(demo)
+            video_path = record_demo(demo, i, len(demos_to_record))
             if video_path:
                 webm, gif = move_recording(video_path, demo)
                 results[demo] = (webm, gif)

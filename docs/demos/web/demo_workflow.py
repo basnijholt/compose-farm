@@ -5,7 +5,7 @@ Records a comprehensive demo (~60 seconds) combining all major features:
 2. Editor showing Compose Farm YAML config
 3. Command palette navigation to grocy stack
 4. Stack actions: up, logs
-5. Switch to mealie stack via command palette, run update
+5. Switch to dozzle stack via command palette, run update
 6. Dashboard overview
 7. Theme cycling via command palette
 
@@ -126,13 +126,13 @@ def _demo_stack_actions(page: Page) -> None:
     page.wait_for_selector("#terminal-output .xterm", timeout=5000)
     pause(page, 2500)
 
-    # Switch to mealie via command palette
+    # Switch to dozzle via command palette (on nas for lower latency)
     open_command_palette(page)
     pause(page, 300)
-    slow_type(page, "#cmd-input", "mealie", delay=100)
+    slow_type(page, "#cmd-input", "dozzle", delay=100)
     pause(page, 400)
     page.keyboard.press("Enter")
-    page.wait_for_url("**/stack/mealie", timeout=5000)
+    page.wait_for_url("**/stack/dozzle", timeout=5000)
     pause(page, 1000)
 
     # Run update action
@@ -162,32 +162,20 @@ def _demo_dashboard_and_themes(page: Page, server_url: str) -> None:
     page.evaluate("window.scrollTo(0, 0)")
     pause(page, 600)
 
-    # Open theme picker and arrow down to Luxury (shows live preview)
-    # Theme order: light, dark, cupcake, bumblebee, emerald, corporate, synthwave,
-    # retro, cyberpunk, valentine, halloween, garden, forest, aqua, lofi, pastel,
-    # fantasy, wireframe, black, luxury (index 19)
+    # Open theme picker and arrow down to Dracula (shows live preview)
     page.locator("#theme-btn").click()
     page.wait_for_selector("#cmd-palette[open]", timeout=2000)
     pause(page, 400)
 
-    # Arrow down through themes with live preview until we reach Luxury
+    # Arrow down through themes with live preview until we reach Dracula
     for _ in range(19):
         page.keyboard.press("ArrowDown")
         pause(page, 180)
 
-    # Select Luxury theme
+    # Select Dracula theme and end on it
     pause(page, 400)
     page.keyboard.press("Enter")
-    pause(page, 1000)
-
-    # Return to dark theme
-    page.locator("#theme-btn").click()
-    page.wait_for_selector("#cmd-palette[open]", timeout=2000)
-    pause(page, 300)
-    slow_type(page, "#cmd-input", " dark", delay=80)
-    pause(page, 400)
-    page.keyboard.press("Enter")
-    pause(page, 1000)
+    pause(page, 1500)
 
 
 @pytest.mark.browser  # type: ignore[misc]

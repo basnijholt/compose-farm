@@ -290,6 +290,10 @@ cf pull immich --service database
 
 Run any docker compose command on a stack. This is a passthrough to docker compose for commands not wrapped by cf.
 
+<video autoplay loop muted playsinline>
+  <source src="/assets/compose.webm" type="video/webm">
+</video>
+
 ```bash
 cf compose [OPTIONS] STACK COMMAND [ARGS]...
 ```
