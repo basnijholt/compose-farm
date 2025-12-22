@@ -11,6 +11,7 @@ from compose_farm.executor import (
     _run_local_command,
     check_networks_exist,
     check_paths_exist,
+    get_running_stacks_on_host,
     is_local,
     run_command,
     run_compose,
@@ -239,3 +240,31 @@ class TestCheckNetworksExist:
 
         result = await check_networks_exist(config, "local", [])
         assert result == {}
+
+
+@linux_only
+class TestGetRunningStacksOnHost:
+    """Tests for get_running_stacks_on_host function (requires Docker)."""
+
+    async def test_returns_set_of_stacks(self, tmp_path: Path) -> None:
+        """Function returns a set of stack names."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"local": Host(address="localhost")},
+            stacks={},
+        )
+
+        result = await get_running_stacks_on_host(config, "local")
+        assert isinstance(result, set)
+
+    async def test_filters_empty_lines(self, tmp_path: Path) -> None:
+        """Empty project names are filtered out."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"local": Host(address="localhost")},
+            stacks={},
+        )
+
+        # Result should not contain empty strings
+        result = await get_running_stacks_on_host(config, "local")
+        assert "" not in result
