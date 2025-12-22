@@ -153,12 +153,12 @@ def _discover_stacks_full(
     cfg: Config,
     stacks: list[str] | None = None,
 ) -> tuple[dict[str, str | list[str]], dict[str, list[str]], dict[str, list[str]]]:
-    """Discover running stacks with full host scanning for rogue detection.
+    """Discover running stacks with full host scanning for stray detection.
 
     Returns:
-        Tuple of (discovered, rogues, duplicates):
+        Tuple of (discovered, strays, duplicates):
         - discovered: stack -> host(s) where running correctly
-        - rogues: stack -> list of unauthorized hosts
+        - strays: stack -> list of unauthorized hosts
         - duplicates: stack -> list of all hosts (for single-host stacks on multiple)
 
     """
@@ -170,7 +170,7 @@ def _discover_stacks_full(
     )
 
     discovered: dict[str, str | list[str]] = {}
-    rogues: dict[str, list[str]] = {}
+    strays: dict[str, list[str]] = {}
     duplicates: dict[str, list[str]] = {}
 
     for result in results:
@@ -182,28 +182,28 @@ def _discover_stacks_full(
             else:
                 discovered[result.stack] = correct_hosts[0]
 
-        if result.is_rogue:
-            rogues[result.stack] = result.rogue_hosts
+        if result.is_stray:
+            strays[result.stack] = result.stray_hosts
 
         if result.is_duplicate:
             duplicates[result.stack] = result.running_hosts
 
-    return discovered, rogues, duplicates
+    return discovered, strays, duplicates
 
 
-def _report_rogue_stacks(
-    rogues: dict[str, list[str]],
+def _report_stray_stacks(
+    strays: dict[str, list[str]],
     cfg: Config,
 ) -> None:
     """Report stacks running on unauthorized hosts."""
-    if rogues:
-        console.print(f"\n[red]Rogue stacks[/] (running on wrong host, {len(rogues)}):")
+    if strays:
+        console.print(f"\n[red]Stray stacks[/] (running on wrong host, {len(strays)}):")
         console.print("[dim]Run [bold]cf apply[/bold] to stop them.[/]")
-        for stack in sorted(rogues):
-            rogue_hosts = rogues[stack]
+        for stack in sorted(strays):
+            stray_hosts = strays[stack]
             configured = cfg.get_hosts(stack)
             console.print(
-                f"  [red]![/] [cyan]{stack}[/] on [magenta]{', '.join(rogue_hosts)}[/] "
+                f"  [red]![/] [cyan]{stack}[/] on [magenta]{', '.join(stray_hosts)}[/] "
                 f"[dim](should be on {', '.join(configured)})[/]"
             )
 
@@ -517,8 +517,8 @@ def refresh(
 
     current_state = load_state(cfg)
 
-    # Use full discovery to detect rogues and duplicates
-    discovered, rogues, duplicates = _discover_stacks_full(cfg, stack_list)
+    # Use full discovery to detect strays and duplicates
+    discovered, strays, duplicates = _discover_stacks_full(cfg, stack_list)
 
     # Calculate changes (only for the stacks we're refreshing)
     added = [s for s in discovered if s not in current_state]
@@ -541,8 +541,8 @@ def refresh(
     else:
         print_success("State is already in sync.")
 
-    # Report rogues and duplicates (warnings only - apply will fix them)
-    _report_rogue_stacks(rogues, cfg)
+    # Report strays and duplicates (warnings only - apply will fix them)
+    _report_stray_stacks(strays, cfg)
     _report_duplicate_stacks(duplicates, cfg)
 
     if dry_run:

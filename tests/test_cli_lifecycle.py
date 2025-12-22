@@ -58,9 +58,9 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.get_orphaned_stacks", return_value={}),
             patch("compose_farm.cli.lifecycle.get_stacks_needing_migration", return_value=[]),
             patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
-            patch("compose_farm.cli.lifecycle._discover_rogues", return_value={}),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
         ):
-            apply(dry_run=False, no_orphans=False, no_rogues=False, full=False, config=None)
+            apply(dry_run=False, no_orphans=False, no_strays=False, full=False, config=None)
 
         captured = capsys.readouterr()
         assert "Nothing to apply" in captured.out
@@ -83,11 +83,11 @@ class TestApplyCommand:
             ),
             patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
             patch("compose_farm.cli.lifecycle.get_stack_host", return_value="host1"),
-            patch("compose_farm.cli.lifecycle._discover_rogues", return_value={}),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch("compose_farm.cli.lifecycle.stop_orphaned_stacks") as mock_stop,
             patch("compose_farm.cli.lifecycle.up_stacks") as mock_up,
         ):
-            apply(dry_run=True, no_orphans=False, no_rogues=False, full=False, config=None)
+            apply(dry_run=True, no_orphans=False, no_strays=False, full=False, config=None)
 
         captured = capsys.readouterr()
         assert "Stacks to migrate" in captured.out
@@ -114,7 +114,7 @@ class TestApplyCommand:
             ),
             patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
             patch("compose_farm.cli.lifecycle.get_stack_host", return_value="host1"),
-            patch("compose_farm.cli.lifecycle._discover_rogues", return_value={}),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 return_value=mock_results,
@@ -123,7 +123,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            apply(dry_run=False, no_orphans=False, no_rogues=False, full=False, config=None)
+            apply(dry_run=False, no_orphans=False, no_strays=False, full=False, config=None)
 
             mock_up.assert_called_once()
             call_args = mock_up.call_args
@@ -142,7 +142,7 @@ class TestApplyCommand:
             ),
             patch("compose_farm.cli.lifecycle.get_stacks_needing_migration", return_value=[]),
             patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
-            patch("compose_farm.cli.lifecycle._discover_rogues", return_value={}),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 return_value=mock_results,
@@ -150,7 +150,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.stop_orphaned_stacks") as mock_stop,
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            apply(dry_run=False, no_orphans=False, no_rogues=False, full=False, config=None)
+            apply(dry_run=False, no_orphans=False, no_strays=False, full=False, config=None)
 
             mock_stop.assert_called_once_with(cfg)
 
@@ -173,7 +173,7 @@ class TestApplyCommand:
             ),
             patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
             patch("compose_farm.cli.lifecycle.get_stack_host", return_value="host1"),
-            patch("compose_farm.cli.lifecycle._discover_rogues", return_value={}),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 return_value=mock_results,
@@ -183,7 +183,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            apply(dry_run=False, no_orphans=True, no_rogues=False, full=False, config=None)
+            apply(dry_run=False, no_orphans=True, no_strays=False, full=False, config=None)
 
             # Should run migrations but not orphan cleanup
             mock_up.assert_called_once()
@@ -207,9 +207,9 @@ class TestApplyCommand:
             ),
             patch("compose_farm.cli.lifecycle.get_stacks_needing_migration", return_value=[]),
             patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
-            patch("compose_farm.cli.lifecycle._discover_rogues", return_value={}),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
         ):
-            apply(dry_run=False, no_orphans=True, no_rogues=False, full=False, config=None)
+            apply(dry_run=False, no_orphans=True, no_strays=False, full=False, config=None)
 
         captured = capsys.readouterr()
         assert "Nothing to apply" in captured.out
@@ -227,7 +227,7 @@ class TestApplyCommand:
                 "compose_farm.cli.lifecycle.get_stacks_not_in_state",
                 return_value=["svc1"],
             ),
-            patch("compose_farm.cli.lifecycle._discover_rogues", return_value={}),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 return_value=mock_results,
@@ -236,7 +236,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            apply(dry_run=False, no_orphans=False, no_rogues=False, full=False, config=None)
+            apply(dry_run=False, no_orphans=False, no_strays=False, full=False, config=None)
 
             mock_up.assert_called_once()
             call_args = mock_up.call_args
@@ -256,9 +256,9 @@ class TestApplyCommand:
                 "compose_farm.cli.lifecycle.get_stacks_not_in_state",
                 return_value=["svc1"],
             ),
-            patch("compose_farm.cli.lifecycle._discover_rogues", return_value={}),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
         ):
-            apply(dry_run=True, no_orphans=False, no_rogues=False, full=False, config=None)
+            apply(dry_run=True, no_orphans=False, no_strays=False, full=False, config=None)
 
         captured = capsys.readouterr()
         assert "Stacks to start" in captured.out
@@ -275,7 +275,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.get_orphaned_stacks", return_value={}),
             patch("compose_farm.cli.lifecycle.get_stacks_needing_migration", return_value=[]),
             patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
-            patch("compose_farm.cli.lifecycle._discover_rogues", return_value={}),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 return_value=mock_results,
@@ -284,7 +284,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            apply(dry_run=False, no_orphans=False, no_rogues=False, full=True, config=None)
+            apply(dry_run=False, no_orphans=False, no_strays=False, full=True, config=None)
 
             mock_up.assert_called_once()
             call_args = mock_up.call_args
@@ -302,9 +302,9 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.get_orphaned_stacks", return_value={}),
             patch("compose_farm.cli.lifecycle.get_stacks_needing_migration", return_value=[]),
             patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
-            patch("compose_farm.cli.lifecycle._discover_rogues", return_value={}),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
         ):
-            apply(dry_run=True, no_orphans=False, no_rogues=False, full=True, config=None)
+            apply(dry_run=True, no_orphans=False, no_strays=False, full=True, config=None)
 
         captured = capsys.readouterr()
         assert "Stacks to refresh" in captured.out
@@ -329,7 +329,7 @@ class TestApplyCommand:
                 return_value=["svc2"],
             ),
             patch("compose_farm.cli.lifecycle.get_stack_host", return_value="host2"),
-            patch("compose_farm.cli.lifecycle._discover_rogues", return_value={}),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 return_value=mock_results,
@@ -338,7 +338,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            apply(dry_run=False, no_orphans=False, no_rogues=False, full=True, config=None)
+            apply(dry_run=False, no_orphans=False, no_strays=False, full=True, config=None)
 
             # up_stacks should be called 3 times: migrate, start, refresh
             assert mock_up.call_count == 3

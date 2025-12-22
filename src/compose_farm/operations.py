@@ -114,7 +114,7 @@ class StackDiscoveryResult(NamedTuple):
         return len(self.configured_hosts) > 1
 
     @property
-    def rogue_hosts(self) -> list[str]:
+    def stray_hosts(self) -> list[str]:
         """Hosts where stack is running but shouldn't be."""
         return [h for h in self.running_hosts if h not in self.configured_hosts]
 
@@ -124,9 +124,9 @@ class StackDiscoveryResult(NamedTuple):
         return [h for h in self.configured_hosts if h not in self.running_hosts]
 
     @property
-    def is_rogue(self) -> bool:
+    def is_stray(self) -> bool:
         """Stack is running on unauthorized host(s)."""
-        return len(self.rogue_hosts) > 0
+        return len(self.stray_hosts) > 0
 
     @property
     def is_duplicate(self) -> bool:
@@ -138,7 +138,7 @@ async def discover_stack_on_all_hosts(cfg: Config, stack: str) -> StackDiscovery
     """Discover where a stack is running across ALL hosts.
 
     Unlike discover_stack_host(), this checks every host in parallel
-    to detect rogues and duplicates.
+    to detect strays and duplicates.
     """
     configured_hosts = cfg.get_hosts(stack)
     all_hosts = list(cfg.hosts.keys())
@@ -479,28 +479,28 @@ async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
     return results
 
 
-async def stop_rogue_stacks(
+async def stop_stray_stacks(
     cfg: Config,
-    rogues: dict[str, list[str]],
+    strays: dict[str, list[str]],
 ) -> list[CommandResult]:
     """Stop stacks running on unauthorized hosts.
 
     Args:
         cfg: Config object.
-        rogues: Dict mapping stack name to list of rogue hosts.
+        strays: Dict mapping stack name to list of stray hosts.
 
     Returns:
         List of CommandResults for each stack@host stopped.
 
     """
-    if not rogues:
+    if not strays:
         return []
 
     results: list[CommandResult] = []
     tasks: list[tuple[str, str, asyncio.Task[CommandResult]]] = []
 
-    for stack, rogue_hosts in rogues.items():
-        for host in rogue_hosts:
+    for stack, stray_hosts in strays.items():
+        for host in stray_hosts:
             # Skip hosts no longer in config
             if host not in cfg.hosts:
                 print_warning(f"{stack}@{host}: host no longer in config, skipping")
@@ -523,7 +523,7 @@ async def stop_rogue_stacks(
                 result = await task
                 results.append(result)
                 if result.success:
-                    print_success(f"{stack}@{host}: stopped (rogue)")
+                    print_success(f"{stack}@{host}: stopped (stray)")
                 else:
                     print_error(f"{stack}@{host}: {result.stderr or 'failed'}")
             except Exception as e:

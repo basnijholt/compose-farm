@@ -31,7 +31,7 @@ from compose_farm.executor import run_compose_on_host, run_on_stacks, run_sequen
 from compose_farm.operations import (
     discover_stack_on_all_hosts,
     stop_orphaned_stacks,
-    stop_rogue_stacks,
+    stop_stray_stacks,
     up_stacks,
 )
 from compose_farm.state import (
@@ -216,7 +216,7 @@ def update(
     report_results(results)
 
 
-def _discover_rogues(cfg: Config) -> dict[str, list[str]]:
+def _discover_strays(cfg: Config) -> dict[str, list[str]]:
     """Discover stacks running on unauthorized hosts by scanning all hosts."""
     import asyncio  # noqa: PLC0415 (keep close to async usage)
 
@@ -224,18 +224,18 @@ def _discover_rogues(cfg: Config) -> dict[str, list[str]]:
         results = await asyncio.gather(
             *[discover_stack_on_all_hosts(cfg, stack) for stack in cfg.stacks]
         )
-        rogues: dict[str, list[str]] = {}
+        strays: dict[str, list[str]] = {}
         for result in results:
-            if result.is_rogue:
-                rogues[result.stack] = result.rogue_hosts
+            if result.is_stray:
+                strays[result.stack] = result.stray_hosts
             # Also catch duplicates for single-host stacks
             elif result.is_duplicate:
                 # Keep correct host, stop others
                 configured = result.configured_hosts[0]
-                rogue_hosts = [h for h in result.running_hosts if h != configured]
-                if rogue_hosts:
-                    rogues[result.stack] = rogue_hosts
-        return rogues
+                stray_hosts = [h for h in result.running_hosts if h != configured]
+                if stray_hosts:
+                    strays[result.stack] = stray_hosts
+        return strays
 
     return run_async(discover_all())
 
@@ -250,9 +250,9 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
         bool,
         typer.Option("--no-orphans", help="Only migrate, don't stop orphaned stacks"),
     ] = False,
-    no_rogues: Annotated[
+    no_strays: Annotated[
         bool,
-        typer.Option("--no-rogues", help="Don't stop rogue stacks (running on wrong host)"),
+        typer.Option("--no-strays", help="Don't stop stray stacks (running on wrong host)"),
     ] = False,
     full: Annotated[
         bool,
@@ -272,7 +272,7 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
 
     Use --dry-run to preview changes before applying.
     Use --no-orphans to skip stopping orphaned stacks.
-    Use --no-rogues to skip stopping rogue stacks.
+    Use --no-strays to skip stopping stray stacks.
     Use --full to also run 'up' on all stacks (picks up compose/env changes).
     """
     cfg = load_config_or_exit(config)
@@ -280,25 +280,25 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
     migrations = get_stacks_needing_migration(cfg)
     missing = get_stacks_not_in_state(cfg)
 
-    # Discover rogues by scanning all hosts
-    rogues: dict[str, list[str]] = {}
-    if not no_rogues:
-        console.print("[dim]Scanning hosts for rogue containers...[/]")
-        rogues = _discover_rogues(cfg)
+    # Discover strays by scanning all hosts
+    strays: dict[str, list[str]] = {}
+    if not no_strays:
+        console.print("[dim]Scanning hosts for stray containers...[/]")
+        strays = _discover_strays(cfg)
 
     # For --full: refresh all stacks not already being started/migrated
     handled = set(migrations) | set(missing)
     to_refresh = [stack for stack in cfg.stacks if stack not in handled] if full else []
 
     has_orphans = bool(orphaned) and not no_orphans
-    has_rogues = bool(rogues)
+    has_strays = bool(strays)
     has_migrations = bool(migrations)
     has_missing = bool(missing)
     has_refresh = bool(to_refresh)
 
     if (
         not has_orphans
-        and not has_rogues
+        and not has_strays
         and not has_migrations
         and not has_missing
         and not has_refresh
@@ -311,9 +311,9 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
         console.print(f"[yellow]Orphaned stacks to stop ({len(orphaned)}):[/]")
         for svc, hosts in orphaned.items():
             console.print(f"  [cyan]{svc}[/] on [magenta]{format_host(hosts)}[/]")
-    if has_rogues:
-        console.print(f"[red]Rogue stacks to stop ({len(rogues)}):[/]")
-        for stack, hosts in rogues.items():
+    if has_strays:
+        console.print(f"[red]Stray stacks to stop ({len(strays)}):[/]")
+        for stack, hosts in strays.items():
             configured = cfg.get_hosts(stack)
             console.print(
                 f"  [cyan]{stack}[/] on [magenta]{', '.join(hosts)}[/] "
@@ -347,10 +347,10 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
         console.print("[yellow]Stopping orphaned stacks...[/]")
         all_results.extend(run_async(stop_orphaned_stacks(cfg)))
 
-    # 2. Stop rogue stacks (running on unauthorized hosts)
-    if has_rogues:
-        console.print("[red]Stopping rogue stacks...[/]")
-        all_results.extend(run_async(stop_rogue_stacks(cfg, rogues)))
+    # 2. Stop stray stacks (running on unauthorized hosts)
+    if has_strays:
+        console.print("[red]Stopping stray stacks...[/]")
+        all_results.extend(run_async(stop_stray_stacks(cfg, strays)))
 
     # 3. Migrate stacks on wrong host
     if has_migrations:
