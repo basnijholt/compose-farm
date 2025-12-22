@@ -1,0 +1,15 @@
+# Compose Farm configuration
+# Edit the host address to match your setup
+
+compose_dir: .
+
+hosts:
+  myhost: 192.168.1.100  # Change to your host IP or use 'localhost' for local testing
+
+stacks:
+  traefik: myhost
+  whoami: myhost
+
+# Traefik file-provider integration (optional)
+# traefik_file: ./traefik/dynamic.d/compose-farm.yml
+traefik_stack: traefik
