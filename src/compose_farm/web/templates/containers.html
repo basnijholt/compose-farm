@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+{% from "partials/components.html" import page_header, action_btn %}
+{% from "partials/icons.html" import refresh_cw, box %}
+{% block title %}Containers - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl">
+    {{ page_header("Containers", "All running containers across hosts") }}
+
+    <!-- Action Buttons -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button id="refresh-table-btn" class="btn btn-outline">
+            {{ refresh_cw() }} Refresh
+        </button>
+        <button id="check-all-tags-btn" class="btn btn-outline">
+            {{ box() }} Check All Tags
+        </button>
+    </div>
+
+    <!-- Loading indicator -->
+    <div id="loading-indicator" class="flex items-center gap-2 mb-4">
+        <span class="loading loading-spinner loading-sm"></span>
+        <span class="text-base-content/60">Loading containers...</span>
+    </div>
+
+    <!-- Container Table -->
+    <div class="card bg-base-100 shadow">
+        <div class="card-body p-0">
+            <table id="containers-table" class="table table-zebra table-pin-rows w-full">
+                <thead>
+                    <tr>
+                        <th>Stack</th>
+                        <th>Service</th>
+                        <th>Host</th>
+                        <th>Image</th>
+                        <th>Tag</th>
+                        <th>Status</th>
+                        <th>Uptime</th>
+                        <th>CPU</th>
+                        <th>Memory</th>
+                        <th>Net I/O</th>
+                        <th>Tags</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Data loaded via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Simple-DataTables -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-datatables@9/dist/style.min.css">
+<script src="https://cdn.jsdelivr.net/npm/simple-datatables@9" data-vendor="simple-datatables.js"></script>
+
+<style>
+/* Override Simple-DataTables styles to match DaisyUI */
+.datatable-wrapper .datatable-top,
+.datatable-wrapper .datatable-bottom {
+    padding: 1rem;
+}
+
+.datatable-wrapper .datatable-search input {
+    @apply input input-bordered input-sm w-64;
+}
+
+.datatable-wrapper .datatable-selector {
+    @apply select select-bordered select-sm;
+}
+
+.datatable-wrapper .datatable-pagination .datatable-pagination-list-item-link {
+    @apply btn btn-sm btn-ghost;
+}
+
+.datatable-wrapper .datatable-pagination .datatable-pagination-list-item.datatable-active .datatable-pagination-list-item-link {
+    @apply btn-primary;
+}
+
+.datatable-wrapper .datatable-sorter::before,
+.datatable-wrapper .datatable-sorter::after {
+    border-color: oklch(var(--bc) / 0.3);
+}
+
+.datatable-wrapper .datatable-sorter.datatable-ascending::after,
+.datatable-wrapper .datatable-sorter.datatable-descending::before {
+    border-color: oklch(var(--p));
+}
+
+/* Status badges */
+.status-running { @apply badge badge-success; }
+.status-exited { @apply badge badge-error; }
+.status-created { @apply badge badge-warning; }
+.status-paused { @apply badge badge-info; }
+.status-unknown { @apply badge badge-neutral; }
+
+/* Progress bar for CPU/Memory */
+.stat-bar {
+    @apply w-16 h-2 bg-base-300 rounded-full overflow-hidden;
+}
+.stat-bar-fill {
+    @apply h-full rounded-full transition-all;
+}
+.stat-bar-fill.low { @apply bg-success; }
+.stat-bar-fill.medium { @apply bg-warning; }
+.stat-bar-fill.high { @apply bg-error; }
+</style>
+
+<script>
+(function() {
+    let dataTable = null;
+    const tableEl = document.getElementById('containers-table');
+    const loadingEl = document.getElementById('loading-indicator');
+    const refreshBtn = document.getElementById('refresh-table-btn');
+    const checkAllBtn = document.getElementById('check-all-tags-btn');
+
+    // Status badge HTML
+    function statusBadge(status) {
+        const statusClass = 'status-' + (status || 'unknown').toLowerCase();
+        return `<span class="${statusClass}">${status}</span>`;
+    }
+
+    // CPU/Memory progress bar
+    function statBar(percent) {
+        if (percent === undefined || percent === null) return '-';
+        const level = percent > 80 ? 'high' : percent > 50 ? 'medium' : 'low';
+        return `<div class="stat-bar"><div class="stat-bar-fill ${level}" style="width: ${Math.min(percent, 100)}%"></div></div>
+                <span class="text-xs ml-1">${percent.toFixed(1)}%</span>`;
+    }
+
+    // Stack link
+    function stackLink(stack) {
+        return `<a href="/stack/${stack}" class="link link-hover font-medium">${stack}</a>`;
+    }
+
+    // Tags check button
+    function tagsButton(stack, service) {
+        return `<button class="btn btn-xs btn-ghost check-tags-btn"
+                        data-stack="${stack}" data-service="${service}">Check</button>`;
+    }
+
+    // Load data from API
+    async function loadData() {
+        loadingEl.style.display = 'flex';
+        try {
+            const resp = await fetch('/api/containers');
+            const json = await resp.json();
+
+            // Transform data for display
+            const rows = json.data.map(c => [
+                stackLink(c.stack),
+                c.service,
+                c.host,
+                `<code class="text-xs">${c.image}</code>`,
+                `<code class="text-xs">${c.tag}</code>`,
+                statusBadge(c.status),
+                c.uptime || '-',
+                statBar(c.cpu_percent),
+                c.memory_usage ? `<span class="text-xs">${c.memory_usage}</span>` : '-',
+                c.net_io ? `<span class="text-xs">${c.net_io}</span>` : '-',
+                tagsButton(c.stack, c.service),
+            ]);
+
+            // Initialize or update table
+            if (dataTable) {
+                dataTable.destroy();
+            }
+
+            dataTable = new simpleDatatables.DataTable(tableEl, {
+                data: { data: rows },
+                searchable: true,
+                sortable: true,
+                perPage: 25,
+                perPageSelect: [10, 25, 50, 100],
+                labels: {
+                    placeholder: "Filter containers...",
+                    noRows: "No containers found",
+                    info: "Showing {start} to {end} of {rows} containers",
+                },
+                columns: [
+                    { select: 0, sort: "asc" },  // Sort by stack by default
+                ],
+            });
+
+            // Add event listeners for check buttons after table renders
+            tableEl.addEventListener('click', handleCheckClick);
+
+        } catch (err) {
+            console.error('Failed to load containers:', err);
+            loadingEl.innerHTML = `<span class="text-error">Failed to load: ${err.message}</span>`;
+            return;
+        }
+        loadingEl.style.display = 'none';
+    }
+
+    // Handle check tags button click
+    async function handleCheckClick(e) {
+        const btn = e.target.closest('.check-tags-btn');
+        if (!btn) return;
+
+        const stack = btn.dataset.stack;
+        const service = btn.dataset.service;
+        const cell = btn.parentElement;
+
+        // Show loading
+        cell.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+        try {
+            const resp = await fetch(`/api/containers/${stack}/${service}/tags`);
+            cell.innerHTML = await resp.text();
+        } catch (err) {
+            cell.innerHTML = `<span class="badge badge-error">Error</span>`;
+        }
+    }
+
+    // Check all tags
+    async function checkAllTags() {
+        const buttons = tableEl.querySelectorAll('.check-tags-btn');
+        checkAllBtn.disabled = true;
+        checkAllBtn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Checking...';
+
+        for (const btn of buttons) {
+            btn.click();
+            // Small delay to avoid rate limiting
+            await new Promise(r => setTimeout(r, 200));
+        }
+
+        checkAllBtn.disabled = false;
+        checkAllBtn.innerHTML = '{{ box() }} Check All Tags';
+    }
+
+    // Event listeners
+    refreshBtn.addEventListener('click', loadData);
+    checkAllBtn.addEventListener('click', checkAllTags);
+
+    // Initial load
+    loadData();
+})();
+</script>
+{% endblock %}
