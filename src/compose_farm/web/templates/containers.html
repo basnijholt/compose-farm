@@ -141,58 +141,87 @@
                         data-stack="${stack}" data-service="${service}">Check</button>`;
     }
 
-    // Load data from API
-    async function loadData() {
-        loadingEl.style.display = 'flex';
-        try {
-            const resp = await fetch('/api/containers');
-            const json = await resp.json();
+    // Transform container data to table row
+    function containerToRow(c) {
+        return [
+            stackLink(c.stack),
+            c.service,
+            c.host,
+            `<code class="text-xs">${c.image || '-'}</code>`,
+            `<code class="text-xs">${c.tag || '-'}</code>`,
+            statusBadge(c.status),
+            c.uptime || '-',
+            statBar(c.cpu_percent),
+            c.memory_usage ? `<span class="text-xs">${c.memory_usage}</span>` : '-',
+            c.net_io ? `<span class="text-xs">${c.net_io}</span>` : '-',
+            tagsButton(c.stack, c.service),
+        ];
+    }
 
-            // Transform data for display
-            const rows = json.data.map(c => [
-                stackLink(c.stack),
-                c.service,
-                c.host,
-                `<code class="text-xs">${c.image}</code>`,
-                `<code class="text-xs">${c.tag}</code>`,
-                statusBadge(c.status),
-                c.uptime || '-',
-                statBar(c.cpu_percent),
-                c.memory_usage ? `<span class="text-xs">${c.memory_usage}</span>` : '-',
-                c.net_io ? `<span class="text-xs">${c.net_io}</span>` : '-',
-                tagsButton(c.stack, c.service),
-            ]);
-
-            // Initialize or update table
-            if (dataTable) {
-                dataTable.destroy();
-            }
-
-            dataTable = new simpleDatatables.DataTable(tableEl, {
-                data: { data: rows },
-                searchable: true,
-                sortable: true,
-                perPage: 25,
-                perPageSelect: [10, 25, 50, 100],
-                labels: {
-                    placeholder: "Filter containers...",
-                    noRows: "No containers found",
-                    info: "Showing {start} to {end} of {rows} containers",
-                },
-                columns: [
-                    { select: 0, sort: "asc" },  // Sort by stack by default
-                ],
-            });
-
-            // Add event listeners for check buttons after table renders
-            tableEl.addEventListener('click', handleCheckClick);
-
-        } catch (err) {
-            console.error('Failed to load containers:', err);
-            loadingEl.innerHTML = `<span class="text-error">Failed to load: ${err.message}</span>`;
-            return;
+    // Initialize empty table
+    function initTable() {
+        if (dataTable) {
+            dataTable.destroy();
         }
-        loadingEl.style.display = 'none';
+        dataTable = new simpleDatatables.DataTable(tableEl, {
+            data: { data: [] },
+            searchable: true,
+            sortable: true,
+            perPage: 25,
+            perPageSelect: [10, 25, 50, 100],
+            labels: {
+                placeholder: "Filter containers...",
+                noRows: "Loading containers...",
+                info: "Showing {start} to {end} of {rows} containers",
+            },
+        });
+        tableEl.addEventListener('click', handleCheckClick);
+    }
+
+    // Load data via SSE streaming (rows appear as each stack completes)
+    function loadData() {
+        loadingEl.style.display = 'flex';
+        loadingEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>' +
+            '<span class="text-base-content/60">Loading containers...</span>';
+
+        // Initialize empty table first
+        initTable();
+
+        let containerCount = 0;
+        const eventSource = new EventSource('/api/containers/stream');
+
+        eventSource.onmessage = function(event) {
+            try {
+                const containers = JSON.parse(event.data);
+                if (containers.length > 0) {
+                    // Add rows incrementally
+                    const rows = containers.map(containerToRow);
+                    dataTable.rows.add(rows);
+                    containerCount += containers.length;
+                    // Update loading indicator with count
+                    loadingEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>' +
+                        `<span class="text-base-content/60">Loading containers... (${containerCount} loaded)</span>`;
+                }
+            } catch (err) {
+                console.error('Failed to parse SSE data:', err);
+            }
+        };
+
+        eventSource.addEventListener('done', function() {
+            eventSource.close();
+            loadingEl.style.display = 'none';
+            // Sort by stack name after all data loaded
+            if (containerCount > 0) {
+                dataTable.columns.sort(0, 'asc');
+            }
+        });
+
+        eventSource.onerror = function(err) {
+            console.error('SSE error:', err);
+            eventSource.close();
+            loadingEl.innerHTML = '<span class="text-error">Connection error - ' +
+                '<button class="btn btn-xs btn-ghost" onclick="loadData()">Retry</button></span>';
+        };
     }
 
     // Handle check tags button click

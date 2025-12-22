@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from compose_farm.executor import run_command, run_compose
 from compose_farm.logs import _extract_image_fields, _parse_images_output
@@ -18,7 +18,7 @@ from compose_farm.state import load_state
 from compose_farm.web.deps import get_config, get_templates
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine
+    from collections.abc import AsyncGenerator, Coroutine
 
     from compose_farm.config import Config
 
@@ -290,6 +290,53 @@ async def get_containers_data() -> JSONResponse:
 
     return JSONResponse(
         content={"data": [c.to_dict() for c in containers]},
+    )
+
+
+@router.get("/api/containers/stream")
+async def stream_containers_data() -> StreamingResponse:
+    """Stream container data as SSE events as each stack completes."""
+    config = get_config()
+
+    async def generate_events() -> AsyncGenerator[str, None]:
+        """Generate SSE events for each stack's containers."""
+        state = load_state(config)
+        if not state:
+            yield "event: done\ndata: {}\n\n"
+            return
+
+        # Create tasks for each stack/host combination
+        tasks: list[Coroutine[None, None, list[ContainerInfo]]] = []
+        for stack_name, hosts in state.items():
+            if stack_name not in config.stacks:
+                continue
+            host_list = hosts if isinstance(hosts, list) else [hosts]
+            tasks.extend(
+                _collect_stack_containers(config, stack_name, host_name) for host_name in host_list
+            )
+
+        # Yield results as each task completes
+        for coro in asyncio.as_completed(tasks):
+            try:
+                result = await coro
+                if result:
+                    # Send containers as SSE data event
+                    data = json.dumps([c.to_dict() for c in result])
+                    yield f"data: {data}\n\n"
+            except Exception as e:
+                logger.warning("Error collecting containers: %s", e)
+
+        # Signal completion
+        yield "event: done\ndata: {}\n\n"
+
+    return StreamingResponse(
+        generate_events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
     )
 
 
