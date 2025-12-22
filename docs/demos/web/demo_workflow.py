@@ -162,20 +162,17 @@ def _demo_dashboard_and_themes(page: Page, server_url: str) -> None:
     page.evaluate("window.scrollTo(0, 0)")
     pause(page, 600)
 
-    # Open theme picker and arrow down to Luxury (shows live preview)
-    # Theme order: light, dark, cupcake, bumblebee, emerald, corporate, synthwave,
-    # retro, cyberpunk, valentine, halloween, garden, forest, aqua, lofi, pastel,
-    # fantasy, wireframe, black, luxury (index 19)
+    # Open theme picker and arrow down to Dracula (shows live preview)
     page.locator("#theme-btn").click()
     page.wait_for_selector("#cmd-palette[open]", timeout=2000)
     pause(page, 400)
 
-    # Arrow down through themes with live preview until we reach Luxury
+    # Arrow down through themes with live preview until we reach Dracula
     for _ in range(19):
         page.keyboard.press("ArrowDown")
         pause(page, 180)
 
-    # Select Luxury theme and end on it
+    # Select Dracula theme and end on it
     pause(page, 400)
     page.keyboard.press("Enter")
     pause(page, 1500)
