@@ -1,10 +1,10 @@
-"""Demo: Container shell exec.
+"""Demo: Container shell exec via command palette.
 
 Records a ~35 second demo showing:
 - Navigating to immich stack (multiple containers)
-- Opening shell in machine-learning container
+- Using command palette with fuzzy matching ("sh mach") to open shell
 - Running a command
-- Switching to shell in server container
+- Using command palette to switch to server container shell
 - Running another command
 
 Run: pytest docs/demos/web/demo_shell.py -v --no-cov
@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from conftest import (
+    open_command_palette,
     pause,
     slow_type,
     wait_for_sidebar,
@@ -40,13 +41,16 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     page.wait_for_url("**/stack/immich", timeout=5000)
     pause(page, 1500)
 
-    # Wait for containers list to load
+    # Wait for containers list to load (so shell commands are available)
     page.wait_for_selector("#containers-list button", timeout=10000)
     pause(page, 800)
 
-    # Click Shell button on machine-learning container
-    ml_row = page.locator("#containers-list tr", has_text="machine-learning")
-    ml_row.locator('[data-tip="Open shell"]').click()
+    # Use command palette with fuzzy matching: "sh mach" -> "Shell: immich-machine-learning"
+    open_command_palette(page)
+    pause(page, 300)
+    slow_type(page, "#cmd-input", "sh mach", delay=80)
+    pause(page, 500)
+    page.keyboard.press("Enter")
     pause(page, 1000)
 
     # Wait for exec terminal to appear
@@ -67,18 +71,12 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     page.keyboard.press("Enter")
     pause(page, 1500)
 
-    # Scroll back up to containers list
-    page.evaluate("""
-        const containers = document.getElementById('containers-list');
-        if (containers) {
-            containers.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    """)
-    pause(page, 1200)
-
-    # Click Shell button on server container
-    server_row = page.locator("#containers-list tr", has_text="immich_server")
-    server_row.locator('[data-tip="Open shell"]').click()
+    # Use command palette to switch to server container: "sh serv" -> "Shell: immich-server"
+    open_command_palette(page)
+    pause(page, 300)
+    slow_type(page, "#cmd-input", "sh serv", delay=80)
+    pause(page, 500)
+    page.keyboard.press("Enter")
     pause(page, 1000)
 
     # Wait for new terminal
