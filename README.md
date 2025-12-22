@@ -5,12 +5,18 @@
 [![License](https://img.shields.io/github/license/basnijholt/compose-farm)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/basnijholt/compose-farm)](https://github.com/basnijholt/compose-farm/stargazers)
 
-<img src="http://files.nijho.lt/compose-farm.png" align="right" style="width: 300px;" />
+<img src="https://files.nijho.lt/compose-farm.png" alt="Compose Farm logo" align="right" style="width: 300px;" />
 
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 > [!NOTE]
-> Run `docker compose` commands across multiple hosts via SSH. One YAML maps stacks to hosts. Run `cf apply` and reality matches your config—stacks start, migrate, or stop as needed. No Kubernetes, no Swarm, no magic.
+> A file-based alternative to Portainer. Your compose files stay as plain folders—version-controllable, no lock-in. Works for single-host or multi-host. Run `cf apply` and reality matches your config.
+
+**Why Compose Farm?**
+- **Your files, your control** — Plain folders + YAML. Version control everything.
+- **Zero changes required** — Existing compose files work as-is.
+- **Grows with you** — Start single-host, scale to multi-host seamlessly.
+- **Declarative** — Change config, run `cf apply`, reality matches.
 
 ## Quick Demo
 
