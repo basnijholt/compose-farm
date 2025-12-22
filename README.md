@@ -449,6 +449,15 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │                                 copy it or customize the installation.       │
 │ --help                -h        Show this message and exit.                  │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Configuration ──────────────────────────────────────────────────────────────╮
+│ traefik-file   Generate a Traefik file-provider fragment from compose        │
+│                Traefik labels.                                               │
+│ refresh        Update local state from running stacks.                       │
+│ check          Validate configuration, traefik labels, mounts, and networks. │
+│ init-network   Create Docker network on hosts with consistent settings.      │
+│ config         Manage compose-farm configuration files.                      │
+│ ssh            Manage SSH keys for passwordless authentication.              │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Lifecycle ──────────────────────────────────────────────────────────────────╮
 │ up             Start stacks (docker compose up -d). Auto-migrates if host    │
 │                changed.                                                      │
@@ -463,15 +472,6 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ apply          Make reality match config (start, migrate, stop               │
 │                strays/orphans as needed).                                    │
 │ compose        Run any docker compose command on a stack.                    │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Configuration ──────────────────────────────────────────────────────────────╮
-│ traefik-file   Generate a Traefik file-provider fragment from compose        │
-│                Traefik labels.                                               │
-│ refresh        Update local state from running stacks.                       │
-│ check          Validate configuration, traefik labels, mounts, and networks. │
-│ init-network   Create Docker network on hosts with consistent settings.      │
-│ config         Manage compose-farm configuration files.                      │
-│ ssh            Manage SSH keys for passwordless authentication.              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Monitoring ─────────────────────────────────────────────────────────────────╮
 │ logs           Show stack logs. With --service, shows logs for just that     │
