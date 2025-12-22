@@ -17,7 +17,7 @@ STACKS_DIR = Path("/opt/stacks")
 CONFIG_FILE = STACKS_DIR / "compose-farm.yaml"
 OUTPUT_DIR = SCRIPT_DIR.parent.parent / "assets"
 
-DEMOS = ["install", "quickstart", "logs", "update", "migration", "apply"]
+DEMOS = ["install", "quickstart", "logs", "shell", "update", "migration", "apply"]
 
 
 def _run(cmd: list[str], **kw) -> bool:
