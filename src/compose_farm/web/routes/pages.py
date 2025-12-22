@@ -91,8 +91,8 @@ async def index(request: Request) -> HTMLResponse:
     # Get state
     deployed = load_state(config)
 
-    # Stats
-    running_count = len(deployed)
+    # Stats (only count stacks that are both in config AND deployed)
+    running_count = sum(1 for stack in deployed if stack in config.stacks)
     stopped_count = len(config.stacks) - running_count
 
     # Pending operations
@@ -250,7 +250,8 @@ async def stats_partial(request: Request) -> HTMLResponse:
     templates = get_templates()
 
     deployed = load_state(config)
-    running_count = len(deployed)
+    # Only count stacks that are both in config AND deployed
+    running_count = sum(1 for stack in deployed if stack in config.stacks)
     stopped_count = len(config.stacks) - running_count
 
     return templates.TemplateResponse(
