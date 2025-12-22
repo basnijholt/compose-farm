@@ -25,11 +25,12 @@ class TestHostStats:
             mem_percent=50.0,
             swap_percent=10.0,
             load=2.5,
-            cpu_name="Intel Core i5",
+            disk_percent=75.0,
         )
         assert stats.host == "nas"
         assert stats.cpu_percent == 25.5
         assert stats.mem_percent == 50.0
+        assert stats.disk_percent == 75.0
         assert stats.error is None
 
     def test_host_stats_from_error(self) -> None:
@@ -45,21 +46,32 @@ class TestFetchHostStats:
 
     @pytest.mark.asyncio
     async def test_fetch_host_stats_success(self) -> None:
-        mock_response = httpx.Response(
+        quicklook_response = httpx.Response(
             200,
             json={
                 "cpu": 25.5,
                 "mem": 50.0,
                 "swap": 5.0,
                 "load": 2.5,
-                "cpu_name": "Intel Core i5",
             },
         )
+        fs_response = httpx.Response(
+            200,
+            json=[
+                {"mnt_point": "/", "percent": 65.0},
+                {"mnt_point": "/mnt/data", "percent": 80.0},
+            ],
+        )
+
+        async def mock_get(url: str) -> httpx.Response:
+            if "quicklook" in url:
+                return quicklook_response
+            return fs_response
 
         with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__ = AsyncMock(return_value=mock_client.return_value)
             mock_client.return_value.__aexit__ = AsyncMock(return_value=None)
-            mock_client.return_value.get = AsyncMock(return_value=mock_response)
+            mock_client.return_value.get = AsyncMock(side_effect=mock_get)
 
             stats = await fetch_host_stats("nas", "192.168.1.6")
 
@@ -68,7 +80,7 @@ class TestFetchHostStats:
         assert stats.mem_percent == 50.0
         assert stats.swap_percent == 5.0
         assert stats.load == 2.5
-        assert stats.cpu_name == "Intel Core i5"
+        assert stats.disk_percent == 65.0  # Root filesystem
         assert stats.error is None
 
     @pytest.mark.asyncio
@@ -128,21 +140,29 @@ class TestFetchAllHostStats:
             stacks={"test": "nas"},
         )
 
-        mock_response = httpx.Response(
+        quicklook_response = httpx.Response(
             200,
             json={
                 "cpu": 25.5,
                 "mem": 50.0,
                 "swap": 5.0,
                 "load": 2.5,
-                "cpu_name": "Intel Core i5",
             },
         )
+        fs_response = httpx.Response(
+            200,
+            json=[{"mnt_point": "/", "percent": 70.0}],
+        )
+
+        async def mock_get(url: str) -> httpx.Response:
+            if "quicklook" in url:
+                return quicklook_response
+            return fs_response
 
         with patch("httpx.AsyncClient") as mock_client:
             mock_client.return_value.__aenter__ = AsyncMock(return_value=mock_client.return_value)
             mock_client.return_value.__aexit__ = AsyncMock(return_value=None)
-            mock_client.return_value.get = AsyncMock(return_value=mock_response)
+            mock_client.return_value.get = AsyncMock(side_effect=mock_get)
 
             stats = await fetch_all_host_stats(config)
 
@@ -150,6 +170,7 @@ class TestFetchAllHostStats:
         assert "nuc" in stats
         assert stats["nas"].cpu_percent == 25.5
         assert stats["nuc"].cpu_percent == 25.5
+        assert stats["nas"].disk_percent == 70.0
 
 
 class TestDefaultPort:

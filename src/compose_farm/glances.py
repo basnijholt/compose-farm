@@ -22,7 +22,7 @@ class HostStats:
     mem_percent: float
     swap_percent: float
     load: float
-    cpu_name: str
+    disk_percent: float
     error: str | None = None
 
     @classmethod
@@ -34,7 +34,7 @@ class HostStats:
             mem_percent=0,
             swap_percent=0,
             load=0,
-            cpu_name="",
+            disk_percent=0,
             error=error,
         )
 
@@ -48,21 +48,41 @@ async def fetch_host_stats(
     """Fetch stats from a single host's Glances API."""
     import httpx  # noqa: PLC0415
 
-    url = f"http://{host_address}:{port}/api/4/quicklook"
+    base_url = f"http://{host_address}:{port}/api/4"
 
     try:
         async with httpx.AsyncClient(timeout=request_timeout) as client:
-            response = await client.get(url)
+            # Fetch quicklook stats (CPU, mem, load)
+            response = await client.get(f"{base_url}/quicklook")
             if not response.is_success:
                 return HostStats.from_error(host_name, f"HTTP {response.status_code}")
             data = response.json()
+
+            # Fetch filesystem stats for disk usage
+            disk_percent = 0.0
+            try:
+                fs_response = await client.get(f"{base_url}/fs")
+                if fs_response.is_success:
+                    fs_data = fs_response.json()
+                    # Find root filesystem or use max usage across all filesystems
+                    for fs in fs_data:
+                        if fs.get("mnt_point") == "/":
+                            disk_percent = fs.get("percent", 0)
+                            break
+                    else:
+                        # No root found, use highest usage
+                        if fs_data:
+                            disk_percent = max(fs.get("percent", 0) for fs in fs_data)
+            except httpx.HTTPError:
+                pass  # Disk stats are optional
+
             return HostStats(
                 host=host_name,
                 cpu_percent=data.get("cpu", 0),
                 mem_percent=data.get("mem", 0),
                 swap_percent=data.get("swap", 0),
                 load=data.get("load", 0),
-                cpu_name=data.get("cpu_name", ""),
+                disk_percent=disk_percent,
             )
     except httpx.TimeoutException:
         return HostStats.from_error(host_name, "timeout")
