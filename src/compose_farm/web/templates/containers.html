@@ -228,27 +228,59 @@
         tableEl.addEventListener('click', handleCheckClick);
     }
 
-    // Load all data at once (faster than streaming for Tabulator)
-    async function loadData() {
+    // Load data via SSE with throttled table updates
+    function loadData() {
         loadingEl.style.display = 'flex';
         loadingEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>' +
             '<span class="text-base-content/60">Loading containers...</span>';
 
-        try {
-            const resp = await fetch('/api/containers');
-            const json = await resp.json();
-
-            // Initialize table with all data at once
-            if (!table) {
-                initTable();
-            }
-            table.setData(json.data);
-            loadingEl.style.display = 'none';
-        } catch (err) {
-            console.error('Failed to load containers:', err);
-            loadingEl.innerHTML = '<span class="text-error">Failed to load - ' +
-                '<button class="btn btn-xs btn-ghost" onclick="location.reload()">Retry</button></span>';
+        if (!table) {
+            initTable();
+        } else {
+            table.clearData();
         }
+
+        let allData = [];
+        let lastUpdate = 0;
+        const UPDATE_INTERVAL = 500; // Update table every 500ms
+        const eventSource = new EventSource('/api/containers/stream');
+
+        function updateTable() {
+            table.setData(allData);
+            lastUpdate = Date.now();
+        }
+
+        eventSource.onmessage = function(event) {
+            try {
+                const containers = JSON.parse(event.data);
+                if (containers.length > 0) {
+                    allData.push(...containers);
+                    loadingEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>' +
+                        `<span class="text-base-content/60">Loading containers... (${allData.length} loaded)</span>`;
+
+                    // Throttle: only update table every 500ms
+                    if (Date.now() - lastUpdate > UPDATE_INTERVAL) {
+                        updateTable();
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to parse SSE data:', err);
+            }
+        };
+
+        eventSource.addEventListener('done', function() {
+            eventSource.close();
+            updateTable(); // Final update with all data
+            loadingEl.style.display = 'none';
+        });
+
+        eventSource.onerror = function(err) {
+            console.error('SSE error:', err);
+            eventSource.close();
+            updateTable(); // Show whatever we have
+            loadingEl.innerHTML = '<span class="text-error">Connection error - ' +
+                '<button class="btn btn-xs btn-ghost" onclick="location.reload()">Retry</button></span>';
+        };
     }
 
     // Handle check tags button click
