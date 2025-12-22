@@ -194,9 +194,9 @@
             try {
                 const containers = JSON.parse(event.data);
                 if (containers.length > 0) {
-                    // Add rows incrementally
+                    // Add rows incrementally using insert()
                     const rows = containers.map(containerToRow);
-                    dataTable.rows.add(rows);
+                    dataTable.insert({ data: rows });
                     containerCount += containers.length;
                     // Update loading indicator with count
                     loadingEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>' +
