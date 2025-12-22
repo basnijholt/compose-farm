@@ -9,6 +9,8 @@ hosts:
 stacks:
   traefik: local
   whoami: local
+  nginx: local
+  postgres: local
 
 # Traefik file-provider integration (optional)
 # traefik_file: ./traefik/dynamic.d/compose-farm.yml

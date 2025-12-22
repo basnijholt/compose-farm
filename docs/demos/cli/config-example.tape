@@ -41,7 +41,7 @@ Sleep 500ms
 
 Type "cf config example full"
 Enter
-Wait+Screen /Example 'full' created/
+Wait
 Sleep 2s
 
 Type "# See what was created"
