@@ -1,5 +1,5 @@
 # Shell Demo
-# Shows opening interactive shells in containers
+# Shows that cf compose passes through ANY docker compose command
 
 Output docs/assets/shell.gif
 Output docs/assets/shell.webm
@@ -10,6 +10,10 @@ Set Width 900
 Set Height 550
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 50ms
+
+Type "# cf compose runs ANY docker compose command on the right host"
+Enter
+Sleep 500ms
 
 Type "# Open shell in immich machine-learning container"
 Enter
