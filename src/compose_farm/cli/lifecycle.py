@@ -26,6 +26,7 @@ from compose_farm.cli.common import (
     validate_host_for_stack,
     validate_stacks,
 )
+from compose_farm.cli.management import _discover_stacks_full
 from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success
 from compose_farm.executor import run_compose_on_host, run_on_stacks, run_sequential_on_stacks
 from compose_farm.operations import (
@@ -217,8 +218,6 @@ def update(
 
 def _discover_strays(cfg: Config) -> dict[str, list[str]]:
     """Discover stacks running on unauthorized hosts by scanning all hosts."""
-    from compose_farm.cli.management import _discover_stacks_full  # noqa: PLC0415
-
     _, strays, duplicates = _discover_stacks_full(cfg)
 
     # Merge duplicates into strays (for single-host stacks on multiple hosts,
