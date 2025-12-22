@@ -26,166 +26,220 @@
     <!-- Container Table -->
     <div class="card bg-base-100 shadow">
         <div class="card-body p-0">
-            <table id="containers-table" class="table table-zebra table-pin-rows w-full">
-                <thead>
-                    <tr>
-                        <th>Stack</th>
-                        <th>Service</th>
-                        <th>Host</th>
-                        <th>Image</th>
-                        <th>Tag</th>
-                        <th>Status</th>
-                        <th>Uptime</th>
-                        <th>CPU</th>
-                        <th>Memory</th>
-                        <th>Net I/O</th>
-                        <th>Tags</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Data loaded via JS -->
-                </tbody>
-            </table>
+            <div id="containers-table"></div>
         </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<!-- Simple-DataTables -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-datatables@9/dist/style.min.css">
-<script src="https://cdn.jsdelivr.net/npm/simple-datatables@9" data-vendor="simple-datatables.js"></script>
+<!-- Tabulator -->
+<link href="https://cdn.jsdelivr.net/npm/tabulator-tables@6/dist/css/tabulator_semanticui.min.css" rel="stylesheet" data-vendor="tabulator.css">
+<script src="https://cdn.jsdelivr.net/npm/tabulator-tables@6/dist/js/tabulator.min.js" data-vendor="tabulator.js"></script>
 
 <style>
-/* Override Simple-DataTables styles to match DaisyUI */
-.datatable-wrapper .datatable-top,
-.datatable-wrapper .datatable-bottom {
-    padding: 1rem;
+/* Tabulator DaisyUI theme overrides */
+.tabulator {
+    background-color: transparent;
+    border: none;
+    font-family: inherit;
 }
 
-.datatable-wrapper .datatable-search input {
-    @apply input input-bordered input-sm w-64;
+.tabulator .tabulator-header {
+    background-color: oklch(var(--b2));
+    border-bottom: 1px solid oklch(var(--b3));
 }
 
-.datatable-wrapper .datatable-selector {
-    @apply select select-bordered select-sm;
+.tabulator .tabulator-header .tabulator-col {
+    background-color: transparent;
+    border-right: none;
 }
 
-.datatable-wrapper .datatable-pagination .datatable-pagination-list-item-link {
+.tabulator .tabulator-header .tabulator-col-content {
+    padding: 0.75rem 1rem;
+}
+
+.tabulator .tabulator-header .tabulator-col-title {
+    font-weight: 600;
+    color: oklch(var(--bc));
+}
+
+.tabulator .tabulator-tableholder .tabulator-table .tabulator-row {
+    background-color: transparent;
+    border-bottom: 1px solid oklch(var(--b3) / 0.5);
+}
+
+.tabulator .tabulator-tableholder .tabulator-table .tabulator-row:nth-child(even) {
+    background-color: oklch(var(--b2) / 0.3);
+}
+
+.tabulator .tabulator-tableholder .tabulator-table .tabulator-row:hover {
+    background-color: oklch(var(--b3) / 0.5);
+}
+
+.tabulator .tabulator-tableholder .tabulator-table .tabulator-row .tabulator-cell {
+    border-right: none;
+    padding: 0.5rem 1rem;
+    color: oklch(var(--bc));
+}
+
+.tabulator .tabulator-footer {
+    background-color: oklch(var(--b2));
+    border-top: 1px solid oklch(var(--b3));
+    padding: 0.5rem 1rem;
+}
+
+.tabulator .tabulator-footer .tabulator-page {
     @apply btn btn-sm btn-ghost;
 }
 
-.datatable-wrapper .datatable-pagination .datatable-pagination-list-item.datatable-active .datatable-pagination-list-item-link {
+.tabulator .tabulator-footer .tabulator-page.active {
     @apply btn-primary;
 }
 
-.datatable-wrapper .datatable-sorter::before,
-.datatable-wrapper .datatable-sorter::after {
-    border-color: oklch(var(--bc) / 0.3);
+/* Custom progress bar styling */
+.tabulator .tabulator-cell .progress-bar {
+    width: 100%;
+    height: 8px;
+    background-color: oklch(var(--b3));
+    border-radius: 4px;
+    overflow: hidden;
 }
 
-.datatable-wrapper .datatable-sorter.datatable-ascending::after,
-.datatable-wrapper .datatable-sorter.datatable-descending::before {
-    border-color: oklch(var(--p));
+.tabulator .tabulator-cell .progress-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
 }
+
+.tabulator .tabulator-cell .progress-bar-fill.low { background-color: oklch(var(--su)); }
+.tabulator .tabulator-cell .progress-bar-fill.medium { background-color: oklch(var(--wa)); }
+.tabulator .tabulator-cell .progress-bar-fill.high { background-color: oklch(var(--er)); }
 
 /* Status badges */
-.status-running { @apply badge badge-success; }
-.status-exited { @apply badge badge-error; }
-.status-created { @apply badge badge-warning; }
-.status-paused { @apply badge badge-info; }
-.status-unknown { @apply badge badge-neutral; }
-
-/* Progress bar for CPU/Memory */
-.stat-bar {
-    @apply w-16 h-2 bg-base-300 rounded-full overflow-hidden;
+.status-badge {
+    @apply badge badge-sm;
 }
-.stat-bar-fill {
-    @apply h-full rounded-full transition-all;
-}
-.stat-bar-fill.low { @apply bg-success; }
-.stat-bar-fill.medium { @apply bg-warning; }
-.stat-bar-fill.high { @apply bg-error; }
+.status-badge.running { @apply badge-success; }
+.status-badge.exited { @apply badge-error; }
+.status-badge.created { @apply badge-warning; }
+.status-badge.paused { @apply badge-info; }
+.status-badge.restarting { @apply badge-warning; }
 </style>
 
 <script>
 (function() {
-    let dataTable = null;
     const tableEl = document.getElementById('containers-table');
     const loadingEl = document.getElementById('loading-indicator');
     const refreshBtn = document.getElementById('refresh-table-btn');
     const checkAllBtn = document.getElementById('check-all-tags-btn');
+    let table = null;
 
-    // Status badge HTML
-    function statusBadge(status) {
-        const statusClass = 'status-' + (status || 'unknown').toLowerCase();
-        return `<span class="${statusClass}">${status}</span>`;
-    }
+    // Custom formatter: Progress bar with color coding
+    function progressFormatter(cell, formatterParams) {
+        const value = cell.getValue();
+        if (value === undefined || value === null) return "-";
 
-    // CPU/Memory progress bar
-    function statBar(percent) {
-        if (percent === undefined || percent === null) return '-';
+        const percent = Math.min(Math.max(value, 0), 100);
         const level = percent > 80 ? 'high' : percent > 50 ? 'medium' : 'low';
-        return `<div class="stat-bar"><div class="stat-bar-fill ${level}" style="width: ${Math.min(percent, 100)}%"></div></div>
-                <span class="text-xs ml-1">${percent.toFixed(1)}%</span>`;
+
+        return `<div class="flex items-center gap-2">
+            <div class="progress-bar flex-1">
+                <div class="progress-bar-fill ${level}" style="width: ${percent}%"></div>
+            </div>
+            <span class="text-xs w-12 text-right">${percent.toFixed(1)}%</span>
+        </div>`;
     }
 
-    // Stack link
-    function stackLink(stack) {
+    // Custom formatter: Status badge
+    function statusFormatter(cell) {
+        const status = cell.getValue() || 'unknown';
+        const statusLower = status.toLowerCase();
+        return `<span class="status-badge ${statusLower}">${status}</span>`;
+    }
+
+    // Custom formatter: Stack link
+    function stackFormatter(cell) {
+        const stack = cell.getValue();
         return `<a href="/stack/${stack}" class="link link-hover font-medium">${stack}</a>`;
     }
 
-    // Tags check button
-    function tagsButton(stack, service) {
+    // Custom formatter: Code text
+    function codeFormatter(cell) {
+        const value = cell.getValue();
+        return value ? `<code class="text-xs bg-base-200 px-1 rounded">${value}</code>` : '-';
+    }
+
+    // Custom formatter: Check tags button
+    function tagsFormatter(cell) {
+        const data = cell.getRow().getData();
         return `<button class="btn btn-xs btn-ghost check-tags-btn"
-                        data-stack="${stack}" data-service="${service}">Check</button>`;
+                        data-stack="${data.stack}" data-service="${data.service}">Check</button>`;
     }
 
-    // Transform container data to table row
-    function containerToRow(c) {
-        return [
-            stackLink(c.stack),
-            c.service,
-            c.host,
-            `<code class="text-xs">${c.image || '-'}</code>`,
-            `<code class="text-xs">${c.tag || '-'}</code>`,
-            statusBadge(c.status),
-            c.uptime || '-',
-            statBar(c.cpu_percent),
-            c.memory_usage ? `<span class="text-xs">${c.memory_usage}</span>` : '-',
-            c.net_io ? `<span class="text-xs">${c.net_io}</span>` : '-',
-            tagsButton(c.stack, c.service),
-        ];
+    // Custom formatter: Memory usage with bar
+    function memoryFormatter(cell) {
+        const row = cell.getRow().getData();
+        const usage = row.memory_usage;
+        const percent = row.memory_percent;
+
+        if (!usage) return "-";
+
+        const level = percent > 80 ? 'high' : percent > 50 ? 'medium' : 'low';
+        return `<div class="flex items-center gap-2">
+            <div class="progress-bar w-16">
+                <div class="progress-bar-fill ${level}" style="width: ${Math.min(percent, 100)}%"></div>
+            </div>
+            <span class="text-xs">${usage}</span>
+        </div>`;
     }
 
-    // Initialize empty table
+    // Initialize Tabulator
     function initTable() {
-        if (dataTable) {
-            dataTable.destroy();
-        }
-        dataTable = new simpleDatatables.DataTable(tableEl, {
-            data: { data: [] },
-            searchable: true,
-            sortable: true,
-            perPage: 25,
-            perPageSelect: [10, 25, 50, 100],
-            labels: {
-                placeholder: "Filter containers...",
-                noRows: "Loading containers...",
-                info: "Showing {start} to {end} of {rows} containers",
-            },
+        table = new Tabulator(tableEl, {
+            layout: "fitDataFill",
+            responsiveLayout: "collapse",
+            pagination: true,
+            paginationSize: 25,
+            paginationSizeSelector: [10, 25, 50, 100],
+            placeholder: "Loading containers...",
+            columns: [
+                { title: "Stack", field: "stack", formatter: stackFormatter, headerFilter: "input", minWidth: 120 },
+                { title: "Service", field: "service", headerFilter: "input", minWidth: 120 },
+                { title: "Host", field: "host", headerFilter: "input", minWidth: 80 },
+                { title: "Image", field: "image", formatter: codeFormatter, minWidth: 150 },
+                { title: "Tag", field: "tag", formatter: codeFormatter, minWidth: 80 },
+                { title: "Status", field: "status", formatter: statusFormatter, headerFilter: "input", hozAlign: "center", minWidth: 90 },
+                { title: "Uptime", field: "uptime", minWidth: 100 },
+                { title: "CPU", field: "cpu_percent", formatter: progressFormatter, hozAlign: "center", minWidth: 130,
+                  sorter: "number", headerTooltip: "CPU Usage %" },
+                { title: "Memory", field: "memory_percent", formatter: memoryFormatter, minWidth: 180,
+                  sorter: "number", headerTooltip: "Memory Usage" },
+                { title: "Net I/O", field: "net_io", minWidth: 120, formatter: function(cell) {
+                    const value = cell.getValue();
+                    return value ? `<span class="text-xs">${value}</span>` : '-';
+                }},
+                { title: "Tags", field: "tags", formatter: tagsFormatter, headerSort: false, minWidth: 80, hozAlign: "center" },
+            ],
+            initialSort: [{ column: "stack", dir: "asc" }],
         });
+
+        // Handle check tags button clicks
         tableEl.addEventListener('click', handleCheckClick);
     }
 
-    // Load data via SSE streaming (rows appear as each stack completes)
+    // Load data via SSE streaming
     function loadData() {
         loadingEl.style.display = 'flex';
         loadingEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>' +
             '<span class="text-base-content/60">Loading containers...</span>';
 
-        // Initialize empty table first
-        initTable();
+        // Initialize table if not exists
+        if (!table) {
+            initTable();
+        } else {
+            table.clearData();
+        }
 
         let containerCount = 0;
         const eventSource = new EventSource('/api/containers/stream');
@@ -194,11 +248,9 @@
             try {
                 const containers = JSON.parse(event.data);
                 if (containers.length > 0) {
-                    // Add rows incrementally using insert()
-                    const rows = containers.map(containerToRow);
-                    dataTable.insert({ data: rows });
+                    // Add rows incrementally
+                    table.addData(containers);
                     containerCount += containers.length;
-                    // Update loading indicator with count
                     loadingEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>' +
                         `<span class="text-base-content/60">Loading containers... (${containerCount} loaded)</span>`;
                 }
@@ -210,17 +262,13 @@
         eventSource.addEventListener('done', function() {
             eventSource.close();
             loadingEl.style.display = 'none';
-            // Sort by stack name after all data loaded
-            if (containerCount > 0) {
-                dataTable.columns.sort(0, 'asc');
-            }
         });
 
         eventSource.onerror = function(err) {
             console.error('SSE error:', err);
             eventSource.close();
             loadingEl.innerHTML = '<span class="text-error">Connection error - ' +
-                '<button class="btn btn-xs btn-ghost" onclick="loadData()">Retry</button></span>';
+                '<button class="btn btn-xs btn-ghost" onclick="location.reload()">Retry</button></span>';
         };
     }
 
@@ -233,7 +281,6 @@
         const service = btn.dataset.service;
         const cell = btn.parentElement;
 
-        // Show loading
         cell.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
 
         try {
@@ -253,7 +300,6 @@
 
         for (const btn of buttons) {
             btn.click();
-            // Small delay to avoid rate limiting
             await new Promise(r => setTimeout(r, 200));
         }
 
