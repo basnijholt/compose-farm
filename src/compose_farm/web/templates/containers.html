@@ -36,15 +36,16 @@
             <table id="containers-table" class="table table-zebra table-pin-rows w-full">
                 <thead>
                     <tr>
-                        <th>Name</th>
+                        <th>Stack</th>
+                        <th>Service</th>
                         <th>Host</th>
                         <th>Image</th>
+                        <th>Updates</th>
                         <th>Status</th>
                         <th>Uptime</th>
                         <th>CPU</th>
                         <th>Memory</th>
                         <th>Net I/O</th>
-                        <th>Ports</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -160,19 +161,52 @@
         </div>`;
     }
 
+    // Update check button
+    function updateBtn(image, tag) {
+        const id = btoa(`${image}:${tag}`).replace(/[^a-zA-Z0-9]/g, '');
+        return `<button class="btn btn-xs btn-ghost update-check-btn" data-image="${image}" data-tag="${tag}" data-id="${id}">
+            <span id="update-${id}">Check</span>
+        </button>`;
+    }
+
     // Transform container data to table row
     function containerToRow(c) {
         return [
-            `<span class="font-medium">${c.name}</span>`,
+            `<span class="font-medium">${c.stack}</span>`,
+            `<span class="text-xs opacity-80">${c.service}</span>`,
             `<span class="badge badge-outline badge-sm">${c.host}</span>`,
-            `<code class="text-xs bg-base-200 px-1 rounded truncate max-w-48" title="${c.image}:${c.tag}">${c.image}:${c.tag}</code>`,
+            `<code class="text-xs bg-base-200 px-1 rounded truncate max-w-40" title="${c.image}:${c.tag}">${c.image}:${c.tag}</code>`,
+            updateBtn(c.image, c.tag),
             statusBadge(c.status),
             `<span class="text-xs">${c.uptime || '-'}</span>`,
             cpuBar(c.cpu_percent),
             memoryBar(c.memory_percent, c.memory_usage),
             c.net_io ? `<span class="text-xs font-mono">${c.net_io}</span>` : '-',
-            c.ports ? `<span class="text-xs font-mono truncate max-w-32" title="${c.ports}">${c.ports}</span>` : '-',
         ];
+    }
+
+    // Check for updates on a specific image
+    async function checkUpdates(image, tag, id) {
+        const el = document.getElementById(`update-${id}`);
+        if (!el) return;
+
+        el.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+        try {
+            const response = await fetch(`/api/containers/check-updates?image=${encodeURIComponent(image)}&tag=${encodeURIComponent(tag)}`);
+            const result = await response.json();
+
+            if (result.error) {
+                el.innerHTML = '<span class="text-error text-xs">error</span>';
+            } else if (result.available_updates && result.available_updates.length > 0) {
+                const latest = result.available_updates[0];
+                el.innerHTML = `<span class="badge badge-success badge-xs" title="Available: ${result.available_updates.join(', ')}">${latest}</span>`;
+            } else {
+                el.innerHTML = '<span class="text-success text-xs">up to date</span>';
+            }
+        } catch (err) {
+            el.innerHTML = '<span class="text-error text-xs">failed</span>';
+        }
     }
 
     // Initialize table with data
@@ -192,8 +226,17 @@
                 info: "Showing {start} to {end} of {rows} containers",
             },
             columns: [
-                { select: 5, sort: "desc" }, // Sort by CPU descending by default
+                { select: 7, sort: "desc" }, // Sort by CPU descending by default
             ],
+        });
+
+        // Add click handlers for update check buttons
+        tableEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('.update-check-btn');
+            if (btn) {
+                const { image, tag, id } = btn.dataset;
+                checkUpdates(image, tag, id);
+            }
         });
     }
 

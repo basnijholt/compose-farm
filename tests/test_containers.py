@@ -108,6 +108,7 @@ class TestContainerToDict:
         result = container_to_dict(stats)
 
         assert result["name"] == "mystack-web-1"
+        # Falls back to heuristic when no compose labels
         assert result["stack"] == "mystack"
         assert result["service"] == "web"
         assert result["host"] == "nas"
@@ -119,7 +120,32 @@ class TestContainerToDict:
         assert result["memory_usage"] == "100.0MB"
         assert result["memory_percent"] == 9.8  # Rounded
         assert result["net_io"] == "↓976.6KB ↑488.3KB"
-        assert result["ports"] == "80->80/tcp"
+
+    def test_conversion_with_compose_labels(self) -> None:
+        """Test that compose labels take precedence over name heuristic."""
+        stats = ContainerStats(
+            name="compose-farm-api-1",  # Would parse incorrectly as stack="compose"
+            host="nas",
+            status="running",
+            image="python:3.11",
+            cpu_percent=1.0,
+            memory_usage=52428800,
+            memory_limit=1073741824,
+            memory_percent=4.88,
+            network_rx=1000,
+            network_tx=500,
+            uptime="1 hour",
+            ports="8000->8000/tcp",
+            engine="docker",
+            stack="compose-farm",  # From compose label
+            service="api",  # From compose label
+        )
+
+        result = container_to_dict(stats)
+
+        # Should use compose labels, not heuristic
+        assert result["stack"] == "compose-farm"
+        assert result["service"] == "api"
 
 
 class TestContainersPage:
@@ -251,3 +277,83 @@ class TestContainersAPI:
         assert data["data"][0]["name"] == "nginx"
         assert data["data"][0]["cpu_percent"] == 5.5
         assert data["data"][1]["name"] == "redis"
+
+
+class TestCheckUpdatesAPI:
+    """Tests for check-updates API endpoint."""
+
+    @pytest.fixture
+    def client(self) -> TestClient:
+        app = create_app()
+        return TestClient(app)
+
+    def test_check_updates_with_updates(self, client: TestClient) -> None:
+        """Test check-updates returns available updates."""
+        from compose_farm.registry import ImageRef, TagCheckResult, TagInfo
+
+        mock_result = TagCheckResult(
+            image=ImageRef.parse("nginx:1.25"),
+            current_digest="sha256:abc",
+            equivalent_tags=["1.25"],
+            available_updates=["1.26", "1.27", "2.0"],
+            all_tags=[TagInfo("1.25"), TagInfo("1.26"), TagInfo("1.27"), TagInfo("2.0")],
+        )
+
+        with patch(
+            "compose_farm.registry.check_image_tags",
+            new_callable=AsyncMock,
+        ) as mock_check:
+            mock_check.return_value = mock_result
+            response = client.get("/api/containers/check-updates?image=nginx&tag=1.25")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["image"] == "nginx"
+        assert data["tag"] == "1.25"
+        assert data["available_updates"] == ["1.26", "1.27", "2.0"]
+        assert data["error"] is None
+
+    def test_check_updates_no_updates(self, client: TestClient) -> None:
+        """Test check-updates when already on latest."""
+        from compose_farm.registry import ImageRef, TagCheckResult
+
+        mock_result = TagCheckResult(
+            image=ImageRef.parse("nginx:latest"),
+            current_digest="sha256:abc",
+            equivalent_tags=["latest"],
+            available_updates=[],
+        )
+
+        with patch(
+            "compose_farm.registry.check_image_tags",
+            new_callable=AsyncMock,
+        ) as mock_check:
+            mock_check.return_value = mock_result
+            response = client.get("/api/containers/check-updates?image=nginx&tag=latest")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["available_updates"] == []
+        assert data["error"] is None
+
+    def test_check_updates_with_error(self, client: TestClient) -> None:
+        """Test check-updates handles errors gracefully."""
+        from compose_farm.registry import ImageRef, TagCheckResult
+
+        mock_result = TagCheckResult(
+            image=ImageRef.parse("private/repo"),
+            current_digest="",
+            error="401 Unauthorized",
+        )
+
+        with patch(
+            "compose_farm.registry.check_image_tags",
+            new_callable=AsyncMock,
+        ) as mock_check:
+            mock_check.return_value = mock_result
+            response = client.get("/api/containers/check-updates?image=private/repo&tag=latest")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["error"] == "401 Unauthorized"
+        assert data["available_updates"] == []

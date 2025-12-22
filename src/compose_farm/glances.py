@@ -119,6 +119,8 @@ class ContainerStats:
     uptime: str
     ports: str
     engine: str  # docker, podman, etc.
+    stack: str = ""  # compose project name (from docker labels)
+    service: str = ""  # compose service name (from docker labels)
 
     @property
     def memory_usage_mb(self) -> float:
@@ -187,12 +189,77 @@ async def fetch_container_stats(
         return []
 
 
+async def _fetch_compose_labels(
+    config: Config,
+    host_name: str,
+) -> dict[str, tuple[str, str]]:
+    """Fetch compose labels for all containers on a host.
+
+    Returns dict of container_name -> (stack, service).
+    """
+    from .executor import run_command  # noqa: PLC0415
+
+    host = config.hosts[host_name]
+    # Get container name, compose project, and compose service in one call
+    cmd = (
+        "docker ps -a --format "
+        '\'{{.Names}}\t{{.Label "com.docker.compose.project"}}\t'
+        '{{.Label "com.docker.compose.service"}}\''
+    )
+    result = await run_command(host, cmd, stack=host_name, stream=False, prefix="")
+
+    labels: dict[str, tuple[str, str]] = {}
+    if result.success:
+        for line in result.stdout.splitlines():
+            parts = line.strip().split("\t")
+            if len(parts) >= 3:  # noqa: PLR2004
+                name, stack, service = parts[0], parts[1], parts[2]
+                labels[name] = (stack or "", service or "")
+    return labels
+
+
 async def fetch_all_container_stats(
     config: Config,
     port: int = DEFAULT_GLANCES_PORT,
 ) -> list[ContainerStats]:
-    """Fetch container stats from all hosts in parallel."""
-    tasks = [fetch_container_stats(name, host.address, port) for name, host in config.hosts.items()]
+    """Fetch container stats from all hosts in parallel, enriched with compose labels."""
+
+    # Fetch Glances stats and compose labels in parallel for each host
+    async def fetch_host_data(
+        host_name: str,
+        host_address: str,
+    ) -> list[ContainerStats]:
+        # Run both fetches in parallel
+        stats_task = fetch_container_stats(host_name, host_address, port)
+        labels_task = _fetch_compose_labels(config, host_name)
+        containers, labels = await asyncio.gather(stats_task, labels_task)
+
+        # Enrich containers with compose labels
+        enriched = []
+        for c in containers:
+            stack, service = labels.get(c.name, ("", ""))
+            enriched.append(
+                ContainerStats(
+                    name=c.name,
+                    host=c.host,
+                    status=c.status,
+                    image=c.image,
+                    cpu_percent=c.cpu_percent,
+                    memory_usage=c.memory_usage,
+                    memory_limit=c.memory_limit,
+                    memory_percent=c.memory_percent,
+                    network_rx=c.network_rx,
+                    network_tx=c.network_tx,
+                    uptime=c.uptime,
+                    ports=c.ports,
+                    engine=c.engine,
+                    stack=stack,
+                    service=service,
+                )
+            )
+        return enriched
+
+    tasks = [fetch_host_data(name, host.address) for name, host in config.hosts.items()]
     results = await asyncio.gather(*tasks)
     # Flatten list of lists
     return [container for host_containers in results for container in host_containers]

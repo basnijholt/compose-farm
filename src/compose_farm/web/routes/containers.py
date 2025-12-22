@@ -46,8 +46,9 @@ def _parse_image(image: str) -> tuple[str, str]:
 
 
 def _infer_stack_service(name: str) -> tuple[str, str]:
-    """Try to infer stack and service from container name.
+    """Fallback: infer stack and service from container name.
 
+    Used when compose labels are not available.
     Docker Compose naming conventions:
     - Default: {project}_{service}_{instance} or {project}-{service}-{instance}
     - Custom: {container_name} from compose file
@@ -69,7 +70,9 @@ def _infer_stack_service(name: str) -> tuple[str, str]:
 def container_to_dict(c: ContainerStats) -> dict[str, Any]:
     """Convert ContainerStats to dictionary for JSON response."""
     image_name, tag = _parse_image(c.image)
-    stack, service = _infer_stack_service(c.name)
+    # Use compose labels if available, otherwise fall back to heuristic
+    stack = c.stack if c.stack else _infer_stack_service(c.name)[0]
+    service = c.service if c.service else _infer_stack_service(c.name)[1]
 
     return {
         "name": c.name,
@@ -132,3 +135,44 @@ async def get_containers_data() -> JSONResponse:
             "count": len(containers),
         },
     )
+
+
+@router.get("/api/containers/check-updates", response_class=JSONResponse)
+async def check_container_updates(image: str, tag: str) -> JSONResponse:
+    """Check for updates for a specific image.
+
+    Args:
+        image: Image name (e.g., "nginx", "ghcr.io/user/repo")
+        tag: Current tag (e.g., "latest", "1.25.0")
+
+    Returns:
+        JSON with available_updates list
+
+    """
+    import httpx  # noqa: PLC0415
+
+    from compose_farm.registry import check_image_tags  # noqa: PLC0415
+
+    full_image = f"{image}:{tag}"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            result = await check_image_tags(full_image, "", client, fetch_digests=False)
+
+        return JSONResponse(
+            content={
+                "image": image,
+                "tag": tag,
+                "available_updates": result.available_updates[:5],  # Top 5 updates
+                "error": result.error,
+            },
+        )
+    except Exception as e:
+        return JSONResponse(
+            content={
+                "image": image,
+                "tag": tag,
+                "available_updates": [],
+                "error": str(e),
+            },
+        )
