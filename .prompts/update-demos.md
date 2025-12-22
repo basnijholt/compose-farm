@@ -1,207 +1,51 @@
 Update demo recordings to match the current compose-farm.yaml configuration.
 
-## Critical: Initial State
+## Key Gotchas
 
-**Before recording any demos**, ensure stacks are in their expected state:
+1. **Never `git checkout` without asking** - check for uncommitted changes first
+2. **Prefer `nas` stacks** - demos run locally on nas, SSH adds latency
+3. **Terminal captures keyboard** - use `blur()` to release focus before command palette
+4. **Clicking sidebar navigates away** - clicking h1 scrolls to top
+5. **Buttons have icons, not text** - use `[data-tip="..."]` selectors
+6. **`record.py` auto-restores config** - no manual cleanup needed after CLI demos
 
-```bash
-# Verify stacks are on correct hosts
-cf ps audiobookshelf grocy immich
+## Stacks Used in Demos
 
-# If audiobookshelf is on anton (from previous migration demo), reset it:
-cf down audiobookshelf  # stops on wrong host
-cf up audiobookshelf    # starts on nas (per config)
-```
+| Stack | CLI Demos | Web Demos | Notes |
+|-------|-----------|-----------|-------|
+| `audiobookshelf` | quickstart, migration, apply | - | Migrates nas→anton |
+| `grocy` | update | navigation, stack, workflow, console | - |
+| `immich` | logs, compose | shell | Multiple containers |
+| `dozzle` | - | workflow | - |
 
-The migration demo moves `audiobookshelf` from `nas` → `anton`. After recording:
-- `record.py` reverts the config change via sed
-- Then runs `cf apply` to reset running state
+## CLI Demos
 
-**Important for AI agents:**
+**Files:** `docs/demos/cli/*.tape`
 
-Before suggesting ANY reset commands, you MUST:
-1. Run `git -C /opt/stacks diff compose-farm.yaml` to check for uncommitted changes
-2. If there are changes, TELL the user what changes exist and ASK if they want to proceed
-3. NEVER run `git checkout` without explicit user confirmation
-4. Prefer targeted `sed` commands that only revert demo-specific changes over `git checkout`
+Check:
+- `quickstart.tape`: `bat -r` line ranges match current config structure
+- `migration.tape`: nvim keystrokes work, stack exists on nas
+- `compose.tape`: exec commands produce meaningful output
 
-## Stack Selection: Prefer `nas`
+Run: `python docs/demos/cli/record.py [demo]`
 
-Demos are recorded from `nas`, so prefer stacks hosted there (no SSH latency):
+## Web Demos
 
-| Host | Latency | Use for demos? |
-|------|---------|----------------|
-| `nas` | None (local) | ✅ Preferred |
-| `nuc`, `hp`, `anton` | SSH overhead | ⚠️ Avoid if possible |
+**Files:** `docs/demos/web/demo_*.py`
 
-Current `nas` stacks (good choices): `grocy`, `immich`, `audiobookshelf`, `dozzle`, `glances`, `jellyfin`, `paperless-ngx`
+Check:
+- Stack names in demos still exist in config
+- Selectors match current templates (grep for IDs in `templates/`)
+- Shell demo uses command palette for ALL navigation
 
-## Quick Reference: Stacks Used in Demos
+Run: `python docs/demos/web/record.py [demo]`
 
-| Stack | CLI Demos | Web Demos | Host | OK? |
-|-------|-----------|-----------|------|-----|
-| `audiobookshelf` | quickstart, migration, apply | - | nas | ✅ |
-| `grocy` | update | navigation, stack, workflow, console | nas | ✅ |
-| `immich` | logs, compose | shell | nas | ✅ |
-| `dozzle` | - | workflow | nas | ✅ |
-
-**Note:** The shell demo uses `immich` because it has multiple containers (ML, server, redis, database).
-
-## CLI Demos (docs/demos/cli/)
-
-### 1. Analyze Current Config
-
-Read `/opt/stacks/compose-farm.yaml` and identify:
-
-- Line range for `hosts:` section (from `compose_dir:` to line before `stacks:`)
-- Line range for `stacks:` section (first ~15-20 stacks for readability)
-- Verify stacks used in demos exist and are on expected hosts
-
-### 2. Update quickstart.tape
-
-Update `bat -r` line ranges:
-
-```tape
-# Line ~24: Show hosts section (compose_dir + hosts)
-Type "bat -r 1:16 compose-farm.yaml"
-
-# Line ~34: Show stacks section
-Type "bat -r 17:35 compose-farm.yaml"
-```
-
-Verify sed command (~line 73) uses a stack on `nas`:
-```tape
-Type "sed -i 's/audiobookshelf: nas/audiobookshelf: anton/' compose-farm.yaml"
-```
-
-### 3. Update migration.tape
-
-Verify:
-- Stack name exists and is assigned to `nas`
-- Target host `anton` is available
-- nvim keystrokes still work (search, change word)
-
-### 4. Verify Other CLI Tapes
-
-| Tape | Stack | Check |
-|------|-------|-------|
-| `logs.tape` | immich | Exists, running |
-| `compose.tape` | immich | Shows `--help`, `images`, `exec` |
-| `update.tape` | grocy | Exists |
-| `apply.tape` | (none) | - |
-| `install.tape` | (none) | - |
-
-**Note:** `record.py` automatically saves and restores the original config after recording.
-
-### 5. Prerequisites
-
-Before recording CLI demos, verify:
-
-1. **Check for uncommitted changes** (warn user, don't block):
-   ```bash
-   git -C /opt/stacks diff compose-farm.yaml
-   ```
-   If changes exist, inform the user and confirm before proceeding.
-
-2. **Required tools installed**: `vhs`, `bat`, `nvim`
-
-3. **Stacks running**: `cf ps audiobookshelf immich grocy`
-
-## Web Demos (docs/demos/web/)
-
-### 1. Verify Stack Names
-
-Search for hardcoded stacks in demo files:
-```bash
-grep -r "grocy\|immich\|dozzle" docs/demos/web/
-```
-
-Update if stacks are renamed or removed.
-
-### 2. Verify UI Selectors
-
-Check these selectors still exist in templates:
-
-| Selector | Used In | Purpose |
-|----------|---------|---------|
-| `#sidebar-stacks` | conftest.py | Wait for sidebar |
-| `#cmd-palette` | conftest.py | Command palette |
-| `#cmd-input` | All demos | Palette input |
-| `#console-terminal` | console, workflow | Terminal input |
-| `#compose-editor` | stack, workflow | Monaco editor |
-| `#terminal-output` | stack, workflow | Action output |
-| `#theme-btn` | workflow, themes | Theme picker |
-| `[data-tip="Open shell"]` | shell | Container shell button |
-
-**Note**: Container action buttons use icons only, not text. Select by `data-tip` attribute:
-```python
-# Wrong - buttons have no text
-page.locator("#containers-list button", has_text="Shell")
-
-# Correct - use tooltip attribute
-page.locator('#containers-list [data-tip="Open shell"]')
-```
-
-### 3. Shell Demo Patterns
-
-The shell demo uses command palette with fuzzy matching:
-```python
-# Navigate to stack
-slow_type(page, "#cmd-input", "immich", delay=100)
-
-# Open shell with partial match: "sh mach" -> "Shell: immich-machine-learning"
-slow_type(page, "#cmd-input", "sh mach", delay=100)
-
-# Switch to another container: "sh serv" -> "Shell: immich-server"
-slow_type(page, "#cmd-input", "sh serv", delay=100)
-```
-
-**Releasing terminal focus** (terminal captures keyboard, blocking command palette):
-```python
-# Use blur() - won't cause scroll
-page.evaluate("document.activeElement?.blur()")
-
-# DON'T click sidebar - may navigate away
-# DON'T click h1 - scrolls to top
-```
-
-**Smooth scrolling** to terminal:
-```python
-page.evaluate("""
-    const terminal = document.getElementById('exec-terminal');
-    if (terminal) {
-        terminal.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-""")
-
-### 4. Prerequisites
-
-Before recording web demos:
-```bash
-# Required tools
-which ffmpeg
-playwright install chromium  # or use system chromium
-
-# Stacks should be running (for realistic output)
-cf ps grocy immich dozzle
-```
-
-## Testing
+## Before Recording
 
 ```bash
-# Test single CLI demo
-python docs/demos/cli/record.py quickstart
+# Check for uncommitted config changes
+git -C /opt/stacks diff compose-farm.yaml
 
-# Test single web demo
-python docs/demos/web/record.py navigation
-```
-
-## Output
-
-List all changes made with file:line and before/after values:
-
-```
-quickstart.tape:24  bat -r 1:11  ->  bat -r 1:16
-quickstart.tape:34  bat -r 13:30 ->  bat -r 17:35
-demo_workflow.py:132  mealie  ->  dozzle
+# Verify stacks are running
+cf ps audiobookshelf grocy immich dozzle
 ```
