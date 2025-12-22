@@ -260,13 +260,13 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
     ] = False,
     config: ConfigOption = None,
 ) -> None:
-    """Make reality match config (start, migrate, stop rogues/orphans as needed).
+    """Make reality match config (start, migrate, stop strays/orphans as needed).
 
     This is the "reconcile" command that ensures running stacks match your
     config file. It will:
 
     1. Stop orphaned stacks (in state but removed from config)
-    2. Stop rogue stacks (running on unauthorized hosts)
+    2. Stop stray stacks (running on unauthorized hosts)
     3. Migrate stacks on wrong host (host in state ≠ host in config)
     4. Start missing stacks (in config but not in state)
 
