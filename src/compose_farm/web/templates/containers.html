@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+{% from "partials/components.html" import page_header %}
+{% from "partials/icons.html" import refresh_cw, box %}
+{% block title %}Containers - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl">
+    {{ page_header("Containers", "All running containers across hosts") }}
+
+    {% if not glances_enabled %}
+    <div class="alert alert-warning mb-6">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+        <div>
+            <h3 class="font-bold">Glances not configured</h3>
+            <div class="text-xs">Add <code class="bg-base-300 px-1 rounded">glances_stack: glances</code> to your config and deploy Glances on all hosts.</div>
+        </div>
+    </div>
+    {% else %}
+
+    <!-- Action Buttons -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button id="refresh-table-btn" class="btn btn-outline">
+            {{ refresh_cw() }} Refresh
+        </button>
+    </div>
+
+    <!-- Loading indicator -->
+    <div id="loading-indicator" class="flex items-center gap-2 mb-4">
+        <span class="loading loading-spinner loading-sm"></span>
+        <span class="text-base-content/60">Loading containers...</span>
+    </div>
+
+    <!-- Container Table -->
+    <div class="card bg-base-100 shadow">
+        <div class="card-body p-0">
+            <table id="containers-table" class="table table-zebra table-pin-rows w-full">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Host</th>
+                        <th>Image</th>
+                        <th>Status</th>
+                        <th>Uptime</th>
+                        <th>CPU</th>
+                        <th>Memory</th>
+                        <th>Net I/O</th>
+                        <th>Ports</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Data loaded via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if glances_enabled %}
+<!-- Simple-DataTables -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-datatables@9/dist/style.min.css">
+<script src="https://cdn.jsdelivr.net/npm/simple-datatables@9" data-vendor="simple-datatables.js"></script>
+
+<style>
+/* Override Simple-DataTables styles to match DaisyUI */
+.datatable-wrapper .datatable-top,
+.datatable-wrapper .datatable-bottom {
+    padding: 1rem;
+}
+
+.datatable-wrapper .datatable-search input {
+    @apply input input-bordered input-sm w-64;
+}
+
+.datatable-wrapper .datatable-selector {
+    @apply select select-bordered select-sm;
+}
+
+.datatable-wrapper .datatable-pagination .datatable-pagination-list-item-link {
+    @apply btn btn-sm btn-ghost;
+}
+
+.datatable-wrapper .datatable-pagination .datatable-pagination-list-item.datatable-active .datatable-pagination-list-item-link {
+    @apply btn-primary;
+}
+
+.datatable-wrapper .datatable-sorter::before,
+.datatable-wrapper .datatable-sorter::after {
+    border-color: oklch(var(--bc) / 0.3);
+}
+
+.datatable-wrapper .datatable-sorter.datatable-ascending::after,
+.datatable-wrapper .datatable-sorter.datatable-descending::before {
+    border-color: oklch(var(--p));
+}
+
+/* Status badges */
+.status-running { @apply badge badge-success badge-sm; }
+.status-exited { @apply badge badge-error badge-sm; }
+.status-created { @apply badge badge-warning badge-sm; }
+.status-paused { @apply badge badge-info badge-sm; }
+.status-restarting { @apply badge badge-warning badge-sm; }
+.status-unknown { @apply badge badge-neutral badge-sm; }
+
+/* Stat cell with progress bar */
+.stat-cell {
+    @apply flex items-center gap-2;
+}
+.stat-cell progress {
+    @apply w-16 h-2;
+}
+.stat-cell .stat-value {
+    @apply text-xs font-mono min-w-[3rem] text-right;
+}
+
+/* Memory cell with usage text */
+.memory-cell {
+    @apply flex items-center gap-2;
+}
+.memory-cell progress {
+    @apply w-12 h-2;
+}
+.memory-cell .memory-text {
+    @apply text-xs opacity-80;
+}
+</style>
+
+<script>
+(function() {
+    let dataTable = null;
+    const tableEl = document.getElementById('containers-table');
+    const loadingEl = document.getElementById('loading-indicator');
+    const refreshBtn = document.getElementById('refresh-table-btn');
+
+    // Status badge HTML
+    function statusBadge(status) {
+        const statusClass = 'status-' + (status || 'unknown').toLowerCase();
+        return `<span class="${statusClass}">${status}</span>`;
+    }
+
+    // CPU progress bar with DaisyUI
+    function cpuBar(percent) {
+        if (percent === undefined || percent === null) return '-';
+        const colorClass = percent > 80 ? 'progress-error' : percent > 50 ? 'progress-warning' : 'progress-success';
+        return `<div class="stat-cell">
+            <progress class="progress ${colorClass}" value="${Math.min(percent, 100)}" max="100"></progress>
+            <span class="stat-value">${percent.toFixed(1)}%</span>
+        </div>`;
+    }
+
+    // Memory progress bar with usage text
+    function memoryBar(percent, usage) {
+        if (!usage) return '-';
+        const colorClass = percent > 80 ? 'progress-error' : percent > 50 ? 'progress-warning' : 'progress-success';
+        return `<div class="memory-cell" title="${usage}">
+            <progress class="progress ${colorClass}" value="${Math.min(percent || 0, 100)}" max="100"></progress>
+            <span class="memory-text">${usage}</span>
+        </div>`;
+    }
+
+    // Transform container data to table row
+    function containerToRow(c) {
+        return [
+            `<span class="font-medium">${c.name}</span>`,
+            `<span class="badge badge-outline badge-sm">${c.host}</span>`,
+            `<code class="text-xs bg-base-200 px-1 rounded truncate max-w-48" title="${c.image}:${c.tag}">${c.image}:${c.tag}</code>`,
+            statusBadge(c.status),
+            `<span class="text-xs">${c.uptime || '-'}</span>`,
+            cpuBar(c.cpu_percent),
+            memoryBar(c.memory_percent, c.memory_usage),
+            c.net_io ? `<span class="text-xs font-mono">${c.net_io}</span>` : '-',
+            c.ports ? `<span class="text-xs font-mono truncate max-w-32" title="${c.ports}">${c.ports}</span>` : '-',
+        ];
+    }
+
+    // Initialize table with data
+    function initTable(data) {
+        if (dataTable) {
+            dataTable.destroy();
+        }
+        dataTable = new simpleDatatables.DataTable(tableEl, {
+            data: { data: data.map(containerToRow) },
+            searchable: true,
+            sortable: true,
+            perPage: 25,
+            perPageSelect: [10, 25, 50, 100],
+            labels: {
+                placeholder: "Filter containers...",
+                noRows: "No containers found",
+                info: "Showing {start} to {end} of {rows} containers",
+            },
+            columns: [
+                { select: 5, sort: "desc" }, // Sort by CPU descending by default
+            ],
+        });
+    }
+
+    // Load data from API
+    async function loadData() {
+        loadingEl.style.display = 'flex';
+
+        try {
+            const response = await fetch('/api/containers/list');
+            const result = await response.json();
+
+            if (result.error) {
+                loadingEl.innerHTML = `<span class="text-error">${result.error}</span>`;
+                return;
+            }
+
+            loadingEl.style.display = 'none';
+            initTable(result.data);
+
+        } catch (err) {
+            console.error('Failed to load containers:', err);
+            loadingEl.innerHTML = '<span class="text-error">Failed to load containers - ' +
+                '<button class="btn btn-xs btn-ghost" onclick="location.reload()">Retry</button></span>';
+        }
+    }
+
+    // Event listeners
+    refreshBtn.addEventListener('click', loadData);
+
+    // Initial load
+    loadData();
+})();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,134 @@
+"""Container dashboard routes using Glances API."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+
+from compose_farm.glances import ContainerStats, fetch_all_container_stats
+from compose_farm.web.deps import get_config, get_templates
+
+router = APIRouter(tags=["containers"])
+
+# Byte size constants
+KB = 1024
+MB = KB * 1024
+GB = MB * 1024
+
+# Minimum parts needed to infer stack/service from container name
+MIN_NAME_PARTS = 2
+
+
+def _format_bytes(bytes_val: int) -> str:
+    """Format bytes to human readable string."""
+    if bytes_val < KB:
+        return f"{bytes_val}B"
+    if bytes_val < MB:
+        return f"{bytes_val / KB:.1f}KB"
+    if bytes_val < GB:
+        return f"{bytes_val / MB:.1f}MB"
+    return f"{bytes_val / GB:.1f}GB"
+
+
+def _parse_image(image: str) -> tuple[str, str]:
+    """Parse image string into (name, tag)."""
+    # Handle registry prefix (e.g., ghcr.io/user/repo:tag)
+    if ":" in image:
+        # Find last colon that's not part of port
+        parts = image.rsplit(":", 1)
+        if "/" in parts[-1]:
+            # The "tag" contains a slash, so it's probably a port
+            return image, "latest"
+        return parts[0], parts[1]
+    return image, "latest"
+
+
+def _infer_stack_service(name: str) -> tuple[str, str]:
+    """Try to infer stack and service from container name.
+
+    Docker Compose naming conventions:
+    - Default: {project}_{service}_{instance} or {project}-{service}-{instance}
+    - Custom: {container_name} from compose file
+    """
+    # Try underscore separator first (older compose)
+    if "_" in name:
+        parts = name.split("_")
+        if len(parts) >= MIN_NAME_PARTS:
+            return parts[0], parts[1]
+    # Try hyphen separator (newer compose)
+    if "-" in name:
+        parts = name.split("-")
+        if len(parts) >= MIN_NAME_PARTS:
+            return parts[0], "-".join(parts[1:-1]) if len(parts) > MIN_NAME_PARTS else parts[1]
+    # Fallback: use name as both stack and service
+    return name, name
+
+
+def container_to_dict(c: ContainerStats) -> dict[str, Any]:
+    """Convert ContainerStats to dictionary for JSON response."""
+    image_name, tag = _parse_image(c.image)
+    stack, service = _infer_stack_service(c.name)
+
+    return {
+        "name": c.name,
+        "stack": stack,
+        "service": service,
+        "host": c.host,
+        "image": image_name,
+        "tag": tag,
+        "status": c.status,
+        "uptime": c.uptime,
+        "cpu_percent": round(c.cpu_percent, 1),
+        "memory_usage": _format_bytes(c.memory_usage),
+        "memory_percent": round(c.memory_percent, 1),
+        "memory_mb": round(c.memory_usage_mb, 0),
+        "network_rx": _format_bytes(c.network_rx),
+        "network_tx": _format_bytes(c.network_tx),
+        "net_io": f"↓{_format_bytes(c.network_rx)} ↑{_format_bytes(c.network_tx)}",
+        "ports": c.ports,
+        "engine": c.engine,
+    }
+
+
+@router.get("/containers", response_class=HTMLResponse)
+async def containers_page(request: Request) -> HTMLResponse:
+    """Container dashboard page."""
+    config = get_config()
+    templates = get_templates()
+
+    # Check if Glances is configured
+    glances_enabled = config.glances_stack is not None
+
+    return templates.TemplateResponse(
+        "containers.html",
+        {
+            "request": request,
+            "glances_enabled": glances_enabled,
+        },
+    )
+
+
+@router.get("/api/containers/list", response_class=JSONResponse)
+async def get_containers_data() -> JSONResponse:
+    """Get all container data from Glances as JSON."""
+    config = get_config()
+
+    if not config.glances_stack:
+        return JSONResponse(
+            content={"error": "Glances not configured", "data": []},
+            status_code=200,
+        )
+
+    containers = await fetch_all_container_stats(config)
+
+    # Sort by CPU usage descending
+    containers.sort(key=lambda c: c.cpu_percent, reverse=True)
+
+    return JSONResponse(
+        content={
+            "data": [container_to_dict(c) for c in containers],
+            "count": len(containers),
+        },
+    )
