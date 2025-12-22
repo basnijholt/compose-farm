@@ -36,8 +36,12 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     wait_for_sidebar(page)
     pause(page, 800)
 
-    # Navigate to immich (has multiple containers)
-    page.locator("#sidebar-stacks a", has_text="immich").click()
+    # Navigate to immich via command palette (has multiple containers)
+    open_command_palette(page)
+    pause(page, 400)
+    slow_type(page, "#cmd-input", "immich", delay=100)
+    pause(page, 600)
+    page.keyboard.press("Enter")
     page.wait_for_url("**/stack/immich", timeout=5000)
     pause(page, 1500)
 
@@ -75,8 +79,8 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     page.keyboard.press("Enter")
     pause(page, 1500)
 
-    # Click outside terminal to release focus, scroll to top
-    page.locator("#sidebar-stacks").click()
+    # Click on page header to release terminal focus, scroll to top
+    page.locator("h1").first.click()
     pause(page, 300)
     page.evaluate("window.scrollTo(0, 0)")
     pause(page, 300)
