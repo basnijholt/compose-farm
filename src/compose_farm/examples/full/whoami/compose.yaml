@@ -4,7 +4,7 @@ name: cf-whoami
 services:
   whoami:
     image: traefik/whoami:latest
-    container_name: whoami
+    container_name: cf-whoami
     networks:
       - mynetwork
     restart: unless-stopped

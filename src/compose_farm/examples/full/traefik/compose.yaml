@@ -4,16 +4,16 @@ name: cf-traefik
 services:
   traefik:
     image: traefik:v2.11
-    container_name: traefik
+    container_name: cf-traefik
     networks:
       - mynetwork
     ports:
-      - "80:80"
-      - "443:443"
-      - "8080:8080"  # Dashboard - remove in production
+      - "9080:80"    # HTTP (use 80:80 in production)
+      - "9443:443"   # HTTPS (use 443:443 in production)
+      - "9081:8080"  # Dashboard - remove in production
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /mnt/data/traefik:/etc/traefik
+      # - ./data:/etc/traefik  # Uncomment for persistent config
     command:
       - --api.dashboard=true
       - --api.insecure=true

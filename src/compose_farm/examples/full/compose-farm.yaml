@@ -4,11 +4,11 @@
 compose_dir: .
 
 hosts:
-  myhost: 192.168.1.100  # Change to your host IP or use 'localhost' for local testing
+  local: localhost  # For remote hosts, use: myhost: 192.168.1.100
 
 stacks:
-  traefik: myhost
-  whoami: myhost
+  traefik: local
+  whoami: local
 
 # Traefik file-provider integration (optional)
 # traefik_file: ./traefik/dynamic.d/compose-farm.yml

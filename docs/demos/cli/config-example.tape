@@ -82,6 +82,15 @@ Enter
 Wait
 Sleep 2s
 
+Type "# Create the Docker network"
+Enter
+Sleep 500ms
+
+Type "docker network create mynetwork 2>/dev/null || true"
+Enter
+Wait
+Sleep 500ms
+
 Type "# Deploy everything!"
 Enter
 Sleep 500ms
@@ -90,3 +99,12 @@ Type "cf up --all"
 Enter
 Wait
 Sleep 3s
+
+Type "# Verify it's running"
+Enter
+Sleep 500ms
+
+Type "cf ps"
+Enter
+Wait
+Sleep 2s
