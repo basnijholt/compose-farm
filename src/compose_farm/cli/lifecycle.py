@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -30,7 +29,6 @@ from compose_farm.cli.common import (
 from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success
 from compose_farm.executor import run_compose_on_host, run_on_stacks, run_sequential_on_stacks
 from compose_farm.operations import (
-    discover_stack_on_all_hosts,
     stop_orphaned_stacks,
     stop_stray_stacks,
     up_stacks,
@@ -219,25 +217,19 @@ def update(
 
 def _discover_strays(cfg: Config) -> dict[str, list[str]]:
     """Discover stacks running on unauthorized hosts by scanning all hosts."""
+    from compose_farm.cli.management import _discover_stacks_full  # noqa: PLC0415
 
-    async def discover_all() -> dict[str, list[str]]:
-        results = await asyncio.gather(
-            *[discover_stack_on_all_hosts(cfg, stack) for stack in cfg.stacks]
-        )
-        strays: dict[str, list[str]] = {}
-        for result in results:
-            if result.is_stray:
-                strays[result.stack] = result.stray_hosts
-            # Also catch duplicates for single-host stacks
-            elif result.is_duplicate:
-                # Keep correct host, stop others
-                configured = result.configured_hosts[0]
-                stray_hosts = [h for h in result.running_hosts if h != configured]
-                if stray_hosts:
-                    strays[result.stack] = stray_hosts
-        return strays
+    _, strays, duplicates = _discover_stacks_full(cfg)
 
-    return run_async(discover_all())
+    # Merge duplicates into strays (for single-host stacks on multiple hosts,
+    # keep correct host and stop others)
+    for stack, running_hosts in duplicates.items():
+        configured = cfg.get_hosts(stack)[0]
+        stray_hosts = [h for h in running_hosts if h != configured]
+        if stray_hosts:
+            strays[stack] = stray_hosts
+
+    return strays
 
 
 @app.command(rich_help_panel="Lifecycle")

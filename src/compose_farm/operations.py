@@ -412,26 +412,33 @@ async def check_host_compatibility(
     return results
 
 
-async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
-    """Stop orphaned stacks (in state but not in config).
+async def _stop_stacks_on_hosts(
+    cfg: Config,
+    stacks_to_hosts: dict[str, list[str]],
+    label: str = "",
+) -> list[CommandResult]:
+    """Stop stacks on specific hosts.
 
-    Runs docker compose down on each stack on its tracked host(s).
-    Only removes from state on successful stop.
+    Shared helper for stop_orphaned_stacks and stop_stray_stacks.
 
-    Returns list of CommandResults for each stack@host.
+    Args:
+        cfg: Config object.
+        stacks_to_hosts: Dict mapping stack name to list of hosts to stop on.
+        label: Optional label for success message (e.g., "stray", "orphaned").
+
+    Returns:
+        List of CommandResults for each stack@host.
+
     """
-    orphaned = get_orphaned_stacks(cfg)
-    if not orphaned:
+    if not stacks_to_hosts:
         return []
 
     results: list[CommandResult] = []
     tasks: list[tuple[str, str, asyncio.Task[CommandResult]]] = []
+    suffix = f" ({label})" if label else ""
 
-    # Build list of (stack, host, task) for all orphaned stacks
-    for stack, hosts in orphaned.items():
-        host_list = hosts if isinstance(hosts, list) else [hosts]
-        for host in host_list:
-            # Skip hosts no longer in config
+    for stack, hosts in stacks_to_hosts.items():
+        for host in hosts:
             if host not in cfg.hosts:
                 print_warning(f"{stack}@{host}: host no longer in config, skipping")
                 results.append(
@@ -446,30 +453,49 @@ async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
             coro = run_compose_on_host(cfg, stack, host, "down")
             tasks.append((stack, host, asyncio.create_task(coro)))
 
-    # Run all down commands in parallel
-    if tasks:
-        for stack, host, task in tasks:
-            try:
-                result = await task
-                results.append(result)
-                if result.success:
-                    print_success(f"{stack}@{host}: stopped")
-                else:
-                    print_error(f"{stack}@{host}: {result.stderr or 'failed'}")
-            except Exception as e:
-                print_error(f"{stack}@{host}: {e}")
-                results.append(
-                    CommandResult(
-                        stack=f"{stack}@{host}",
-                        exit_code=1,
-                        success=False,
-                        stderr=str(e),
-                    )
+    for stack, host, task in tasks:
+        try:
+            result = await task
+            results.append(result)
+            if result.success:
+                print_success(f"{stack}@{host}: stopped{suffix}")
+            else:
+                print_error(f"{stack}@{host}: {result.stderr or 'failed'}")
+        except Exception as e:
+            print_error(f"{stack}@{host}: {e}")
+            results.append(
+                CommandResult(
+                    stack=f"{stack}@{host}",
+                    exit_code=1,
+                    success=False,
+                    stderr=str(e),
                 )
+            )
+
+    return results
+
+
+async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
+    """Stop orphaned stacks (in state but not in config).
+
+    Runs docker compose down on each stack on its tracked host(s).
+    Only removes from state on successful stop.
+
+    Returns list of CommandResults for each stack@host.
+    """
+    orphaned = get_orphaned_stacks(cfg)
+    if not orphaned:
+        return []
+
+    # Normalize to dict[str, list[str]]
+    normalized: dict[str, list[str]] = {
+        stack: (hosts if isinstance(hosts, list) else [hosts]) for stack, hosts in orphaned.items()
+    }
+
+    results = await _stop_stacks_on_hosts(cfg, normalized)
 
     # Remove from state only for stacks where ALL hosts succeeded
-    for stack, hosts in orphaned.items():
-        host_list = hosts if isinstance(hosts, list) else [hosts]
+    for stack in normalized:
         all_succeeded = all(
             r.success for r in results if r.stack.startswith(f"{stack}@") or r.stack == stack
         )
@@ -493,48 +519,4 @@ async def stop_stray_stacks(
         List of CommandResults for each stack@host stopped.
 
     """
-    if not strays:
-        return []
-
-    results: list[CommandResult] = []
-    tasks: list[tuple[str, str, asyncio.Task[CommandResult]]] = []
-
-    for stack, stray_hosts in strays.items():
-        for host in stray_hosts:
-            # Skip hosts no longer in config
-            if host not in cfg.hosts:
-                print_warning(f"{stack}@{host}: host no longer in config, skipping")
-                results.append(
-                    CommandResult(
-                        stack=f"{stack}@{host}",
-                        exit_code=1,
-                        success=False,
-                        stderr="host no longer in config",
-                    )
-                )
-                continue
-            coro = run_compose_on_host(cfg, stack, host, "down")
-            tasks.append((stack, host, asyncio.create_task(coro)))
-
-    # Run all down commands in parallel
-    if tasks:
-        for stack, host, task in tasks:
-            try:
-                result = await task
-                results.append(result)
-                if result.success:
-                    print_success(f"{stack}@{host}: stopped (stray)")
-                else:
-                    print_error(f"{stack}@{host}: {result.stderr or 'failed'}")
-            except Exception as e:
-                print_error(f"{stack}@{host}: {e}")
-                results.append(
-                    CommandResult(
-                        stack=f"{stack}@{host}",
-                        exit_code=1,
-                        success=False,
-                        stderr=str(e),
-                    )
-                )
-
-    return results
+    return await _stop_stacks_on_hosts(cfg, strays, label="stray")
