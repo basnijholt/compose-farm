@@ -23,9 +23,7 @@ RUN chmod 755 /root
 # Allow non-root users to add passwd entries (required for SSH)
 RUN chmod 666 /etc/passwd
 
-# Copy entrypoint script that creates passwd entry for non-root users
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod 755 /usr/local/bin/entrypoint.sh
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+# Entrypoint creates /etc/passwd entry for non-root UIDs (e.g., user: "1000:1000")
+# Required because SSH needs a passwd entry to resolve the username
+ENTRYPOINT ["sh", "-c", "[ \"$(id -u)\" != \"0\" ] && ! getent passwd $(id -u) >/dev/null 2>&1 && echo \"${USER:-user}:x:$(id -u):$(id -g)::${HOME:-/tmp}:/bin/sh\" >> /etc/passwd; exec cf \"$@\"", "--"]
 CMD ["--help"]
