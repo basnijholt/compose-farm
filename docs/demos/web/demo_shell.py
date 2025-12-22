@@ -75,8 +75,8 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     page.keyboard.press("Enter")
     pause(page, 1500)
 
-    # Click on page header to release terminal focus
-    page.locator("h1").first.click()
+    # Blur the terminal to release focus (won't scroll)
+    page.evaluate("document.activeElement?.blur()")
     pause(page, 500)
 
     # Use command palette to switch to server container: "sh serv" -> "Shell: immich-server"
