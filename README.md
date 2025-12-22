@@ -5,12 +5,19 @@
 [![License](https://img.shields.io/github/license/basnijholt/compose-farm)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/basnijholt/compose-farm)](https://github.com/basnijholt/compose-farm/stargazers)
 
-<img src="http://files.nijho.lt/compose-farm.png" align="right" style="width: 300px;" />
+<img src="https://files.nijho.lt/compose-farm.png" alt="Compose Farm logo" align="right" style="width: 300px;" />
 
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 > [!NOTE]
-> Run `docker compose` commands across multiple hosts via SSH. One YAML maps stacks to hosts. Run `cf apply` and reality matches your config—stacks start, migrate, or stop as needed. No Kubernetes, no Swarm, no magic.
+> Agentless multi-host Docker Compose. CLI-first with a web UI. Your files stay as plain folders—version-controllable, no lock-in. Run `cf apply` and reality matches your config.
+
+**Why Compose Farm?**
+- **Your files, your control** — Plain folders + YAML, not locked in Portainer. Version control everything.
+- **Agentless** — Just SSH, no agents to deploy (unlike [Dockge](https://github.com/louislam/dockge)).
+- **Zero changes required** — Existing compose files work as-is.
+- **Grows with you** — Start single-host, scale to multi-host seamlessly.
+- **Declarative** — Change config, run `cf apply`, reality matches.
 
 ## Quick Demo
 
@@ -442,6 +449,15 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │                                 copy it or customize the installation.       │
 │ --help                -h        Show this message and exit.                  │
 ╰──────────────────────────────────────────────────────────────────────────────╯
+╭─ Configuration ──────────────────────────────────────────────────────────────╮
+│ traefik-file   Generate a Traefik file-provider fragment from compose        │
+│                Traefik labels.                                               │
+│ refresh        Update local state from running stacks.                       │
+│ check          Validate configuration, traefik labels, mounts, and networks. │
+│ init-network   Create Docker network on hosts with consistent settings.      │
+│ config         Manage compose-farm configuration files.                      │
+│ ssh            Manage SSH keys for passwordless authentication.              │
+╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Lifecycle ──────────────────────────────────────────────────────────────────╮
 │ up             Start stacks (docker compose up -d). Auto-migrates if host    │
 │                changed.                                                      │
@@ -453,17 +469,9 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │                that service.                                                 │
 │ update         Update stacks (pull + build + down + up). With --service,     │
 │                updates just that service.                                    │
-│ apply          Make reality match config (start, migrate, stop as needed).   │
+│ apply          Make reality match config (start, migrate, stop               │
+│                strays/orphans as needed).                                    │
 │ compose        Run any docker compose command on a stack.                    │
-╰──────────────────────────────────────────────────────────────────────────────╯
-╭─ Configuration ──────────────────────────────────────────────────────────────╮
-│ traefik-file   Generate a Traefik file-provider fragment from compose        │
-│                Traefik labels.                                               │
-│ refresh        Update local state from running stacks.                       │
-│ check          Validate configuration, traefik labels, mounts, and networks. │
-│ init-network   Create Docker network on hosts with consistent settings.      │
-│ config         Manage compose-farm configuration files.                      │
-│ ssh            Manage SSH keys for passwordless authentication.              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Monitoring ─────────────────────────────────────────────────────────────────╮
 │ logs           Show stack logs. With --service, shows logs for just that     │
@@ -714,22 +722,25 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Usage: cf apply [OPTIONS]
 
- Make reality match config (start, migrate, stop as needed).
+ Make reality match config (start, migrate, stop strays/orphans as needed).
 
  This is the "reconcile" command that ensures running stacks match your
  config file. It will:
 
  1. Stop orphaned stacks (in state but removed from config)
- 2. Migrate stacks on wrong host (host in state ≠ host in config)
- 3. Start missing stacks (in config but not in state)
+ 2. Stop stray stacks (running on unauthorized hosts)
+ 3. Migrate stacks on wrong host (host in state ≠ host in config)
+ 4. Start missing stacks (in config but not in state)
 
  Use --dry-run to preview changes before applying.
- Use --no-orphans to only migrate/start without stopping orphaned stacks.
+ Use --no-orphans to skip stopping orphaned stacks.
+ Use --no-strays to skip stopping stray stacks.
  Use --full to also run 'up' on all stacks (picks up compose/env changes).
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
 │ --dry-run     -n            Show what would change without executing         │
 │ --no-orphans                Only migrate, don't stop orphaned stacks         │
+│ --no-strays                 Don't stop stray stacks (running on wrong host)  │
 │ --full        -f            Also run up on all stacks to apply config        │
 │                             changes                                          │
 │ --config      -c      PATH  Path to config file                              │
