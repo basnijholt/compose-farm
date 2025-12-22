@@ -40,10 +40,12 @@ Current `nas` stacks (good choices): `grocy`, `immich`, `audiobookshelf`, `dozzl
 
 | Stack | CLI Demos | Web Demos | Host | OK? |
 |-------|-----------|-----------|------|-----|
-| `audiobookshelf` | quickstart, migration | - | nas | ✅ |
-| `grocy` | update | navigation, stack, workflow, console, shell | nas | ✅ |
-| `immich` | logs | navigation | nas | ✅ |
+| `audiobookshelf` | quickstart, migration, apply | - | nas | ✅ |
+| `grocy` | update | navigation, stack, workflow, console | nas | ✅ |
+| `immich` | logs, compose | shell | nas | ✅ |
 | `dozzle` | - | workflow | nas | ✅ |
+
+**Note:** The shell demo uses `immich` because it has multiple containers (ML, server, redis, database).
 
 ## CLI Demos (docs/demos/cli/)
 
@@ -84,9 +86,12 @@ Verify:
 | Tape | Stack | Check |
 |------|-------|-------|
 | `logs.tape` | immich | Exists, running |
+| `compose.tape` | immich | Shows `--help`, `images`, `exec` |
 | `update.tape` | grocy | Exists |
 | `apply.tape` | (none) | - |
 | `install.tape` | (none) | - |
+
+**Note:** `record.py` automatically saves and restores the original config after recording.
 
 ### 5. Prerequisites
 
@@ -137,7 +142,39 @@ page.locator("#containers-list button", has_text="Shell")
 page.locator('#containers-list [data-tip="Open shell"]')
 ```
 
-### 3. Prerequisites
+### 3. Shell Demo Patterns
+
+The shell demo uses command palette with fuzzy matching:
+```python
+# Navigate to stack
+slow_type(page, "#cmd-input", "immich", delay=100)
+
+# Open shell with partial match: "sh mach" -> "Shell: immich-machine-learning"
+slow_type(page, "#cmd-input", "sh mach", delay=100)
+
+# Switch to another container: "sh serv" -> "Shell: immich-server"
+slow_type(page, "#cmd-input", "sh serv", delay=100)
+```
+
+**Releasing terminal focus** (terminal captures keyboard, blocking command palette):
+```python
+# Use blur() - won't cause scroll
+page.evaluate("document.activeElement?.blur()")
+
+# DON'T click sidebar - may navigate away
+# DON'T click h1 - scrolls to top
+```
+
+**Smooth scrolling** to terminal:
+```python
+page.evaluate("""
+    const terminal = document.getElementById('exec-terminal');
+    if (terminal) {
+        terminal.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+""")
+
+### 4. Prerequisites
 
 Before recording web demos:
 ```bash
