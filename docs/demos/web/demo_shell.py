@@ -45,11 +45,15 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     page.wait_for_selector("#containers-list button", timeout=10000)
     pause(page, 800)
 
+    # Scroll to top so command palette is visible
+    page.evaluate("window.scrollTo(0, 0)")
+    pause(page, 300)
+
     # Use command palette with fuzzy matching: "sh mach" -> "Shell: immich-machine-learning"
     open_command_palette(page)
-    pause(page, 300)
-    slow_type(page, "#cmd-input", "sh mach", delay=80)
-    pause(page, 500)
+    pause(page, 400)
+    slow_type(page, "#cmd-input", "sh mach", delay=100)
+    pause(page, 600)
     page.keyboard.press("Enter")
     pause(page, 1000)
 
@@ -71,15 +75,17 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     page.keyboard.press("Enter")
     pause(page, 1500)
 
-    # Click outside terminal to release focus, then use command palette
+    # Click outside terminal to release focus, scroll to top
     page.locator("#sidebar-stacks").click()
+    pause(page, 300)
+    page.evaluate("window.scrollTo(0, 0)")
     pause(page, 300)
 
     # Use command palette to switch to server container: "sh serv" -> "Shell: immich-server"
     open_command_palette(page)
-    pause(page, 300)
-    slow_type(page, "#cmd-input", "sh serv", delay=80)
-    pause(page, 500)
+    pause(page, 400)
+    slow_type(page, "#cmd-input", "sh serv", delay=100)
+    pause(page, 600)
     page.keyboard.press("Enter")
     pause(page, 1000)
 
