@@ -87,6 +87,13 @@ def _reset_after(demo: str, next_demo: str | None) -> None:
         _run(["cf", "apply"], cwd=STACKS_DIR)
 
 
+def _restore_config(original: str) -> None:
+    """Restore original config and sync state."""
+    console.print("[yellow]Restoring original config...[/yellow]")
+    CONFIG_FILE.write_text(original)
+    _run(["cf", "apply"], cwd=STACKS_DIR)
+
+
 def _main() -> int:
     if not shutil.which("vhs"):
         console.print("[red]VHS not found. Install: brew install vhs[/red]")
@@ -101,12 +108,18 @@ def _main() -> int:
         console.print(f"[red]Unknown demo. Available: {', '.join(DEMOS)}[/red]")
         return 1
 
-    for i, demo in enumerate(demos, 1):
-        if not _setup_state(demo):
-            return 1
-        if not _record(demo, i, len(demos)):
-            return 1
-        _reset_after(demo, demos[i] if i < len(demos) else None)
+    # Save original config to restore after recording
+    original_config = CONFIG_FILE.read_text()
+
+    try:
+        for i, demo in enumerate(demos, 1):
+            if not _setup_state(demo):
+                return 1
+            if not _record(demo, i, len(demos)):
+                return 1
+            _reset_after(demo, demos[i] if i < len(demos) else None)
+    finally:
+        _restore_config(original_config)
 
     # Move outputs
     OUTPUT_DIR.mkdir(exist_ok=True)
