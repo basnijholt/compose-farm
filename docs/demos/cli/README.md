@@ -23,7 +23,7 @@ python docs/demos/cli/record.py quickstart migration
 | `install.tape` | Installing with `uv tool install` |
 | `quickstart.tape` | `cf ps`, `cf up`, `cf logs` |
 | `logs.tape` | Viewing logs |
-| `shell.tape` | `cf compose` passthrough (exec into containers) |
+| `compose.tape` | `cf compose` passthrough (--help, images, exec) |
 | `update.tape` | `cf update` |
 | `migration.tape` | Service migration |
 | `apply.tape` | `cf apply` |

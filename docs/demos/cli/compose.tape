@@ -1,8 +1,8 @@
-# Shell Demo
+# Compose Demo
 # Shows that cf compose passes through ANY docker compose command
 
-Output docs/assets/shell.gif
-Output docs/assets/shell.webm
+Output docs/assets/compose.gif
+Output docs/assets/compose.webm
 
 Set Shell "bash"
 Set FontSize 14
@@ -15,7 +15,24 @@ Type "# cf compose runs ANY docker compose command on the right host"
 Enter
 Sleep 500ms
 
-Type "# Open shell in immich machine-learning container"
+Type "# See ALL available compose commands"
+Enter
+Sleep 500ms
+
+Type "cf compose immich --help | head -30"
+Enter
+Sleep 3s
+
+Type "# Show images"
+Enter
+Sleep 500ms
+
+Type "cf compose immich images"
+Enter
+Wait+Screen /immich/
+Sleep 2s
+
+Type "# Open shell in a container"
 Enter
 Sleep 500ms
 
@@ -25,23 +42,6 @@ Wait+Screen /#/
 Sleep 1s
 
 Type "python3 --version"
-Enter
-Sleep 1s
-
-Type "exit"
-Enter
-Sleep 500ms
-
-Type "# Now open shell in the server container"
-Enter
-Sleep 500ms
-
-Type "cf compose immich exec immich-server sh"
-Enter
-Wait+Screen /#/
-Sleep 1s
-
-Type "ls /usr/src/app"
 Enter
 Sleep 1s
 
