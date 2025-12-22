@@ -16,5 +16,9 @@ RUN apk add --no-cache openssh-client
 COPY --from=builder /root/.local/share/uv/tools/compose-farm /root/.local/share/uv/tools/compose-farm
 COPY --from=builder /usr/local/bin/cf /usr/local/bin/compose-farm /usr/local/bin/
 
+# Allow non-root users to access the installed tool
+# (required when running with user: "${CF_UID:-0}:${CF_GID:-0}")
+RUN chmod 755 /root
+
 ENTRYPOINT ["cf"]
 CMD ["--help"]
