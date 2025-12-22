@@ -1,0 +1,47 @@
+{# Glances resource stats display #}
+{% from "partials/icons.html" import cpu, memory_stick, gauge, server %}
+
+{% macro progress_bar(percent, color="primary") %}
+<div class="flex items-center gap-2 min-w-32">
+    <progress class="progress progress-{{ color }} flex-1" value="{{ percent }}" max="100"></progress>
+    <span class="text-xs w-10 text-right">{{ "%.1f"|format(percent) }}%</span>
+</div>
+{% endmacro %}
+
+{% macro host_row(host_stats) %}
+<tr>
+    <td class="font-medium">{{ server(14) }} {{ host_stats.host }}</td>
+    <td>{{ progress_bar(host_stats.cpu_percent, "info") }}</td>
+    <td>{{ progress_bar(host_stats.mem_percent, "success") }}</td>
+    <td class="text-sm">{{ "%.1f"|format(host_stats.load) }}</td>
+    {% if host_stats.error %}
+    <td class="text-error text-xs">{{ host_stats.error }}</td>
+    {% else %}
+    <td class="text-base-content/50 text-xs truncate max-w-48" title="{{ host_stats.cpu_name }}">{{ host_stats.cpu_name }}</td>
+    {% endif %}
+</tr>
+{% endmacro %}
+
+<div class="card bg-base-100 shadow mt-4">
+    <div class="card-body p-4">
+        <h2 class="card-title text-base gap-2">{{ activity(18) }} Host Resources</h2>
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Host</th>
+                        <th>{{ cpu(14) }} CPU</th>
+                        <th>{{ memory_stick(14) }} Memory</th>
+                        <th>{{ gauge(14) }} Load</th>
+                        <th>Processor</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for host_name, host_stats in stats.items() %}
+                    {{ host_row(host_stats) }}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

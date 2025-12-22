@@ -31,6 +31,9 @@ class Config(BaseModel, extra="forbid"):
     stacks: dict[str, str | list[str]]  # stack_name -> host_name or list of hosts
     traefik_file: Path | None = None  # Auto-regenerate traefik config after up/down
     traefik_stack: str | None = None  # Stack name for Traefik (skip its host in file-provider)
+    glances_stack: str | None = (
+        None  # Stack name for Glances (enables host resource stats in web UI)
+    )
     config_path: Path = Path()  # Set by load_config()
 
     def get_state_path(self) -> Path:
