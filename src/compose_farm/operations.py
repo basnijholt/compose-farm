@@ -16,6 +16,7 @@ from .executor import (
     check_networks_exist,
     check_paths_exist,
     check_stack_running,
+    get_running_stacks_on_host,
     run_command,
     run_compose,
     run_compose_on_host,
@@ -139,6 +140,9 @@ async def discover_stack_on_all_hosts(cfg: Config, stack: str) -> StackDiscovery
 
     Unlike discover_stack_host(), this checks every host in parallel
     to detect strays and duplicates.
+
+    Note: For bulk discovery, use discover_all_stacks_on_all_hosts() instead,
+    which is much more efficient (1 SSH call per host vs 1 per stack per host).
     """
     configured_hosts = cfg.get_hosts(stack)
     all_hosts = list(cfg.hosts.keys())
@@ -151,6 +155,50 @@ async def discover_stack_on_all_hosts(cfg: Config, stack: str) -> StackDiscovery
         configured_hosts=configured_hosts,
         running_hosts=running_hosts,
     )
+
+
+async def discover_all_stacks_on_all_hosts(
+    cfg: Config,
+    stacks: list[str] | None = None,
+) -> list[StackDiscoveryResult]:
+    """Discover where stacks are running with minimal SSH calls.
+
+    Instead of checking each stack on each host individually (stacks * hosts calls),
+    this queries each host once for all running stacks (hosts calls total).
+
+    Args:
+        cfg: Configuration
+        stacks: Optional list of stacks to check. If None, checks all stacks in config.
+
+    Returns:
+        List of StackDiscoveryResult for each stack.
+
+    """
+    stack_list = stacks if stacks is not None else list(cfg.stacks)
+    all_hosts = list(cfg.hosts.keys())
+
+    # Query each host once to get all running stacks (N SSH calls, where N = number of hosts)
+    host_stacks = await asyncio.gather(
+        *[get_running_stacks_on_host(cfg, host) for host in all_hosts]
+    )
+
+    # Build a map of host -> running stacks
+    running_on_host: dict[str, set[str]] = dict(zip(all_hosts, host_stacks, strict=True))
+
+    # Build results for each stack
+    results = []
+    for stack in stack_list:
+        configured_hosts = cfg.get_hosts(stack)
+        running_hosts = [host for host in all_hosts if stack in running_on_host[host]]
+        results.append(
+            StackDiscoveryResult(
+                stack=stack,
+                configured_hosts=configured_hosts,
+                running_hosts=running_hosts,
+            )
+        )
+
+    return results
 
 
 async def check_stack_requirements(
