@@ -74,19 +74,6 @@ def _get_config_file(path: Path | None) -> Path | None:
     return config_path.resolve() if config_path else None
 
 
-def _discover_compose_dirs(compose_dir: Path) -> list[str]:
-    """Find all directories containing compose files."""
-    from compose_farm.config import COMPOSE_FILENAMES  # noqa: PLC0415
-
-    if not compose_dir.exists():
-        return []
-    return [
-        subdir.name
-        for subdir in sorted(compose_dir.iterdir())
-        if subdir.is_dir() and any((subdir / f).exists() for f in COMPOSE_FILENAMES)
-    ]
-
-
 def _generate_discovered_config(
     compose_dir: Path,
     hostname: str,
@@ -113,12 +100,31 @@ def _generate_discovered_config(
 
 
 def _interactive_stack_selection(stacks: list[str]) -> list[str]:
-    """Interactively select stacks from a list using checkboxes."""
-    from rich.prompt import Confirm  # noqa: PLC0415
+    """Interactively select stacks to include."""
+    from rich.prompt import Confirm, Prompt  # noqa: PLC0415
 
     console.print("\n[bold]Found stacks:[/bold]")
-    console.print("[dim]Select which stacks to include in your config.[/dim]\n")
+    for stack in stacks:
+        console.print(f"  [cyan]{stack}[/cyan]")
 
+    console.print()
+
+    # Fast path: include all
+    if Confirm.ask(f"Include all {len(stacks)} stacks?", default=True):
+        return stacks
+
+    # Let user specify which to exclude
+    console.print(
+        "\n[dim]Enter stack names to exclude (comma-separated), or press Enter to select individually:[/dim]"
+    )
+    exclude_input = Prompt.ask("Exclude", default="")
+
+    if exclude_input.strip():
+        exclude = {s.strip() for s in exclude_input.split(",")}
+        return [s for s in stacks if s not in exclude]
+
+    # Fall back to individual selection
+    console.print()
     return [
         stack for stack in stacks if Confirm.ask(f"  Include [cyan]{stack}[/cyan]?", default=True)
     ]
@@ -150,8 +156,10 @@ def _run_discovery_flow() -> str | None:
         return None
 
     # Step 2: Discover stacks
+    from compose_farm.config import discover_compose_dirs  # noqa: PLC0415
+
     console.print(f"\n[dim]Scanning {compose_dir}...[/dim]")
-    stacks = _discover_compose_dirs(compose_dir)
+    stacks = discover_compose_dirs(compose_dir)
 
     if not stacks:
         print_error(f"No compose files found in {compose_dir}")
@@ -442,23 +450,19 @@ def config_example(
     """
     from compose_farm.examples import (  # noqa: PLC0415
         EXAMPLES,
-        FULL_EXAMPLE,
-        FULL_EXAMPLE_DESC,
+        SINGLE_STACK_EXAMPLES,
         list_example_files,
     )
-
-    # Build combined list for display
-    all_examples = {**EXAMPLES, FULL_EXAMPLE: FULL_EXAMPLE_DESC}
 
     # List mode
     if list_examples:
         console.print("[bold]Available example templates:[/bold]\n")
         console.print("[dim]Single stack examples:[/dim]")
-        for example_name, description in EXAMPLES.items():
+        for example_name, description in SINGLE_STACK_EXAMPLES.items():
             console.print(f"  [cyan]{example_name}[/cyan] - {description}")
         console.print()
         console.print("[dim]Complete setup:[/dim]")
-        console.print(f"  [cyan]{FULL_EXAMPLE}[/cyan] - {FULL_EXAMPLE_DESC}")
+        console.print(f"  [cyan]full[/cyan] - {EXAMPLES['full']}")
         console.print()
         console.print("[dim]Usage: cf config example <name>[/dim]")
         return
@@ -468,8 +472,8 @@ def config_example(
         from rich.prompt import Prompt  # noqa: PLC0415
 
         console.print("[bold]Available example templates:[/bold]\n")
-        example_names = list(all_examples.keys())
-        for i, (example_name, description) in enumerate(all_examples.items(), 1):
+        example_names = list(EXAMPLES.keys())
+        for i, (example_name, description) in enumerate(EXAMPLES.items(), 1):
             console.print(f"  [{i}] [cyan]{example_name}[/cyan] - {description}")
 
         console.print()
@@ -483,15 +487,15 @@ def config_example(
         name = example_names[int(choice) - 1] if choice.isdigit() else choice
 
     # Validate example name
-    if name not in all_examples:
+    if name not in EXAMPLES:
         print_error(f"Unknown example: {name}")
-        console.print(f"Available examples: {', '.join(all_examples.keys())}")
+        console.print(f"Available examples: {', '.join(EXAMPLES.keys())}")
         raise typer.Exit(1)
 
     # Determine output directory
     base_dir = (output_dir or Path.cwd()).expanduser().resolve()
     # For 'full' example, use current dir; for single stacks, create subdir
-    target_dir = base_dir if name == FULL_EXAMPLE else base_dir / name
+    target_dir = base_dir if name == "full" else base_dir / name
 
     # Check for existing files
     files = list_example_files(name)
@@ -513,7 +517,7 @@ def config_example(
     print_success(f"Example '{name}' created at: {target_dir}")
 
     # Show appropriate next steps
-    if name == FULL_EXAMPLE:
+    if name == "full":
         console.print("\n[dim]Next steps:[/dim]")
         console.print(f"  1. Edit [cyan]{target_dir}/compose-farm.yaml[/cyan] with your host IP")
         console.print("  2. Edit [cyan].env[/cyan] files with your domain")

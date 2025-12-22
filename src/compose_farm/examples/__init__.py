@@ -5,31 +5,27 @@ from __future__ import annotations
 from importlib import resources
 from pathlib import Path
 
-# Simple examples: single stack templates
+# All available examples: name -> description
+# "full" is special: multi-stack setup with config file
 EXAMPLES = {
     "whoami": "Simple HTTP service that returns hostname (great for testing Traefik)",
     "nginx": "Basic nginx web server with static files",
     "postgres": "PostgreSQL database with persistent volume",
+    "full": "Complete setup with Traefik + whoami (includes compose-farm.yaml)",
 }
 
-# Full example: complete multi-stack setup with config
-FULL_EXAMPLE = "full"
-FULL_EXAMPLE_DESC = "Complete setup with Traefik + whoami (includes compose-farm.yaml)"
-
-
-def get_example_path(name: str) -> Path:
-    """Get the path to an example template directory."""
-    if name != FULL_EXAMPLE and name not in EXAMPLES:
-        msg = f"Unknown example: {name}. Available: {', '.join(EXAMPLES.keys())}, {FULL_EXAMPLE}"
-        raise ValueError(msg)
-
-    example_dir = resources.files("compose_farm.examples") / name
-    return Path(str(example_dir))
+# Examples that are single stacks (everything except "full")
+SINGLE_STACK_EXAMPLES = {k: v for k, v in EXAMPLES.items() if k != "full"}
 
 
 def list_example_files(name: str) -> list[tuple[str, str]]:
     """List files in an example template, returning (relative_path, content) tuples."""
-    example_path = get_example_path(name)
+    if name not in EXAMPLES:
+        msg = f"Unknown example: {name}. Available: {', '.join(EXAMPLES.keys())}"
+        raise ValueError(msg)
+
+    example_dir = resources.files("compose_farm.examples") / name
+    example_path = Path(str(example_dir))
     files: list[tuple[str, str]] = []
 
     def walk_dir(directory: Path, prefix: str = "") -> None:

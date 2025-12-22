@@ -15,6 +15,17 @@ from .paths import config_search_paths, find_config_path
 COMPOSE_FILENAMES = ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml")
 
 
+def discover_compose_dirs(compose_dir: Path) -> list[str]:
+    """Find all directories in compose_dir that contain a compose file."""
+    if not compose_dir.exists():
+        return []
+    return sorted(
+        subdir.name
+        for subdir in compose_dir.iterdir()
+        if subdir.is_dir() and any((subdir / f).exists() for f in COMPOSE_FILENAMES)
+    )
+
+
 class Host(BaseModel, extra="forbid"):
     """SSH host configuration."""
 
@@ -105,13 +116,7 @@ class Config(BaseModel, extra="forbid"):
 
     def discover_compose_dirs(self) -> set[str]:
         """Find all directories in compose_dir that contain a compose file."""
-        found: set[str] = set()
-        if not self.compose_dir.exists():
-            return found
-        for subdir in self.compose_dir.iterdir():
-            if subdir.is_dir() and any((subdir / f).exists() for f in COMPOSE_FILENAMES):
-                found.add(subdir.name)
-        return found
+        return set(discover_compose_dirs(self.compose_dir))
 
 
 def _parse_hosts(raw_hosts: dict[str, Any]) -> dict[str, Host]:
