@@ -32,8 +32,8 @@ def _record(name: str, index: int, total: int) -> bool:
     return False
 
 
-def _check_state(demo: str) -> bool:
-    """Check if state is correct for demo. Returns False if demo should be skipped."""
+def _setup_state(demo: str) -> bool:
+    """Set up required state for demo. Returns False on failure."""
     if demo not in ("migration", "apply"):
         return True
 
@@ -45,25 +45,54 @@ def _check_state(demo: str) -> bool:
     # Migration needs audiobookshelf on nas in BOTH config and state
     if demo == "migration":
         if config_host != "nas":
-            console.print(
-                f"[red]Skipping {demo}: config has audiobookshelf on '{config_host}', needs 'nas'[/red]"
+            console.print("[yellow]Setting up: config audiobookshelf → nas[/yellow]")
+            _run(
+                [
+                    "sed",
+                    "-i",
+                    "s/audiobookshelf: .*/audiobookshelf: nas/",
+                    str(STACKS_DIR / "compose-farm.yaml"),
+                ]
             )
-            console.print(
-                "[yellow]Fix: sed -i 's/audiobookshelf: .*/audiobookshelf: nas/' /opt/stacks/compose-farm.yaml[/yellow]"
-            )
-            return False
         if state_host != "nas":
-            console.print(
-                f"[red]Skipping {demo}: audiobookshelf running on '{state_host}', needs 'nas'[/red]"
-            )
-            console.print("[yellow]Fix: cf apply[/yellow]")
-            return False
+            console.print("[yellow]Setting up: migrating audiobookshelf → nas[/yellow]")
+            if not _run(["cf", "apply"], cwd=STACKS_DIR):
+                return False
 
-    if demo == "apply" and state_host != "nas":
-        console.print(
-            f"[red]Skipping {demo}: audiobookshelf is on '{state_host}', needs 'nas'[/red]"
-        )
-        return False
+    # Apply needs config=nas AND state=anton (so there's something to apply)
+    if demo == "apply":
+        if config_host != "nas":
+            console.print("[yellow]Setting up: config audiobookshelf → nas[/yellow]")
+            _run(
+                [
+                    "sed",
+                    "-i",
+                    "s/audiobookshelf: .*/audiobookshelf: nas/",
+                    str(STACKS_DIR / "compose-farm.yaml"),
+                ]
+            )
+        if state_host == "nas":
+            # Move to anton first so apply has something to do
+            console.print("[yellow]Setting up: moving audiobookshelf → anton[/yellow]")
+            _run(
+                [
+                    "sed",
+                    "-i",
+                    "s/audiobookshelf: nas/audiobookshelf: anton/",
+                    str(STACKS_DIR / "compose-farm.yaml"),
+                ]
+            )
+            if not _run(["cf", "apply"], cwd=STACKS_DIR):
+                return False
+            # Reset config back to nas
+            _run(
+                [
+                    "sed",
+                    "-i",
+                    "s/audiobookshelf: anton/audiobookshelf: nas/",
+                    str(STACKS_DIR / "compose-farm.yaml"),
+                ]
+            )
 
     return True
 
@@ -83,7 +112,7 @@ def _main() -> int:
         return 1
 
     for i, demo in enumerate(demos, 1):
-        if not _check_state(demo):
+        if not _setup_state(demo):
             return 1
 
         if not _record(demo, i, len(demos)):
@@ -99,7 +128,10 @@ def _main() -> int:
                     str(STACKS_DIR / "compose-farm.yaml"),
                 ]
             )
-            _run(["cf", "apply"], cwd=STACKS_DIR)
+            # Only run cf apply if apply demo is NOT next (so apply has something to do)
+            next_demo = demos[i] if i < len(demos) else None
+            if next_demo != "apply":
+                _run(["cf", "apply"], cwd=STACKS_DIR)
 
     # Move outputs
     OUTPUT_DIR.mkdir(exist_ok=True)
