@@ -174,7 +174,6 @@ def _discover_stacks_full(
     duplicates: dict[str, list[str]] = {}
 
     for result in results:
-        # Build "correct" discovered state (only authorized hosts)
         correct_hosts = [h for h in result.running_hosts if h in result.configured_hosts]
         if correct_hosts:
             if result.is_multi_host:
@@ -517,7 +516,6 @@ def refresh(
 
     current_state = load_state(cfg)
 
-    # Use full discovery to detect strays and duplicates
     discovered, strays, duplicates = _discover_stacks_full(cfg, stack_list)
 
     # Calculate changes (only for the stacks we're refreshing)
@@ -541,7 +539,6 @@ def refresh(
     else:
         print_success("State is already in sync.")
 
-    # Report strays and duplicates (warnings only - apply will fix them)
     _report_stray_stacks(strays, cfg)
     _report_duplicate_stacks(duplicates, cfg)
 

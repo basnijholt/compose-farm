@@ -271,7 +271,6 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
     migrations = get_stacks_needing_migration(cfg)
     missing = get_stacks_not_in_state(cfg)
 
-    # Discover strays by scanning all hosts
     strays: dict[str, list[str]] = {}
     if not no_strays:
         console.print("[dim]Scanning hosts for stray containers...[/]")

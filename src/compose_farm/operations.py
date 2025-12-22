@@ -143,7 +143,6 @@ async def discover_stack_on_all_hosts(cfg: Config, stack: str) -> StackDiscovery
     configured_hosts = cfg.get_hosts(stack)
     all_hosts = list(cfg.hosts.keys())
 
-    # Check all hosts in parallel
     checks = await asyncio.gather(*[check_stack_running(cfg, stack, h) for h in all_hosts])
     running_hosts = [h for h, is_running in zip(all_hosts, checks, strict=True) if is_running]
 
@@ -487,7 +486,6 @@ async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
     if not orphaned:
         return []
 
-    # Normalize to dict[str, list[str]]
     normalized: dict[str, list[str]] = {
         stack: (hosts if isinstance(hosts, list) else [hosts]) for stack, hosts in orphaned.items()
     }
