@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .config import Config
@@ -100,3 +100,99 @@ async def fetch_all_host_stats(
     tasks = [fetch_host_stats(name, host.address, port) for name, host in config.hosts.items()]
     results = await asyncio.gather(*tasks)
     return {stats.host: stats for stats in results}
+
+
+@dataclass
+class ContainerStats:
+    """Container statistics from Glances."""
+
+    name: str
+    host: str
+    status: str
+    image: str
+    cpu_percent: float
+    memory_usage: int  # bytes
+    memory_limit: int  # bytes
+    memory_percent: float
+    network_rx: int  # cumulative bytes received
+    network_tx: int  # cumulative bytes sent
+    uptime: str
+    ports: str
+    engine: str  # docker, podman, etc.
+
+    @property
+    def memory_usage_mb(self) -> float:
+        """Memory usage in MB."""
+        return self.memory_usage / (1024 * 1024)
+
+    @property
+    def memory_limit_mb(self) -> float:
+        """Memory limit in MB."""
+        return self.memory_limit / (1024 * 1024)
+
+
+def _parse_container(data: dict[str, Any], host_name: str) -> ContainerStats:
+    """Parse container data from Glances API response."""
+    # Image can be a list or string
+    image = data.get("image", ["unknown"])
+    if isinstance(image, list):
+        image = image[0] if image else "unknown"
+
+    # Calculate memory percent
+    mem_usage = data.get("memory_usage", 0) or 0
+    mem_limit = data.get("memory_limit", 1) or 1  # Avoid division by zero
+    mem_percent = (mem_usage / mem_limit) * 100 if mem_limit > 0 else 0
+
+    # Network stats
+    network = data.get("network", {}) or {}
+    network_rx = network.get("cumulative_rx", 0) or 0
+    network_tx = network.get("cumulative_tx", 0) or 0
+
+    return ContainerStats(
+        name=data.get("name", "unknown"),
+        host=host_name,
+        status=data.get("status", "unknown"),
+        image=image,
+        cpu_percent=data.get("cpu_percent", 0) or 0,
+        memory_usage=mem_usage,
+        memory_limit=mem_limit,
+        memory_percent=mem_percent,
+        network_rx=network_rx,
+        network_tx=network_tx,
+        uptime=data.get("uptime", ""),
+        ports=data.get("ports", "") or "",
+        engine=data.get("engine", "docker"),
+    )
+
+
+async def fetch_container_stats(
+    host_name: str,
+    host_address: str,
+    port: int = DEFAULT_GLANCES_PORT,
+    request_timeout: float = 5.0,
+) -> list[ContainerStats]:
+    """Fetch container stats from a single host's Glances API."""
+    import httpx  # noqa: PLC0415
+
+    url = f"http://{host_address}:{port}/api/4/containers"
+
+    try:
+        async with httpx.AsyncClient(timeout=request_timeout) as client:
+            response = await client.get(url)
+            if not response.is_success:
+                return []
+            data = response.json()
+            return [_parse_container(c, host_name) for c in data]
+    except (httpx.TimeoutException, httpx.HTTPError, Exception):
+        return []
+
+
+async def fetch_all_container_stats(
+    config: Config,
+    port: int = DEFAULT_GLANCES_PORT,
+) -> list[ContainerStats]:
+    """Fetch container stats from all hosts in parallel."""
+    tasks = [fetch_container_stats(name, host.address, port) for name, host in config.hosts.items()]
+    results = await asyncio.gather(*tasks)
+    # Flatten list of lists
+    return [container for host_containers in results for container in host_containers]
