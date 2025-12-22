@@ -1,9 +1,11 @@
 """Demo: Container shell exec.
 
-Records a ~25 second demo showing:
-- Navigating to a stack page
-- Clicking Shell button on a container
-- Running top command inside the container
+Records a ~35 second demo showing:
+- Navigating to immich stack (multiple containers)
+- Opening shell in machine-learning container
+- Running a command
+- Switching to shell in server container
+- Running another command
 
 Run: pytest docs/demos/web/demo_shell.py -v --no-cov
 """
@@ -33,19 +35,18 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     wait_for_sidebar(page)
     pause(page, 800)
 
-    # Navigate to a stack with a running container (grocy)
-    page.locator("#sidebar-stacks a", has_text="grocy").click()
-    page.wait_for_url("**/stack/grocy", timeout=5000)
+    # Navigate to immich (has multiple containers)
+    page.locator("#sidebar-stacks a", has_text="immich").click()
+    page.wait_for_url("**/stack/immich", timeout=5000)
     pause(page, 1500)
 
-    # Wait for containers list to load (loaded via HTMX)
+    # Wait for containers list to load
     page.wait_for_selector("#containers-list button", timeout=10000)
     pause(page, 800)
 
-    # Click Shell button on the first container (last button in the join group)
-    # Buttons use icons, not text. Shell button has data-tip="Open shell"
-    shell_btn = page.locator('#containers-list [data-tip="Open shell"]').first
-    shell_btn.click()
+    # Click Shell button on machine-learning container
+    ml_row = page.locator("#containers-list tr", has_text="machine-learning")
+    ml_row.locator('[data-tip="Open shell"]').click()
     pause(page, 1000)
 
     # Wait for exec terminal to appear
@@ -58,20 +59,42 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
             terminal.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     """)
-    pause(page, 1200)  # Wait for smooth scroll animation
+    pause(page, 1200)
 
-    # Run top command
-    slow_type(page, "#exec-terminal .xterm-helper-textarea", "top", delay=100)
+    # Run python version command
+    slow_type(page, "#exec-terminal .xterm-helper-textarea", "python3 --version", delay=60)
     pause(page, 300)
     page.keyboard.press("Enter")
-    pause(page, 4000)  # Let top run for a bit
+    pause(page, 1500)
 
-    # Press q to quit top
-    page.keyboard.press("q")
+    # Scroll back up to containers list
+    page.evaluate("""
+        const containers = document.getElementById('containers-list');
+        if (containers) {
+            containers.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    """)
+    pause(page, 1200)
+
+    # Click Shell button on server container
+    server_row = page.locator("#containers-list tr", has_text="immich_server")
+    server_row.locator('[data-tip="Open shell"]').click()
     pause(page, 1000)
 
-    # Run another command to show it's interactive
-    slow_type(page, "#exec-terminal .xterm-helper-textarea", "ps aux | head", delay=60)
+    # Wait for new terminal
+    page.wait_for_selector("#exec-terminal .xterm", timeout=10000)
+
+    # Scroll to terminal
+    page.evaluate("""
+        const terminal = document.getElementById('exec-terminal');
+        if (terminal) {
+            terminal.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    """)
+    pause(page, 1200)
+
+    # Run ls command
+    slow_type(page, "#exec-terminal .xterm-helper-textarea", "ls /usr/src/app", delay=60)
     pause(page, 300)
     page.keyboard.press("Enter")
     pause(page, 2000)
