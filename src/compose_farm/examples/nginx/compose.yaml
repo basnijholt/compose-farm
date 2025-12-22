@@ -1,0 +1,28 @@
+# Nginx - Basic web server
+name: cf-nginx
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    user: "1000:1000"
+    networks:
+      - mynetwork
+    volumes:
+      - /mnt/data/nginx/html:/usr/share/nginx/html:ro
+      - /mnt/data/nginx/conf.d:/etc/nginx/conf.d:ro
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+    labels:
+      # Traefik routing (adjust domain as needed)
+      - traefik.enable=true
+      - traefik.http.routers.nginx.rule=Host(`nginx.${DOMAIN}`)
+      - traefik.http.routers.nginx.entrypoints=websecure
+      - traefik.http.routers.nginx-local.rule=Host(`nginx.local`)
+      - traefik.http.routers.nginx-local.entrypoints=web
+      - traefik.http.services.nginx.loadbalancer.server.port=80
+
+networks:
+  mynetwork:
+    external: true
