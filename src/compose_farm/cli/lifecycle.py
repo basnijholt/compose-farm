@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -218,7 +219,6 @@ def update(
 
 def _discover_strays(cfg: Config) -> dict[str, list[str]]:
     """Discover stacks running on unauthorized hosts by scanning all hosts."""
-    import asyncio  # noqa: PLC0415 (keep close to async usage)
 
     async def discover_all() -> dict[str, list[str]]:
         results = await asyncio.gather(
