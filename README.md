@@ -984,6 +984,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ validate   Validate the config file syntax and schema.                       │
 │ symlink    Create a symlink from the default config location to a config     │
 │            file.                                                             │
+│ example    Generate example stack files from built-in templates.             │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
