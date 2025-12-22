@@ -20,5 +20,9 @@ COPY --from=builder /usr/local/bin/cf /usr/local/bin/compose-farm /usr/local/bin
 # (required when running with user: "${CF_UID:-0}:${CF_GID:-0}")
 RUN chmod 755 /root
 
-ENTRYPOINT ["cf"]
+# Allow non-root users to add passwd entries (required for SSH)
+RUN chmod 666 /etc/passwd
+
+# Entrypoint creates /etc/passwd entry for non-root UIDs (required for SSH)
+ENTRYPOINT ["sh", "-c", "[ $(id -u) != 0 ] && echo ${USER:-u}:x:$(id -u):$(id -g)::${HOME:-/}:/bin/sh >> /etc/passwd; exec cf \"$@\"", "--"]
 CMD ["--help"]
