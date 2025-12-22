@@ -49,10 +49,6 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     page.wait_for_selector("#containers-list button", timeout=10000)
     pause(page, 800)
 
-    # Scroll to top so command palette is visible
-    page.evaluate("window.scrollTo(0, 0)")
-    pause(page, 300)
-
     # Use command palette with fuzzy matching: "sh mach" -> "Shell: immich-machine-learning"
     open_command_palette(page)
     pause(page, 400)
@@ -79,11 +75,9 @@ def test_demo_shell(recording_page: Page, server_url: str) -> None:
     page.keyboard.press("Enter")
     pause(page, 1500)
 
-    # Click on page header to release terminal focus, scroll to top
+    # Click on page header to release terminal focus
     page.locator("h1").first.click()
-    pause(page, 300)
-    page.evaluate("window.scrollTo(0, 0)")
-    pause(page, 300)
+    pause(page, 500)
 
     # Use command palette to switch to server container: "sh serv" -> "Shell: immich-server"
     open_command_palette(page)
