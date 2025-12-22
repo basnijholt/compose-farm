@@ -578,6 +578,10 @@ cf traefik-file plex jellyfin -o /opt/traefik/cf.yml
 
 Manage configuration files.
 
+<video autoplay loop muted playsinline>
+  <source src="/assets/config-example.webm" type="video/webm">
+</video>
+
 ```bash
 cf config COMMAND
 ```
@@ -592,23 +596,28 @@ cf config COMMAND
 | `validate` | Validate syntax and schema |
 | `edit` | Open in $EDITOR |
 | `symlink` | Create symlink from default location |
+| `example` | Generate example stack files |
 
 **Options by subcommand:**
 
 | Subcommand | Options |
 |------------|---------|
-| `init` | `--path/-p PATH`, `--force/-f` |
+| `init` | `--path/-p PATH`, `--force/-f`, `--discover/-d` |
 | `show` | `--path/-p PATH`, `--raw/-r` |
 | `edit` | `--path/-p PATH` |
 | `path` | `--path/-p PATH` |
 | `validate` | `--path/-p PATH` |
 | `symlink` | `--force/-f` |
+| `example` | `--list/-l`, `--output/-o PATH`, `--force/-f` |
 
 **Examples:**
 
 ```bash
 # Create config at default location
 cf config init
+
+# Auto-discover compose files and interactively create config
+cf config init --discover
 
 # Create config at custom path
 cf config init --path /opt/compose-farm/config.yaml
@@ -633,6 +642,18 @@ cf config symlink
 
 # Create symlink to specific file
 cf config symlink /opt/compose-farm/config.yaml
+
+# List available example templates
+cf config example --list
+
+# Generate a sample stack (whoami, nginx, postgres)
+cf config example whoami
+
+# Generate complete Traefik + whoami setup
+cf config example full
+
+# Generate example in specific directory
+cf config example nginx --output /opt/compose
 ```
 
 ---
