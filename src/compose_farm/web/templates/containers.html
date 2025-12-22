@@ -228,7 +228,7 @@
         tableEl.addEventListener('click', handleCheckClick);
     }
 
-    // Load data via SSE streaming
+    // Load data via SSE streaming with batched updates
     function loadData() {
         loadingEl.style.display = 'flex';
         loadingEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>' +
@@ -242,17 +242,32 @@
         }
 
         let containerCount = 0;
+        let pendingData = [];
+        let flushTimeout = null;
         const eventSource = new EventSource('/api/containers/stream');
+
+        // Batch updates to avoid re-rendering on every message
+        function flushPendingData() {
+            if (pendingData.length > 0) {
+                table.addData(pendingData);
+                pendingData = [];
+            }
+            flushTimeout = null;
+        }
 
         eventSource.onmessage = function(event) {
             try {
                 const containers = JSON.parse(event.data);
                 if (containers.length > 0) {
-                    // Add rows incrementally
-                    table.addData(containers);
+                    // Queue data for batched insert
+                    pendingData.push(...containers);
                     containerCount += containers.length;
                     loadingEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>' +
                         `<span class="text-base-content/60">Loading containers... (${containerCount} loaded)</span>`;
+
+                    // Debounce: flush after 100ms of no new messages
+                    if (flushTimeout) clearTimeout(flushTimeout);
+                    flushTimeout = setTimeout(flushPendingData, 100);
                 }
             } catch (err) {
                 console.error('Failed to parse SSE data:', err);
@@ -261,12 +276,17 @@
 
         eventSource.addEventListener('done', function() {
             eventSource.close();
+            // Flush any remaining data
+            if (flushTimeout) clearTimeout(flushTimeout);
+            flushPendingData();
             loadingEl.style.display = 'none';
         });
 
         eventSource.onerror = function(err) {
             console.error('SSE error:', err);
             eventSource.close();
+            if (flushTimeout) clearTimeout(flushTimeout);
+            flushPendingData();
             loadingEl.innerHTML = '<span class="text-error">Connection error - ' +
                 '<button class="btn btn-xs btn-ghost" onclick="location.reload()">Retry</button></span>';
         };
