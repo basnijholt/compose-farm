@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
+
+if TYPE_CHECKING:
+    from compose_farm.config import Config
 
 from compose_farm.cli.app import app
 from compose_farm.cli.common import (
@@ -23,9 +26,14 @@ from compose_farm.cli.common import (
     validate_host_for_stack,
     validate_stacks,
 )
+from compose_farm.cli.management import _discover_stacks_full
 from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success
 from compose_farm.executor import run_compose_on_host, run_on_stacks, run_sequential_on_stacks
-from compose_farm.operations import stop_orphaned_stacks, up_stacks
+from compose_farm.operations import (
+    stop_orphaned_stacks,
+    stop_stray_stacks,
+    up_stacks,
+)
 from compose_farm.state import (
     get_orphaned_stacks,
     get_stack_host,
@@ -208,8 +216,23 @@ def update(
     report_results(results)
 
 
+def _discover_strays(cfg: Config) -> dict[str, list[str]]:
+    """Discover stacks running on unauthorized hosts by scanning all hosts."""
+    _, strays, duplicates = _discover_stacks_full(cfg)
+
+    # Merge duplicates into strays (for single-host stacks on multiple hosts,
+    # keep correct host and stop others)
+    for stack, running_hosts in duplicates.items():
+        configured = cfg.get_hosts(stack)[0]
+        stray_hosts = [h for h in running_hosts if h != configured]
+        if stray_hosts:
+            strays[stack] = stray_hosts
+
+    return strays
+
+
 @app.command(rich_help_panel="Lifecycle")
-def apply(  # noqa: PLR0912 (multi-phase reconciliation needs these branches)
+def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs these branches)
     dry_run: Annotated[
         bool,
         typer.Option("--dry-run", "-n", help="Show what would change without executing"),
@@ -218,23 +241,29 @@ def apply(  # noqa: PLR0912 (multi-phase reconciliation needs these branches)
         bool,
         typer.Option("--no-orphans", help="Only migrate, don't stop orphaned stacks"),
     ] = False,
+    no_strays: Annotated[
+        bool,
+        typer.Option("--no-strays", help="Don't stop stray stacks (running on wrong host)"),
+    ] = False,
     full: Annotated[
         bool,
         typer.Option("--full", "-f", help="Also run up on all stacks to apply config changes"),
     ] = False,
     config: ConfigOption = None,
 ) -> None:
-    """Make reality match config (start, migrate, stop as needed).
+    """Make reality match config (start, migrate, stop strays/orphans as needed).
 
     This is the "reconcile" command that ensures running stacks match your
     config file. It will:
 
     1. Stop orphaned stacks (in state but removed from config)
-    2. Migrate stacks on wrong host (host in state ≠ host in config)
-    3. Start missing stacks (in config but not in state)
+    2. Stop stray stacks (running on unauthorized hosts)
+    3. Migrate stacks on wrong host (host in state ≠ host in config)
+    4. Start missing stacks (in config but not in state)
 
     Use --dry-run to preview changes before applying.
-    Use --no-orphans to only migrate/start without stopping orphaned stacks.
+    Use --no-orphans to skip stopping orphaned stacks.
+    Use --no-strays to skip stopping stray stacks.
     Use --full to also run 'up' on all stacks (picks up compose/env changes).
     """
     cfg = load_config_or_exit(config)
@@ -242,16 +271,29 @@ def apply(  # noqa: PLR0912 (multi-phase reconciliation needs these branches)
     migrations = get_stacks_needing_migration(cfg)
     missing = get_stacks_not_in_state(cfg)
 
+    # Discover strays by scanning all hosts
+    strays: dict[str, list[str]] = {}
+    if not no_strays:
+        console.print("[dim]Scanning hosts for stray containers...[/]")
+        strays = _discover_strays(cfg)
+
     # For --full: refresh all stacks not already being started/migrated
     handled = set(migrations) | set(missing)
     to_refresh = [stack for stack in cfg.stacks if stack not in handled] if full else []
 
     has_orphans = bool(orphaned) and not no_orphans
+    has_strays = bool(strays)
     has_migrations = bool(migrations)
     has_missing = bool(missing)
     has_refresh = bool(to_refresh)
 
-    if not has_orphans and not has_migrations and not has_missing and not has_refresh:
+    if (
+        not has_orphans
+        and not has_strays
+        and not has_migrations
+        and not has_missing
+        and not has_refresh
+    ):
         print_success("Nothing to apply - reality matches config")
         return
 
@@ -260,6 +302,14 @@ def apply(  # noqa: PLR0912 (multi-phase reconciliation needs these branches)
         console.print(f"[yellow]Orphaned stacks to stop ({len(orphaned)}):[/]")
         for svc, hosts in orphaned.items():
             console.print(f"  [cyan]{svc}[/] on [magenta]{format_host(hosts)}[/]")
+    if has_strays:
+        console.print(f"[red]Stray stacks to stop ({len(strays)}):[/]")
+        for stack, hosts in strays.items():
+            configured = cfg.get_hosts(stack)
+            console.print(
+                f"  [cyan]{stack}[/] on [magenta]{', '.join(hosts)}[/] "
+                f"[dim](should be on {', '.join(configured)})[/]"
+            )
     if has_migrations:
         console.print(f"[cyan]Stacks to migrate ({len(migrations)}):[/]")
         for stack in migrations:
@@ -288,21 +338,26 @@ def apply(  # noqa: PLR0912 (multi-phase reconciliation needs these branches)
         console.print("[yellow]Stopping orphaned stacks...[/]")
         all_results.extend(run_async(stop_orphaned_stacks(cfg)))
 
-    # 2. Migrate stacks on wrong host
+    # 2. Stop stray stacks (running on unauthorized hosts)
+    if has_strays:
+        console.print("[red]Stopping stray stacks...[/]")
+        all_results.extend(run_async(stop_stray_stacks(cfg, strays)))
+
+    # 3. Migrate stacks on wrong host
     if has_migrations:
         console.print("[cyan]Migrating stacks...[/]")
         migrate_results = run_async(up_stacks(cfg, migrations, raw=True))
         all_results.extend(migrate_results)
         maybe_regenerate_traefik(cfg, migrate_results)
 
-    # 3. Start missing stacks (reuse up_stacks which handles state updates)
+    # 4. Start missing stacks (reuse up_stacks which handles state updates)
     if has_missing:
         console.print("[green]Starting missing stacks...[/]")
         start_results = run_async(up_stacks(cfg, missing, raw=True))
         all_results.extend(start_results)
         maybe_regenerate_traefik(cfg, start_results)
 
-    # 4. Refresh remaining stacks (--full: run up to apply config changes)
+    # 5. Refresh remaining stacks (--full: run up to apply config changes)
     if has_refresh:
         console.print("[blue]Refreshing stacks...[/]")
         refresh_results = run_async(up_stacks(cfg, to_refresh, raw=True))

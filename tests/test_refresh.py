@@ -211,8 +211,8 @@ class TestRefreshCommand:
                 return_value=existing_state,
             ),
             patch(
-                "compose_farm.cli.management._discover_stacks",
-                return_value={"plex": "nas02"},  # plex moved to nas02
+                "compose_farm.cli.management._discover_stacks_full",
+                return_value=({"plex": "nas02"}, {}, {}),  # plex moved to nas02
             ),
             patch("compose_farm.cli.management._snapshot_stacks"),
             patch("compose_farm.cli.management.save_state") as mock_save,
@@ -247,8 +247,12 @@ class TestRefreshCommand:
                 return_value=existing_state,
             ),
             patch(
-                "compose_farm.cli.management._discover_stacks",
-                return_value={"plex": "nas01", "grafana": "nas02"},  # jellyfin not running
+                "compose_farm.cli.management._discover_stacks_full",
+                return_value=(
+                    {"plex": "nas01", "grafana": "nas02"},
+                    {},
+                    {},
+                ),  # jellyfin not running
             ),
             patch("compose_farm.cli.management._snapshot_stacks"),
             patch("compose_farm.cli.management.save_state") as mock_save,
@@ -281,8 +285,8 @@ class TestRefreshCommand:
                 return_value=existing_state,
             ),
             patch(
-                "compose_farm.cli.management._discover_stacks",
-                return_value={"plex": "nas01"},  # only plex running
+                "compose_farm.cli.management._discover_stacks_full",
+                return_value=({"plex": "nas01"}, {}, {}),  # only plex running
             ),
             patch("compose_farm.cli.management._snapshot_stacks"),
             patch("compose_farm.cli.management.save_state") as mock_save,
@@ -315,8 +319,8 @@ class TestRefreshCommand:
                 return_value=existing_state,
             ),
             patch(
-                "compose_farm.cli.management._discover_stacks",
-                return_value={"plex": "nas01"},  # jellyfin not running
+                "compose_farm.cli.management._discover_stacks_full",
+                return_value=({"plex": "nas01"}, {}, {}),  # jellyfin not running
             ),
             patch("compose_farm.cli.management._snapshot_stacks"),
             patch("compose_farm.cli.management.save_state") as mock_save,
@@ -350,8 +354,8 @@ class TestRefreshCommand:
                 return_value=existing_state,
             ),
             patch(
-                "compose_farm.cli.management._discover_stacks",
-                return_value={"plex": "nas02"},  # would change
+                "compose_farm.cli.management._discover_stacks_full",
+                return_value=({"plex": "nas02"}, {}, {}),  # would change
             ),
             patch("compose_farm.cli.management.save_state") as mock_save,
         ):
