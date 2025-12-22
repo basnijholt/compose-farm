@@ -1,10 +1,8 @@
 # PostgreSQL - Database with persistent storage
-name: cf-postgres
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: postgres
+    container_name: cf-postgres
     networks:
       - mynetwork
     environment:
@@ -15,7 +13,7 @@ services:
     volumes:
       - /mnt/data/postgres:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]

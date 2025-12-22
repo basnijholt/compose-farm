@@ -228,3 +228,99 @@ class TestConfigValidate:
         # Error goes to stderr
         output = result.stdout + (result.stderr or "")
         assert "Config file not found" in output or "not found" in output.lower()
+
+
+class TestConfigExample:
+    """Tests for cf config example command."""
+
+    def test_example_list(self, runner: CliRunner) -> None:
+        result = runner.invoke(app, ["config", "example", "--list"])
+        assert result.exit_code == 0
+        assert "whoami" in result.stdout
+        assert "nginx" in result.stdout
+        assert "postgres" in result.stdout
+        assert "full" in result.stdout
+
+    def test_example_whoami(self, runner: CliRunner, tmp_path: Path) -> None:
+        result = runner.invoke(app, ["config", "example", "whoami", "-o", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "Example 'whoami' created" in result.stdout
+        assert (tmp_path / "whoami" / "compose.yaml").exists()
+        assert (tmp_path / "whoami" / ".env").exists()
+
+    def test_example_full(self, runner: CliRunner, tmp_path: Path) -> None:
+        result = runner.invoke(app, ["config", "example", "full", "-o", str(tmp_path)])
+        assert result.exit_code == 0
+        assert "Example 'full' created" in result.stdout
+        assert (tmp_path / "compose-farm.yaml").exists()
+        assert (tmp_path / "traefik" / "compose.yaml").exists()
+        assert (tmp_path / "whoami" / "compose.yaml").exists()
+        assert (tmp_path / "nginx" / "compose.yaml").exists()
+        assert (tmp_path / "postgres" / "compose.yaml").exists()
+
+    def test_example_unknown(self, runner: CliRunner, tmp_path: Path) -> None:
+        result = runner.invoke(app, ["config", "example", "unknown", "-o", str(tmp_path)])
+        assert result.exit_code == 1
+        output = result.stdout + (result.stderr or "")
+        assert "Unknown example" in output
+
+    def test_example_force_overwrites(self, runner: CliRunner, tmp_path: Path) -> None:
+        # Create first time
+        runner.invoke(app, ["config", "example", "whoami", "-o", str(tmp_path)])
+        # Overwrite with force
+        result = runner.invoke(app, ["config", "example", "whoami", "-o", str(tmp_path), "-f"])
+        assert result.exit_code == 0
+
+    def test_example_prompts_on_existing(self, runner: CliRunner, tmp_path: Path) -> None:
+        # Create first time
+        runner.invoke(app, ["config", "example", "whoami", "-o", str(tmp_path)])
+        # Try again without force, decline
+        result = runner.invoke(
+            app, ["config", "example", "whoami", "-o", str(tmp_path)], input="n\n"
+        )
+        assert result.exit_code == 0
+        assert "Aborted" in result.stdout
+
+
+class TestExamplesModule:
+    """Tests for the examples module."""
+
+    def test_list_example_files_whoami(self) -> None:
+        from compose_farm.examples import list_example_files
+
+        files = list_example_files("whoami")
+        file_names = [f for f, _ in files]
+        assert ".env" in file_names
+        assert "compose.yaml" in file_names
+
+    def test_list_example_files_full(self) -> None:
+        from compose_farm.examples import list_example_files
+
+        files = list_example_files("full")
+        file_names = [f for f, _ in files]
+        assert "compose-farm.yaml" in file_names
+        assert "traefik/compose.yaml" in file_names
+        assert "whoami/compose.yaml" in file_names
+
+    def test_list_example_files_unknown(self) -> None:
+        from compose_farm.examples import list_example_files
+
+        with pytest.raises(ValueError, match="Unknown example"):
+            list_example_files("unknown")
+
+    def test_examples_dict(self) -> None:
+        from compose_farm.examples import EXAMPLES, SINGLE_STACK_EXAMPLES
+
+        assert "whoami" in EXAMPLES
+        assert "full" in EXAMPLES
+        assert "full" not in SINGLE_STACK_EXAMPLES
+        assert "whoami" in SINGLE_STACK_EXAMPLES
+
+
+class TestConfigInitDiscover:
+    """Tests for cf config init --discover."""
+
+    def test_discover_option_exists(self, runner: CliRunner) -> None:
+        result = runner.invoke(app, ["config", "init", "--help"])
+        assert "--discover" in result.stdout
+        assert "-d" in result.stdout

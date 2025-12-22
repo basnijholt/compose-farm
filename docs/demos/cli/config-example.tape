@@ -91,11 +91,11 @@ Enter
 Wait
 Sleep 1s
 
-Type "# Deploy everything!"
+Type "# Deploy traefik and whoami"
 Enter
 Sleep 500ms
 
-Type "cf up --all"
+Type "cf up traefik whoami"
 Enter
 Wait
 Sleep 3s
