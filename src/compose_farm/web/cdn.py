@@ -64,13 +64,13 @@ CDN_ASSETS: dict[str, tuple[str, str]] = {
         "monaco-codicon.ttf",
         "font/ttf",
     ),
-    # Tabulator for containers page
-    "https://cdn.jsdelivr.net/npm/tabulator-tables@6/dist/css/tabulator_semanticui.min.css": (
-        "tabulator.css",
+    # Simple-DataTables for containers page
+    "https://cdn.jsdelivr.net/npm/simple-datatables@9/dist/style.min.css": (
+        "simple-datatables.css",
         "text/css",
     ),
-    "https://cdn.jsdelivr.net/npm/tabulator-tables@6/dist/js/tabulator.min.js": (
-        "tabulator.js",
+    "https://cdn.jsdelivr.net/npm/simple-datatables@9": (
+        "simple-datatables.js",
         "application/javascript",
     ),
 }
