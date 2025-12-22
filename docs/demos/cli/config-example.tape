@@ -11,6 +11,7 @@ Set Height 600
 Set Theme "Catppuccin Mocha"
 Set FontFamily "FiraCode Nerd Font"
 Set TypingSpeed 50ms
+Env BAT_PAGING "always"
 
 Type "# Generate example stacks with cf config example"
 Enter
@@ -22,14 +23,16 @@ Sleep 500ms
 
 Type "cf config example --list"
 Enter
-Sleep 3s
+Wait+Screen /Usage:/
+Sleep 2s
 
-Type "# Create a temporary directory for demo"
+Type "# Create a directory for our stacks"
 Enter
 Sleep 500ms
 
-Type "cd $(mktemp -d)"
+Type "mkdir -p ~/compose && cd ~/compose"
 Enter
+Wait
 Sleep 500ms
 
 Type "# Generate the full Traefik + whoami setup"
@@ -38,7 +41,8 @@ Sleep 500ms
 
 Type "cf config example full"
 Enter
-Sleep 3s
+Wait+Screen /Example 'full' created/
+Sleep 2s
 
 Type "# See what was created"
 Enter
@@ -46,28 +50,43 @@ Sleep 500ms
 
 Type "tree ."
 Enter
-Sleep 3s
+Wait
+Sleep 2s
 
 Type "# View the generated config"
 Enter
 Sleep 500ms
 
-Type "cat compose-farm.yaml"
+Type "bat compose-farm.yaml"
 Enter
-Sleep 4s
+Sleep 3s
+Type "q"
+Sleep 500ms
 
 Type "# View the traefik compose file"
 Enter
 Sleep 500ms
 
-Type "cat traefik/compose.yaml"
+Type "bat traefik/compose.yaml"
 Enter
-Sleep 4s
+Sleep 3s
+Type "q"
+Sleep 500ms
 
-Type "# Ready to deploy! (after editing your domain)"
+Type "# Validate the config"
 Enter
 Sleep 500ms
 
 Type "cf check --local"
 Enter
+Wait
+Sleep 2s
+
+Type "# Deploy everything!"
+Enter
+Sleep 500ms
+
+Type "cf up --all"
+Enter
+Wait
 Sleep 3s
