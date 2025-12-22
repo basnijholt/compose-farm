@@ -86,10 +86,10 @@ Type "# Create the Docker network"
 Enter
 Sleep 500ms
 
-Type "docker network create mynetwork 2>/dev/null || true"
+Type "cf init-network"
 Enter
 Wait
-Sleep 500ms
+Sleep 1s
 
 Type "# Deploy everything!"
 Enter
