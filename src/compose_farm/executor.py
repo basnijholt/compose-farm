@@ -497,6 +497,28 @@ async def check_stack_running(
     return result.success and bool(result.stdout.strip())
 
 
+async def get_running_stacks_on_host(
+    config: Config,
+    host_name: str,
+) -> set[str]:
+    """Get all running compose stacks on a host in a single SSH call.
+
+    Uses docker ps with the compose.project label to identify running stacks.
+    Much more efficient than checking each stack individually.
+    """
+    host = config.hosts[host_name]
+
+    # Get unique project names from running containers
+    command = "docker ps --format '{{.Label \"com.docker.compose.project\"}}' | sort -u"
+    result = await run_command(host, command, stack=host_name, stream=False, prefix="")
+
+    if not result.success:
+        return set()
+
+    # Filter out empty lines and return as set
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
 async def _batch_check_existence(
     config: Config,
     host_name: str,

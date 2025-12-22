@@ -53,8 +53,8 @@ from compose_farm.operations import (
     StackDiscoveryResult,
     check_host_compatibility,
     check_stack_requirements,
+    discover_all_stacks_on_all_hosts,
     discover_stack_host,
-    discover_stack_on_all_hosts,
 )
 from compose_farm.state import get_orphaned_stacks, load_state, save_state
 from compose_farm.traefik import generate_traefik_config, render_traefik_config
@@ -155,6 +155,10 @@ def _discover_stacks_full(
 ) -> tuple[dict[str, str | list[str]], dict[str, list[str]], dict[str, list[str]]]:
     """Discover running stacks with full host scanning for stray detection.
 
+    Uses an optimized approach that queries each host once for all running stacks,
+    instead of checking each stack on each host individually. This reduces SSH
+    calls from (stacks * hosts) to just (hosts).
+
     Returns:
         Tuple of (discovered, strays, duplicates):
         - discovered: stack -> host(s) where running correctly
@@ -162,12 +166,8 @@ def _discover_stacks_full(
         - duplicates: stack -> list of all hosts (for single-host stacks on multiple)
 
     """
-    stack_list = stacks if stacks is not None else list(cfg.stacks)
-    results: list[StackDiscoveryResult] = run_parallel_with_progress(
-        "Discovering",
-        stack_list,
-        lambda s: discover_stack_on_all_hosts(cfg, s),
-    )
+    # Use the efficient batch discovery (1 SSH call per host instead of per stack)
+    results: list[StackDiscoveryResult] = asyncio.run(discover_all_stacks_on_all_hosts(cfg, stacks))
 
     discovered: dict[str, str | list[str]] = {}
     strays: dict[str, list[str]] = {}
