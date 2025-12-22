@@ -1358,6 +1358,14 @@ glances_stack: glances  # Enables resource stats in web UI
 
 The web UI dashboard will now show a "Host Resources" section with live stats from all hosts. Hosts where Glances is unreachable show an error indicator.
 
+**Containers Page**
+
+With Glances configured, a Containers page (`/containers`) shows all running containers across all hosts in an interactive table:
+
+- **Columns**: Name, Host, Image, Status, Uptime, CPU%, Memory, Net I/O, Ports
+- **Features**: Sorting, filtering, pagination via [Simple-DataTables](https://github.com/fiduswriter/Simple-DataTables)
+- **Data source**: Glances REST API (no SSH required)
+
 ## Comparison with Alternatives
 
 There are many ways to run containers on multiple hosts. Here is where Compose Farm sits:
