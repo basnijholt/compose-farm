@@ -245,6 +245,7 @@
     }
 
     // Check all tags
+    const checkAllBtnOriginalHTML = checkAllBtn.innerHTML;
     async function checkAllTags() {
         const buttons = tableEl.querySelectorAll('.check-tags-btn');
         checkAllBtn.disabled = true;
@@ -257,7 +258,7 @@
         }
 
         checkAllBtn.disabled = false;
-        checkAllBtn.innerHTML = '{{ box() }} Check All Tags';
+        checkAllBtn.innerHTML = checkAllBtnOriginalHTML;
     }
 
     // Event listeners
