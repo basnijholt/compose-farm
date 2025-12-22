@@ -245,7 +245,8 @@ async def _collect_stack_containers(
     for c in containers:
         name = c["name"]
         service = c["service"]
-        img_name, tag, digest = images.get(service, ("", "", ""))
+        # Try service name first, then container name (images output uses ContainerName)
+        img_name, tag, digest = images.get(service) or images.get(name, ("", "", ""))
         container_stats = stats.get(name, {})
 
         result.append(
