@@ -106,7 +106,10 @@ async def _get_stack_images(config: Config, stack: str) -> dict[str, tuple[str, 
     images: dict[str, tuple[str, str, str]] = {}
 
     for record in records:
-        service = record.get("Service") or record.get("Container", "").split("-")[-1]
+        # Try Service first, then ContainerName (images output uses ContainerName)
+        service = (
+            record.get("Service") or record.get("ContainerName", "") or record.get("Container", "")
+        )
         image, digest = _extract_image_fields(record)
 
         # Split image:tag
