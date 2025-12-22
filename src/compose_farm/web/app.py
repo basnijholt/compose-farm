@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from rich.logging import RichHandler
 
 from compose_farm.web.deps import STATIC_DIR, get_config
-from compose_farm.web.routes import actions, api, pages
+from compose_farm.web.routes import actions, api, containers, pages
 from compose_farm.web.streaming import TASK_TTL_SECONDS, cleanup_stale_tasks
 
 # Configure logging with Rich handler for compose_farm.web modules
@@ -68,6 +68,7 @@ def create_app() -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     app.include_router(pages.router)
+    app.include_router(containers.router)
     app.include_router(api.router, prefix="/api")
     app.include_router(actions.router, prefix="/api")
 

@@ -1,0 +1,296 @@
+{% extends "base.html" %}
+{% from "partials/components.html" import page_header, action_btn %}
+{% from "partials/icons.html" import refresh_cw, box %}
+{% block title %}Containers - Compose Farm{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl">
+    {{ page_header("Containers", "All running containers across hosts") }}
+
+    <!-- Action Buttons -->
+    <div class="flex flex-wrap gap-2 mb-6">
+        <button id="refresh-table-btn" class="btn btn-outline">
+            {{ refresh_cw() }} Refresh
+        </button>
+        <button id="check-all-tags-btn" class="btn btn-outline">
+            {{ box() }} Check All Tags
+        </button>
+    </div>
+
+    <!-- Loading indicator -->
+    <div id="loading-indicator" class="flex items-center gap-2 mb-4">
+        <span class="loading loading-spinner loading-sm"></span>
+        <span class="text-base-content/60">Loading containers...</span>
+    </div>
+
+    <!-- Container Table -->
+    <div class="card bg-base-100 shadow">
+        <div class="card-body p-0">
+            <table id="containers-table" class="table table-zebra table-pin-rows w-full">
+                <thead>
+                    <tr>
+                        <th>Stack</th>
+                        <th>Service</th>
+                        <th>Host</th>
+                        <th>Image</th>
+                        <th>Tag</th>
+                        <th>Status</th>
+                        <th>Uptime</th>
+                        <th>CPU</th>
+                        <th>Memory</th>
+                        <th>Net I/O</th>
+                        <th class="min-w-32">Updates</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Data loaded via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Simple-DataTables -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-datatables@9/dist/style.min.css">
+<script src="https://cdn.jsdelivr.net/npm/simple-datatables@9" data-vendor="simple-datatables.js"></script>
+
+<style>
+/* Override Simple-DataTables styles to match DaisyUI */
+.datatable-wrapper .datatable-top,
+.datatable-wrapper .datatable-bottom {
+    padding: 1rem;
+}
+
+.datatable-wrapper .datatable-search input {
+    @apply input input-bordered input-sm w-64;
+}
+
+.datatable-wrapper .datatable-selector {
+    @apply select select-bordered select-sm;
+}
+
+.datatable-wrapper .datatable-pagination .datatable-pagination-list-item-link {
+    @apply btn btn-sm btn-ghost;
+}
+
+.datatable-wrapper .datatable-pagination .datatable-pagination-list-item.datatable-active .datatable-pagination-list-item-link {
+    @apply btn-primary;
+}
+
+.datatable-wrapper .datatable-sorter::before,
+.datatable-wrapper .datatable-sorter::after {
+    border-color: oklch(var(--bc) / 0.3);
+}
+
+.datatable-wrapper .datatable-sorter.datatable-ascending::after,
+.datatable-wrapper .datatable-sorter.datatable-descending::before {
+    border-color: oklch(var(--p));
+}
+
+/* Status badges */
+.status-running { @apply badge badge-success badge-sm; }
+.status-exited { @apply badge badge-error badge-sm; }
+.status-created { @apply badge badge-warning badge-sm; }
+.status-paused { @apply badge badge-info badge-sm; }
+.status-restarting { @apply badge badge-warning badge-sm; }
+.status-unknown { @apply badge badge-neutral badge-sm; }
+
+/* Stat cell with progress bar */
+.stat-cell {
+    @apply flex items-center gap-2;
+}
+.stat-cell progress {
+    @apply w-16 h-2;
+}
+.stat-cell .stat-value {
+    @apply text-xs font-mono min-w-[3rem] text-right;
+}
+
+/* Memory cell with usage text */
+.memory-cell {
+    @apply flex items-center gap-2;
+}
+.memory-cell progress {
+    @apply w-12 h-2;
+}
+.memory-cell .memory-text {
+    @apply text-xs opacity-80;
+}
+</style>
+
+<script>
+(function() {
+    let dataTable = null;
+    const tableEl = document.getElementById('containers-table');
+    const loadingEl = document.getElementById('loading-indicator');
+    const refreshBtn = document.getElementById('refresh-table-btn');
+    const checkAllBtn = document.getElementById('check-all-tags-btn');
+
+    // Status badge HTML
+    function statusBadge(status) {
+        const statusClass = 'status-' + (status || 'unknown').toLowerCase();
+        return `<span class="${statusClass}">${status}</span>`;
+    }
+
+    // CPU progress bar with DaisyUI
+    function cpuBar(percent) {
+        if (percent === undefined || percent === null) return '-';
+        const colorClass = percent > 80 ? 'progress-error' : percent > 50 ? 'progress-warning' : 'progress-success';
+        return `<div class="stat-cell">
+            <progress class="progress ${colorClass}" value="${Math.min(percent, 100)}" max="100"></progress>
+            <span class="stat-value">${percent.toFixed(1)}%</span>
+        </div>`;
+    }
+
+    // Memory progress bar with usage text
+    function memoryBar(percent, usage) {
+        if (!usage) return '-';
+        const colorClass = percent > 80 ? 'progress-error' : percent > 50 ? 'progress-warning' : 'progress-success';
+        return `<div class="memory-cell" title="${usage}">
+            <progress class="progress ${colorClass}" value="${Math.min(percent || 0, 100)}" max="100"></progress>
+            <span class="memory-text">${usage}</span>
+        </div>`;
+    }
+
+    // Stack link
+    function stackLink(stack) {
+        return `<a href="/stack/${stack}" class="link link-hover font-medium">${stack}</a>`;
+    }
+
+    // Updates check button
+    function tagsButton(stack, service) {
+        return `<button class="btn btn-xs btn-outline check-tags-btn"
+                        data-stack="${stack}" data-service="${service}">Check</button>`;
+    }
+
+    // Transform container data to table row
+    function containerToRow(c) {
+        return [
+            stackLink(c.stack),
+            c.service,
+            c.host,
+            `<code class="text-xs bg-base-200 px-1 rounded">${c.image || '-'}</code>`,
+            `<code class="text-xs bg-base-200 px-1 rounded">${c.tag || '-'}</code>`,
+            statusBadge(c.status),
+            `<span class="text-xs">${c.uptime || '-'}</span>`,
+            cpuBar(c.cpu_percent),
+            memoryBar(c.memory_percent, c.memory_usage),
+            c.net_io ? `<span class="text-xs font-mono">${c.net_io}</span>` : '-',
+            tagsButton(c.stack, c.service),
+        ];
+    }
+
+    // Initialize empty table
+    function initTable() {
+        if (dataTable) {
+            dataTable.destroy();
+        }
+        dataTable = new simpleDatatables.DataTable(tableEl, {
+            data: { data: [] },
+            searchable: true,
+            sortable: true,
+            perPage: 25,
+            perPageSelect: [10, 25, 50, 100],
+            labels: {
+                placeholder: "Filter containers...",
+                noRows: "Loading containers...",
+                info: "Showing {start} to {end} of {rows} containers",
+            },
+        });
+        tableEl.addEventListener('click', handleCheckClick);
+    }
+
+    // Load data via SSE streaming (rows appear as each stack completes)
+    function loadData() {
+        loadingEl.style.display = 'flex';
+        loadingEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>' +
+            '<span class="text-base-content/60">Loading containers...</span>';
+
+        // Initialize empty table first
+        initTable();
+
+        let containerCount = 0;
+        const eventSource = new EventSource('/api/containers/stream');
+
+        eventSource.onmessage = function(event) {
+            try {
+                const containers = JSON.parse(event.data);
+                if (containers.length > 0) {
+                    // Add rows incrementally using insert()
+                    const rows = containers.map(containerToRow);
+                    dataTable.insert({ data: rows });
+                    containerCount += containers.length;
+                    // Update loading indicator with count
+                    loadingEl.innerHTML = '<span class="loading loading-spinner loading-sm"></span>' +
+                        `<span class="text-base-content/60">Loading containers... (${containerCount} loaded)</span>`;
+                }
+            } catch (err) {
+                console.error('Failed to parse SSE data:', err);
+            }
+        };
+
+        eventSource.addEventListener('done', function() {
+            eventSource.close();
+            loadingEl.style.display = 'none';
+            // Sort by stack name after all data loaded
+            if (containerCount > 0) {
+                dataTable.columns.sort(0, 'asc');
+            }
+        });
+
+        eventSource.onerror = function(err) {
+            console.error('SSE error:', err);
+            eventSource.close();
+            loadingEl.innerHTML = '<span class="text-error">Connection error - ' +
+                '<button class="btn btn-xs btn-ghost" onclick="loadData()">Retry</button></span>';
+        };
+    }
+
+    // Handle check tags button click
+    async function handleCheckClick(e) {
+        const btn = e.target.closest('.check-tags-btn');
+        if (!btn) return;
+
+        const stack = btn.dataset.stack;
+        const service = btn.dataset.service;
+        const cell = btn.parentElement;
+
+        // Show loading
+        cell.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
+
+        try {
+            const resp = await fetch(`/api/containers/${stack}/${service}/tags`);
+            cell.innerHTML = await resp.text();
+        } catch (err) {
+            cell.innerHTML = `<span class="badge badge-error">Error</span>`;
+        }
+    }
+
+    // Check all tags
+    const checkAllBtnOriginalHTML = checkAllBtn.innerHTML;
+    async function checkAllTags() {
+        const buttons = tableEl.querySelectorAll('.check-tags-btn');
+        checkAllBtn.disabled = true;
+        checkAllBtn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Checking...';
+
+        for (const btn of buttons) {
+            btn.click();
+            // Small delay to avoid rate limiting
+            await new Promise(r => setTimeout(r, 200));
+        }
+
+        checkAllBtn.disabled = false;
+        checkAllBtn.innerHTML = checkAllBtnOriginalHTML;
+    }
+
+    // Event listeners
+    refreshBtn.addEventListener('click', loadData);
+    checkAllBtn.addEventListener('click', checkAllTags);
+
+    // Initial load
+    loadData();
+})();
+</script>
+{% endblock %}
