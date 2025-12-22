@@ -19,9 +19,9 @@ Type "# See ALL available compose commands"
 Enter
 Sleep 500ms
 
-Type "cf compose immich --help | head -30"
+Type "cf compose immich --help"
 Enter
-Sleep 3s
+Sleep 4s
 
 Type "# Show images"
 Enter
