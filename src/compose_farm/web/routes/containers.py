@@ -352,7 +352,7 @@ async def check_container_tags(stack: str, service: str) -> HTMLResponse:
     # Get image info for this service
     images = await _get_stack_images(config, stack)
     if service not in images:
-        return HTMLResponse('<span class="badge badge-error">Service not found</span>')
+        return HTMLResponse('<span class="badge badge-error whitespace-nowrap">Not found</span>')
 
     img_name, tag, digest = images[service]
     image_str = f"{img_name}:{tag}" if tag else img_name
@@ -362,7 +362,9 @@ async def check_container_tags(stack: str, service: str) -> HTMLResponse:
         result = await check_image_tags(image_str, digest, client)
 
     if result.error:
-        return HTMLResponse(f'<span class="badge badge-error" title="{result.error}">Error</span>')
+        return HTMLResponse(
+            f'<span class="badge badge-error whitespace-nowrap" title="{result.error}">Error</span>'
+        )
 
     # Format result
     max_display = 5  # Max tags to show in tooltip
@@ -374,17 +376,17 @@ async def check_container_tags(stack: str, service: str) -> HTMLResponse:
             else ""
         )
         return HTMLResponse(
-            f'<span class="badge badge-warning cursor-help" '
+            f'<span class="badge badge-warning whitespace-nowrap cursor-help" '
             f'title="Updates: {updates_list}{more}">'
-            f"{len(result.available_updates)} update(s)</span>"
+            f"{len(result.available_updates)} updates</span>"
         )
 
     equiv = [t for t in result.equivalent_tags if t != tag]
     if equiv:
         equiv_str = ", ".join(equiv[:3])
         return HTMLResponse(
-            f'<span class="badge badge-success cursor-help" '
+            f'<span class="badge badge-success whitespace-nowrap cursor-help" '
             f'title="Also known as: {equiv_str}">Up to date</span>'
         )
 
-    return HTMLResponse('<span class="badge badge-success">Up to date</span>')
+    return HTMLResponse('<span class="badge badge-success whitespace-nowrap">Up to date</span>')
