@@ -460,7 +460,8 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │                that service.                                                 │
 │ update         Update stacks (pull + build + down + up). With --service,     │
 │                updates just that service.                                    │
-│ apply          Make reality match config (start, migrate, stop as needed).   │
+│ apply          Make reality match config (start, migrate, stop               │
+│                rogues/orphans as needed).                                    │
 │ compose        Run any docker compose command on a stack.                    │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Configuration ──────────────────────────────────────────────────────────────╮
@@ -721,22 +722,25 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Usage: cf apply [OPTIONS]
 
- Make reality match config (start, migrate, stop as needed).
+ Make reality match config (start, migrate, stop rogues/orphans as needed).
 
  This is the "reconcile" command that ensures running stacks match your
  config file. It will:
 
  1. Stop orphaned stacks (in state but removed from config)
- 2. Migrate stacks on wrong host (host in state ≠ host in config)
- 3. Start missing stacks (in config but not in state)
+ 2. Stop rogue stacks (running on unauthorized hosts)
+ 3. Migrate stacks on wrong host (host in state ≠ host in config)
+ 4. Start missing stacks (in config but not in state)
 
  Use --dry-run to preview changes before applying.
- Use --no-orphans to only migrate/start without stopping orphaned stacks.
+ Use --no-orphans to skip stopping orphaned stacks.
+ Use --no-rogues to skip stopping rogue stacks.
  Use --full to also run 'up' on all stacks (picks up compose/env changes).
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
 │ --dry-run     -n            Show what would change without executing         │
 │ --no-orphans                Only migrate, don't stop orphaned stacks         │
+│ --no-rogues                 Don't stop rogue stacks (running on wrong host)  │
 │ --full        -f            Also run up on all stacks to apply config        │
 │                             changes                                          │
 │ --config      -c      PATH  Path to config file                              │
