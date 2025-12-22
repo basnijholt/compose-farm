@@ -39,7 +39,7 @@
                         <th>CPU</th>
                         <th>Memory</th>
                         <th>Net I/O</th>
-                        <th>Tags</th>
+                        <th class="min-w-32">Updates</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -159,9 +159,9 @@
         return `<a href="/stack/${stack}" class="link link-hover font-medium">${stack}</a>`;
     }
 
-    // Tags check button
+    // Updates check button
     function tagsButton(stack, service) {
-        return `<button class="btn btn-xs btn-ghost check-tags-btn"
+        return `<button class="btn btn-xs btn-outline check-tags-btn"
                         data-stack="${stack}" data-service="${service}">Check</button>`;
     }
 
