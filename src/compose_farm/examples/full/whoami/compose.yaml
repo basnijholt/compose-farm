@@ -1,22 +1,22 @@
 # Whoami - Test service for Traefik routing
-name: cf-whoami
-
 services:
   whoami:
     image: traefik/whoami:latest
     container_name: cf-whoami
     networks:
       - mynetwork
+    ports:
+      - "9000:80"
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      # HTTPS routing
       - traefik.http.routers.whoami.rule=Host(`whoami.${DOMAIN}`)
       - traefik.http.routers.whoami.entrypoints=websecure
-      # HTTP routing (for testing without TLS)
-      - traefik.http.routers.whoami-http.rule=Host(`whoami.${DOMAIN}`)
-      - traefik.http.routers.whoami-http.entrypoints=web
+      - traefik.http.routers.whoami-local.rule=Host(`whoami.local`)
+      - traefik.http.routers.whoami-local.entrypoints=web
       - traefik.http.services.whoami.loadbalancer.server.port=80
+      - kuma.whoami.http.name=Whoami
+      - kuma.whoami.http.url=https://whoami.${DOMAIN}
 
 networks:
   mynetwork:

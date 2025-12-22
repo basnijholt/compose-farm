@@ -1,6 +1,4 @@
 # Traefik - Reverse proxy and load balancer
-name: cf-traefik
-
 services:
   traefik:
     image: traefik:v2.11
@@ -13,7 +11,7 @@ services:
       - "9081:8080"  # Dashboard - remove in production
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      # - ./data:/etc/traefik  # Uncomment for persistent config
+      - /mnt/data/traefik:/etc/traefik
     command:
       - --api.dashboard=true
       - --api.insecure=true
@@ -27,7 +25,11 @@ services:
       - traefik.enable=true
       - traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN}`)
       - traefik.http.routers.traefik.entrypoints=websecure
-      - traefik.http.routers.traefik.service=api@internal
+      - traefik.http.routers.traefik-local.rule=Host(`traefik.local`)
+      - traefik.http.routers.traefik-local.entrypoints=web
+      - traefik.http.services.traefik.loadbalancer.server.port=8080
+      - kuma.traefik.http.name=Traefik
+      - kuma.traefik.http.url=https://traefik.${DOMAIN}
     restart: unless-stopped
 
 networks:

@@ -1,25 +1,25 @@
 # Nginx - Basic web server
-name: cf-nginx
-
 services:
   nginx:
     image: nginx:alpine
     container_name: cf-nginx
+    user: "1000:1000"
     networks:
       - mynetwork
     volumes:
-      - ./html:/usr/share/nginx/html:ro
+      - /mnt/data/nginx/html:/usr/share/nginx/html:ro
     ports:
-      - "9082:80"  # Use 80:80 in production
+      - "9082:80"  # Use 80:80 or 8080:80 in production
     restart: unless-stopped
     labels:
-      # Traefik routing (adjust domain as needed)
       - traefik.enable=true
       - traefik.http.routers.nginx.rule=Host(`nginx.${DOMAIN}`)
       - traefik.http.routers.nginx.entrypoints=websecure
       - traefik.http.routers.nginx-local.rule=Host(`nginx.local`)
       - traefik.http.routers.nginx-local.entrypoints=web
       - traefik.http.services.nginx.loadbalancer.server.port=80
+      - kuma.nginx.http.name=Nginx
+      - kuma.nginx.http.url=https://nginx.${DOMAIN}
 
 networks:
   mynetwork:

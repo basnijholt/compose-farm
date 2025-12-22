@@ -1,6 +1,4 @@
 # PostgreSQL - Database with persistent storage
-name: cf-postgres
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -12,8 +10,8 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       - POSTGRES_DB=${POSTGRES_DB:-postgres}
       - PGDATA=/var/lib/postgresql/data/pgdata
-    volumes: []
-      # - ./data:/var/lib/postgresql/data  # Uncomment for persistent storage
+    volumes:
+      - /mnt/data/postgres:/var/lib/postgresql/data
     ports:
       - "5433:5432"  # Use 5432:5432 in production
     restart: unless-stopped
