@@ -64,6 +64,15 @@ CDN_ASSETS: dict[str, tuple[str, str]] = {
         "monaco-codicon.ttf",
         "font/ttf",
     ),
+    # Simple-DataTables for containers page
+    "https://cdn.jsdelivr.net/npm/simple-datatables@9/dist/style.min.css": (
+        "simple-datatables.css",
+        "text/css",
+    ),
+    "https://cdn.jsdelivr.net/npm/simple-datatables@9": (
+        "simple-datatables.js",
+        "application/javascript",
+    ),
 }
 
 
