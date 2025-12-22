@@ -190,9 +190,9 @@ echo "CF_HOME=$HOME" >> .env
 echo "CF_USER=$USER" >> .env
 ```
 
-Or export inline:
+Or use [direnv](https://direnv.net/) (copies `.envrc.example` to `.envrc`):
 ```bash
-CF_UID=$(id -u) CF_GID=$(id -g) CF_HOME=$HOME CF_USER=$USER docker compose up -d
+cp .envrc.example .envrc && direnv allow
 ```
 
 </details>

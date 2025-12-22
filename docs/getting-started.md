@@ -66,6 +66,11 @@ echo "CF_HOME=$HOME" >> .env
 echo "CF_USER=$USER" >> .env
 ```
 
+Or use [direnv](https://direnv.net/) to auto-set these variables when entering the directory:
+```bash
+cp .envrc.example .envrc && direnv allow
+```
+
 This ensures files like `compose-farm-state.yaml` and web UI edits are owned by your user instead of root. The `CF_USER` variable is required for SSH to work when running as a non-root user.
 
 ### Verify Installation
