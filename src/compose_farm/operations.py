@@ -101,6 +101,59 @@ async def discover_stack_host(cfg: Config, stack: str) -> tuple[str, str | list[
     return stack, None
 
 
+class StackDiscoveryResult(NamedTuple):
+    """Result of discovering where a stack is running across all hosts."""
+
+    stack: str
+    configured_hosts: list[str]  # From config (where it SHOULD run)
+    running_hosts: list[str]  # From reality (where it IS running)
+
+    @property
+    def is_multi_host(self) -> bool:
+        """Check if this is a multi-host stack."""
+        return len(self.configured_hosts) > 1
+
+    @property
+    def rogue_hosts(self) -> list[str]:
+        """Hosts where stack is running but shouldn't be."""
+        return [h for h in self.running_hosts if h not in self.configured_hosts]
+
+    @property
+    def missing_hosts(self) -> list[str]:
+        """Hosts where stack should be running but isn't."""
+        return [h for h in self.configured_hosts if h not in self.running_hosts]
+
+    @property
+    def is_rogue(self) -> bool:
+        """Stack is running on unauthorized host(s)."""
+        return len(self.rogue_hosts) > 0
+
+    @property
+    def is_duplicate(self) -> bool:
+        """Single-host stack running on multiple hosts."""
+        return not self.is_multi_host and len(self.running_hosts) > 1
+
+
+async def discover_stack_on_all_hosts(cfg: Config, stack: str) -> StackDiscoveryResult:
+    """Discover where a stack is running across ALL hosts.
+
+    Unlike discover_stack_host(), this checks every host in parallel
+    to detect rogues and duplicates.
+    """
+    configured_hosts = cfg.get_hosts(stack)
+    all_hosts = list(cfg.hosts.keys())
+
+    # Check all hosts in parallel
+    checks = await asyncio.gather(*[check_stack_running(cfg, stack, h) for h in all_hosts])
+    running_hosts = [h for h, is_running in zip(all_hosts, checks, strict=True) if is_running]
+
+    return StackDiscoveryResult(
+        stack=stack,
+        configured_hosts=configured_hosts,
+        running_hosts=running_hosts,
+    )
+
+
 async def check_stack_requirements(
     cfg: Config,
     stack: str,
@@ -422,5 +475,66 @@ async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
         )
         if all_succeeded:
             remove_stack(cfg, stack)
+
+    return results
+
+
+async def stop_rogue_stacks(
+    cfg: Config,
+    rogues: dict[str, list[str]],
+) -> list[CommandResult]:
+    """Stop stacks running on unauthorized hosts.
+
+    Args:
+        cfg: Config object.
+        rogues: Dict mapping stack name to list of rogue hosts.
+
+    Returns:
+        List of CommandResults for each stack@host stopped.
+
+    """
+    if not rogues:
+        return []
+
+    results: list[CommandResult] = []
+    tasks: list[tuple[str, str, asyncio.Task[CommandResult]]] = []
+
+    for stack, rogue_hosts in rogues.items():
+        for host in rogue_hosts:
+            # Skip hosts no longer in config
+            if host not in cfg.hosts:
+                print_warning(f"{stack}@{host}: host no longer in config, skipping")
+                results.append(
+                    CommandResult(
+                        stack=f"{stack}@{host}",
+                        exit_code=1,
+                        success=False,
+                        stderr="host no longer in config",
+                    )
+                )
+                continue
+            coro = run_compose_on_host(cfg, stack, host, "down")
+            tasks.append((stack, host, asyncio.create_task(coro)))
+
+    # Run all down commands in parallel
+    if tasks:
+        for stack, host, task in tasks:
+            try:
+                result = await task
+                results.append(result)
+                if result.success:
+                    print_success(f"{stack}@{host}: stopped (rogue)")
+                else:
+                    print_error(f"{stack}@{host}: {result.stderr or 'failed'}")
+            except Exception as e:
+                print_error(f"{stack}@{host}: {e}")
+                results.append(
+                    CommandResult(
+                        stack=f"{stack}@{host}",
+                        exit_code=1,
+                        success=False,
+                        stderr=str(e),
+                    )
+                )
 
     return results
