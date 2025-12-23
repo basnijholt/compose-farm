@@ -79,7 +79,7 @@ def _parse_image_digests(image_json: str) -> dict[str, str]:
     return image_digests
 
 
-async def _collect_stacks_entries_on_host(
+async def collect_stacks_entries_on_host(
     config: Config,
     host_name: str,
     stacks: set[str],
@@ -173,7 +173,7 @@ async def collect_all_stacks_entries(
 
     """
     tasks = [
-        _collect_stacks_entries_on_host(config, host, stacks, now=now)
+        collect_stacks_entries_on_host(config, host, stacks, now=now)
         for host, stacks in stacks_by_host.items()
         if stacks
     ]

@@ -37,12 +37,14 @@ from compose_farm.console import (
 )
 from compose_farm.executor import (
     CommandResult,
+    get_running_stacks_on_host,
     is_local,
     run_command,
 )
 from compose_farm.logs import (
     DEFAULT_LOG_PATH,
-    collect_all_stacks_entries,
+    SnapshotEntry,
+    collect_stacks_entries_on_host,
     isoformat,
     load_existing_entries,
     merge_entries,
@@ -52,7 +54,6 @@ from compose_farm.operations import (
     StackDiscoveryResult,
     check_host_compatibility,
     check_stack_requirements,
-    discover_all_stacks_on_all_hosts,
 )
 from compose_farm.state import get_orphaned_stacks, load_state, save_state
 from compose_farm.traefik import generate_traefik_config, render_traefik_config
@@ -87,8 +88,13 @@ def _snapshot_stacks(
         host = hosts[0] if isinstance(hosts, list) else hosts
         stacks_by_host.setdefault(host, set()).add(stack)
 
-    # Collect entries with 1 SSH call per host instead of 1 per stack
-    snapshot_entries = asyncio.run(collect_all_stacks_entries(cfg, stacks_by_host, now=now_dt))
+    # Collect entries with 1 SSH call per host (with progress bar)
+    async def collect_on_host(host: str) -> tuple[str, list[SnapshotEntry]]:
+        entries = await collect_stacks_entries_on_host(cfg, host, stacks_by_host[host], now=now_dt)
+        return host, entries
+
+    results = run_parallel_with_progress("Capturing", list(stacks_by_host.keys()), collect_on_host)
+    snapshot_entries = [entry for _, entries in results for entry in entries]
 
     if not snapshot_entries:
         msg = "No image digests were captured"
@@ -160,8 +166,26 @@ def _discover_stacks_full(
         - duplicates: stack -> list of all hosts (for single-host stacks on multiple)
 
     """
-    # Use the efficient batch discovery (1 SSH call per host instead of per stack)
-    results: list[StackDiscoveryResult] = asyncio.run(discover_all_stacks_on_all_hosts(cfg, stacks))
+    stack_list = stacks if stacks is not None else list(cfg.stacks)
+    all_hosts = list(cfg.hosts.keys())
+
+    # Query each host for running stacks (with progress bar)
+    async def get_stacks_on_host(host: str) -> tuple[str, set[str]]:
+        running = await get_running_stacks_on_host(cfg, host)
+        return host, running
+
+    host_results = run_parallel_with_progress("Discovering", all_hosts, get_stacks_on_host)
+    running_on_host: dict[str, set[str]] = dict(host_results)
+
+    # Build StackDiscoveryResult for each stack
+    results: list[StackDiscoveryResult] = [
+        StackDiscoveryResult(
+            stack=stack,
+            configured_hosts=cfg.get_hosts(stack),
+            running_hosts=[h for h in all_hosts if stack in running_on_host[h]],
+        )
+        for stack in stack_list
+    ]
 
     discovered: dict[str, str | list[str]] = {}
     strays: dict[str, list[str]] = {}
