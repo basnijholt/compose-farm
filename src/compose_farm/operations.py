@@ -474,3 +474,60 @@ async def stop_stray_stacks(
 
     """
     return await _stop_stacks_on_hosts(cfg, strays, label="stray")
+
+
+def build_discovery_results(
+    cfg: Config,
+    running_on_host: dict[str, set[str]],
+    stacks: list[str] | None = None,
+) -> tuple[dict[str, str | list[str]], dict[str, list[str]], dict[str, list[str]]]:
+    """Build discovery results from per-host running stacks.
+
+    Takes the raw data of which stacks are running on which hosts and
+    categorizes them into discovered (running correctly), strays (wrong host),
+    and duplicates (single-host stack on multiple hosts).
+
+    Args:
+        cfg: Config object.
+        running_on_host: Dict mapping host -> set of running stack names.
+        stacks: Optional list of stacks to check. Defaults to all configured stacks.
+
+    Returns:
+        Tuple of (discovered, strays, duplicates):
+        - discovered: stack -> host(s) where running correctly
+        - strays: stack -> list of unauthorized hosts
+        - duplicates: stack -> list of all hosts (for single-host stacks on multiple)
+
+    """
+    stack_list = stacks if stacks is not None else list(cfg.stacks)
+    all_hosts = list(running_on_host.keys())
+
+    # Build StackDiscoveryResult for each stack
+    results: list[StackDiscoveryResult] = [
+        StackDiscoveryResult(
+            stack=stack,
+            configured_hosts=cfg.get_hosts(stack),
+            running_hosts=[h for h in all_hosts if stack in running_on_host[h]],
+        )
+        for stack in stack_list
+    ]
+
+    discovered: dict[str, str | list[str]] = {}
+    strays: dict[str, list[str]] = {}
+    duplicates: dict[str, list[str]] = {}
+
+    for result in results:
+        correct_hosts = [h for h in result.running_hosts if h in result.configured_hosts]
+        if correct_hosts:
+            if result.is_multi_host:
+                discovered[result.stack] = correct_hosts
+            else:
+                discovered[result.stack] = correct_hosts[0]
+
+        if result.is_stray:
+            strays[result.stack] = result.stray_hosts
+
+        if result.is_duplicate:
+            duplicates[result.stack] = result.running_hosts
+
+    return discovered, strays, duplicates

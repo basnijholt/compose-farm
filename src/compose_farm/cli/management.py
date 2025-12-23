@@ -51,7 +51,7 @@ from compose_farm.logs import (
     write_toml,
 )
 from compose_farm.operations import (
-    StackDiscoveryResult,
+    build_discovery_results,
     check_host_compatibility,
     check_stack_requirements,
 )
@@ -155,18 +155,9 @@ def _discover_stacks_full(
 ) -> tuple[dict[str, str | list[str]], dict[str, list[str]], dict[str, list[str]]]:
     """Discover running stacks with full host scanning for stray detection.
 
-    Uses an optimized approach that queries each host once for all running stacks,
-    instead of checking each stack on each host individually. This reduces SSH
-    calls from (stacks * hosts) to just (hosts).
-
-    Returns:
-        Tuple of (discovered, strays, duplicates):
-        - discovered: stack -> host(s) where running correctly
-        - strays: stack -> list of unauthorized hosts
-        - duplicates: stack -> list of all hosts (for single-host stacks on multiple)
-
+    Queries each host once for all running stacks (with progress bar),
+    then delegates to build_discovery_results for categorization.
     """
-    stack_list = stacks if stacks is not None else list(cfg.stacks)
     all_hosts = list(cfg.hosts.keys())
 
     # Query each host for running stacks (with progress bar)
@@ -177,35 +168,7 @@ def _discover_stacks_full(
     host_results = run_parallel_with_progress("Discovering", all_hosts, get_stacks_on_host)
     running_on_host: dict[str, set[str]] = dict(host_results)
 
-    # Build StackDiscoveryResult for each stack
-    results: list[StackDiscoveryResult] = [
-        StackDiscoveryResult(
-            stack=stack,
-            configured_hosts=cfg.get_hosts(stack),
-            running_hosts=[h for h in all_hosts if stack in running_on_host[h]],
-        )
-        for stack in stack_list
-    ]
-
-    discovered: dict[str, str | list[str]] = {}
-    strays: dict[str, list[str]] = {}
-    duplicates: dict[str, list[str]] = {}
-
-    for result in results:
-        correct_hosts = [h for h in result.running_hosts if h in result.configured_hosts]
-        if correct_hosts:
-            if result.is_multi_host:
-                discovered[result.stack] = correct_hosts
-            else:
-                discovered[result.stack] = correct_hosts[0]
-
-        if result.is_stray:
-            strays[result.stack] = result.stray_hosts
-
-        if result.is_duplicate:
-            duplicates[result.stack] = result.running_hosts
-
-    return discovered, strays, duplicates
+    return build_discovery_results(cfg, running_on_host, stacks)
 
 
 def _report_stray_stacks(
