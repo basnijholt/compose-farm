@@ -178,14 +178,15 @@ def _render_row(c: ContainerStats) -> str:
     cpu_class = _progress_class(cpu)
     mem_class = _progress_class(mem)
 
+    uptime_sec = _parse_uptime_seconds(c.uptime)
     return f"""<tr>
-<td>{stack}</td>
-<td class="text-xs opacity-70">{service}</td>
-<td><span class="badge badge-outline badge-xs">{c.host}</span></td>
-<td><code class="text-xs bg-base-200 px-1 rounded">{image_name}:{tag}</code></td>
-<td><span class="{_status_class(c.status)}">{c.status}</span></td>
-<td class="text-xs">{c.uptime or "-"}</td>
-<td data-sort="{cpu:.1f}"><div class="flex flex-col gap-0.5"><progress class="progress {cpu_class} w-12 h-2" value="{min(cpu, 100)}" max="100"></progress><span class="text-xs">{cpu:.0f}%</span></div></td>
+<td data-sort="{stack.lower()}">{stack}</td>
+<td data-sort="{service.lower()}" class="text-xs opacity-70">{service}</td>
+<td data-sort="{c.host.lower()}"><span class="badge badge-outline badge-xs">{c.host}</span></td>
+<td data-sort="{c.image.lower()}"><code class="text-xs bg-base-200 px-1 rounded">{image_name}:{tag}</code></td>
+<td data-sort="{c.status.lower()}"><span class="{_status_class(c.status)}">{c.status}</span></td>
+<td data-sort="{uptime_sec}" class="text-xs">{c.uptime or "-"}</td>
+<td data-sort="{cpu}"><div class="flex flex-col gap-0.5"><progress class="progress {cpu_class} w-12 h-2" value="{min(cpu, 100)}" max="100"></progress><span class="text-xs">{cpu:.0f}%</span></div></td>
 <td data-sort="{c.memory_usage}"><div class="flex flex-col gap-0.5"><progress class="progress {mem_class} w-12 h-2" value="{min(mem, 100)}" max="100"></progress><span class="text-xs">{_format_bytes(c.memory_usage)}</span></div></td>
 <td data-sort="{c.network_rx + c.network_tx}" class="text-xs font-mono">↓{_format_bytes(c.network_rx)} ↑{_format_bytes(c.network_tx)}</td>
 </tr>"""
@@ -216,25 +217,12 @@ def _parse_uptime_seconds(uptime: str) -> int:
     return total
 
 
-def _get_sort_key(sort: str) -> Any:
-    """Get sort key function for a column name."""
-    keys: dict[str, Any] = {
-        "stack": lambda c: (c.stack or _infer_stack_service(c.name)[0]).lower(),
-        "service": lambda c: (c.service or _infer_stack_service(c.name)[1]).lower(),
-        "host": lambda c: c.host.lower(),
-        "image": lambda c: c.image.lower(),
-        "status": lambda c: c.status.lower(),
-        "uptime": lambda c: _parse_uptime_seconds(c.uptime),
-        "cpu": lambda c: c.cpu_percent,
-        "mem": lambda c: c.memory_usage,
-        "net": lambda c: c.network_rx + c.network_tx,
-    }
-    return keys.get(sort, keys["cpu"])
-
-
 @router.get("/api/containers/rows", response_class=HTMLResponse)
-async def get_containers_rows(sort: str = "cpu", asc: bool = False) -> HTMLResponse:
-    """Get container table rows as HTML for HTMX."""
+async def get_containers_rows() -> HTMLResponse:
+    """Get container table rows as HTML for HTMX.
+
+    Each cell has data-sort attribute for instant client-side sorting.
+    """
     config = get_config()
 
     if not config.glances_stack:
@@ -248,9 +236,6 @@ async def get_containers_rows(sort: str = "cpu", asc: bool = False) -> HTMLRespo
         return HTMLResponse(
             '<tr><td colspan="9" class="text-center py-4 opacity-60">No containers found</td></tr>'
         )
-
-    # Sort by requested column
-    containers.sort(key=_get_sort_key(sort), reverse=not asc)
 
     rows = "\n".join(_render_row(c) for c in containers)
     return HTMLResponse(rows)

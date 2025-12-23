@@ -371,8 +371,8 @@ class TestContainersRowsAPI:
         assert "nginx" in response.text
         assert "running" in response.text
 
-    def test_rows_with_sorting(self, client: TestClient) -> None:
-        """Test rows endpoint respects sort parameters."""
+    def test_rows_have_data_sort_attributes(self, client: TestClient) -> None:
+        """Test rows have data-sort attributes for client-side sorting."""
         mock_containers = [
             ContainerStats(
                 name="alpha",
@@ -391,23 +391,6 @@ class TestContainersRowsAPI:
                 stack="alpha",
                 service="web",
             ),
-            ContainerStats(
-                name="zeta",
-                host="nas",
-                status="running",
-                image="redis:latest",
-                cpu_percent=5.0,
-                memory_usage=200,
-                memory_limit=1000,
-                memory_percent=20.0,
-                network_rx=200,
-                network_tx=200,
-                uptime="2 hours",
-                ports="",
-                engine="docker",
-                stack="zeta",
-                service="cache",
-            ),
         ]
 
         with (
@@ -425,15 +408,13 @@ class TestContainersRowsAPI:
             )
             mock_fetch.return_value = mock_containers
 
-            # Sort by stack ascending - alpha should be first
-            response = client.get("/api/containers/rows?sort=stack&asc=true")
+            response = client.get("/api/containers/rows")
             assert response.status_code == 200
-            assert response.text.index("alpha") < response.text.index("zeta")
-
-            # Sort by stack descending - zeta should be first
-            response = client.get("/api/containers/rows?sort=stack&asc=false")
-            assert response.status_code == 200
-            assert response.text.index("zeta") < response.text.index("alpha")
+            # Check that cells have data-sort attributes
+            assert 'data-sort="alpha"' in response.text  # stack
+            assert 'data-sort="web"' in response.text  # service
+            assert 'data-sort="3600"' in response.text  # uptime (1 hour = 3600s)
+            assert 'data-sort="10' in response.text  # cpu
 
 
 class TestCheckUpdatesAPI:

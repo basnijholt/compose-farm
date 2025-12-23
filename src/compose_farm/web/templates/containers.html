@@ -25,6 +25,9 @@
         <input type="text" id="filter-input" placeholder="Filter containers..."
                class="input input-bordered input-sm w-64" onkeyup="filterTable()">
         <span id="container-count" class="text-sm text-base-content/60"></span>
+        <div class="ml-auto flex items-center gap-2">
+            <span class="badge badge-ghost font-mono text-xs" id="refresh-timer"></span>
+        </div>
     </div>
 
     <!-- Container Table -->
@@ -32,20 +35,20 @@
         <table class="table table-zebra table-sm w-full">
             <thead class="sticky top-0 bg-base-200">
                 <tr>
-                    <th class="cursor-pointer" onclick="sortTable(0)">Stack</th>
-                    <th class="cursor-pointer" onclick="sortTable(1)">Service</th>
-                    <th class="cursor-pointer" onclick="sortTable(2)">Host</th>
-                    <th class="cursor-pointer" onclick="sortTable(3)">Image</th>
-                    <th class="cursor-pointer" onclick="sortTable(4)">Status</th>
-                    <th class="cursor-pointer" onclick="sortTable(5)">Uptime</th>
-                    <th class="cursor-pointer" onclick="sortTable(6)">CPU</th>
-                    <th class="cursor-pointer" onclick="sortTable(7)">Mem</th>
-                    <th class="cursor-pointer" onclick="sortTable(8)">Net I/O</th>
+                    <th class="cursor-pointer" onclick="sortTable(0)">Stack<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(1)">Service<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(2)">Host<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(3)">Image<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(4)">Status<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(5)">Uptime<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(6)">CPU<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(7)">Mem<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(8)">Net I/O<span class="sort-indicator"></span></th>
                 </tr>
             </thead>
             <tbody id="container-rows"
-                   hx-get="/api/containers/rows?sort=cpu&asc=false"
-                   hx-trigger="load, every 3s, cf:refresh"
+                   hx-get="/api/containers/rows"
+                   hx-trigger="load, every 3s"
                    hx-swap="innerHTML">
                 <tr><td colspan="9" class="text-center py-8">
                     <span class="loading loading-spinner loading-md"></span>
@@ -61,12 +64,7 @@
 {% block scripts %}
 {% if glances_enabled %}
 <style>
-.status-running { @apply badge badge-success badge-sm; }
-.status-exited { @apply badge badge-error badge-sm; }
-.status-paused { @apply badge badge-warning badge-sm; }
-.status-unknown { @apply badge badge-ghost badge-sm; }
-.cpu-bar, .mem-bar { @apply w-16 h-2; }
-.sortable:after { content: ' ↕'; opacity: 0.3; }
+.sort-indicator { display: inline-block; width: 1em; text-align: center; opacity: 0.5; }
 </style>
 <script>
 // Simple client-side filtering
@@ -84,35 +82,67 @@ function filterTable() {
         filter ? `${visible} matching` : '';
 }
 
-// Server-side sorting - update URL and trigger refresh
-const colNames = ['stack', 'service', 'host', 'image', 'status', 'uptime', 'cpu', 'mem', 'net'];
-let sortCol = 'cpu', sortAsc = false;  // Default: CPU descending
+// Client-side sorting using data-sort attributes (set by server on every cell)
+let sortCol = 6, sortAsc = false;  // Default: CPU (col 6) descending
+const numericCols = new Set([5, 6, 7, 8]);  // uptime, cpu, mem, net
 
-function sortTable(colIdx) {
-    const col = colNames[colIdx];
+function sortTable(col) {
     if (sortCol === col) {
         sortAsc = !sortAsc;
     } else {
         sortCol = col;
-        sortAsc = false;  // Default descending for new column
+        sortAsc = false;
     }
-    updateSortUrl();
-    htmx.trigger('#container-rows', 'cf:refresh');
+    updateSortIndicators();
+    doSort();
 }
 
-function updateSortUrl() {
+function updateSortIndicators() {
+    document.querySelectorAll('.sort-indicator').forEach((span, i) => {
+        span.textContent = (i === sortCol) ? (sortAsc ? '↑' : '↓') : '';
+        span.style.opacity = (i === sortCol) ? '1' : '0.3';
+    });
+}
+
+function doSort() {
     const tbody = document.getElementById('container-rows');
-    const url = `/api/containers/rows?sort=${sortCol}&asc=${sortAsc}`;
-    tbody.setAttribute('hx-get', url);
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if (rows.length === 0) return;
+
+    const isNumeric = numericCols.has(sortCol);
+    rows.sort((a, b) => {
+        const aVal = a.cells[sortCol]?.dataset?.sort ?? '';
+        const bVal = b.cells[sortCol]?.dataset?.sort ?? '';
+        const cmp = isNumeric ? aVal - bVal : aVal.localeCompare(bVal);
+        return sortAsc ? cmp : -cmp;
+    });
+
+    rows.forEach(row => tbody.appendChild(row));
 }
 
-// Re-apply filter after HTMX swap
+// Re-apply filter and sort after HTMX swap, reset timer
+let lastUpdate = Date.now();
+const REFRESH_INTERVAL = 3000;
+
 document.body.addEventListener('htmx:afterSwap', (e) => {
     if (e.detail.target.id === 'container-rows') {
+        lastUpdate = Date.now();
+        doSort();  // Re-apply current sort
         const filter = document.getElementById('filter-input').value;
         if (filter) filterTable();
     }
 });
+
+// Update timer display every 100ms
+setInterval(() => {
+    const elapsed = Date.now() - lastUpdate;
+    const remaining = Math.max(0, REFRESH_INTERVAL - elapsed);
+    const remainingSec = Math.ceil(remaining / 1000);
+    document.getElementById('refresh-timer').textContent = `↻ ${remainingSec}s`;
+}, 100);
+
+// Show initial sort indicator
+document.addEventListener('DOMContentLoaded', updateSortIndicators);
 </script>
 {% endif %}
 {% endblock %}
