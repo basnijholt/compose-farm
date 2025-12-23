@@ -77,31 +77,6 @@ def get_stack_paths(cfg: Config, stack: str) -> list[str]:
     return paths
 
 
-async def discover_stack_host(cfg: Config, stack: str) -> tuple[str, str | list[str] | None]:
-    """Discover where a stack is running.
-
-    For multi-host stacks, checks all assigned hosts in parallel.
-    For single-host, checks assigned host first, then others.
-
-    Returns (stack_name, host_or_hosts_or_none).
-    """
-    assigned_hosts = cfg.get_hosts(stack)
-
-    if cfg.is_multi_host(stack):
-        # Check all assigned hosts in parallel
-        checks = await asyncio.gather(*[check_stack_running(cfg, stack, h) for h in assigned_hosts])
-        running = [h for h, is_running in zip(assigned_hosts, checks, strict=True) if is_running]
-        return stack, running if running else None
-
-    # Single-host: check assigned host first, then others
-    if await check_stack_running(cfg, stack, assigned_hosts[0]):
-        return stack, assigned_hosts[0]
-    for host in cfg.hosts:
-        if host != assigned_hosts[0] and await check_stack_running(cfg, stack, host):
-            return stack, host
-    return stack, None
-
-
 class StackDiscoveryResult(NamedTuple):
     """Result of discovering where a stack is running across all hosts."""
 
