@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import tomllib
 from dataclasses import dataclass
@@ -150,39 +149,6 @@ async def collect_stacks_entries_on_host(
                 )
 
     return entries
-
-
-async def collect_all_stacks_entries(
-    config: Config,
-    stacks_by_host: dict[str, set[str]],
-    *,
-    now: datetime,
-) -> list[SnapshotEntry]:
-    """Collect image entries for all stacks, 1 SSH call per host.
-
-    Uses 2 docker commands per host (docker ps + docker image inspect)
-    instead of N docker compose commands.
-
-    Args:
-        config: Configuration
-        stacks_by_host: Dict mapping host_name -> set of stacks on that host
-        now: Timestamp for the snapshot entries
-
-    Returns:
-        List of SnapshotEntry for all stacks.
-
-    """
-    tasks = [
-        collect_stacks_entries_on_host(config, host, stacks, now=now)
-        for host, stacks in stacks_by_host.items()
-        if stacks
-    ]
-
-    if not tasks:
-        return []
-
-    results = await asyncio.gather(*tasks)
-    return [entry for entries in results for entry in entries]
 
 
 def load_existing_entries(log_path: Path) -> list[dict[str, str]]:

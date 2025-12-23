@@ -11,8 +11,6 @@ from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
 from compose_farm.logs import (
     _SECTION_SEPARATOR,
-    SnapshotEntry,
-    collect_all_stacks_entries,
     collect_stacks_entries_on_host,
     isoformat,
     load_existing_entries,
@@ -198,51 +196,6 @@ class TestCollectStacksEntriesOnHost:
         )
 
         assert entries == []
-
-
-class TestCollectAllStacksEntries:
-    """Tests for collect_all_stacks_entries (coordinates across hosts)."""
-
-    @pytest.fixture
-    def config_with_stacks(self, tmp_path: Path) -> Config:
-        compose_dir = tmp_path / "compose"
-        compose_dir.mkdir()
-        for stack in ["plex", "jellyfin", "sonarr"]:
-            stack_dir = compose_dir / stack
-            stack_dir.mkdir()
-            (stack_dir / "docker-compose.yml").write_text("services: {}\n")
-
-        return Config(
-            compose_dir=compose_dir,
-            hosts={"host1": Host(address="localhost"), "host2": Host(address="localhost")},
-            stacks={"plex": "host1", "jellyfin": "host1", "sonarr": "host2"},
-        )
-
-    @pytest.mark.asyncio
-    async def test_calls_once_per_host(
-        self, config_with_stacks: Config, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Verify collect is called once per host."""
-        calls_per_host: dict[str, int] = {}
-
-        async def mock_collect_on_host(
-            config: Config, host_name: str, stacks: set[str], *, now: datetime
-        ) -> list[SnapshotEntry]:
-            calls_per_host[host_name] = calls_per_host.get(host_name, 0) + 1
-            return []
-
-        monkeypatch.setattr(
-            "compose_farm.logs.collect_stacks_entries_on_host", mock_collect_on_host
-        )
-
-        now = datetime(2025, 1, 1, tzinfo=UTC)
-        await collect_all_stacks_entries(
-            config_with_stacks,
-            {"host1": {"plex", "jellyfin"}, "host2": {"sonarr"}},
-            now=now,
-        )
-
-        assert calls_per_host == {"host1": 1, "host2": 1}
 
 
 class TestSnapshotMerging:
