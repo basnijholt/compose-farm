@@ -7,9 +7,56 @@ from typing import TYPE_CHECKING
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
+
+
+class TestExtractConfigError:
+    """Tests for extract_config_error helper."""
+
+    def test_validation_error_with_location(self) -> None:
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import extract_config_error
+
+        # Trigger a validation error with an extra field
+        with pytest.raises(ValidationError) as exc_info:
+            Config(
+                hosts={"server": Host(address="192.168.1.1")},
+                stacks={"app": "server"},
+                unknown_field="bad",  # type: ignore[call-arg]
+            )
+
+        msg = extract_config_error(exc_info.value)
+        assert "unknown_field" in msg
+        assert "Extra inputs are not permitted" in msg
+
+    def test_validation_error_nested_location(self) -> None:
+        from compose_farm.config import Host
+        from compose_farm.web.deps import extract_config_error
+
+        # Trigger a validation error with a nested extra field
+        with pytest.raises(ValidationError) as exc_info:
+            Host(address="192.168.1.1", bad_key="value")  # type: ignore[call-arg]
+
+        msg = extract_config_error(exc_info.value)
+        assert "bad_key" in msg
+        assert "Extra inputs are not permitted" in msg
+
+    def test_regular_exception(self) -> None:
+        from compose_farm.web.deps import extract_config_error
+
+        exc = ValueError("Something went wrong")
+        msg = extract_config_error(exc)
+        assert msg == "Something went wrong"
+
+    def test_file_not_found_exception(self) -> None:
+        from compose_farm.web.deps import extract_config_error
+
+        exc = FileNotFoundError("Config file not found")
+        msg = extract_config_error(exc)
+        assert msg == "Config file not found"
 
 
 class TestValidateYaml:
