@@ -12,9 +12,9 @@ from compose_farm.executor import CommandResult
 from compose_farm.logs import (
     _BATCH_SEPARATOR,
     SnapshotEntry,
+    _collect_stacks_entries_on_host,
     _parse_images_output,
     collect_all_stacks_entries,
-    collect_stacks_entries_on_host,
     isoformat,
     load_existing_entries,
     merge_entries,
@@ -64,7 +64,7 @@ async def test_snapshot_preserves_first_seen(
 
     # First snapshot
     first_time = datetime(2025, 1, 1, tzinfo=UTC)
-    first_entries = await collect_stacks_entries_on_host(config, "local", ["svc"], now=first_time)
+    first_entries = await _collect_stacks_entries_on_host(config, "local", ["svc"], now=first_time)
     first_iso = isoformat(first_time)
     merged = merge_entries([], first_entries, now_iso=first_iso)
     meta = {"generated_at": first_iso, "compose_dir": str(config.compose_dir)}
@@ -75,7 +75,9 @@ async def test_snapshot_preserves_first_seen(
 
     # Second snapshot
     second_time = datetime(2025, 2, 1, tzinfo=UTC)
-    second_entries = await collect_stacks_entries_on_host(config, "local", ["svc"], now=second_time)
+    second_entries = await _collect_stacks_entries_on_host(
+        config, "local", ["svc"], now=second_time
+    )
     second_iso = isoformat(second_time)
     existing = load_existing_entries(log_path)
     merged = merge_entries(existing, second_entries, now_iso=second_iso)
@@ -132,7 +134,7 @@ class TestBatchCollectStackEntries:
         monkeypatch.setattr("compose_farm.logs.run_command", mock_run_command)
 
         now = datetime(2025, 1, 1, tzinfo=UTC)
-        entries = await collect_stacks_entries_on_host(
+        entries = await _collect_stacks_entries_on_host(
             config_with_stacks, "host1", ["plex", "jellyfin"], now=now
         )
 
@@ -156,7 +158,7 @@ class TestBatchCollectStackEntries:
             return []
 
         monkeypatch.setattr(
-            "compose_farm.logs.collect_stacks_entries_on_host", mock_collect_on_host
+            "compose_farm.logs._collect_stacks_entries_on_host", mock_collect_on_host
         )
 
         now = datetime(2025, 1, 1, tzinfo=UTC)
@@ -194,7 +196,7 @@ class TestBatchCollectStackEntries:
         monkeypatch.setattr("compose_farm.logs.run_command", mock_run_command)
 
         now = datetime(2025, 1, 1, tzinfo=UTC)
-        entries = await collect_stacks_entries_on_host(
+        entries = await _collect_stacks_entries_on_host(
             config_with_stacks, "host1", ["plex", "jellyfin"], now=now
         )
 
@@ -211,5 +213,5 @@ class TestBatchCollectStackEntries:
     async def test_collect_stacks_entries_empty_list(self, config_with_stacks: Config) -> None:
         """Empty stack list returns empty entries."""
         now = datetime(2025, 1, 1, tzinfo=UTC)
-        entries = await collect_stacks_entries_on_host(config_with_stacks, "host1", [], now=now)
+        entries = await _collect_stacks_entries_on_host(config_with_stacks, "host1", [], now=now)
         assert entries == []

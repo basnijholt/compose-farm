@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import tomllib
 from dataclasses import dataclass
@@ -105,7 +106,7 @@ def _extract_image_fields(record: dict[str, Any]) -> tuple[str, str]:
     return image, digest
 
 
-async def collect_stacks_entries_on_host(
+async def _collect_stacks_entries_on_host(
     config: Config,
     host_name: str,
     stacks: list[str],
@@ -181,10 +182,8 @@ async def collect_all_stacks_entries(
         List of SnapshotEntry for all stacks.
 
     """
-    import asyncio  # noqa: PLC0415
-
     tasks = [
-        collect_stacks_entries_on_host(config, host, stacks, now=now)
+        _collect_stacks_entries_on_host(config, host, stacks, now=now)
         for host, stacks in stacks_by_host.items()
         if stacks
     ]
