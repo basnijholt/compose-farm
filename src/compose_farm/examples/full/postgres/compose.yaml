@@ -1,0 +1,26 @@
+# PostgreSQL - Database with persistent storage
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cf-postgres
+    networks:
+      - mynetwork
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      - POSTGRES_DB=${POSTGRES_DB:-postgres}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - /mnt/data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # Use 5432:5432 in production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  mynetwork:
+    external: true

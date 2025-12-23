@@ -27,6 +27,7 @@ python docs/demos/cli/record.py quickstart migration
 | `update.tape` | `cf update` |
 | `migration.tape` | Service migration |
 | `apply.tape` | `cf apply` |
+| `config-example.tape` | `cf config example` - generate example stacks |
 
 ## Output
 
