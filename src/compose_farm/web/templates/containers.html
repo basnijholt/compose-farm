@@ -240,34 +240,76 @@
         });
     }
 
-    // Load data from API
-    async function loadData() {
+    // All container data collected during streaming
+    let allContainers = [];
+
+    // Update table with current data
+    function updateTable() {
+        // Sort by CPU descending
+        allContainers.sort((a, b) => b.cpu_percent - a.cpu_percent);
+        initTable(allContainers);
+    }
+
+    // Load data using SSE streaming
+    function loadData() {
         loadingEl.style.display = 'flex';
+        loadingEl.innerHTML = '<span class="loading loading-spinner loading-md"></span><span class="ml-2">Loading containers...</span>';
+        allContainers = [];
 
-        try {
-            const response = await fetch('/api/containers/list');
-            const result = await response.json();
+        const eventSource = new EventSource('/api/containers/stream');
 
-            if (result.error) {
-                loadingEl.innerHTML = `<span class="text-error">${result.error}</span>`;
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.error) {
+                loadingEl.innerHTML = `<span class="text-error">${data.error}</span>`;
+                eventSource.close();
                 return;
             }
 
-            loadingEl.style.display = 'none';
-            initTable(result.data);
+            if (data.host_data) {
+                // Add new containers and update table immediately
+                allContainers = allContainers.concat(data.host_data);
+                loadingEl.innerHTML = `<span class="loading loading-spinner loading-sm"></span><span class="ml-2">${allContainers.length} containers loaded...</span>`;
+                updateTable();
+            }
 
-        } catch (err) {
-            console.error('Failed to load containers:', err);
-            loadingEl.innerHTML = '<span class="text-error">Failed to load containers - ' +
-                '<button class="btn btn-xs btn-ghost" onclick="location.reload()">Retry</button></span>';
-        }
+            if (data.done) {
+                loadingEl.style.display = 'none';
+                eventSource.close();
+            }
+        };
+
+        eventSource.onerror = () => {
+            if (allContainers.length > 0) {
+                // We got some data, just finish
+                loadingEl.style.display = 'none';
+            } else {
+                loadingEl.innerHTML = '<span class="text-error">Failed to load containers - ' +
+                    '<button class="btn btn-xs btn-ghost" onclick="location.reload()">Retry</button></span>';
+            }
+            eventSource.close();
+        };
+    }
+
+    // Auto-refresh interval (30 seconds)
+    const AUTO_REFRESH_INTERVAL = 30000;
+    let refreshTimer = null;
+
+    function startAutoRefresh() {
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = setInterval(loadData, AUTO_REFRESH_INTERVAL);
     }
 
     // Event listeners
-    refreshBtn.addEventListener('click', loadData);
+    refreshBtn.addEventListener('click', () => {
+        loadData();
+        startAutoRefresh(); // Reset timer on manual refresh
+    });
 
     // Initial load
     loadData();
+    startAutoRefresh();
 })();
 </script>
 {% endif %}
