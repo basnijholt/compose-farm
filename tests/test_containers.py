@@ -190,7 +190,7 @@ class TestContainersPage:
 
         assert response.status_code == 200
         assert "Containers" in response.text
-        assert "containers-table" in response.text
+        assert "container-rows" in response.text
 
 
 class TestContainersAPI:
@@ -277,6 +277,73 @@ class TestContainersAPI:
         assert data["data"][0]["name"] == "nginx"
         assert data["data"][0]["cpu_percent"] == 5.5
         assert data["data"][1]["name"] == "redis"
+
+
+class TestContainersRowsAPI:
+    """Tests for containers rows HTML endpoint."""
+
+    @pytest.fixture
+    def client(self) -> TestClient:
+        app = create_app()
+        return TestClient(app)
+
+    def test_rows_without_glances(self, client: TestClient) -> None:
+        """Test rows endpoint returns error when Glances not configured."""
+        with patch("compose_farm.web.routes.containers.get_config") as mock:
+            mock.return_value = Config(
+                compose_dir=Path("/opt/compose"),
+                hosts={"nas": Host(address="192.168.1.6")},
+                stacks={"test": "nas"},
+                glances_stack=None,
+            )
+            response = client.get("/api/containers/rows")
+
+        assert response.status_code == 200
+        assert "Glances not configured" in response.text
+
+    def test_rows_returns_html(self, client: TestClient) -> None:
+        """Test rows endpoint returns HTML table rows."""
+        mock_containers = [
+            ContainerStats(
+                name="nginx",
+                host="nas",
+                status="running",
+                image="nginx:latest",
+                cpu_percent=5.5,
+                memory_usage=104857600,
+                memory_limit=1073741824,
+                memory_percent=9.77,
+                network_rx=1000,
+                network_tx=500,
+                uptime="2 hours",
+                ports="80->80/tcp",
+                engine="docker",
+                stack="web",
+                service="nginx",
+            ),
+        ]
+
+        with (
+            patch("compose_farm.web.routes.containers.get_config") as mock_config,
+            patch(
+                "compose_farm.web.routes.containers.fetch_all_container_stats",
+                new_callable=AsyncMock,
+            ) as mock_fetch,
+        ):
+            mock_config.return_value = Config(
+                compose_dir=Path("/opt/compose"),
+                hosts={"nas": Host(address="192.168.1.6")},
+                stacks={"test": "nas"},
+                glances_stack="glances",
+            )
+            mock_fetch.return_value = mock_containers
+
+            response = client.get("/api/containers/rows")
+
+        assert response.status_code == 200
+        assert "<tr>" in response.text
+        assert "nginx" in response.text
+        assert "running" in response.text
 
 
 class TestCheckUpdatesAPI:

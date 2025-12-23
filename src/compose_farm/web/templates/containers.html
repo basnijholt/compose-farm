@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "partials/components.html" import page_header %}
-{% from "partials/icons.html" import refresh_cw, box %}
+{% from "partials/icons.html" import refresh_cw %}
 {% block title %}Containers - Compose Farm{% endblock %}
 
 {% block content %}
@@ -17,42 +17,42 @@
     </div>
     {% else %}
 
-    <!-- Action Buttons -->
-    <div class="flex flex-wrap gap-2 mb-6">
-        <button id="refresh-table-btn" class="btn btn-outline">
+    <!-- Action Bar -->
+    <div class="flex flex-wrap items-center gap-4 mb-6">
+        <button class="btn btn-outline btn-sm" hx-get="/api/containers/rows" hx-target="#container-rows" hx-swap="innerHTML">
             {{ refresh_cw() }} Refresh
         </button>
-    </div>
-
-    <!-- Loading indicator -->
-    <div id="loading-indicator" class="flex items-center gap-2 mb-4">
-        <span class="loading loading-spinner loading-sm"></span>
-        <span class="text-base-content/60">Loading containers...</span>
+        <input type="text" id="filter-input" placeholder="Filter containers..."
+               class="input input-bordered input-sm w-64" onkeyup="filterTable()">
+        <span id="container-count" class="text-sm text-base-content/60"></span>
     </div>
 
     <!-- Container Table -->
-    <div class="card bg-base-100 shadow">
-        <div class="card-body p-0">
-            <table id="containers-table" class="table table-zebra table-pin-rows w-full">
-                <thead>
-                    <tr>
-                        <th>Stack</th>
-                        <th>Service</th>
-                        <th>Host</th>
-                        <th>Image</th>
-                        <th>Updates</th>
-                        <th>Status</th>
-                        <th>Uptime</th>
-                        <th>CPU</th>
-                        <th>Memory</th>
-                        <th>Net I/O</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Data loaded via JS -->
-                </tbody>
-            </table>
-        </div>
+    <div class="card bg-base-100 shadow overflow-x-auto">
+        <table class="table table-zebra table-sm w-full">
+            <thead class="sticky top-0 bg-base-200">
+                <tr>
+                    <th class="cursor-pointer" onclick="sortTable(0)">Stack</th>
+                    <th class="cursor-pointer" onclick="sortTable(1)">Service</th>
+                    <th class="cursor-pointer" onclick="sortTable(2)">Host</th>
+                    <th>Image</th>
+                    <th class="cursor-pointer" onclick="sortTable(4)">Status</th>
+                    <th>Uptime</th>
+                    <th class="cursor-pointer" onclick="sortTable(6)">CPU</th>
+                    <th class="cursor-pointer" onclick="sortTable(7)">Mem</th>
+                    <th>Net I/O</th>
+                </tr>
+            </thead>
+            <tbody id="container-rows"
+                   hx-get="/api/containers/rows"
+                   hx-trigger="load, every 3s"
+                   hx-swap="innerHTML">
+                <tr><td colspan="9" class="text-center py-8">
+                    <span class="loading loading-spinner loading-md"></span>
+                    <span class="ml-2">Loading containers...</span>
+                </td></tr>
+            </tbody>
+        </table>
     </div>
     {% endif %}
 </div>
@@ -60,279 +60,65 @@
 
 {% block scripts %}
 {% if glances_enabled %}
-<!-- Simple-DataTables -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-datatables@9/dist/style.min.css">
-<script src="https://cdn.jsdelivr.net/npm/simple-datatables@9" data-vendor="simple-datatables.js"></script>
-
 <style>
-/* Override Simple-DataTables styles to match DaisyUI */
-.datatable-wrapper .datatable-top,
-.datatable-wrapper .datatable-bottom {
-    padding: 1rem;
-}
-
-.datatable-wrapper .datatable-search input {
-    @apply input input-bordered input-sm w-64;
-}
-
-.datatable-wrapper .datatable-selector {
-    @apply select select-bordered select-sm;
-}
-
-.datatable-wrapper .datatable-pagination .datatable-pagination-list-item-link {
-    @apply btn btn-sm btn-ghost;
-}
-
-.datatable-wrapper .datatable-pagination .datatable-pagination-list-item.datatable-active .datatable-pagination-list-item-link {
-    @apply btn-primary;
-}
-
-.datatable-wrapper .datatable-sorter::before,
-.datatable-wrapper .datatable-sorter::after {
-    border-color: oklch(var(--bc) / 0.3);
-}
-
-.datatable-wrapper .datatable-sorter.datatable-ascending::after,
-.datatable-wrapper .datatable-sorter.datatable-descending::before {
-    border-color: oklch(var(--p));
-}
-
-/* Status badges */
 .status-running { @apply badge badge-success badge-sm; }
 .status-exited { @apply badge badge-error badge-sm; }
-.status-created { @apply badge badge-warning badge-sm; }
-.status-paused { @apply badge badge-info badge-sm; }
-.status-restarting { @apply badge badge-warning badge-sm; }
-.status-unknown { @apply badge badge-neutral badge-sm; }
-
-/* Stat cell with progress bar */
-.stat-cell {
-    @apply flex items-center gap-2;
-}
-.stat-cell progress {
-    @apply w-16 h-2;
-}
-.stat-cell .stat-value {
-    @apply text-xs font-mono min-w-[3rem] text-right;
-}
-
-/* Memory cell with usage text */
-.memory-cell {
-    @apply flex items-center gap-2;
-}
-.memory-cell progress {
-    @apply w-12 h-2;
-}
-.memory-cell .memory-text {
-    @apply text-xs opacity-80;
-}
+.status-paused { @apply badge badge-warning badge-sm; }
+.status-unknown { @apply badge badge-ghost badge-sm; }
+.cpu-bar, .mem-bar { @apply w-16 h-2; }
+.sortable:after { content: ' ↕'; opacity: 0.3; }
 </style>
-
 <script>
-(function() {
-    let dataTable = null;
-    const tableEl = document.getElementById('containers-table');
-    const loadingEl = document.getElementById('loading-indicator');
-    const refreshBtn = document.getElementById('refresh-table-btn');
+// Simple client-side filtering
+function filterTable() {
+    const filter = document.getElementById('filter-input').value.toLowerCase();
+    const rows = document.querySelectorAll('#container-rows tr');
+    let visible = 0;
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        const show = text.includes(filter);
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+    document.getElementById('container-count').textContent =
+        filter ? `${visible} matching` : '';
+}
 
-    // Status badge HTML
-    function statusBadge(status) {
-        const statusClass = 'status-' + (status || 'unknown').toLowerCase();
-        return `<span class="${statusClass}">${status}</span>`;
+// Simple client-side sorting
+let sortCol = -1, sortAsc = true;
+function sortTable(col) {
+    const tbody = document.getElementById('container-rows');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if (rows.length === 0) return;
+
+    if (sortCol === col) {
+        sortAsc = !sortAsc;
+    } else {
+        sortCol = col;
+        sortAsc = true;
     }
 
-    // CPU progress bar with DaisyUI
-    function cpuBar(percent) {
-        if (percent === undefined || percent === null) return '-';
-        const colorClass = percent > 80 ? 'progress-error' : percent > 50 ? 'progress-warning' : 'progress-success';
-        return `<div class="stat-cell">
-            <progress class="progress ${colorClass}" value="${Math.min(percent, 100)}" max="100"></progress>
-            <span class="stat-value">${percent.toFixed(1)}%</span>
-        </div>`;
-    }
+    rows.sort((a, b) => {
+        const aVal = a.cells[col]?.dataset?.sort || a.cells[col]?.textContent || '';
+        const bVal = b.cells[col]?.dataset?.sort || b.cells[col]?.textContent || '';
+        const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
 
-    // Memory progress bar with usage text
-    function memoryBar(percent, usage) {
-        if (!usage) return '-';
-        const colorClass = percent > 80 ? 'progress-error' : percent > 50 ? 'progress-warning' : 'progress-success';
-        return `<div class="memory-cell" title="${usage}">
-            <progress class="progress ${colorClass}" value="${Math.min(percent || 0, 100)}" max="100"></progress>
-            <span class="memory-text">${usage}</span>
-        </div>`;
-    }
-
-    // Update check button
-    function updateBtn(image, tag) {
-        const id = btoa(`${image}:${tag}`).replace(/[^a-zA-Z0-9]/g, '');
-        return `<button class="btn btn-xs btn-ghost update-check-btn" data-image="${image}" data-tag="${tag}" data-id="${id}">
-            <span id="update-${id}">Check</span>
-        </button>`;
-    }
-
-    // Transform container data to table row
-    function containerToRow(c) {
-        return [
-            `<span class="font-medium">${c.stack}</span>`,
-            `<span class="text-xs opacity-80">${c.service}</span>`,
-            `<span class="badge badge-outline badge-sm">${c.host}</span>`,
-            `<code class="text-xs bg-base-200 px-1 rounded truncate max-w-40" title="${c.image}:${c.tag}">${c.image}:${c.tag}</code>`,
-            updateBtn(c.image, c.tag),
-            statusBadge(c.status),
-            `<span class="text-xs">${c.uptime || '-'}</span>`,
-            cpuBar(c.cpu_percent),
-            memoryBar(c.memory_percent, c.memory_usage),
-            c.net_io ? `<span class="text-xs font-mono">${c.net_io}</span>` : '-',
-        ];
-    }
-
-    // Check for updates on a specific image
-    async function checkUpdates(image, tag, id) {
-        const el = document.getElementById(`update-${id}`);
-        if (!el) return;
-
-        el.innerHTML = '<span class="loading loading-spinner loading-xs"></span>';
-
-        try {
-            const response = await fetch(`/api/containers/check-updates?image=${encodeURIComponent(image)}&tag=${encodeURIComponent(tag)}`);
-            const result = await response.json();
-
-            if (result.error) {
-                el.innerHTML = '<span class="text-error text-xs">error</span>';
-            } else if (result.available_updates && result.available_updates.length > 0) {
-                const latest = result.available_updates[0];
-                el.innerHTML = `<span class="badge badge-success badge-xs" title="Available: ${result.available_updates.join(', ')}">${latest}</span>`;
-            } else {
-                el.innerHTML = '<span class="text-success text-xs">up to date</span>';
-            }
-        } catch (err) {
-            el.innerHTML = '<span class="text-error text-xs">failed</span>';
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+            return sortAsc ? aNum - bNum : bNum - aNum;
         }
-    }
-
-    // Initialize table with data
-    function initTable(data) {
-        if (dataTable) {
-            dataTable.destroy();
-        }
-        dataTable = new simpleDatatables.DataTable(tableEl, {
-            data: { data: data.map(containerToRow) },
-            searchable: true,
-            sortable: true,
-            perPage: 25,
-            perPageSelect: [10, 25, 50, 100],
-            labels: {
-                placeholder: "Filter containers...",
-                noRows: "No containers found",
-                info: "Showing {start} to {end} of {rows} containers",
-            },
-            columns: [
-                { select: 7, sort: "desc" }, // Sort by CPU descending by default
-            ],
-        });
-
-        // Add click handlers for update check buttons
-        tableEl.addEventListener('click', (e) => {
-            const btn = e.target.closest('.update-check-btn');
-            if (btn) {
-                const { image, tag, id } = btn.dataset;
-                checkUpdates(image, tag, id);
-            }
-        });
-    }
-
-    // All container data collected during streaming
-    let allContainers = [];
-
-    // Update table with current data
-    function updateTable() {
-        // Sort by CPU descending
-        allContainers.sort((a, b) => b.cpu_percent - a.cpu_percent);
-        initTable(allContainers);
-    }
-
-    // Load data using SSE streaming
-    let isFirstLoad = true;
-    function loadData() {
-        // Only show loading indicator on first load
-        if (isFirstLoad) {
-            loadingEl.style.display = 'flex';
-            loadingEl.innerHTML = '<span class="loading loading-spinner loading-md"></span><span class="ml-2">Loading containers...</span>';
-        }
-
-        // Collect new data separately, don't touch existing table until done
-        let newContainers = [];
-
-        const eventSource = new EventSource('/api/containers/stream');
-
-        eventSource.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-
-            if (data.error) {
-                loadingEl.innerHTML = `<span class="text-error">${data.error}</span>`;
-                loadingEl.style.display = 'flex';
-                eventSource.close();
-                return;
-            }
-
-            if (data.host_data) {
-                newContainers = newContainers.concat(data.host_data);
-                if (isFirstLoad) {
-                    // On first load, show progress and update table incrementally
-                    loadingEl.innerHTML = `<span class="loading loading-spinner loading-sm"></span><span class="ml-2">${newContainers.length} containers loaded...</span>`;
-                    allContainers = newContainers;
-                    updateTable();
-                }
-                // On subsequent loads, don't update until done (keeps table stable)
-            }
-
-            if (data.done) {
-                // Swap in new data and update table
-                if (!isFirstLoad && newContainers.length > 0) {
-                    allContainers = newContainers;
-                    updateTable();
-                }
-                loadingEl.style.display = 'none';
-                isFirstLoad = false;
-                eventSource.close();
-            }
-        };
-
-        eventSource.onerror = () => {
-            // On error, keep existing data if we have any
-            if (newContainers.length > 0) {
-                allContainers = newContainers;
-                updateTable();
-            }
-            loadingEl.style.display = 'none';
-            if (allContainers.length === 0) {
-                loadingEl.style.display = 'flex';
-                loadingEl.innerHTML = '<span class="text-error">Failed to load containers - ' +
-                    '<button class="btn btn-xs btn-ghost" onclick="location.reload()">Retry</button></span>';
-            }
-            isFirstLoad = false;
-            eventSource.close();
-        };
-    }
-
-    // Auto-refresh interval (3 seconds)
-    const AUTO_REFRESH_INTERVAL = 3000;
-    let refreshTimer = null;
-
-    function startAutoRefresh() {
-        if (refreshTimer) clearInterval(refreshTimer);
-        refreshTimer = setInterval(loadData, AUTO_REFRESH_INTERVAL);
-    }
-
-    // Event listeners
-    refreshBtn.addEventListener('click', () => {
-        loadData();
-        startAutoRefresh(); // Reset timer on manual refresh
+        return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
     });
 
-    // Initial load
-    loadData();
-    startAutoRefresh();
-})();
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+// Re-apply filter after HTMX swap
+document.body.addEventListener('htmx:afterSwap', (e) => {
+    if (e.detail.target.id === 'container-rows') {
+        const filter = document.getElementById('filter-input').value;
+        if (filter) filterTable();
+    }
+});
 </script>
 {% endif %}
 {% endblock %}

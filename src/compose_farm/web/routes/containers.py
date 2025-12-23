@@ -145,6 +145,75 @@ async def get_containers_data() -> JSONResponse:
     )
 
 
+def _status_class(status: str) -> str:
+    """Get CSS class for status badge."""
+    s = status.lower()
+    if s == "running":
+        return "badge badge-success badge-sm"
+    if s == "exited":
+        return "badge badge-error badge-sm"
+    if s == "paused":
+        return "badge badge-warning badge-sm"
+    return "badge badge-ghost badge-sm"
+
+
+def _progress_class(percent: float) -> str:
+    """Get CSS class for progress bar color."""
+    if percent > 80:  # noqa: PLR2004
+        return "progress-error"
+    if percent > 50:  # noqa: PLR2004
+        return "progress-warning"
+    return "progress-success"
+
+
+def _render_row(c: ContainerStats) -> str:
+    """Render a single container as an HTML table row."""
+    image_name, tag = _parse_image(c.image)
+    stack = c.stack if c.stack else _infer_stack_service(c.name)[0]
+    service = c.service if c.service else _infer_stack_service(c.name)[1]
+
+    cpu = c.cpu_percent
+    mem = c.memory_percent
+    cpu_class = _progress_class(cpu)
+    mem_class = _progress_class(mem)
+
+    return f"""<tr>
+<td>{stack}</td>
+<td class="text-xs opacity-70">{service}</td>
+<td><span class="badge badge-outline badge-xs">{c.host}</span></td>
+<td><code class="text-xs bg-base-200 px-1 rounded">{image_name}:{tag}</code></td>
+<td><span class="{_status_class(c.status)}">{c.status}</span></td>
+<td class="text-xs">{c.uptime or "-"}</td>
+<td data-sort="{cpu:.1f}"><progress class="progress {cpu_class} w-12 h-2" value="{min(cpu, 100)}" max="100"></progress> <span class="text-xs">{cpu:.0f}%</span></td>
+<td data-sort="{mem:.1f}"><progress class="progress {mem_class} w-12 h-2" value="{min(mem, 100)}" max="100"></progress> <span class="text-xs">{_format_bytes(c.memory_usage)}</span></td>
+<td class="text-xs font-mono">↓{_format_bytes(c.network_rx)} ↑{_format_bytes(c.network_tx)}</td>
+</tr>"""
+
+
+@router.get("/api/containers/rows", response_class=HTMLResponse)
+async def get_containers_rows() -> HTMLResponse:
+    """Get container table rows as HTML for HTMX."""
+    config = get_config()
+
+    if not config.glances_stack:
+        return HTMLResponse(
+            '<tr><td colspan="9" class="text-center text-error">Glances not configured</td></tr>'
+        )
+
+    containers = await fetch_all_container_stats(config)
+
+    if not containers:
+        return HTMLResponse(
+            '<tr><td colspan="9" class="text-center py-4 opacity-60">No containers found</td></tr>'
+        )
+
+    # Sort by CPU usage descending
+    containers.sort(key=lambda c: c.cpu_percent, reverse=True)
+
+    rows = "\n".join(_render_row(c) for c in containers)
+    return HTMLResponse(rows)
+
+
 @router.get("/api/containers/stream")
 async def stream_containers_data() -> StreamingResponse:
     """Stream container data from each host as it arrives (SSE)."""
