@@ -35,17 +35,17 @@
                     <th class="cursor-pointer" onclick="sortTable(0)">Stack</th>
                     <th class="cursor-pointer" onclick="sortTable(1)">Service</th>
                     <th class="cursor-pointer" onclick="sortTable(2)">Host</th>
-                    <th>Image</th>
+                    <th class="cursor-pointer" onclick="sortTable(3)">Image</th>
                     <th class="cursor-pointer" onclick="sortTable(4)">Status</th>
-                    <th>Uptime</th>
+                    <th class="cursor-pointer" onclick="sortTable(5)">Uptime</th>
                     <th class="cursor-pointer" onclick="sortTable(6)">CPU</th>
                     <th class="cursor-pointer" onclick="sortTable(7)">Mem</th>
-                    <th>Net I/O</th>
+                    <th class="cursor-pointer" onclick="sortTable(8)">Net I/O</th>
                 </tr>
             </thead>
             <tbody id="container-rows"
-                   hx-get="/api/containers/rows"
-                   hx-trigger="load, every 3s"
+                   hx-get="/api/containers/rows?sort=cpu&asc=false"
+                   hx-trigger="load, every 3s, cf:refresh"
                    hx-swap="innerHTML">
                 <tr><td colspan="9" class="text-center py-8">
                     <span class="loading loading-spinner loading-md"></span>
@@ -84,32 +84,26 @@ function filterTable() {
         filter ? `${visible} matching` : '';
 }
 
-// Simple client-side sorting
-let sortCol = -1, sortAsc = true;
-function sortTable(col) {
-    const tbody = document.getElementById('container-rows');
-    const rows = Array.from(tbody.querySelectorAll('tr'));
-    if (rows.length === 0) return;
+// Server-side sorting - update URL and trigger refresh
+const colNames = ['stack', 'service', 'host', 'image', 'status', 'uptime', 'cpu', 'mem', 'net'];
+let sortCol = 'cpu', sortAsc = false;  // Default: CPU descending
 
+function sortTable(colIdx) {
+    const col = colNames[colIdx];
     if (sortCol === col) {
         sortAsc = !sortAsc;
     } else {
         sortCol = col;
-        sortAsc = true;
+        sortAsc = false;  // Default descending for new column
     }
+    updateSortUrl();
+    htmx.trigger('#container-rows', 'cf:refresh');
+}
 
-    rows.sort((a, b) => {
-        const aVal = a.cells[col]?.dataset?.sort || a.cells[col]?.textContent || '';
-        const bVal = b.cells[col]?.dataset?.sort || b.cells[col]?.textContent || '';
-        const aNum = parseFloat(aVal), bNum = parseFloat(bVal);
-
-        if (!isNaN(aNum) && !isNaN(bNum)) {
-            return sortAsc ? aNum - bNum : bNum - aNum;
-        }
-        return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-    });
-
-    rows.forEach(row => tbody.appendChild(row));
+function updateSortUrl() {
+    const tbody = document.getElementById('container-rows');
+    const url = `/api/containers/rows?sort=${sortCol}&asc=${sortAsc}`;
+    tbody.setAttribute('hx-get', url);
 }
 
 // Re-apply filter after HTMX swap

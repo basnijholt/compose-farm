@@ -16,6 +16,7 @@ from compose_farm.web.routes.containers import (
     _format_bytes,
     _infer_stack_service,
     _parse_image,
+    _parse_uptime_seconds,
     container_to_dict,
 )
 
@@ -62,6 +63,31 @@ class TestParseImage:
     def test_image_with_port_in_registry(self) -> None:
         # Registry with port should not be confused with tag
         assert _parse_image("localhost:5000/myimage") == ("localhost:5000/myimage", "latest")
+
+
+class TestParseUptimeSeconds:
+    """Tests for _parse_uptime_seconds function."""
+
+    def test_seconds(self) -> None:
+        assert _parse_uptime_seconds("17 seconds") == 17
+        assert _parse_uptime_seconds("1 second") == 1
+
+    def test_minutes(self) -> None:
+        assert _parse_uptime_seconds("5 minutes") == 300
+        assert _parse_uptime_seconds("1 minute") == 60
+
+    def test_hours(self) -> None:
+        assert _parse_uptime_seconds("2 hours") == 7200
+        assert _parse_uptime_seconds("an hour") == 3600
+        assert _parse_uptime_seconds("1 hour") == 3600
+
+    def test_days(self) -> None:
+        assert _parse_uptime_seconds("3 days") == 259200
+        assert _parse_uptime_seconds("a day") == 86400
+
+    def test_empty(self) -> None:
+        assert _parse_uptime_seconds("") == 0
+        assert _parse_uptime_seconds("-") == 0
 
 
 class TestInferStackService:
@@ -344,6 +370,70 @@ class TestContainersRowsAPI:
         assert "<tr>" in response.text
         assert "nginx" in response.text
         assert "running" in response.text
+
+    def test_rows_with_sorting(self, client: TestClient) -> None:
+        """Test rows endpoint respects sort parameters."""
+        mock_containers = [
+            ContainerStats(
+                name="alpha",
+                host="nas",
+                status="running",
+                image="nginx:latest",
+                cpu_percent=10.0,
+                memory_usage=100,
+                memory_limit=1000,
+                memory_percent=10.0,
+                network_rx=100,
+                network_tx=100,
+                uptime="1 hour",
+                ports="",
+                engine="docker",
+                stack="alpha",
+                service="web",
+            ),
+            ContainerStats(
+                name="zeta",
+                host="nas",
+                status="running",
+                image="redis:latest",
+                cpu_percent=5.0,
+                memory_usage=200,
+                memory_limit=1000,
+                memory_percent=20.0,
+                network_rx=200,
+                network_tx=200,
+                uptime="2 hours",
+                ports="",
+                engine="docker",
+                stack="zeta",
+                service="cache",
+            ),
+        ]
+
+        with (
+            patch("compose_farm.web.routes.containers.get_config") as mock_config,
+            patch(
+                "compose_farm.web.routes.containers.fetch_all_container_stats",
+                new_callable=AsyncMock,
+            ) as mock_fetch,
+        ):
+            mock_config.return_value = Config(
+                compose_dir=Path("/opt/compose"),
+                hosts={"nas": Host(address="192.168.1.6")},
+                stacks={"test": "nas"},
+                glances_stack="glances",
+            )
+            mock_fetch.return_value = mock_containers
+
+            # Sort by stack ascending - alpha should be first
+            response = client.get("/api/containers/rows?sort=stack&asc=true")
+            assert response.status_code == 200
+            assert response.text.index("alpha") < response.text.index("zeta")
+
+            # Sort by stack descending - zeta should be first
+            response = client.get("/api/containers/rows?sort=stack&asc=false")
+            assert response.status_code == 200
+            assert response.text.index("zeta") < response.text.index("alpha")
 
 
 class TestCheckUpdatesAPI:

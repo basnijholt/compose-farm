@@ -196,6 +196,8 @@ async def _fetch_compose_labels(
     """Fetch compose labels for all containers on a host.
 
     Returns dict of container_name -> (stack, service).
+    Falls back to empty dict on timeout/error (caller uses name heuristic).
+    Uses a 5-second timeout to prevent blocking.
     """
     from .executor import run_command  # noqa: PLC0415
 
@@ -206,7 +208,14 @@ async def _fetch_compose_labels(
         '\'{{.Names}}\t{{.Label "com.docker.compose.project"}}\t'
         '{{.Label "com.docker.compose.service"}}\''
     )
-    result = await run_command(host, cmd, stack=host_name, stream=False, prefix="")
+
+    try:
+        async with asyncio.timeout(5.0):
+            result = await run_command(host, cmd, stack=host_name, stream=False, prefix="")
+    except TimeoutError:
+        return {}  # Fall back to name heuristic
+    except Exception:
+        return {}
 
     labels: dict[str, tuple[str, str]] = {}
     if result.success:

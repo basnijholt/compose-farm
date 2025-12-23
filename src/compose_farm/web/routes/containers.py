@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Request
@@ -184,14 +185,55 @@ def _render_row(c: ContainerStats) -> str:
 <td><code class="text-xs bg-base-200 px-1 rounded">{image_name}:{tag}</code></td>
 <td><span class="{_status_class(c.status)}">{c.status}</span></td>
 <td class="text-xs">{c.uptime or "-"}</td>
-<td data-sort="{cpu:.1f}"><progress class="progress {cpu_class} w-12 h-2" value="{min(cpu, 100)}" max="100"></progress> <span class="text-xs">{cpu:.0f}%</span></td>
-<td data-sort="{mem:.1f}"><progress class="progress {mem_class} w-12 h-2" value="{min(mem, 100)}" max="100"></progress> <span class="text-xs">{_format_bytes(c.memory_usage)}</span></td>
-<td class="text-xs font-mono">↓{_format_bytes(c.network_rx)} ↑{_format_bytes(c.network_tx)}</td>
+<td data-sort="{cpu:.1f}"><div class="flex flex-col gap-0.5"><progress class="progress {cpu_class} w-12 h-2" value="{min(cpu, 100)}" max="100"></progress><span class="text-xs">{cpu:.0f}%</span></div></td>
+<td data-sort="{c.memory_usage}"><div class="flex flex-col gap-0.5"><progress class="progress {mem_class} w-12 h-2" value="{min(mem, 100)}" max="100"></progress><span class="text-xs">{_format_bytes(c.memory_usage)}</span></div></td>
+<td data-sort="{c.network_rx + c.network_tx}" class="text-xs font-mono">↓{_format_bytes(c.network_rx)} ↑{_format_bytes(c.network_tx)}</td>
 </tr>"""
 
 
+def _parse_uptime_seconds(uptime: str) -> int:
+    """Parse uptime string to seconds for sorting."""
+    if not uptime:
+        return 0
+    uptime = uptime.lower().strip()
+    # Handle "a/an" as 1
+    uptime = uptime.replace("an ", "1 ").replace("a ", "1 ")
+
+    total = 0
+    multipliers = {
+        "second": 1,
+        "minute": 60,
+        "hour": 3600,
+        "day": 86400,
+        "week": 604800,
+        "month": 2592000,
+        "year": 31536000,
+    }
+    for match in re.finditer(r"(\d+)\s*(\w+)", uptime):
+        num = int(match.group(1))
+        unit = match.group(2).rstrip("s")  # Remove plural 's'
+        total += num * multipliers.get(unit, 0)
+    return total
+
+
+def _get_sort_key(sort: str) -> Any:
+    """Get sort key function for a column name."""
+    keys: dict[str, Any] = {
+        "stack": lambda c: (c.stack or _infer_stack_service(c.name)[0]).lower(),
+        "service": lambda c: (c.service or _infer_stack_service(c.name)[1]).lower(),
+        "host": lambda c: c.host.lower(),
+        "image": lambda c: c.image.lower(),
+        "status": lambda c: c.status.lower(),
+        "uptime": lambda c: _parse_uptime_seconds(c.uptime),
+        "cpu": lambda c: c.cpu_percent,
+        "mem": lambda c: c.memory_usage,
+        "net": lambda c: c.network_rx + c.network_tx,
+    }
+    return keys.get(sort, keys["cpu"])
+
+
 @router.get("/api/containers/rows", response_class=HTMLResponse)
-async def get_containers_rows() -> HTMLResponse:
+async def get_containers_rows(sort: str = "cpu", asc: bool = False) -> HTMLResponse:
     """Get container table rows as HTML for HTMX."""
     config = get_config()
 
@@ -207,8 +249,8 @@ async def get_containers_rows() -> HTMLResponse:
             '<tr><td colspan="9" class="text-center py-4 opacity-60">No containers found</td></tr>'
         )
 
-    # Sort by CPU usage descending
-    containers.sort(key=lambda c: c.cpu_percent, reverse=True)
+    # Sort by requested column
+    containers.sort(key=_get_sort_key(sort), reverse=not asc)
 
     rows = "\n".join(_render_row(c) for c in containers)
     return HTMLResponse(rows)
