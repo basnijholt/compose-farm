@@ -81,11 +81,11 @@ def _snapshot_stacks(
     now_iso = isoformat(now_dt)
 
     # Group stacks by host for batched SSH calls
-    stacks_by_host: dict[str, list[str]] = {}
+    stacks_by_host: dict[str, set[str]] = {}
     for stack, hosts in discovered.items():
         # Use first host for multi-host stacks (they use the same images)
         host = hosts[0] if isinstance(hosts, list) else hosts
-        stacks_by_host.setdefault(host, []).append(stack)
+        stacks_by_host.setdefault(host, set()).add(stack)
 
     # Collect entries with 1 SSH call per host instead of 1 per stack
     snapshot_entries = asyncio.run(collect_all_stacks_entries(cfg, stacks_by_host, now=now_dt))

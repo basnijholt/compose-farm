@@ -7,7 +7,7 @@ import json
 import tomllib
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from .executor import run_command
 from .paths import xdg_config_home
@@ -18,12 +18,11 @@ if TYPE_CHECKING:
 
     from .config import Config
 
-# Separator used to split output when batching multiple compose commands
-_BATCH_SEPARATOR = "---CF-SEP---"
+# Separator used to split output sections
+_SECTION_SEPARATOR = "---CF-SEP---"
 
 
 DEFAULT_LOG_PATH = xdg_config_home() / "compose-farm" / "dockerfarm-log.toml"
-_DIGEST_HEX_LENGTH = 64
 
 
 @dataclass(frozen=True)
@@ -59,123 +58,114 @@ def _escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _parse_images_output(raw: str) -> list[dict[str, Any]]:
-    """Parse `docker compose images --format json` output.
-
-    Handles both a JSON array and newline-separated JSON objects for robustness.
-    """
-    raw = raw.strip()
-    if not raw:
-        return []
-
+def _parse_image_digests(image_json: str) -> dict[str, str]:
+    """Parse docker image inspect JSON to build image tag -> digest map."""
+    if not image_json:
+        return {}
     try:
-        parsed = json.loads(raw)
+        image_data = json.loads(image_json)
     except json.JSONDecodeError:
-        objects = []
-        for line in raw.splitlines():
-            if not line.strip():
-                continue
-            objects.append(json.loads(line))
-        return objects
+        return {}
 
-    if isinstance(parsed, list):
-        return parsed
-    if isinstance(parsed, dict):
-        return [parsed]
-    return []
-
-
-def _extract_image_fields(record: dict[str, Any]) -> tuple[str, str]:
-    """Extract image name and digest with fallbacks."""
-    image = record.get("Image") or record.get("Repository") or record.get("Name") or ""
-    tag = record.get("Tag") or record.get("Version")
-    if tag and ":" not in image.rsplit("/", 1)[-1]:
-        image = f"{image}:{tag}"
-
-    digest = (
-        record.get("Digest")
-        or record.get("Image ID")
-        or record.get("ImageID")
-        or record.get("ID")
-        or ""
-    )
-
-    if digest and not digest.startswith("sha256:") and len(digest) == _DIGEST_HEX_LENGTH:
-        digest = f"sha256:{digest}"
-
-    return image, digest
+    image_digests: dict[str, str] = {}
+    for img in image_data:
+        tags = img.get("RepoTags") or []
+        digests = img.get("RepoDigests") or []
+        digest = digests[0].split("@")[-1] if digests else img.get("Id", "")
+        for tag in tags:
+            image_digests[tag] = digest
+        if img.get("Id"):
+            image_digests[img["Id"]] = digest
+    return image_digests
 
 
-async def _collect_stacks_entries_on_host(
+async def collect_stacks_entries_on_host(
     config: Config,
     host_name: str,
-    stacks: list[str],
+    stacks: set[str],
     *,
     now: datetime,
 ) -> list[SnapshotEntry]:
-    """Collect image entries for multiple stacks on one host in a single SSH call."""
+    """Collect image entries for stacks on one host using 2 docker commands.
+
+    Uses `docker ps` to get running containers + their compose project labels,
+    then `docker image inspect` to get digests for all unique images.
+    Much faster than running N `docker compose images` commands.
+    """
     if not stacks:
         return []
 
     host = config.hosts[host_name]
 
-    # Build batched command: echo separator+stack, then docker compose images
-    commands = [
-        f"echo '{_BATCH_SEPARATOR}{s}' && "
-        f"docker compose -f {config.get_compose_path(s)} images --format json 2>/dev/null || true"
-        for s in stacks
-    ]
-    result = await run_command(host, "; ".join(commands), host_name, stream=False, prefix="")
+    # Single SSH call with 2 docker commands:
+    # 1. Get project|image pairs from running containers
+    # 2. Get image info (including digests) for all unique images
+    command = (
+        f"docker ps --format '{{{{.Label \"com.docker.compose.project\"}}}}|{{{{.Image}}}}' && "
+        f"echo '{_SECTION_SEPARATOR}' && "
+        "docker image inspect $(docker ps --format '{{.Image}}' | sort -u) 2>/dev/null || true"
+    )
+    result = await run_command(host, command, host_name, stream=False, prefix="")
 
     if not result.success:
         return []
 
-    # Parse batched output: separator lines mark stack boundaries
+    # Split output into two sections
+    parts = result.stdout.split(_SECTION_SEPARATOR)
+    if len(parts) != 2:  # noqa: PLR2004
+        return []
+
+    container_lines, image_json = parts[0].strip(), parts[1].strip()
+
+    # Parse project|image pairs, filtering to only stacks we care about
+    stack_images: dict[str, set[str]] = {}
+    for line in container_lines.splitlines():
+        if "|" not in line:
+            continue
+        project, image = line.split("|", 1)
+        if project in stacks:
+            stack_images.setdefault(project, set()).add(image)
+
+    if not stack_images:
+        return []
+
+    # Parse image inspect JSON to build image -> digest map
+    image_digests = _parse_image_digests(image_json)
+
+    # Build entries
     entries: list[SnapshotEntry] = []
-    current_stack: str | None = None
-    current_output: list[str] = []
-
-    def flush_stack() -> None:
-        if current_stack and current_output:
-            for record in _parse_images_output("\n".join(current_output)):
-                image, digest = _extract_image_fields(record)
-                if digest:
-                    entries.append(
-                        SnapshotEntry(
-                            stack=current_stack,
-                            host=host_name,
-                            compose_file=config.get_compose_path(current_stack),
-                            image=image,
-                            digest=digest,
-                            captured_at=now,
-                        )
+    for stack, images in stack_images.items():
+        for image in images:
+            digest = image_digests.get(image, "")
+            if digest:
+                entries.append(
+                    SnapshotEntry(
+                        stack=stack,
+                        host=host_name,
+                        compose_file=config.get_compose_path(stack),
+                        image=image,
+                        digest=digest,
+                        captured_at=now,
                     )
+                )
 
-    for line in result.stdout.splitlines():
-        if line.startswith(_BATCH_SEPARATOR):
-            flush_stack()
-            current_stack = line[len(_BATCH_SEPARATOR) :]
-            current_output = []
-        elif current_stack is not None:
-            current_output.append(line)
-
-    flush_stack()
     return entries
 
 
 async def collect_all_stacks_entries(
     config: Config,
-    stacks_by_host: dict[str, list[str]],
+    stacks_by_host: dict[str, set[str]],
     *,
     now: datetime,
 ) -> list[SnapshotEntry]:
-    """Collect image entries for all stacks, batched by host.
+    """Collect image entries for all stacks, 1 SSH call per host.
 
-    This makes only 1 SSH call per host instead of 1 per stack.
+    Uses 2 docker commands per host (docker ps + docker image inspect)
+    instead of N docker compose commands.
 
     Args:
         config: Configuration
-        stacks_by_host: Dict mapping host_name -> list of stacks on that host
+        stacks_by_host: Dict mapping host_name -> set of stacks on that host
         now: Timestamp for the snapshot entries
 
     Returns:
@@ -183,7 +173,7 @@ async def collect_all_stacks_entries(
 
     """
     tasks = [
-        _collect_stacks_entries_on_host(config, host, stacks, now=now)
+        collect_stacks_entries_on_host(config, host, stacks, now=now)
         for host, stacks in stacks_by_host.items()
         if stacks
     ]
