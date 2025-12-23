@@ -251,10 +251,16 @@
     }
 
     // Load data using SSE streaming
+    let isFirstLoad = true;
     function loadData() {
-        loadingEl.style.display = 'flex';
-        loadingEl.innerHTML = '<span class="loading loading-spinner loading-md"></span><span class="ml-2">Loading containers...</span>';
-        allContainers = [];
+        // Only show loading indicator on first load
+        if (isFirstLoad) {
+            loadingEl.style.display = 'flex';
+            loadingEl.innerHTML = '<span class="loading loading-spinner loading-md"></span><span class="ml-2">Loading containers...</span>';
+        }
+
+        // Collect new data separately, don't touch existing table until done
+        let newContainers = [];
 
         const eventSource = new EventSource('/api/containers/stream');
 
@@ -263,31 +269,47 @@
 
             if (data.error) {
                 loadingEl.innerHTML = `<span class="text-error">${data.error}</span>`;
+                loadingEl.style.display = 'flex';
                 eventSource.close();
                 return;
             }
 
             if (data.host_data) {
-                // Add new containers and update table immediately
-                allContainers = allContainers.concat(data.host_data);
-                loadingEl.innerHTML = `<span class="loading loading-spinner loading-sm"></span><span class="ml-2">${allContainers.length} containers loaded...</span>`;
-                updateTable();
+                newContainers = newContainers.concat(data.host_data);
+                if (isFirstLoad) {
+                    // On first load, show progress and update table incrementally
+                    loadingEl.innerHTML = `<span class="loading loading-spinner loading-sm"></span><span class="ml-2">${newContainers.length} containers loaded...</span>`;
+                    allContainers = newContainers;
+                    updateTable();
+                }
+                // On subsequent loads, don't update until done (keeps table stable)
             }
 
             if (data.done) {
+                // Swap in new data and update table
+                if (!isFirstLoad && newContainers.length > 0) {
+                    allContainers = newContainers;
+                    updateTable();
+                }
                 loadingEl.style.display = 'none';
+                isFirstLoad = false;
                 eventSource.close();
             }
         };
 
         eventSource.onerror = () => {
-            if (allContainers.length > 0) {
-                // We got some data, just finish
-                loadingEl.style.display = 'none';
-            } else {
+            // On error, keep existing data if we have any
+            if (newContainers.length > 0) {
+                allContainers = newContainers;
+                updateTable();
+            }
+            loadingEl.style.display = 'none';
+            if (allContainers.length === 0) {
+                loadingEl.style.display = 'flex';
                 loadingEl.innerHTML = '<span class="text-error">Failed to load containers - ' +
                     '<button class="btn btn-xs btn-ghost" onclick="location.reload()">Retry</button></span>';
             }
+            isFirstLoad = false;
             eventSource.close();
         };
     }
