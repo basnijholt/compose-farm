@@ -12,9 +12,8 @@ from compose_farm.cli import lifecycle
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
 from compose_farm.operations import (
-    StackDiscoveryResult,
     _migrate_stack,
-    discover_all_stacks_on_all_hosts,
+    build_discovery_results,
 )
 
 
@@ -115,63 +114,18 @@ class TestUpdateCommandSequence:
         assert "up -d" in source
 
 
-class TestDiscoverAllStacksOnAllHosts:
-    """Tests for discover_all_stacks_on_all_hosts function."""
+class TestBuildDiscoveryResults:
+    """Tests for build_discovery_results function."""
 
-    async def test_returns_discovery_results_for_all_stacks(self, basic_config: Config) -> None:
-        """Function returns StackDiscoveryResult for each stack."""
-        with patch(
-            "compose_farm.operations.get_running_stacks_on_host",
-            return_value={"test-service"},
-        ):
-            results = await discover_all_stacks_on_all_hosts(basic_config)
-
-        assert len(results) == 1
-        assert isinstance(results[0], StackDiscoveryResult)
-        assert results[0].stack == "test-service"
-
-    async def test_detects_stray_stacks(self, tmp_path: Path) -> None:
-        """Function detects stacks running on wrong hosts."""
-        compose_dir = tmp_path / "compose"
-        (compose_dir / "plex").mkdir(parents=True)
-        (compose_dir / "plex" / "docker-compose.yml").write_text("services: {}")
-
-        config = Config(
-            compose_dir=compose_dir,
-            hosts={
-                "host1": Host(address="localhost"),
-                "host2": Host(address="localhost"),
-            },
-            stacks={"plex": "host1"},  # Should run on host1
-        )
-
-        # Mock: plex is running on host2 (wrong host)
-        async def mock_get_running(cfg: Config, host: str) -> set[str]:
-            if host == "host2":
-                return {"plex"}
-            return set()
-
-        with patch(
-            "compose_farm.operations.get_running_stacks_on_host",
-            side_effect=mock_get_running,
-        ):
-            results = await discover_all_stacks_on_all_hosts(config)
-
-        assert len(results) == 1
-        assert results[0].stack == "plex"
-        assert results[0].running_hosts == ["host2"]
-        assert results[0].configured_hosts == ["host1"]
-        assert results[0].is_stray is True
-        assert results[0].stray_hosts == ["host2"]
-
-    async def test_queries_each_host_once(self, tmp_path: Path) -> None:
-        """Function makes exactly one call per host, not per stack."""
+    @pytest.fixture
+    def config(self, tmp_path: Path) -> Config:
+        """Create a test config with multiple stacks."""
         compose_dir = tmp_path / "compose"
         for stack in ["plex", "jellyfin", "sonarr"]:
             (compose_dir / stack).mkdir(parents=True)
             (compose_dir / stack / "docker-compose.yml").write_text("services: {}")
 
-        config = Config(
+        return Config(
             compose_dir=compose_dir,
             hosts={
                 "host1": Host(address="localhost"),
@@ -180,17 +134,61 @@ class TestDiscoverAllStacksOnAllHosts:
             stacks={"plex": "host1", "jellyfin": "host1", "sonarr": "host2"},
         )
 
-        call_count = {"count": 0}
+    def test_discovers_correctly_running_stacks(self, config: Config) -> None:
+        """Stacks running on correct hosts are discovered."""
+        running_on_host = {
+            "host1": {"plex", "jellyfin"},
+            "host2": {"sonarr"},
+        }
 
-        async def mock_get_running(cfg: Config, host: str) -> set[str]:
-            call_count["count"] += 1
-            return set()
+        discovered, strays, duplicates = build_discovery_results(config, running_on_host)
 
-        with patch(
-            "compose_farm.operations.get_running_stacks_on_host",
-            side_effect=mock_get_running,
-        ):
-            await discover_all_stacks_on_all_hosts(config)
+        assert discovered == {"plex": "host1", "jellyfin": "host1", "sonarr": "host2"}
+        assert strays == {}
+        assert duplicates == {}
 
-        # Should call once per host (2), not once per stack (3)
-        assert call_count["count"] == 2
+    def test_detects_stray_stacks(self, config: Config) -> None:
+        """Stacks running on wrong hosts are marked as strays."""
+        running_on_host = {
+            "host1": set(),
+            "host2": {"plex"},  # plex should be on host1
+        }
+
+        discovered, strays, _duplicates = build_discovery_results(config, running_on_host)
+
+        assert "plex" not in discovered
+        assert strays == {"plex": ["host2"]}
+
+    def test_detects_duplicates(self, config: Config) -> None:
+        """Single-host stacks running on multiple hosts are duplicates."""
+        running_on_host = {
+            "host1": {"plex"},
+            "host2": {"plex"},  # plex running on both hosts
+        }
+
+        discovered, strays, duplicates = build_discovery_results(
+            config, running_on_host, stacks=["plex"]
+        )
+
+        # plex is correctly running on host1
+        assert discovered == {"plex": "host1"}
+        # plex is also a stray on host2
+        assert strays == {"plex": ["host2"]}
+        # plex is a duplicate (single-host stack on multiple hosts)
+        assert duplicates == {"plex": ["host1", "host2"]}
+
+    def test_filters_to_requested_stacks(self, config: Config) -> None:
+        """Only returns results for requested stacks."""
+        running_on_host = {
+            "host1": {"plex", "jellyfin"},
+            "host2": {"sonarr"},
+        }
+
+        discovered, _strays, _duplicates = build_discovery_results(
+            config, running_on_host, stacks=["plex"]
+        )
+
+        # Only plex should be in results
+        assert discovered == {"plex": "host1"}
+        assert "jellyfin" not in discovered
+        assert "sonarr" not in discovered
