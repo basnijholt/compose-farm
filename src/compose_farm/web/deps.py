@@ -38,7 +38,17 @@ def get_templates() -> Jinja2Templates:
 def extract_config_error(exc: Exception) -> str:
     """Extract a user-friendly error message from a config exception."""
     if isinstance(exc, ValidationError):
-        return "; ".join(err.get("msg", str(err)) for err in exc.errors())
+        parts = []
+        for err in exc.errors():
+            msg = err.get("msg", str(err))
+            loc = err.get("loc", ())
+            if loc:
+                # Format location as dot-separated path (e.g., "hosts.nas.port")
+                loc_str = ".".join(str(part) for part in loc)
+                parts.append(f"{loc_str}: {msg}")
+            else:
+                parts.append(msg)
+        return "; ".join(parts)
     return str(exc)
 
 
