@@ -16,7 +16,6 @@ from .executor import (
     check_networks_exist,
     check_paths_exist,
     check_stack_running,
-    get_running_stacks_on_host,
     run_command,
     run_compose,
     run_compose_on_host,
@@ -77,31 +76,6 @@ def get_stack_paths(cfg: Config, stack: str) -> list[str]:
     return paths
 
 
-async def discover_stack_host(cfg: Config, stack: str) -> tuple[str, str | list[str] | None]:
-    """Discover where a stack is running.
-
-    For multi-host stacks, checks all assigned hosts in parallel.
-    For single-host, checks assigned host first, then others.
-
-    Returns (stack_name, host_or_hosts_or_none).
-    """
-    assigned_hosts = cfg.get_hosts(stack)
-
-    if cfg.is_multi_host(stack):
-        # Check all assigned hosts in parallel
-        checks = await asyncio.gather(*[check_stack_running(cfg, stack, h) for h in assigned_hosts])
-        running = [h for h, is_running in zip(assigned_hosts, checks, strict=True) if is_running]
-        return stack, running if running else None
-
-    # Single-host: check assigned host first, then others
-    if await check_stack_running(cfg, stack, assigned_hosts[0]):
-        return stack, assigned_hosts[0]
-    for host in cfg.hosts:
-        if host != assigned_hosts[0] and await check_stack_running(cfg, stack, host):
-            return stack, host
-    return stack, None
-
-
 class StackDiscoveryResult(NamedTuple):
     """Result of discovering where a stack is running across all hosts."""
 
@@ -133,50 +107,6 @@ class StackDiscoveryResult(NamedTuple):
     def is_duplicate(self) -> bool:
         """Single-host stack running on multiple hosts."""
         return not self.is_multi_host and len(self.running_hosts) > 1
-
-
-async def discover_all_stacks_on_all_hosts(
-    cfg: Config,
-    stacks: list[str] | None = None,
-) -> list[StackDiscoveryResult]:
-    """Discover where stacks are running with minimal SSH calls.
-
-    Instead of checking each stack on each host individually (stacks * hosts calls),
-    this queries each host once for all running stacks (hosts calls total).
-
-    Args:
-        cfg: Configuration
-        stacks: Optional list of stacks to check. If None, checks all stacks in config.
-
-    Returns:
-        List of StackDiscoveryResult for each stack.
-
-    """
-    stack_list = stacks if stacks is not None else list(cfg.stacks)
-    all_hosts = list(cfg.hosts.keys())
-
-    # Query each host once to get all running stacks (N SSH calls, where N = number of hosts)
-    host_stacks = await asyncio.gather(
-        *[get_running_stacks_on_host(cfg, host) for host in all_hosts]
-    )
-
-    # Build a map of host -> running stacks
-    running_on_host: dict[str, set[str]] = dict(zip(all_hosts, host_stacks, strict=True))
-
-    # Build results for each stack
-    results = []
-    for stack in stack_list:
-        configured_hosts = cfg.get_hosts(stack)
-        running_hosts = [host for host in all_hosts if stack in running_on_host[host]]
-        results.append(
-            StackDiscoveryResult(
-                stack=stack,
-                configured_hosts=configured_hosts,
-                running_hosts=running_hosts,
-            )
-        )
-
-    return results
 
 
 async def check_stack_requirements(
@@ -544,3 +474,60 @@ async def stop_stray_stacks(
 
     """
     return await _stop_stacks_on_hosts(cfg, strays, label="stray")
+
+
+def build_discovery_results(
+    cfg: Config,
+    running_on_host: dict[str, set[str]],
+    stacks: list[str] | None = None,
+) -> tuple[dict[str, str | list[str]], dict[str, list[str]], dict[str, list[str]]]:
+    """Build discovery results from per-host running stacks.
+
+    Takes the raw data of which stacks are running on which hosts and
+    categorizes them into discovered (running correctly), strays (wrong host),
+    and duplicates (single-host stack on multiple hosts).
+
+    Args:
+        cfg: Config object.
+        running_on_host: Dict mapping host -> set of running stack names.
+        stacks: Optional list of stacks to check. Defaults to all configured stacks.
+
+    Returns:
+        Tuple of (discovered, strays, duplicates):
+        - discovered: stack -> host(s) where running correctly
+        - strays: stack -> list of unauthorized hosts
+        - duplicates: stack -> list of all hosts (for single-host stacks on multiple)
+
+    """
+    stack_list = stacks if stacks is not None else list(cfg.stacks)
+    all_hosts = list(running_on_host.keys())
+
+    # Build StackDiscoveryResult for each stack
+    results: list[StackDiscoveryResult] = [
+        StackDiscoveryResult(
+            stack=stack,
+            configured_hosts=cfg.get_hosts(stack),
+            running_hosts=[h for h in all_hosts if stack in running_on_host[h]],
+        )
+        for stack in stack_list
+    ]
+
+    discovered: dict[str, str | list[str]] = {}
+    strays: dict[str, list[str]] = {}
+    duplicates: dict[str, list[str]] = {}
+
+    for result in results:
+        correct_hosts = [h for h in result.running_hosts if h in result.configured_hosts]
+        if correct_hosts:
+            if result.is_multi_host:
+                discovered[result.stack] = correct_hosts
+            else:
+                discovered[result.stack] = correct_hosts[0]
+
+        if result.is_stray:
+            strays[result.stack] = result.stray_hosts
+
+        if result.is_duplicate:
+            duplicates[result.stack] = result.running_hosts
+
+    return discovered, strays, duplicates

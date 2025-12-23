@@ -6,21 +6,22 @@ import json
 import tomllib
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from .executor import run_compose
+from .executor import run_command
 from .paths import xdg_config_home
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterable
+    from collections.abc import Iterable
     from pathlib import Path
 
     from .config import Config
-    from .executor import CommandResult
+
+# Separator used to split output sections
+_SECTION_SEPARATOR = "---CF-SEP---"
 
 
 DEFAULT_LOG_PATH = xdg_config_home() / "compose-farm" / "dockerfarm-log.toml"
-_DIGEST_HEX_LENGTH = 64
 
 
 @dataclass(frozen=True)
@@ -56,87 +57,97 @@ def _escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
-def _parse_images_output(raw: str) -> list[dict[str, Any]]:
-    """Parse `docker compose images --format json` output.
-
-    Handles both a JSON array and newline-separated JSON objects for robustness.
-    """
-    raw = raw.strip()
-    if not raw:
-        return []
-
+def _parse_image_digests(image_json: str) -> dict[str, str]:
+    """Parse docker image inspect JSON to build image tag -> digest map."""
+    if not image_json:
+        return {}
     try:
-        parsed = json.loads(raw)
+        image_data = json.loads(image_json)
     except json.JSONDecodeError:
-        objects = []
-        for line in raw.splitlines():
-            if not line.strip():
-                continue
-            objects.append(json.loads(line))
-        return objects
+        return {}
 
-    if isinstance(parsed, list):
-        return parsed
-    if isinstance(parsed, dict):
-        return [parsed]
-    return []
-
-
-def _extract_image_fields(record: dict[str, Any]) -> tuple[str, str]:
-    """Extract image name and digest with fallbacks."""
-    image = record.get("Image") or record.get("Repository") or record.get("Name") or ""
-    tag = record.get("Tag") or record.get("Version")
-    if tag and ":" not in image.rsplit("/", 1)[-1]:
-        image = f"{image}:{tag}"
-
-    digest = (
-        record.get("Digest")
-        or record.get("Image ID")
-        or record.get("ImageID")
-        or record.get("ID")
-        or ""
-    )
-
-    if digest and not digest.startswith("sha256:") and len(digest) == _DIGEST_HEX_LENGTH:
-        digest = f"sha256:{digest}"
-
-    return image, digest
+    image_digests: dict[str, str] = {}
+    for img in image_data:
+        tags = img.get("RepoTags") or []
+        digests = img.get("RepoDigests") or []
+        digest = digests[0].split("@")[-1] if digests else img.get("Id", "")
+        for tag in tags:
+            image_digests[tag] = digest
+        if img.get("Id"):
+            image_digests[img["Id"]] = digest
+    return image_digests
 
 
-async def collect_stack_entries(
+async def collect_stacks_entries_on_host(
     config: Config,
-    stack: str,
+    host_name: str,
+    stacks: set[str],
     *,
     now: datetime,
-    run_compose_fn: Callable[..., Awaitable[CommandResult]] = run_compose,
 ) -> list[SnapshotEntry]:
-    """Run `docker compose images` for a stack and normalize results."""
-    result = await run_compose_fn(config, stack, "images --format json", stream=False)
+    """Collect image entries for stacks on one host using 2 docker commands.
+
+    Uses `docker ps` to get running containers + their compose project labels,
+    then `docker image inspect` to get digests for all unique images.
+    Much faster than running N `docker compose images` commands.
+    """
+    if not stacks:
+        return []
+
+    host = config.hosts[host_name]
+
+    # Single SSH call with 2 docker commands:
+    # 1. Get project|image pairs from running containers
+    # 2. Get image info (including digests) for all unique images
+    command = (
+        f"docker ps --format '{{{{.Label \"com.docker.compose.project\"}}}}|{{{{.Image}}}}' && "
+        f"echo '{_SECTION_SEPARATOR}' && "
+        "docker image inspect $(docker ps --format '{{.Image}}' | sort -u) 2>/dev/null || true"
+    )
+    result = await run_command(host, command, host_name, stream=False, prefix="")
+
     if not result.success:
-        msg = result.stderr or f"compose images exited with {result.exit_code}"
-        error = f"[{stack}] Unable to read images: {msg}"
-        raise RuntimeError(error)
+        return []
 
-    records = _parse_images_output(result.stdout)
-    # Use first host for snapshots (multi-host stacks use same images on all hosts)
-    host_name = config.get_hosts(stack)[0]
-    compose_path = config.get_compose_path(stack)
+    # Split output into two sections
+    parts = result.stdout.split(_SECTION_SEPARATOR)
+    if len(parts) != 2:  # noqa: PLR2004
+        return []
 
-    entries: list[SnapshotEntry] = []
-    for record in records:
-        image, digest = _extract_image_fields(record)
-        if not digest:
+    container_lines, image_json = parts[0].strip(), parts[1].strip()
+
+    # Parse project|image pairs, filtering to only stacks we care about
+    stack_images: dict[str, set[str]] = {}
+    for line in container_lines.splitlines():
+        if "|" not in line:
             continue
-        entries.append(
-            SnapshotEntry(
-                stack=stack,
-                host=host_name,
-                compose_file=compose_path,
-                image=image,
-                digest=digest,
-                captured_at=now,
-            )
-        )
+        project, image = line.split("|", 1)
+        if project in stacks:
+            stack_images.setdefault(project, set()).add(image)
+
+    if not stack_images:
+        return []
+
+    # Parse image inspect JSON to build image -> digest map
+    image_digests = _parse_image_digests(image_json)
+
+    # Build entries
+    entries: list[SnapshotEntry] = []
+    for stack, images in stack_images.items():
+        for image in images:
+            digest = image_digests.get(image, "")
+            if digest:
+                entries.append(
+                    SnapshotEntry(
+                        stack=stack,
+                        host=host_name,
+                        compose_file=config.get_compose_path(stack),
+                        image=image,
+                        digest=digest,
+                        captured_at=now,
+                    )
+                )
+
     return entries
 
 
