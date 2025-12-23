@@ -8,15 +8,17 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from .executor import run_compose
+from .executor import run_command
 from .paths import xdg_config_home
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable, Callable, Iterable
+    from collections.abc import Iterable
     from pathlib import Path
 
     from .config import Config
-    from .executor import CommandResult
+
+# Separator used to split output when batching multiple compose commands
+_BATCH_SEPARATOR = "---CF-SEP---"
 
 
 DEFAULT_LOG_PATH = xdg_config_home() / "compose-farm" / "dockerfarm-log.toml"
@@ -103,41 +105,95 @@ def _extract_image_fields(record: dict[str, Any]) -> tuple[str, str]:
     return image, digest
 
 
-async def collect_stack_entries(
+async def collect_stacks_entries_on_host(
     config: Config,
-    stack: str,
+    host_name: str,
+    stacks: list[str],
     *,
     now: datetime,
-    run_compose_fn: Callable[..., Awaitable[CommandResult]] = run_compose,
 ) -> list[SnapshotEntry]:
-    """Run `docker compose images` for a stack and normalize results."""
-    result = await run_compose_fn(config, stack, "images --format json", stream=False)
+    """Collect image entries for multiple stacks on one host in a single SSH call."""
+    if not stacks:
+        return []
+
+    host = config.hosts[host_name]
+
+    # Build batched command: echo separator+stack, then docker compose images
+    commands = [
+        f"echo '{_BATCH_SEPARATOR}{s}' && "
+        f"docker compose -f {config.get_compose_path(s)} images --format json 2>/dev/null || true"
+        for s in stacks
+    ]
+    result = await run_command(host, "; ".join(commands), host_name, stream=False, prefix="")
+
     if not result.success:
-        msg = result.stderr or f"compose images exited with {result.exit_code}"
-        error = f"[{stack}] Unable to read images: {msg}"
-        raise RuntimeError(error)
+        return []
 
-    records = _parse_images_output(result.stdout)
-    # Use first host for snapshots (multi-host stacks use same images on all hosts)
-    host_name = config.get_hosts(stack)[0]
-    compose_path = config.get_compose_path(stack)
-
+    # Parse batched output: separator lines mark stack boundaries
     entries: list[SnapshotEntry] = []
-    for record in records:
-        image, digest = _extract_image_fields(record)
-        if not digest:
-            continue
-        entries.append(
-            SnapshotEntry(
-                stack=stack,
-                host=host_name,
-                compose_file=compose_path,
-                image=image,
-                digest=digest,
-                captured_at=now,
-            )
-        )
+    current_stack: str | None = None
+    current_output: list[str] = []
+
+    def flush_stack() -> None:
+        if current_stack and current_output:
+            for record in _parse_images_output("\n".join(current_output)):
+                image, digest = _extract_image_fields(record)
+                if digest:
+                    entries.append(
+                        SnapshotEntry(
+                            stack=current_stack,
+                            host=host_name,
+                            compose_file=config.get_compose_path(current_stack),
+                            image=image,
+                            digest=digest,
+                            captured_at=now,
+                        )
+                    )
+
+    for line in result.stdout.splitlines():
+        if line.startswith(_BATCH_SEPARATOR):
+            flush_stack()
+            current_stack = line[len(_BATCH_SEPARATOR) :]
+            current_output = []
+        elif current_stack is not None:
+            current_output.append(line)
+
+    flush_stack()
     return entries
+
+
+async def collect_all_stacks_entries(
+    config: Config,
+    stacks_by_host: dict[str, list[str]],
+    *,
+    now: datetime,
+) -> list[SnapshotEntry]:
+    """Collect image entries for all stacks, batched by host.
+
+    This makes only 1 SSH call per host instead of 1 per stack.
+
+    Args:
+        config: Configuration
+        stacks_by_host: Dict mapping host_name -> list of stacks on that host
+        now: Timestamp for the snapshot entries
+
+    Returns:
+        List of SnapshotEntry for all stacks.
+
+    """
+    import asyncio  # noqa: PLC0415
+
+    tasks = [
+        collect_stacks_entries_on_host(config, host, stacks, now=now)
+        for host, stacks in stacks_by_host.items()
+        if stacks
+    ]
+
+    if not tasks:
+        return []
+
+    results = await asyncio.gather(*tasks)
+    return [entry for entries in results for entry in entries]
 
 
 def load_existing_entries(log_path: Path) -> list[dict[str, str]]:
