@@ -35,22 +35,24 @@
         <table class="table table-zebra table-sm w-full">
             <thead class="sticky top-0 bg-base-200">
                 <tr>
-                    <th class="cursor-pointer" onclick="sortTable(0)">Stack<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(1)">Service<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(2)">Host<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(3)">Image<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(4)">Status<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(5)">Uptime<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(6)">CPU<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(7)">Mem<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(8)">Net I/O<span class="sort-indicator"></span></th>
+                    <th class="w-8">#</th>
+                    <th class="cursor-pointer" onclick="sortTable(1)">Stack<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(2)">Service<span class="sort-indicator"></span></th>
+                    <th></th>
+                    <th class="cursor-pointer" onclick="sortTable(4)">Host<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(5)">Image<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(6)">Status<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(7)">Uptime<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(8)">CPU<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(9)">Mem<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(10)">Net I/O<span class="sort-indicator"></span></th>
                 </tr>
             </thead>
             <tbody id="container-rows"
                    hx-get="/api/containers/rows"
-                   hx-trigger="load, every 3s"
+                   hx-trigger="load"
                    hx-swap="innerHTML">
-                <tr><td colspan="9" class="text-center py-8">
+                <tr><td colspan="11" class="text-center py-8">
                     <span class="loading loading-spinner loading-md"></span>
                     <span class="ml-2">Loading containers...</span>
                 </td></tr>
@@ -83,8 +85,8 @@ function filterTable() {
 }
 
 // Client-side sorting using data-sort attributes (set by server on every cell)
-let sortCol = 6, sortAsc = false;  // Default: CPU (col 6) descending
-const numericCols = new Set([5, 6, 7, 8]);  // uptime, cpu, mem, net
+let sortCol = 8, sortAsc = false;  // Default: CPU (col 8) descending
+const numericCols = new Set([7, 8, 9, 10]);  // uptime, cpu, mem, net
 
 function sortTable(col) {
     if (sortCol === col) {
@@ -98,9 +100,12 @@ function sortTable(col) {
 }
 
 function updateSortIndicators() {
-    document.querySelectorAll('.sort-indicator').forEach((span, i) => {
-        span.textContent = (i === sortCol) ? (sortAsc ? '↑' : '↓') : '';
-        span.style.opacity = (i === sortCol) ? '1' : '0.3';
+    document.querySelectorAll('thead th').forEach((th, i) => {
+        const span = th.querySelector('.sort-indicator');
+        if (span) {
+            span.textContent = (i === sortCol) ? (sortAsc ? '↑' : '↓') : '';
+            span.style.opacity = (i === sortCol) ? '1' : '0.3';
+        }
     });
 }
 
@@ -117,12 +122,17 @@ function doSort() {
         return sortAsc ? cmp : -cmp;
     });
 
-    rows.forEach(row => tbody.appendChild(row));
+    rows.forEach((row, i) => {
+        row.cells[0].textContent = i + 1;  // Update row index after sort
+        tbody.appendChild(row);
+    });
 }
 
 // Re-apply filter and sort after HTMX swap, reset timer
 let lastUpdate = Date.now();
 const REFRESH_INTERVAL = 3000;
+// Use window.refreshPaused so it can be detected/set from outside (e.g., dropdown focus)
+window.refreshPaused = false;
 
 document.body.addEventListener('htmx:afterSwap', (e) => {
     if (e.detail.target.id === 'container-rows') {
@@ -133,12 +143,46 @@ document.body.addEventListener('htmx:afterSwap', (e) => {
     }
 });
 
+// Manual polling with pause support
+function refreshContainers() {
+    if (!window.refreshPaused) {
+        htmx.ajax('GET', '/api/containers/rows', {target: '#container-rows', swap: 'innerHTML'});
+    }
+}
+
+// Poll every 3 seconds using JavaScript (not HTMX's every trigger)
+setInterval(refreshContainers, REFRESH_INTERVAL);
+
+// Detect dropdown open/close via focusin/focusout (these bubble, unlike focus/blur)
+document.body.addEventListener('focusin', (e) => {
+    if (e.target.closest('.dropdown')) {
+        window.refreshPaused = true;
+    }
+});
+
+document.body.addEventListener('focusout', (e) => {
+    if (e.target.closest('.dropdown')) {
+        // Small delay to allow clicking menu items before dropdown loses focus
+        setTimeout(() => {
+            // Only resume if no dropdown element is focused
+            if (!document.activeElement?.closest('.dropdown')) {
+                window.refreshPaused = false;
+            }
+        }, 150);
+    }
+});
+
 // Update timer display every 100ms
 setInterval(() => {
+    const timer = document.getElementById('refresh-timer');
+    if (window.refreshPaused) {
+        timer.textContent = '⏸';
+        return;
+    }
     const elapsed = Date.now() - lastUpdate;
     const remaining = Math.max(0, REFRESH_INTERVAL - elapsed);
     const remainingSec = Math.ceil(remaining / 1000);
-    document.getElementById('refresh-timer').textContent = `↻ ${remainingSec}s`;
+    timer.textContent = `↻ ${remainingSec}s`;
 }, 100);
 
 // Show initial sort indicator

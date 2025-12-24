@@ -167,7 +167,7 @@ def _progress_class(percent: float) -> str:
     return "progress-success"
 
 
-def _render_row(c: ContainerStats) -> str:
+def _render_row(c: ContainerStats, idx: int) -> str:
     """Render a single container as an HTML table row."""
     image_name, tag = _parse_image(c.image)
     stack = c.stack if c.stack else _infer_stack_service(c.name)[0]
@@ -179,9 +179,12 @@ def _render_row(c: ContainerStats) -> str:
     mem_class = _progress_class(mem)
 
     uptime_sec = _parse_uptime_seconds(c.uptime)
+    actions = _render_actions(stack)
     return f"""<tr>
-<td data-sort="{stack.lower()}">{stack}</td>
+<td class="text-xs opacity-50">{idx}</td>
+<td data-sort="{stack.lower()}"><a href="/stack/{stack}" class="link link-hover link-primary" hx-boost="true">{stack}</a></td>
 <td data-sort="{service.lower()}" class="text-xs opacity-70">{service}</td>
+<td>{actions}</td>
 <td data-sort="{c.host.lower()}"><span class="badge badge-outline badge-xs">{c.host}</span></td>
 <td data-sort="{c.image.lower()}"><code class="text-xs bg-base-200 px-1 rounded">{image_name}:{tag}</code></td>
 <td data-sort="{c.status.lower()}"><span class="{_status_class(c.status)}">{c.status}</span></td>
@@ -190,6 +193,19 @@ def _render_row(c: ContainerStats) -> str:
 <td data-sort="{c.memory_usage}"><div class="flex flex-col gap-0.5"><progress class="progress {mem_class} w-12 h-2" value="{min(mem, 100)}" max="100"></progress><span class="text-xs">{_format_bytes(c.memory_usage)}</span></div></td>
 <td data-sort="{c.network_rx + c.network_tx}" class="text-xs font-mono">↓{_format_bytes(c.network_rx)} ↑{_format_bytes(c.network_tx)}</td>
 </tr>"""
+
+
+def _render_actions(stack: str) -> str:
+    """Render actions dropdown for a container row."""
+    return f"""<div class="dropdown dropdown-end">
+<label tabindex="0" class="btn btn-circle btn-ghost btn-xs"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" /></svg></label>
+<ul tabindex="0" class="dropdown-content menu menu-sm bg-base-200 rounded-box shadow-lg w-36 z-50 p-2">
+<li><a hx-post="/api/stack/{stack}/restart" hx-swap="none" hx-confirm="Restart {stack}?"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Restart</a></li>
+<li><a hx-post="/api/stack/{stack}/pull" hx-swap="none"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>Pull</a></li>
+<li><a hx-post="/api/stack/{stack}/update" hx-swap="none" hx-confirm="Update {stack}?"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>Update</a></li>
+<li><a href="/stack/{stack}" hx-boost="true"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>Logs</a></li>
+</ul>
+</div>"""
 
 
 def _parse_uptime_seconds(uptime: str) -> int:
@@ -227,17 +243,17 @@ async def get_containers_rows() -> HTMLResponse:
 
     if not config.glances_stack:
         return HTMLResponse(
-            '<tr><td colspan="9" class="text-center text-error">Glances not configured</td></tr>'
+            '<tr><td colspan="11" class="text-center text-error">Glances not configured</td></tr>'
         )
 
     containers = await fetch_all_container_stats(config)
 
     if not containers:
         return HTMLResponse(
-            '<tr><td colspan="9" class="text-center py-4 opacity-60">No containers found</td></tr>'
+            '<tr><td colspan="11" class="text-center py-4 opacity-60">No containers found</td></tr>'
         )
 
-    rows = "\n".join(_render_row(c) for c in containers)
+    rows = "\n".join(_render_row(c, i + 1) for i, c in enumerate(containers))
     return HTMLResponse(rows)
 
 
