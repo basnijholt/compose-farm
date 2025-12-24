@@ -2,20 +2,16 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
 import logging
 import re
-from typing import TYPE_CHECKING, Any
+from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from compose_farm.glances import ContainerStats, fetch_all_container_stats
 from compose_farm.web.deps import get_config, get_templates
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -167,6 +163,13 @@ def _progress_class(percent: float) -> str:
     return "progress-success"
 
 
+def _render_update_cell(image: str, tag: str) -> str:
+    """Render update check cell with lazy loading via HTMX."""
+    encoded_image = quote(image, safe="")
+    encoded_tag = quote(tag, safe="")
+    return f"""<td hx-get="/api/containers/check-update?image={encoded_image}&tag={encoded_tag}" hx-trigger="load" hx-swap="innerHTML"><span class="loading loading-spinner loading-xs"></span></td>"""
+
+
 def _render_row(c: ContainerStats, idx: int) -> str:
     """Render a single container as an HTML table row."""
     image_name, tag = _parse_image(c.image)
@@ -180,6 +183,7 @@ def _render_row(c: ContainerStats, idx: int) -> str:
 
     uptime_sec = _parse_uptime_seconds(c.uptime)
     actions = _render_actions(stack)
+    update_cell = _render_update_cell(image_name, tag)
     return f"""<tr>
 <td class="text-xs opacity-50">{idx}</td>
 <td data-sort="{stack.lower()}"><a href="/stack/{stack}" class="link link-hover link-primary" hx-boost="true">{stack}</a></td>
@@ -187,6 +191,7 @@ def _render_row(c: ContainerStats, idx: int) -> str:
 <td>{actions}</td>
 <td data-sort="{c.host.lower()}"><span class="badge badge-outline badge-xs">{c.host}</span></td>
 <td data-sort="{c.image.lower()}"><code class="text-xs bg-base-200 px-1 rounded">{image_name}:{tag}</code></td>
+{update_cell}
 <td data-sort="{c.status.lower()}"><span class="{_status_class(c.status)}">{c.status}</span></td>
 <td data-sort="{uptime_sec}" class="text-xs">{c.uptime or "-"}</td>
 <td data-sort="{cpu}"><div class="flex flex-col gap-0.5"><progress class="progress {cpu_class} w-12 h-2" value="{min(cpu, 100)}" max="100"></progress><span class="text-xs">{cpu:.0f}%</span></div></td>
@@ -257,74 +262,6 @@ async def get_containers_rows() -> HTMLResponse:
     return HTMLResponse(rows)
 
 
-@router.get("/api/containers/stream")
-async def stream_containers_data() -> StreamingResponse:
-    """Stream container data from each host as it arrives (SSE)."""
-    from compose_farm.glances import (  # noqa: PLC0415
-        _fetch_compose_labels,
-        fetch_container_stats,
-    )
-
-    config = get_config()
-
-    if not config.glances_stack:
-
-        async def error_stream() -> AsyncGenerator[str, None]:
-            yield f"data: {json.dumps({'error': 'Glances not configured'})}\n\n"
-
-        return StreamingResponse(error_stream(), media_type="text/event-stream")
-
-    async def generate() -> AsyncGenerator[str, None]:
-        # Create tasks for each host
-        async def fetch_host(host_name: str, host_address: str) -> list[dict[str, Any]]:
-            stats_task = fetch_container_stats(host_name, host_address)
-            labels_task = _fetch_compose_labels(config, host_name)
-            containers, labels = await asyncio.gather(stats_task, labels_task)
-
-            result = []
-            for c in containers:
-                stack, service = labels.get(c.name, ("", ""))
-                enriched = ContainerStats(
-                    name=c.name,
-                    host=c.host,
-                    status=c.status,
-                    image=c.image,
-                    cpu_percent=c.cpu_percent,
-                    memory_usage=c.memory_usage,
-                    memory_limit=c.memory_limit,
-                    memory_percent=c.memory_percent,
-                    network_rx=c.network_rx,
-                    network_tx=c.network_tx,
-                    uptime=c.uptime,
-                    ports=c.ports,
-                    engine=c.engine,
-                    stack=stack,
-                    service=service,
-                )
-                result.append(container_to_dict(enriched))
-            return result
-
-        # Create all tasks
-        tasks = {
-            asyncio.create_task(fetch_host(name, host.address)): name
-            for name, host in config.hosts.items()
-        }
-
-        # Yield results as they complete
-        for coro in asyncio.as_completed(tasks):
-            try:
-                containers = await coro
-                if containers:
-                    yield f"data: {json.dumps({'host_data': containers})}\n\n"
-            except Exception:
-                logger.debug("Failed to fetch containers from host", exc_info=True)
-
-        # Signal completion
-        yield f"data: {json.dumps({'done': True})}\n\n"
-
-    return StreamingResponse(generate(), media_type="text/event-stream")
-
-
 @router.get("/api/containers/check-updates", response_class=JSONResponse)
 async def check_container_updates(image: str, tag: str) -> JSONResponse:
     """Check for updates for a specific image.
@@ -364,3 +301,43 @@ async def check_container_updates(image: str, tag: str) -> JSONResponse:
                 "error": str(e),
             },
         )
+
+
+@router.get("/api/containers/check-update", response_class=HTMLResponse)
+async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
+    """Check for updates and return HTML badge for HTMX.
+
+    Returns a badge indicating update availability:
+    - Green checkmark: up to date
+    - Orange badge: updates available (with count)
+    - Gray dash: check failed or unsupported
+    """
+    import httpx  # noqa: PLC0415
+
+    from compose_farm.registry import check_image_tags  # noqa: PLC0415
+
+    # Skip update checks for certain tags that don't make sense to check
+    skip_tags = {"latest", "dev", "develop", "main", "master", "nightly"}
+    if tag.lower() in skip_tags:
+        return HTMLResponse('<span class="text-xs opacity-50">-</span>')
+
+    full_image = f"{image}:{tag}"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            result = await check_image_tags(full_image, "", client, fetch_digests=False)
+
+        if result.error:
+            return HTMLResponse('<span class="text-xs opacity-50">-</span>')
+
+        updates = result.available_updates
+        if updates:
+            count = len(updates)
+            title = f"Newer: {', '.join(updates[:3])}" + ("..." if count > 3 else "")  # noqa: PLR2004
+            return HTMLResponse(
+                f'<span class="badge badge-warning badge-xs cursor-help" title="{title}">'
+                f"{count} new</span>"
+            )
+        return HTMLResponse('<span class="text-success text-xs" title="Up to date">✓</span>')
+    except Exception:
+        return HTMLResponse('<span class="text-xs opacity-50">-</span>')

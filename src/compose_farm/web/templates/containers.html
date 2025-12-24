@@ -41,18 +41,19 @@
                     <th></th>
                     <th class="cursor-pointer" onclick="sortTable(4)">Host<span class="sort-indicator"></span></th>
                     <th class="cursor-pointer" onclick="sortTable(5)">Image<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(6)">Status<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(7)">Uptime<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(8)">CPU<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(9)">Mem<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(10)">Net I/O<span class="sort-indicator"></span></th>
+                    <th class="w-16">Update</th>
+                    <th class="cursor-pointer" onclick="sortTable(7)">Status<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(8)">Uptime<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(9)">CPU<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(10)">Mem<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer" onclick="sortTable(11)">Net I/O<span class="sort-indicator"></span></th>
                 </tr>
             </thead>
             <tbody id="container-rows"
                    hx-get="/api/containers/rows"
                    hx-trigger="load"
                    hx-swap="innerHTML">
-                <tr><td colspan="11" class="text-center py-8">
+                <tr><td colspan="12" class="text-center py-8">
                     <span class="loading loading-spinner loading-md"></span>
                     <span class="ml-2">Loading containers...</span>
                 </td></tr>
@@ -85,8 +86,8 @@ function filterTable() {
 }
 
 // Client-side sorting using data-sort attributes (set by server on every cell)
-let sortCol = 8, sortAsc = false;  // Default: CPU (col 8) descending
-const numericCols = new Set([7, 8, 9, 10]);  // uptime, cpu, mem, net
+let sortCol = 9, sortAsc = false;  // Default: CPU (col 9) descending
+const numericCols = new Set([8, 9, 10, 11]);  // uptime, cpu, mem, net
 
 function sortTable(col) {
     if (sortCol === col) {
