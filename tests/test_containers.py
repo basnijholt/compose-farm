@@ -215,7 +215,7 @@ class TestContainersPage:
             response = client.get("/containers")
 
         assert response.status_code == 200
-        assert "Containers" in response.text
+        assert "Live Stats" in response.text
         assert "container-rows" in response.text
 
 
