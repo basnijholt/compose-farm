@@ -1358,9 +1358,9 @@ glances_stack: glances  # Enables resource stats in web UI
 
 The web UI dashboard will now show a "Host Resources" section with live stats from all hosts. Hosts where Glances is unreachable show an error indicator.
 
-**Containers Page**
+**Live Stats Page**
 
-With Glances configured, a Containers page (`/containers`) shows all running containers across all hosts:
+With Glances configured, a Live Stats page (`/containers`) shows all running containers across all hosts:
 
 - **Columns**: Stack, Service, Host, Image, Status, Uptime, CPU, Memory, Net I/O
 - **Features**: Sorting, filtering, live updates (no SSH required—uses Glances REST API)
