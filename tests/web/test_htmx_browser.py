@@ -134,6 +134,13 @@ def test_config(tmp_path_factory: pytest.TempPathFactory) -> Path:
         else:
             (svc / "compose.yaml").write_text(f"services:\n  {name}:\n    image: test/{name}\n")
 
+    # Create glances stack (required for containers page)
+    glances_dir = compose_dir / "glances"
+    glances_dir.mkdir()
+    (glances_dir / "compose.yaml").write_text(
+        "services:\n  glances:\n    image: nicolargo/glances\n"
+    )
+
     # Create config with multiple hosts
     config = tmp / "compose-farm.yaml"
     config.write_text(f"""
@@ -151,6 +158,8 @@ stacks:
   nextcloud: server-2
   jellyfin: server-2
   redis: server-1
+  glances: all
+glances_stack: glances
 """)
 
     # Create state (plex and nextcloud running, grafana and jellyfin not started)
@@ -2329,3 +2338,185 @@ class TestTerminalNavigationIsolation:
         # Terminal should still be collapsed (no task to reconnect to)
         terminal_toggle = page.locator("#terminal-toggle")
         assert not terminal_toggle.is_checked(), "Terminal should remain collapsed after navigation"
+
+
+class TestContainersPagePause:
+    """Test containers page auto-refresh pause mechanism.
+
+    The containers page auto-refreshes every 3 seconds. When a user opens
+    an action dropdown, refresh should pause to prevent the dropdown from
+    closing unexpectedly.
+    """
+
+    # Mock HTML for container rows with action dropdowns
+    MOCK_ROWS_HTML = """
+<tr>
+<td>1</td>
+<td data-sort="plex"><a href="/stack/plex" class="link">plex</a></td>
+<td data-sort="server">server</td>
+<td><div class="dropdown dropdown-end">
+<label tabindex="0" class="btn btn-circle btn-ghost btn-xs"><svg class="h-4 w-4"></svg></label>
+<ul tabindex="0" class="dropdown-content menu menu-sm bg-base-200 rounded-box shadow-lg w-36 z-50 p-2">
+<li><a hx-post="/api/stack/plex/restart">Restart</a></li>
+</ul>
+</div></td>
+<td data-sort="nas"><span class="badge">nas</span></td>
+<td data-sort="nginx:latest"><code>nginx:latest</code></td>
+<td data-sort="running"><span class="badge badge-success">running</span></td>
+<td data-sort="3600">1 hour</td>
+<td data-sort="5"><progress class="progress" value="5" max="100"></progress><span>5%</span></td>
+<td data-sort="104857600"><progress class="progress" value="10" max="100"></progress><span>100MB</span></td>
+<td data-sort="1000">↓1KB ↑1KB</td>
+</tr>
+<tr>
+<td>2</td>
+<td data-sort="redis"><a href="/stack/redis" class="link">redis</a></td>
+<td data-sort="redis">redis</td>
+<td><div class="dropdown dropdown-end">
+<label tabindex="0" class="btn btn-circle btn-ghost btn-xs"><svg class="h-4 w-4"></svg></label>
+<ul tabindex="0" class="dropdown-content menu menu-sm bg-base-200 rounded-box shadow-lg w-36 z-50 p-2">
+<li><a hx-post="/api/stack/redis/restart">Restart</a></li>
+</ul>
+</div></td>
+<td data-sort="nas"><span class="badge">nas</span></td>
+<td data-sort="redis:7"><code>redis:7</code></td>
+<td data-sort="running"><span class="badge badge-success">running</span></td>
+<td data-sort="7200">2 hours</td>
+<td data-sort="1"><progress class="progress" value="1" max="100"></progress><span>1%</span></td>
+<td data-sort="52428800"><progress class="progress" value="5" max="100"></progress><span>50MB</span></td>
+<td data-sort="500">↓500B ↑500B</td>
+</tr>
+"""
+
+    def test_dropdown_pauses_refresh(self, page: Page, server_url: str) -> None:
+        """Opening action dropdown pauses auto-refresh.
+
+        Bug: focusin event triggers pause, but focusout fires shortly after
+        when focus moves within the dropdown, causing refresh to resume
+        while dropdown is still visually open.
+        """
+        # Mock the containers rows API to return test data
+        page.route(
+            "**/api/containers/rows",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/html",
+                body=self.MOCK_ROWS_HTML,
+            ),
+        )
+
+        page.goto(f"{server_url}/containers")
+
+        # Wait for container rows to load
+        page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)
+
+        # Get initial state
+        initial_paused = page.evaluate("window.refreshPaused")
+        assert initial_paused is False, "Refresh should not be paused initially"
+
+        # Click on a dropdown to open it
+        dropdown_label = page.locator(".dropdown label").first
+        dropdown_label.click()
+
+        # Wait a moment for focusin to trigger
+        page.wait_for_timeout(200)
+
+        # Verify pause is engaged
+        paused_after_click = page.evaluate("window.refreshPaused")
+        timer_text = page.locator("#refresh-timer").inner_text()
+
+        assert paused_after_click is True, (
+            f"Refresh should be paused after clicking dropdown. "
+            f"refreshPaused={paused_after_click}, timer='{timer_text}'"
+        )
+        assert "⏸" in timer_text, f"Timer should show pause icon, got '{timer_text}'"
+
+    def test_refresh_stays_paused_while_dropdown_open(self, page: Page, server_url: str) -> None:
+        """Refresh remains paused for duration dropdown is open (>3s refresh interval).
+
+        This is the critical test for the pause bug: refresh should stay paused
+        for longer than the 3-second refresh interval while dropdown is open.
+        """
+        # Mock the containers rows API
+        page.route(
+            "**/api/containers/rows",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/html",
+                body=self.MOCK_ROWS_HTML,
+            ),
+        )
+
+        page.goto(f"{server_url}/containers")
+
+        # Wait for container rows to load
+        page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)
+
+        # Record a marker in the first row to detect if refresh happened
+        page.evaluate("""
+            const firstRow = document.querySelector('#container-rows tr');
+            if (firstRow) firstRow.dataset.testMarker = 'original';
+        """)
+
+        # Click dropdown to pause
+        dropdown_label = page.locator(".dropdown label").first
+        dropdown_label.click()
+        page.wait_for_timeout(200)
+
+        # Confirm paused
+        assert page.evaluate("window.refreshPaused") is True
+
+        # Wait longer than the 3-second refresh interval
+        page.wait_for_timeout(4000)
+
+        # Check if still paused
+        still_paused = page.evaluate("window.refreshPaused")
+        timer_text = page.locator("#refresh-timer").inner_text()
+
+        # Check if the row was replaced (marker would be gone)
+        marker = page.evaluate("""
+            document.querySelector('#container-rows tr')?.dataset?.testMarker
+        """)
+
+        assert still_paused is True, (
+            f"Refresh should still be paused after 4s. "
+            f"refreshPaused={still_paused}, timer='{timer_text}'"
+        )
+        assert marker == "original", (
+            "Table was refreshed while dropdown was open - pause mechanism failed"
+        )
+
+    def test_refresh_resumes_after_dropdown_closes(self, page: Page, server_url: str) -> None:
+        """Refresh resumes after dropdown is closed."""
+        # Mock the containers rows API
+        page.route(
+            "**/api/containers/rows",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/html",
+                body=self.MOCK_ROWS_HTML,
+            ),
+        )
+
+        page.goto(f"{server_url}/containers")
+
+        # Wait for container rows to load
+        page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)
+
+        # Click dropdown to pause
+        dropdown_label = page.locator(".dropdown label").first
+        dropdown_label.click()
+        page.wait_for_timeout(200)
+
+        assert page.evaluate("window.refreshPaused") is True
+
+        # Close dropdown by pressing Escape or clicking elsewhere
+        page.keyboard.press("Escape")
+        page.wait_for_timeout(300)  # Wait for focusout timeout (150ms) + buffer
+
+        # Verify refresh resumed
+        paused = page.evaluate("window.refreshPaused")
+        timer_text = page.locator("#refresh-timer").inner_text()
+
+        assert paused is False, f"Refresh should resume after closing dropdown, got {paused}"
+        assert "↻" in timer_text, f"Timer should show countdown, got '{timer_text}'"

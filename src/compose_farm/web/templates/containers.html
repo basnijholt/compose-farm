@@ -172,6 +172,15 @@ document.body.addEventListener('focusout', (e) => {
     }
 });
 
+// Resume refresh when Escape is pressed (focusout doesn't fire on Escape)
+document.body.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && window.refreshPaused) {
+        setTimeout(() => {
+            window.refreshPaused = false;
+        }, 100);
+    }
+});
+
 // Update timer display every 100ms
 setInterval(() => {
     const timer = document.getElementById('refresh-timer');
