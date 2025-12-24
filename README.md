@@ -1360,7 +1360,10 @@ The web UI dashboard will now show a "Host Resources" section with live stats fr
 
 **Containers Page**
 
-With Glances configured, a Containers page (`/containers`) shows all running containers across all hosts with sorting, filtering, and live updates.
+With Glances configured, a Containers page (`/containers`) shows all running containers across all hosts:
+
+- **Columns**: Stack, Service, Host, Image, Status, Uptime, CPU, Memory, Net I/O
+- **Features**: Sorting, filtering, live updates (no SSH required—uses Glances REST API)
 
 ## Comparison with Alternatives
 
