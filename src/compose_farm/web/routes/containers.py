@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 
 from compose_farm.glances import ContainerStats, fetch_all_container_stats
 from compose_farm.web.deps import get_config, get_templates
@@ -72,34 +71,6 @@ def _infer_stack_service(name: str) -> tuple[str, str]:
     return name, name
 
 
-def container_to_dict(c: ContainerStats) -> dict[str, Any]:
-    """Convert ContainerStats to dictionary for JSON response."""
-    image_name, tag = _parse_image(c.image)
-    # Use compose labels if available, otherwise fall back to heuristic
-    stack = c.stack if c.stack else _infer_stack_service(c.name)[0]
-    service = c.service if c.service else _infer_stack_service(c.name)[1]
-
-    return {
-        "name": c.name,
-        "stack": stack,
-        "service": service,
-        "host": c.host,
-        "image": image_name,
-        "tag": tag,
-        "status": c.status,
-        "uptime": c.uptime,
-        "cpu_percent": round(c.cpu_percent, 1),
-        "memory_usage": _format_bytes(c.memory_usage),
-        "memory_percent": round(c.memory_percent, 1),
-        "memory_mb": round(c.memory_usage_mb, 0),
-        "network_rx": _format_bytes(c.network_rx),
-        "network_tx": _format_bytes(c.network_tx),
-        "net_io": f"↓{_format_bytes(c.network_rx)} ↑{_format_bytes(c.network_tx)}",
-        "ports": c.ports,
-        "engine": c.engine,
-    }
-
-
 @router.get("/live-stats", response_class=HTMLResponse)
 async def containers_page(request: Request) -> HTMLResponse:
     """Container dashboard page."""
@@ -114,30 +85,6 @@ async def containers_page(request: Request) -> HTMLResponse:
         {
             "request": request,
             "glances_enabled": glances_enabled,
-        },
-    )
-
-
-@router.get("/api/containers/list", response_class=JSONResponse)
-async def get_containers_data() -> JSONResponse:
-    """Get all container data from Glances as JSON."""
-    config = get_config()
-
-    if not config.glances_stack:
-        return JSONResponse(
-            content={"error": "Glances not configured", "data": []},
-            status_code=200,
-        )
-
-    containers = await fetch_all_container_stats(config)
-
-    # Sort by CPU usage descending
-    containers.sort(key=lambda c: c.cpu_percent, reverse=True)
-
-    return JSONResponse(
-        content={
-            "data": [container_to_dict(c) for c in containers],
-            "count": len(containers),
         },
     )
 
@@ -262,47 +209,6 @@ async def get_containers_rows() -> HTMLResponse:
     return HTMLResponse(rows)
 
 
-@router.get("/api/containers/check-updates", response_class=JSONResponse)
-async def check_container_updates(image: str, tag: str) -> JSONResponse:
-    """Check for updates for a specific image.
-
-    Args:
-        image: Image name (e.g., "nginx", "ghcr.io/user/repo")
-        tag: Current tag (e.g., "latest", "1.25.0")
-
-    Returns:
-        JSON with available_updates list
-
-    """
-    import httpx  # noqa: PLC0415
-
-    from compose_farm.registry import check_image_tags  # noqa: PLC0415
-
-    full_image = f"{image}:{tag}"
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            result = await check_image_tags(full_image, "", client, fetch_digests=False)
-
-        return JSONResponse(
-            content={
-                "image": image,
-                "tag": tag,
-                "available_updates": result.available_updates[:5],  # Top 5 updates
-                "error": result.error,
-            },
-        )
-    except Exception as e:
-        return JSONResponse(
-            content={
-                "image": image,
-                "tag": tag,
-                "available_updates": [],
-                "error": str(e),
-            },
-        )
-
-
 @router.get("/api/containers/check-update", response_class=HTMLResponse)
 async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
     """Check for updates and return HTML badge for HTMX.
@@ -314,7 +220,7 @@ async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
     """
     import httpx  # noqa: PLC0415
 
-    from compose_farm.registry import check_image_tags  # noqa: PLC0415
+    from compose_farm.registry import check_image_updates  # noqa: PLC0415
 
     # Skip update checks for certain tags that don't make sense to check
     skip_tags = {"latest", "dev", "develop", "main", "master", "nightly"}
@@ -325,7 +231,7 @@ async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            result = await check_image_tags(full_image, "", client, fetch_digests=False)
+            result = await check_image_updates(full_image, client)
 
         if result.error:
             return HTMLResponse('<span class="text-xs opacity-50">-</span>')

@@ -2,15 +2,11 @@
 
 from compose_farm.registry import (
     DOCKER_HUB_ALIASES,
-    DockerHubClient,
-    GenericOciClient,
-    GhcrClient,
     ImageRef,
+    RegistryClient,
     TagCheckResult,
-    TagInfo,
     _find_updates,
     _parse_version,
-    get_registry_client,
 )
 
 
@@ -116,72 +112,47 @@ class TestFindUpdates:
     def test_find_updates_with_newer_versions(self) -> None:
         """Test finding newer versions."""
         current = "1.0.0"
-        tags = [
-            TagInfo("0.9.0"),
-            TagInfo("1.0.0"),
-            TagInfo("1.1.0"),
-            TagInfo("2.0.0"),
-        ]
-        updates = _find_updates(current, tags, "")
+        tags = ["0.9.0", "1.0.0", "1.1.0", "2.0.0"]
+        updates = _find_updates(current, tags)
         assert updates == ["2.0.0", "1.1.0"]
 
     def test_find_updates_no_newer(self) -> None:
         """Test when already on latest."""
         current = "2.0.0"
-        tags = [
-            TagInfo("1.0.0"),
-            TagInfo("1.5.0"),
-            TagInfo("2.0.0"),
-        ]
-        updates = _find_updates(current, tags, "")
+        tags = ["1.0.0", "1.5.0", "2.0.0"]
+        updates = _find_updates(current, tags)
         assert updates == []
 
     def test_find_updates_non_version_tag(self) -> None:
         """Test with non-version current tag."""
         current = "latest"
-        tags = [TagInfo("1.0.0"), TagInfo("2.0.0")]
-        updates = _find_updates(current, tags, "")
+        tags = ["1.0.0", "2.0.0"]
+        updates = _find_updates(current, tags)
         # Can't determine updates for non-version tags
         assert updates == []
 
-    def test_find_updates_skips_same_digest(self) -> None:
-        """Test that same digest is skipped."""
-        current = "1.0.0"
-        digest = "sha256:abc123"
-        tags = [
-            TagInfo("1.1.0", digest=digest),  # Same digest
-            TagInfo("2.0.0", digest="sha256:def456"),
-        ]
-        updates = _find_updates(current, tags, digest)
-        assert updates == ["2.0.0"]
 
+class TestRegistryClient:
+    """Tests for unified registry client."""
 
-class TestGetRegistryClient:
-    """Tests for registry client factory."""
-
-    def test_docker_hub_aliases(self) -> None:
-        """Test Docker Hub aliases all return DockerHubClient."""
+    def test_docker_hub_normalization(self) -> None:
+        """Test Docker Hub aliases are normalized."""
         for alias in DOCKER_HUB_ALIASES:
-            ref = ImageRef(
-                registry=alias,
-                namespace="library",
-                name="nginx",
-                tag="latest",
-            )
-            client = get_registry_client(ref)
-            assert isinstance(client, DockerHubClient)
+            client = RegistryClient(alias)
+            assert client.registry == "docker.io"
+            assert client.registry_url == "https://registry-1.docker.io"
 
     def test_ghcr_client(self) -> None:
         """Test GitHub Container Registry client."""
-        ref = ImageRef.parse("ghcr.io/user/repo")
-        client = get_registry_client(ref)
-        assert isinstance(client, GhcrClient)
+        client = RegistryClient("ghcr.io")
+        assert client.registry == "ghcr.io"
+        assert client.registry_url == "https://ghcr.io"
 
-    def test_generic_oci_client(self) -> None:
-        """Test generic OCI client for other registries."""
-        ref = ImageRef.parse("quay.io/user/repo")
-        client = get_registry_client(ref)
-        assert isinstance(client, GenericOciClient)
+    def test_generic_registry(self) -> None:
+        """Test generic registry client."""
+        client = RegistryClient("quay.io")
+        assert client.registry == "quay.io"
+        assert client.registry_url == "https://quay.io"
 
 
 class TestTagCheckResult:
@@ -193,7 +164,6 @@ class TestTagCheckResult:
         result = TagCheckResult(
             image=ref,
             current_digest="sha256:abc",
-            equivalent_tags=["1.25"],
             available_updates=["1.26", "1.27"],
         )
         assert result.image.name == "nginx"
