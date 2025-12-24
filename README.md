@@ -222,7 +222,7 @@ cf up --all
 
 ### Dedicated SSH Key (default for Docker)
 
-When running in Docker, the SSH agent socket isn't mounted by default (some Docker Compose versions have issues with socket path interpolation). The `cf ssh` command sets up a dedicated key that persists:
+When running in Docker, SSH agent sockets are ephemeral and can be lost after container restarts. The `cf ssh` command sets up a dedicated key that persists:
 
 ```bash
 # Generate key and copy to all configured hosts
@@ -255,7 +255,7 @@ volumes:
 volumes:
   - ${SSH_AUTH_SOCK}:/ssh-agent:ro
 ```
-Note: Requires `SSH_AUTH_SOCK` environment variable. Some Docker Compose versions don't interpolate .env variables in volume paths—export the variable instead.
+Note: Requires `SSH_AUTH_SOCK` environment variable to be set. The socket path is ephemeral and changes across sessions.
 
 Run setup once after starting the container (while the SSH agent still works):
 
