@@ -2406,7 +2406,7 @@ class TestContainersPagePause:
             ),
         )
 
-        page.goto(f"{server_url}/containers")
+        page.goto(f"{server_url}/live-stats")
 
         # Wait for container rows to load
         page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)
@@ -2448,7 +2448,7 @@ class TestContainersPagePause:
             ),
         )
 
-        page.goto(f"{server_url}/containers")
+        page.goto(f"{server_url}/live-stats")
 
         # Wait for container rows to load
         page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)
@@ -2499,7 +2499,7 @@ class TestContainersPagePause:
             ),
         )
 
-        page.goto(f"{server_url}/containers")
+        page.goto(f"{server_url}/live-stats")
 
         # Wait for container rows to load
         page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)

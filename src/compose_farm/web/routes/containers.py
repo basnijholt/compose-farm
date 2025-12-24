@@ -100,7 +100,7 @@ def container_to_dict(c: ContainerStats) -> dict[str, Any]:
     }
 
 
-@router.get("/containers", response_class=HTMLResponse)
+@router.get("/live-stats", response_class=HTMLResponse)
 async def containers_page(request: Request) -> HTMLResponse:
     """Container dashboard page."""
     config = get_config()

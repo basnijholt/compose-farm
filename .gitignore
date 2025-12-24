@@ -45,3 +45,4 @@ coverage.xml
 .env
 homepage/
 site/
+.playwright-mcp/

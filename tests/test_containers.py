@@ -203,7 +203,7 @@ class TestContainersPage:
                 stacks={"test": "nas"},
                 glances_stack=None,
             )
-            response = client.get("/containers")
+            response = client.get("/live-stats")
 
         assert response.status_code == 200
         assert "Glances not configured" in response.text
@@ -212,7 +212,7 @@ class TestContainersPage:
         """Test containers page loads when Glances is configured."""
         with patch("compose_farm.web.routes.containers.get_config") as mock:
             mock.return_value = mock_config
-            response = client.get("/containers")
+            response = client.get("/live-stats")
 
         assert response.status_code == 200
         assert "Live Stats" in response.text
