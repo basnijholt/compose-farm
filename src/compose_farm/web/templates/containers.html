@@ -115,6 +115,9 @@ function doSort() {
     const rows = Array.from(tbody.querySelectorAll('tr'));
     if (rows.length === 0) return;
 
+    // Skip sorting for empty-state row (single cell with colspan)
+    if (rows.length === 1 && rows[0].cells[0]?.colSpan > 1) return;
+
     const isNumeric = numericCols.has(sortCol);
     rows.sort((a, b) => {
         const aVal = a.cells[sortCol]?.dataset?.sort ?? '';
