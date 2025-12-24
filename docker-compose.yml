@@ -12,10 +12,10 @@ services:
       # Choose ONE option below (use the same option for both cf and web services):
       # Option 1: Host path (default) - keys at ~/.ssh/compose-farm/id_ed25519
       - ${CF_SSH_DIR:-~/.ssh/compose-farm}:${CF_HOME:-/root}/.ssh/compose-farm
-      # Option 3: SSH agent forwarding (uncomment if using ssh-agent)
-      # - ${SSH_AUTH_SOCK}:/ssh-agent:ro
       # Option 2: Named volume - managed by Docker, shared between services
       # - cf-ssh:${CF_HOME:-/root}/.ssh
+      # Option 3: SSH agent forwarding (uncomment if using ssh-agent)
+      # - ${SSH_AUTH_SOCK}:/ssh-agent:ro
     environment:
       - SSH_AUTH_SOCK=/ssh-agent
       # Config file path (state stored alongside it)
@@ -36,10 +36,10 @@ services:
       # SSH keys - use the SAME option as cf service above
       # Option 1: Host path (default)
       - ${CF_SSH_DIR:-~/.ssh/compose-farm}:${CF_HOME:-/root}/.ssh/compose-farm
-      # Option 3: SSH agent forwarding (uncomment if using ssh-agent)
-      # - ${SSH_AUTH_SOCK}:/ssh-agent:ro
       # Option 2: Named volume
       # - cf-ssh:${CF_HOME:-/root}/.ssh
+      # Option 3: SSH agent forwarding (uncomment if using ssh-agent)
+      # - ${SSH_AUTH_SOCK}:/ssh-agent:ro
       # XDG config dir for backups and image digest logs (persists across restarts)
       - ${CF_XDG_CONFIG:-~/.config/compose-farm}:${CF_HOME:-/root}/.config/compose-farm
     environment:
