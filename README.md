@@ -208,9 +208,9 @@ cp .envrc.example .envrc && direnv allow
 
 Compose Farm uses SSH to run commands on remote hosts. There are two authentication methods:
 
-### SSH Agent (default)
+### SSH Agent
 
-Works out of the box if you have an SSH agent running with your keys loaded:
+Works out of the box when running locally if you have an SSH agent running with your keys loaded:
 
 ```bash
 # Verify your agent has keys
@@ -220,9 +220,9 @@ ssh-add -l
 cf up --all
 ```
 
-### Dedicated SSH Key (recommended for Docker/Web UI)
+### Dedicated SSH Key (default for Docker)
 
-When running compose-farm in Docker, the SSH agent connection can be lost (e.g., after container restart). The `cf ssh` command sets up a dedicated key that persists:
+When running in Docker, the SSH agent socket isn't mounted by default (some Docker Compose versions have issues with socket path interpolation). The `cf ssh` command sets up a dedicated key that persists:
 
 ```bash
 # Generate key and copy to all configured hosts
@@ -249,6 +249,13 @@ volumes:
 volumes:
   - cf-ssh:${CF_HOME:-/root}/.ssh
 ```
+
+**Option 3: SSH agent forwarding** - if you prefer using your host's ssh-agent
+```yaml
+volumes:
+  - ${SSH_AUTH_SOCK}:/ssh-agent:ro
+```
+Note: Requires `SSH_AUTH_SOCK` environment variable. Some Docker Compose versions don't interpolate .env variables in volume paths—export the variable instead.
 
 Run setup once after starting the container (while the SSH agent still works):
 
