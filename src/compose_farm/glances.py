@@ -122,16 +122,6 @@ class ContainerStats:
     stack: str = ""  # compose project name (from docker labels)
     service: str = ""  # compose service name (from docker labels)
 
-    @property
-    def memory_usage_mb(self) -> float:
-        """Memory usage in MB."""
-        return self.memory_usage / (1024 * 1024)
-
-    @property
-    def memory_limit_mb(self) -> float:
-        """Memory limit in MB."""
-        return self.memory_limit / (1024 * 1024)
-
 
 def _parse_container(data: dict[str, Any], host_name: str) -> ContainerStats:
     """Parse container data from Glances API response."""
@@ -185,46 +175,8 @@ async def fetch_container_stats(
                 return []
             data = response.json()
             return [_parse_container(c, host_name) for c in data]
-    except (httpx.TimeoutException, httpx.HTTPError, Exception):
-        return []
-
-
-async def _fetch_compose_labels(
-    config: Config,
-    host_name: str,
-) -> dict[str, tuple[str, str]]:
-    """Fetch compose labels for all containers on a host.
-
-    Returns dict of container_name -> (stack, service).
-    Falls back to empty dict on timeout/error (caller uses name heuristic).
-    Uses a 5-second timeout to prevent blocking.
-    """
-    from .executor import run_command  # noqa: PLC0415
-
-    host = config.hosts[host_name]
-    # Get container name, compose project, and compose service in one call
-    cmd = (
-        "docker ps -a --format "
-        '\'{{.Names}}\t{{.Label "com.docker.compose.project"}}\t'
-        '{{.Label "com.docker.compose.service"}}\''
-    )
-
-    try:
-        async with asyncio.timeout(5.0):
-            result = await run_command(host, cmd, stack=host_name, stream=False, prefix="")
-    except TimeoutError:
-        return {}  # Fall back to name heuristic
     except Exception:
-        return {}
-
-    labels: dict[str, tuple[str, str]] = {}
-    if result.success:
-        for line in result.stdout.splitlines():
-            parts = line.strip().split("\t")
-            if len(parts) >= 3:  # noqa: PLR2004
-                name, stack, service = parts[0], parts[1], parts[2]
-                labels[name] = (stack or "", service or "")
-    return labels
+        return []
 
 
 async def fetch_all_container_stats(
@@ -232,41 +184,21 @@ async def fetch_all_container_stats(
     port: int = DEFAULT_GLANCES_PORT,
 ) -> list[ContainerStats]:
     """Fetch container stats from all hosts in parallel, enriched with compose labels."""
+    from .executor import get_container_compose_labels  # noqa: PLC0415
 
-    # Fetch Glances stats and compose labels in parallel for each host
     async def fetch_host_data(
         host_name: str,
         host_address: str,
     ) -> list[ContainerStats]:
-        # Run both fetches in parallel
+        # Fetch Glances stats and compose labels in parallel
         stats_task = fetch_container_stats(host_name, host_address, port)
-        labels_task = _fetch_compose_labels(config, host_name)
+        labels_task = get_container_compose_labels(config, host_name)
         containers, labels = await asyncio.gather(stats_task, labels_task)
 
-        # Enrich containers with compose labels
-        enriched = []
+        # Enrich containers with compose labels (mutate in place)
         for c in containers:
-            stack, service = labels.get(c.name, ("", ""))
-            enriched.append(
-                ContainerStats(
-                    name=c.name,
-                    host=c.host,
-                    status=c.status,
-                    image=c.image,
-                    cpu_percent=c.cpu_percent,
-                    memory_usage=c.memory_usage,
-                    memory_limit=c.memory_limit,
-                    memory_percent=c.memory_percent,
-                    network_rx=c.network_rx,
-                    network_tx=c.network_tx,
-                    uptime=c.uptime,
-                    ports=c.ports,
-                    engine=c.engine,
-                    stack=stack,
-                    service=service,
-                )
-            )
-        return enriched
+            c.stack, c.service = labels.get(c.name, ("", ""))
+        return containers
 
     tasks = [fetch_host_data(name, host.address) for name, host in config.hosts.items()]
     results = await asyncio.gather(*tasks)

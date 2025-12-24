@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 from urllib.parse import quote
 
@@ -11,8 +10,6 @@ from fastapi.responses import HTMLResponse
 
 from compose_farm.glances import ContainerStats, fetch_all_container_stats
 from compose_farm.web.deps import get_config, get_templates
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["containers"])
 
@@ -23,6 +20,9 @@ GB = MB * 1024
 
 # Minimum parts needed to infer stack/service from container name
 MIN_NAME_PARTS = 2
+
+# HTML for "no update info" dash
+_DASH_HTML = '<span class="text-xs opacity-50">-</span>'
 
 
 def _format_bytes(bytes_val: int) -> str:
@@ -89,16 +89,16 @@ async def containers_page(request: Request) -> HTMLResponse:
     )
 
 
+_STATUS_CLASSES = {
+    "running": "badge badge-success badge-sm",
+    "exited": "badge badge-error badge-sm",
+    "paused": "badge badge-warning badge-sm",
+}
+
+
 def _status_class(status: str) -> str:
     """Get CSS class for status badge."""
-    s = status.lower()
-    if s == "running":
-        return "badge badge-success badge-sm"
-    if s == "exited":
-        return "badge badge-error badge-sm"
-    if s == "paused":
-        return "badge badge-warning badge-sm"
-    return "badge badge-ghost badge-sm"
+    return _STATUS_CLASSES.get(status.lower(), "badge badge-ghost badge-sm")
 
 
 def _progress_class(percent: float) -> str:
@@ -225,7 +225,7 @@ async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
     # Skip update checks for certain tags that don't make sense to check
     skip_tags = {"latest", "dev", "develop", "main", "master", "nightly"}
     if tag.lower() in skip_tags:
-        return HTMLResponse('<span class="text-xs opacity-50">-</span>')
+        return HTMLResponse(_DASH_HTML)
 
     full_image = f"{image}:{tag}"
 
@@ -234,7 +234,7 @@ async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
             result = await check_image_updates(full_image, client)
 
         if result.error:
-            return HTMLResponse('<span class="text-xs opacity-50">-</span>')
+            return HTMLResponse(_DASH_HTML)
 
         updates = result.available_updates
         if updates:
@@ -246,4 +246,4 @@ async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
             )
         return HTMLResponse('<span class="text-success text-xs" title="Up to date">✓</span>')
     except Exception:
-        return HTMLResponse('<span class="text-xs opacity-50">-</span>')
+        return HTMLResponse(_DASH_HTML)

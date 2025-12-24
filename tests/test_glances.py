@@ -205,27 +205,6 @@ class TestContainerStats:
         assert stats.name == "nginx"
         assert stats.host == "nas"
         assert stats.cpu_percent == 5.5
-        assert stats.memory_usage_mb == 100.0
-        assert stats.memory_limit_mb == 1024.0
-
-    def test_container_stats_memory_mb_properties(self) -> None:
-        stats = ContainerStats(
-            name="test",
-            host="nas",
-            status="running",
-            image="test:latest",
-            cpu_percent=0,
-            memory_usage=52428800,  # 50MB
-            memory_limit=209715200,  # 200MB
-            memory_percent=25.0,
-            network_rx=0,
-            network_tx=0,
-            uptime="1 hour",
-            ports="",
-            engine="docker",
-        )
-        assert stats.memory_usage_mb == 50.0
-        assert stats.memory_limit_mb == 200.0
 
 
 class TestFetchContainerStats:

@@ -519,6 +519,41 @@ async def get_running_stacks_on_host(
     return {line.strip() for line in result.stdout.splitlines() if line.strip()}
 
 
+async def get_container_compose_labels(
+    config: Config,
+    host_name: str,
+) -> dict[str, tuple[str, str]]:
+    """Get compose labels for all containers on a host.
+
+    Returns dict of container_name -> (project, service).
+    Includes all containers (-a flag) since Glances shows stopped containers too.
+    Falls back to empty dict on timeout/error (5s timeout).
+    """
+    host = config.hosts[host_name]
+    cmd = (
+        "docker ps -a --format "
+        '\'{{.Names}}\t{{.Label "com.docker.compose.project"}}\t'
+        '{{.Label "com.docker.compose.service"}}\''
+    )
+
+    try:
+        async with asyncio.timeout(5.0):
+            result = await run_command(host, cmd, stack=host_name, stream=False, prefix="")
+    except TimeoutError:
+        return {}
+    except Exception:
+        return {}
+
+    labels: dict[str, tuple[str, str]] = {}
+    if result.success:
+        for line in result.stdout.splitlines():
+            parts = line.strip().split("\t")
+            if len(parts) >= 3:  # noqa: PLR2004
+                name, project, service = parts[0], parts[1], parts[2]
+                labels[name] = (project or "", service or "")
+    return labels
+
+
 async def _batch_check_existence(
     config: Config,
     host_name: str,
