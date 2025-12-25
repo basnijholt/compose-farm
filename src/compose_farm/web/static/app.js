@@ -607,6 +607,7 @@ function playFabIntro() {
             cmd('action', 'Update All', 'Update all stacks', dashboardAction('update-all'), icons.refresh_cw),
             cmd('app', 'Theme', 'Change color theme', openThemePicker, icons.palette),
             cmd('app', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
+            cmd('app', 'Live Stats', 'View all containers across hosts', nav('/live-stats'), icons.box),
             cmd('app', 'Console', 'Go to console', nav('/console'), icons.terminal),
             cmd('app', 'Edit Config', 'Edit compose-farm.yaml', nav('/console#editor'), icons.file_code),
             cmd('app', 'Docs', 'Open documentation', openExternal('https://compose-farm.nijho.lt/'), icons.book_open),

@@ -37,6 +37,7 @@ DEMOS = [
     "workflow",
     "console",
     "shell",
+    "live_stats",
 ]
 
 # High-quality ffmpeg settings for VP8 encoding
