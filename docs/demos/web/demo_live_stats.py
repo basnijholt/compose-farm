@@ -44,6 +44,9 @@ def test_demo_live_stats(recording_page: Page, server_url: str) -> None:
     page.keyboard.press("Enter")
     page.wait_for_url("**/live-stats", timeout=5000)
 
+    # Zoom out to 80% so all columns are visible without horizontal scroll
+    page.evaluate("document.body.style.zoom = '0.8'")
+
     # Wait for containers to load
     page.wait_for_selector("#container-rows tr:not(:has(.loading))", timeout=10000)
     pause(page, 2000)  # Let viewer see the full table
