@@ -94,6 +94,7 @@ def page(page: Page, vendor_cache: Path) -> Page:
         raise RuntimeError(msg)
 
     page.route(re.compile(r"https://(cdn\.jsdelivr\.net|unpkg\.com)/.*"), handle_cdn)
+    page.add_init_script("window.CF_DISABLE_SSE = true;")
     return page
 
 
