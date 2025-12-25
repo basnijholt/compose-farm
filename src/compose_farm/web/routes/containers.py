@@ -215,17 +215,31 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
     Returns immediately with Glances data. Stack/service are inferred from
     container names for instant display (no SSH wait).
     """
+    import logging  # noqa: PLC0415
+    import time  # noqa: PLC0415
+
     from compose_farm.glances import fetch_container_stats  # noqa: PLC0415
 
+    logger = logging.getLogger(__name__)
     config = get_config()
 
     if host_name not in config.hosts:
         return HTMLResponse("")
 
     host = config.hosts[host_name]
+
+    t0 = time.monotonic()
     containers, error = await fetch_container_stats(host_name, host.address)
+    t1 = time.monotonic()
+    fetch_ms = (t1 - t0) * 1000
 
     if containers is None:
+        logger.error(
+            "Failed to fetch stats for %s in %.1fms: %s",
+            host_name,
+            fetch_ms,
+            error,
+        )
         return HTMLResponse(
             f'<tr class="text-error"><td colspan="12" class="text-center py-2">Error: {error}</td></tr>'
         )
@@ -239,6 +253,16 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
 
     # Use placeholder index (will be renumbered by JS after all hosts load)
     rows = "\n".join(_render_row(c, "-") for c in containers)
+    t2 = time.monotonic()
+    render_ms = (t2 - t1) * 1000
+
+    logger.info(
+        "Loaded %d rows for %s in %.1fms (fetch) + %.1fms (render)",
+        len(containers),
+        host_name,
+        fetch_ms,
+        render_ms,
+    )
     return HTMLResponse(rows)
 
 
