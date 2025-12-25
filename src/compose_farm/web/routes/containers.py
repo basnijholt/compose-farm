@@ -128,8 +128,9 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
     actions = _render_actions(stack)
     update_cell = _render_update_cell(image_name, tag)
     # Render as single line to avoid whitespace nodes in DOM
+    row_id = f"c-{c.host}-{c.name}"
     return (
-        f'<tr data-host="{c.host}"><td class="text-xs opacity-50">{idx}</td>'
+        f'<tr id="{row_id}" data-host="{c.host}"><td class="text-xs opacity-50">{idx}</td>'
         f'<td data-sort="{stack.lower()}"><a href="/stack/{stack}" class="link link-hover link-primary" hx-boost="true">{stack}</a></td>'
         f'<td data-sort="{service.lower()}" class="text-xs opacity-70">{service}</td>'
         f"<td>{actions}</td>"

@@ -1049,35 +1049,68 @@ function replaceHostRows(host, html) {
     const tbody = document.getElementById('container-rows');
     if (!tbody) return;
 
+    // Remove loading indicator for this host if present
+    const loadingRow = tbody.querySelector(`tr.loading-row[data-host="${host}"]`);
+    if (loadingRow) loadingRow.remove();
+
     const template = document.createElement('template');
     template.innerHTML = html.trim();
     let newRows = Array.from(template.content.children).filter(el => el.tagName === 'TR');
 
     if (newRows.length === 0) {
-        template.innerHTML = buildHostRow(host, `No containers on ${host}`, 'host-empty');
-        newRows = Array.from(template.content.children);
+        // Only show empty message if we don't have any rows for this host
+        const existing = tbody.querySelector(`tr[data-host="${host}"]:not(.loading-row)`);
+        if (!existing) {
+            template.innerHTML = buildHostRow(host, `No containers on ${host}`, 'host-empty');
+            newRows = Array.from(template.content.children);
+        }
     }
 
-    newRows.forEach(row => {
-        if (!row.dataset.host) row.dataset.host = host;
-        row.classList.remove('loading-row');
+    // Track which IDs we've seen in this update
+    const newIds = new Set();
+
+    newRows.forEach(newRow => {
+        const id = newRow.id;
+        if (id) newIds.add(id);
+
+        if (id) {
+            const existing = document.getElementById(id);
+            if (existing) {
+                // Morph in place (preserves sorted position)
+                Idiomorph.morph(existing, newRow);
+                // Re-process HTMX if needed (though inner content usually carries attributes)
+                if (window.htmx) htmx.process(existing);
+            } else {
+                // New row - append (will be sorted later)
+                tbody.appendChild(newRow);
+                if (window.htmx) htmx.process(newRow);
+            }
+        } else {
+            // Fallback for rows without ID (like error/empty messages)
+            // Just append them, cleaning up previous generic rows handled below
+            tbody.appendChild(newRow);
+        }
     });
 
-    const existing = Array.from(tbody.querySelectorAll('tr[data-host]'))
-        .filter(row => row.dataset.host === host);
-    const anchor = existing[0] || null;
+    // Remove orphaned rows for this host (rows that exist in DOM but not in new response)
+    // Be careful not to remove rows that were just added (if they lack IDs)
+    const currentHostRows = Array.from(tbody.querySelectorAll(`tr[data-host="${host}"]`));
+    currentHostRows.forEach(row => {
+        // Skip if it's one of the new rows we just appended (check presence in newRows?)
+        // Actually, if we just appended it, it is in DOM.
+        // We rely on ID matching.
+        // Error/Empty rows usually don't have ID, but we handle them by clearing old ones?
+        // Let's assume data rows have IDs.
+        if (row.id && !newIds.has(row.id)) {
+            row.remove();
+        }
+        // Also remove old empty/error messages if we now have data
+        if (!row.id && newRows.length > 0 && newRows[0].id) {
+             row.remove();
+        }
+    });
 
-    if (anchor) {
-        newRows.forEach(row => tbody.insertBefore(row, anchor));
-        existing.forEach(row => row.remove());
-    } else {
-        newRows.forEach(row => tbody.appendChild(row));
-    }
-
-    if (window.htmx) {
-        newRows.forEach(row => htmx.process(row));
-    }
-
+    liveStats.loadingHosts.delete(host);
     scheduleRowUpdate();
 }
 
