@@ -21,6 +21,7 @@ from fastapi.responses import HTMLResponse
 
 from compose_farm.compose import get_container_name
 from compose_farm.executor import is_local, run_compose_on_host, ssh_connect_kwargs
+from compose_farm.glances import fetch_all_host_stats
 from compose_farm.paths import backup_dir, find_config_path
 from compose_farm.state import load_state
 from compose_farm.web.deps import get_config, get_templates
@@ -385,3 +386,19 @@ async def write_console_file(
     except Exception as e:
         logger.exception("Failed to write file %s to host %s", path, host)
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@router.get("/glances", response_class=HTMLResponse)
+async def get_glances_stats() -> HTMLResponse:
+    """Get resource stats from Glances for all hosts."""
+    config = get_config()
+
+    if not config.glances_stack:
+        return HTMLResponse("")  # Glances not configured
+
+    stats = await fetch_all_host_stats(config)
+
+    templates = get_templates()
+    template = templates.env.get_template("partials/glances.html")
+    html = template.render(stats=stats)
+    return HTMLResponse(html)

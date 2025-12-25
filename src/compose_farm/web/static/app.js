@@ -607,6 +607,7 @@ function playFabIntro() {
             cmd('action', 'Update All', 'Update all stacks', dashboardAction('update-all'), icons.refresh_cw),
             cmd('app', 'Theme', 'Change color theme', openThemePicker, icons.palette),
             cmd('app', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
+            cmd('app', 'Live Stats', 'View all containers across hosts', nav('/live-stats'), icons.box),
             cmd('app', 'Console', 'Go to console', nav('/console'), icons.terminal),
             cmd('app', 'Edit Config', 'Edit compose-farm.yaml', nav('/console#editor'), icons.file_code),
             cmd('app', 'Docs', 'Open documentation', openExternal('https://compose-farm.nijho.lt/'), icons.book_open),
@@ -869,6 +870,90 @@ function initPage() {
     initMonacoEditors();
     initSaveButton();
     updateShortcutKeys();
+    initLiveStats();
+    initSharedActionMenu();
+}
+
+/**
+ * Initialize shared action menu for container rows
+ */
+function initSharedActionMenu() {
+    const menuEl = document.getElementById('shared-action-menu');
+    if (!menuEl) return;
+
+    window.openActionMenu = function(event, stack) {
+        event.stopPropagation();
+        // Update current stack context
+        menuEl.dataset.stack = stack;
+
+        // Position menu relative to button
+        const rect = event.currentTarget.getBoundingClientRect();
+        // Default: align right edge of menu to right edge of button
+        const left = rect.right - menuEl.offsetWidth + window.scrollX;
+        const top = rect.bottom + window.scrollY;
+
+        menuEl.style.top = `${top}px`;
+        menuEl.style.left = `${left}px`;
+        menuEl.classList.remove('hidden');
+
+        // Pause stats refresh
+        if (typeof liveStats !== 'undefined') liveStats.dropdownOpen = true;
+    };
+
+    menuEl.addEventListener('click', (e) => {
+        const link = e.target.closest('a[data-action]');
+        const stack = menuEl.dataset.stack;
+        if (!link || !stack) return;
+
+        const action = link.dataset.action;
+        e.preventDefault();
+
+        if (action === 'logs') {
+             const url = `/stack/${stack}`;
+             if (window.htmx) {
+                 htmx.ajax('GET', url, {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
+                     history.pushState({}, '', url);
+                     window.scrollTo(0, 0);
+                 });
+             } else {
+                 window.location.href = url;
+             }
+        } else {
+             const url = `/api/stack/${stack}/${action}`;
+             const confirmMsg = (action === 'restart' || action === 'update') ?
+                `${action.charAt(0).toUpperCase() + action.slice(1)} ${stack}?` : null;
+
+             if (confirmMsg && !confirm(confirmMsg)) {
+                 closeMenu();
+                 return;
+             }
+
+             if (window.htmx) {
+                 htmx.ajax('POST', url, {swap: 'none'});
+             }
+        }
+        closeMenu();
+    });
+
+    function closeMenu() {
+        menuEl.classList.add('hidden');
+        if (typeof liveStats !== 'undefined') liveStats.dropdownOpen = false;
+        menuEl.dataset.stack = '';
+    }
+
+    // Close on outside click
+    document.body.addEventListener('click', (e) => {
+        if (!menuEl.classList.contains('hidden') &&
+            !menuEl.contains(e.target) &&
+            !e.target.closest('button[onclick^="openActionMenu"]')) {
+            closeMenu();
+        }
+    });
+
+    // Close on Escape
+    document.body.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMenu();
+    });
 }
 
 /**
@@ -930,3 +1015,338 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         // Not valid JSON, ignore
     }
 });
+
+// ============================================================================
+// LIVE STATS PAGE
+// ============================================================================
+
+// State persists across SPA navigation (intervals must be cleared on re-init)
+let liveStats = {
+    sortCol: 9,
+    sortAsc: false,
+    lastUpdate: 0,
+    dropdownOpen: false,
+    scrolling: false,
+    scrollTimer: null,
+    loadingHosts: new Set(),
+    eventsBound: false,
+    intervals: []
+};
+
+const REFRESH_INTERVAL = 3000;
+const NUMERIC_COLS = new Set([8, 9, 10, 11]);  // uptime, cpu, mem, net
+
+function filterTable() {
+    const filter = document.getElementById('filter-input')?.value.toLowerCase() || '';
+    const rows = document.querySelectorAll('#container-rows tr');
+    let visible = 0;
+
+    rows.forEach(row => {
+        const show = row.textContent.toLowerCase().includes(filter);
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+
+    const countEl = document.getElementById('container-count');
+    if (countEl) {
+        countEl.textContent = filter ? `${visible} matching` : '';
+    }
+}
+window.filterTable = filterTable;
+
+function sortTable(col) {
+    if (liveStats.sortCol === col) {
+        liveStats.sortAsc = !liveStats.sortAsc;
+    } else {
+        liveStats.sortCol = col;
+        liveStats.sortAsc = false;
+    }
+    updateSortIndicators();
+    doSort();
+}
+window.sortTable = sortTable;
+
+function updateSortIndicators() {
+    document.querySelectorAll('thead th').forEach((th, i) => {
+        const span = th.querySelector('.sort-indicator');
+        if (span) {
+            span.textContent = (i === liveStats.sortCol) ? (liveStats.sortAsc ? '↑' : '↓') : '';
+            span.style.opacity = (i === liveStats.sortCol) ? '1' : '0.3';
+        }
+    });
+}
+
+function doSort() {
+    const tbody = document.getElementById('container-rows');
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if (rows.length === 0) return;
+    if (rows.length === 1 && rows[0].cells[0]?.colSpan > 1) return;  // Empty state row
+
+    const isNumeric = NUMERIC_COLS.has(liveStats.sortCol);
+    rows.sort((a, b) => {
+        // Pin placeholders/empty rows to the bottom
+        const aLoading = a.classList.contains('loading-row') || a.classList.contains('host-empty') || a.cells[0]?.colSpan > 1;
+        const bLoading = b.classList.contains('loading-row') || b.classList.contains('host-empty') || b.cells[0]?.colSpan > 1;
+        if (aLoading && !bLoading) return 1;
+        if (!aLoading && bLoading) return -1;
+        if (aLoading && bLoading) return 0;
+
+        const aVal = a.cells[liveStats.sortCol]?.dataset?.sort ?? '';
+        const bVal = b.cells[liveStats.sortCol]?.dataset?.sort ?? '';
+        const cmp = isNumeric ? aVal - bVal : aVal.localeCompare(bVal);
+        return liveStats.sortAsc ? cmp : -cmp;
+    });
+
+    let index = 1;
+    rows.forEach((row) => {
+        if (row.cells.length > 1) {
+            row.cells[0].textContent = index++;
+        }
+        tbody.appendChild(row);
+    });
+}
+
+function isLoading() {
+    return liveStats.loadingHosts.size > 0;
+}
+
+function getLiveStatsHosts() {
+    const tbody = document.getElementById('container-rows');
+    if (!tbody) return [];
+    const dataHosts = tbody.dataset.hosts || '';
+    return dataHosts.split(',').map(h => h.trim()).filter(Boolean);
+}
+
+function buildHostRow(host, message, className) {
+    return (
+        `<tr class="${className}" data-host="${host}">` +
+        `<td colspan="12" class="text-center py-2">` +
+        `<span class="text-sm opacity-60">${message}</span>` +
+        `</td></tr>`
+    );
+}
+
+function replaceHostRows(host, html) {
+    const tbody = document.getElementById('container-rows');
+    if (!tbody) return;
+
+    // Remove loading indicator for this host if present
+    const loadingRow = tbody.querySelector(`tr.loading-row[data-host="${host}"]`);
+    if (loadingRow) loadingRow.remove();
+
+    const template = document.createElement('template');
+    template.innerHTML = html.trim();
+    let newRows = Array.from(template.content.children).filter(el => el.tagName === 'TR');
+
+    if (newRows.length === 0) {
+        // Only show empty message if we don't have any rows for this host
+        const existing = tbody.querySelector(`tr[data-host="${host}"]:not(.loading-row)`);
+        if (!existing) {
+            template.innerHTML = buildHostRow(host, `No containers on ${host}`, 'host-empty');
+            newRows = Array.from(template.content.children);
+        }
+    }
+
+    // Track which IDs we've seen in this update
+    const newIds = new Set();
+
+    newRows.forEach(newRow => {
+        const id = newRow.id;
+        if (id) newIds.add(id);
+
+        if (id) {
+            const existing = document.getElementById(id);
+            if (existing) {
+                // Morph in place if Idiomorph is available, otherwise replace
+                if (typeof Idiomorph !== 'undefined') {
+                    Idiomorph.morph(existing, newRow);
+                } else {
+                    existing.replaceWith(newRow);
+                }
+
+                // Re-process HTMX if needed (though inner content usually carries attributes)
+                if (window.htmx) htmx.process(document.getElementById(id));
+            } else {
+                // New row - append (will be sorted later)
+                tbody.appendChild(newRow);
+                if (window.htmx) htmx.process(newRow);
+            }
+        } else {
+            // Fallback for rows without ID (like error/empty messages)
+            // Just append them, cleaning up previous generic rows handled below
+            tbody.appendChild(newRow);
+        }
+    });
+
+    // Remove orphaned rows for this host (rows that exist in DOM but not in new response)
+    // Be careful not to remove rows that were just added (if they lack IDs)
+    const currentHostRows = Array.from(tbody.querySelectorAll(`tr[data-host="${host}"]`));
+    currentHostRows.forEach(row => {
+        // Skip if it's one of the new rows we just appended (check presence in newRows?)
+        // Actually, if we just appended it, it is in DOM.
+        // We rely on ID matching.
+        // Error/Empty rows usually don't have ID, but we handle them by clearing old ones?
+        // Let's assume data rows have IDs.
+        if (row.id && !newIds.has(row.id)) {
+            row.remove();
+        }
+        // Also remove old empty/error messages if we now have data
+        if (!row.id && newRows.length > 0 && newRows[0].id) {
+             row.remove();
+        }
+    });
+
+    liveStats.loadingHosts.delete(host);
+    scheduleRowUpdate();
+}
+
+async function loadHostRows(host) {
+    liveStats.loadingHosts.add(host);
+    try {
+        const response = await fetch(`/api/containers/rows/${encodeURIComponent(host)}`);
+        const html = response.ok ? await response.text() : '';
+        replaceHostRows(host, html);
+    } catch (e) {
+        console.error(`Failed to load ${host}:`, e);
+        const msg = e.message || String(e);
+        // Fallback to simpler error display if replaceHostRows fails (e.g. Idiomorph missing)
+        try {
+            replaceHostRows(host, buildHostRow(host, `Error: ${msg}`, 'text-error'));
+        } catch (err2) {
+            // Last resort: find row and force innerHTML
+            const tbody = document.getElementById('container-rows');
+            const row = tbody?.querySelector(`tr[data-host="${host}"]`);
+            if (row) row.innerHTML = `<td colspan="12" class="text-center text-error">Error: ${msg}</td>`;
+        }
+    } finally {
+        liveStats.loadingHosts.delete(host);
+    }
+}
+
+function refreshLiveStats() {
+    if (liveStats.dropdownOpen || liveStats.scrolling) return;
+    const hosts = getLiveStatsHosts();
+    if (hosts.length === 0) return;
+    liveStats.lastUpdate = Date.now();
+    hosts.forEach(loadHostRows);
+}
+window.refreshLiveStats = refreshLiveStats;
+
+function initLiveStats() {
+    if (!document.getElementById('refresh-timer')) return;
+
+    // Clear previous intervals (important for SPA navigation)
+    liveStats.intervals.forEach(clearInterval);
+    liveStats.intervals = [];
+    liveStats.lastUpdate = Date.now();
+    liveStats.dropdownOpen = false;
+    liveStats.scrolling = false;
+    if (liveStats.scrollTimer) clearTimeout(liveStats.scrollTimer);
+    liveStats.scrollTimer = null;
+    liveStats.loadingHosts.clear();
+
+    if (!liveStats.eventsBound) {
+        liveStats.eventsBound = true;
+
+        // Dropdown pauses refresh
+        document.body.addEventListener('click', e => {
+            liveStats.dropdownOpen = !!e.target.closest('.dropdown');
+        });
+        document.body.addEventListener('focusin', e => {
+            if (e.target.closest('.dropdown')) liveStats.dropdownOpen = true;
+        });
+        document.body.addEventListener('focusout', () => {
+            setTimeout(() => {
+                liveStats.dropdownOpen = !!document.activeElement?.closest('.dropdown');
+            }, 150);
+        });
+        document.body.addEventListener('keydown', e => {
+            if (e.key === 'Escape') liveStats.dropdownOpen = false;
+        });
+
+        // Pause refresh while scrolling (helps on slow mobile browsers)
+        window.addEventListener('scroll', () => {
+            liveStats.scrolling = true;
+            if (liveStats.scrollTimer) clearTimeout(liveStats.scrollTimer);
+            liveStats.scrollTimer = setTimeout(() => {
+                liveStats.scrolling = false;
+            }, 200);
+        }, { passive: true });
+    }
+
+    // Auto-refresh every 3 seconds (skip if still loading or dropdown open)
+    liveStats.intervals.push(setInterval(() => {
+        if (liveStats.dropdownOpen || liveStats.scrolling || isLoading()) return;
+        refreshLiveStats();
+    }, REFRESH_INTERVAL));
+
+    // Timer display (updates every 100ms)
+    liveStats.intervals.push(setInterval(() => {
+        const timer = document.getElementById('refresh-timer');
+        if (!timer) {
+            liveStats.intervals.forEach(clearInterval);
+            return;
+        }
+
+        const loading = isLoading();
+        const paused = liveStats.dropdownOpen || liveStats.scrolling;
+        window.refreshPaused = paused || loading;
+
+        let text;
+        if (paused) {
+            text = '❚❚';
+        } else {
+            const elapsed = Date.now() - liveStats.lastUpdate;
+            const remaining = Math.max(0, REFRESH_INTERVAL - elapsed);
+            text = loading ? '↻ …' : `↻ ${Math.ceil(remaining / 1000)}s`;
+        }
+
+        if (timer.textContent !== text) {
+            timer.textContent = text;
+        }
+    }, 100));
+
+    updateSortIndicators();
+    refreshLiveStats();
+}
+
+// Debounce timer for row updates (prevents race conditions with slow connections)
+let rowUpdateTimer = null;
+
+function scheduleRowUpdate() {
+    // Debounce: wait for DOM to settle before updating rows
+    // This prevents race conditions when multiple hosts load simultaneously
+    if (rowUpdateTimer) clearTimeout(rowUpdateTimer);
+    rowUpdateTimer = setTimeout(() => {
+        rowUpdateTimer = null;
+        doSort();
+        if (document.getElementById('filter-input')?.value) filterTable();
+    }, 50);  // 50ms debounce
+}
+
+// ============================================================================
+// STACKS BY HOST FILTER
+// ============================================================================
+
+function sbhFilter() {
+    const query = (document.getElementById('sbh-filter')?.value || '').toLowerCase();
+    const hostFilter = document.getElementById('sbh-host-select')?.value || '';
+
+    document.querySelectorAll('.sbh-group').forEach(group => {
+        if (hostFilter && group.dataset.h !== hostFilter) {
+            group.hidden = true;
+            return;
+        }
+
+        let visibleCount = 0;
+        group.querySelectorAll('li[data-s]').forEach(li => {
+            const show = !query || li.dataset.s.includes(query);
+            li.hidden = !show;
+            if (show) visibleCount++;
+        });
+        group.hidden = visibleCount === 0;
+    });
+}
+window.sbhFilter = sbhFilter;

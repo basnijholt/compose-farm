@@ -22,8 +22,10 @@ import uvicorn
 from compose_farm.config import Config as CFConfig
 from compose_farm.config import load_config
 from compose_farm.state import load_state as _original_load_state
-from compose_farm.web.app import create_app
 from compose_farm.web.cdn import CDN_ASSETS, ensure_vendor_cache
+
+# NOTE: Do NOT import create_app here - it must be imported AFTER patches are applied
+# to ensure the patched get_config is used by all route modules
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -46,6 +48,7 @@ def _get_filtered_config() -> CFConfig:
         stacks=filtered_stacks,
         traefik_file=config.traefik_file,
         traefik_stack=config.traefik_stack,
+        glances_stack=config.glances_stack,
         config_path=config.config_path,
     )
 
@@ -90,12 +93,16 @@ def server_url() -> Generator[str, None, None]:
         patch("compose_farm.web.routes.pages.get_config", _get_filtered_config),
         patch("compose_farm.web.routes.api.get_config", _get_filtered_config),
         patch("compose_farm.web.routes.actions.get_config", _get_filtered_config),
+        patch("compose_farm.web.routes.containers.get_config", _get_filtered_config),
         patch("compose_farm.web.app.get_config", _get_filtered_config),
         patch("compose_farm.web.ws.get_config", _get_filtered_config),
     ]
 
     for p in patches:
         p.start()
+
+    # Import create_app AFTER patches are started so route modules see patched get_config
+    from compose_farm.web.app import create_app  # noqa: PLC0415
 
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -160,6 +167,7 @@ def recording_context(
             if url.startswith(url_prefix):
                 route.fulfill(status=200, content_type=content_type, body=filepath.read_bytes())
                 return
+        print(f"UNCACHED CDN request: {url}")
         route.abort("failed")
 
     context.route(re.compile(r"https://(cdn\.jsdelivr\.net|unpkg\.com)/.*"), handle_cdn)
@@ -172,6 +180,35 @@ def recording_context(
 def recording_page(recording_context: BrowserContext) -> Generator[Page, None, None]:
     """Page with recording and slow motion enabled."""
     page = recording_context.new_page()
+    yield page
+    page.close()
+
+
+@pytest.fixture
+def wide_recording_context(
+    browser: Any,  # pytest-playwright's browser fixture
+    recording_output_dir: Path,
+) -> Generator[BrowserContext, None, None]:
+    """Browser context with wider viewport for demos needing more horizontal space.
+
+    NOTE: This fixture does NOT use CDN interception (unlike recording_context).
+    CDN interception was causing inline scripts from containers.html to be
+    removed from the DOM, likely due to Tailwind's browser plugin behavior.
+    """
+    context = browser.new_context(
+        viewport={"width": 1920, "height": 1080},
+        record_video_dir=str(recording_output_dir),
+        record_video_size={"width": 1920, "height": 1080},
+    )
+
+    yield context
+    context.close()
+
+
+@pytest.fixture
+def wide_recording_page(wide_recording_context: BrowserContext) -> Generator[Page, None, None]:
+    """Page with wider viewport for demos needing more horizontal space."""
+    page = wide_recording_context.new_page()
     yield page
     page.close()
 

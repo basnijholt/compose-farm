@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import socket
 import subprocess
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
@@ -21,6 +22,38 @@ if TYPE_CHECKING:
 
 LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
 _DEFAULT_SSH_PORT = 22
+
+
+class TTLCache:
+    """Simple TTL cache for async function results."""
+
+    def __init__(self, ttl_seconds: float = 30.0) -> None:
+        """Initialize cache with default TTL in seconds."""
+        # Cache stores: key -> (timestamp, value, item_ttl)
+        self._cache: dict[str, tuple[float, Any, float]] = {}
+        self._default_ttl = ttl_seconds
+
+    def get(self, key: str) -> Any | None:
+        """Get value if exists and not expired."""
+        if key in self._cache:
+            timestamp, value, item_ttl = self._cache[key]
+            if time.monotonic() - timestamp < item_ttl:
+                return value
+            del self._cache[key]
+        return None
+
+    def set(self, key: str, value: Any, ttl_seconds: float | None = None) -> None:
+        """Set value with current timestamp and optional custom TTL."""
+        ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl
+        self._cache[key] = (time.monotonic(), value, ttl)
+
+    def clear(self) -> None:
+        """Clear all cached values."""
+        self._cache.clear()
+
+
+# Cache compose labels per host for 30 seconds
+_compose_labels_cache = TTLCache(ttl_seconds=30.0)
 
 
 def _print_compose_command(
@@ -158,6 +191,7 @@ def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
         "port": host.port,
         "username": host.user,
         "known_hosts": None,
+        "gss_auth": False,  # Disable GSSAPI - causes multi-second delays
     }
     # Add key file fallback (prioritized over agent if present)
     key_path = get_key_path()
@@ -521,6 +555,50 @@ async def get_running_stacks_on_host(
 
     # Filter out empty lines and return as set
     return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
+async def get_container_compose_labels(
+    config: Config,
+    host_name: str,
+) -> dict[str, tuple[str, str]]:
+    """Get compose labels for all containers on a host.
+
+    Returns dict of container_name -> (project, service).
+    Includes all containers (-a flag) since Glances shows stopped containers too.
+    Falls back to empty dict on timeout/error (5s timeout).
+    Results are cached for 30 seconds to reduce SSH overhead.
+    """
+    # Check cache first
+    cached: dict[str, tuple[str, str]] | None = _compose_labels_cache.get(host_name)
+    if cached is not None:
+        return cached
+
+    host = config.hosts[host_name]
+    cmd = (
+        "docker ps -a --format "
+        '\'{{.Names}}\t{{.Label "com.docker.compose.project"}}\t'
+        '{{.Label "com.docker.compose.service"}}\''
+    )
+
+    try:
+        async with asyncio.timeout(5.0):
+            result = await run_command(host, cmd, stack=host_name, stream=False, prefix="")
+    except TimeoutError:
+        return {}
+    except Exception:
+        return {}
+
+    labels: dict[str, tuple[str, str]] = {}
+    if result.success:
+        for line in result.stdout.splitlines():
+            parts = line.strip().split("\t")
+            if len(parts) >= 3:  # noqa: PLR2004
+                name, project, service = parts[0], parts[1], parts[2]
+                labels[name] = (project or "", service or "")
+
+    # Cache the result
+    _compose_labels_cache.set(host_name, labels)
+    return labels
 
 
 async def _batch_check_existence(

@@ -39,6 +39,14 @@ CDN_ASSETS: dict[str, tuple[str, str]] = {
         "xterm-fit.js",
         "application/javascript",
     ),
+    "https://unpkg.com/idiomorph/dist/idiomorph.min.js": (
+        "idiomorph.js",
+        "application/javascript",
+    ),
+    "https://unpkg.com/idiomorph/dist/idiomorph-ext.min.js": (
+        "idiomorph-ext.js",
+        "application/javascript",
+    ),
     # Monaco editor - dynamically loaded by app.js
     "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js": (
         "monaco-loader.js",

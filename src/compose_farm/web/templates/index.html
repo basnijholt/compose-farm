@@ -53,6 +53,13 @@
         {% include "partials/stacks_by_host.html" %}
     </div>
 
+    <!-- Host Resources (Glances) -->
+    <div id="glances-stats"
+         hx-get="/api/glances"
+         hx-trigger="load, cf:refresh from:body, every 30s"
+         hx-swap="innerHTML">
+    </div>
+
     <!-- Hosts Configuration -->
     {% call collapse("Hosts (" ~ (hosts | length) ~ ")", icon=server()) %}
         {% call table() %}

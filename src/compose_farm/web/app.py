@@ -6,15 +6,16 @@ import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager, suppress
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from rich.logging import RichHandler
 
 from compose_farm.web.deps import STATIC_DIR, get_config
-from compose_farm.web.routes import actions, api, pages
+from compose_farm.web.routes import actions, api, containers, pages
 from compose_farm.web.streaming import TASK_TTL_SECONDS, cleanup_stale_tasks
 
 # Configure logging with Rich handler for compose_farm.web modules
@@ -64,10 +65,14 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # Enable Gzip compression for faster transfers over slow networks
+    app.add_middleware(cast("Any", GZipMiddleware), minimum_size=1000)
+
     # Mount static files
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     app.include_router(pages.router)
+    app.include_router(containers.router)
     app.include_router(api.router, prefix="/api")
     app.include_router(actions.router, prefix="/api")
 
