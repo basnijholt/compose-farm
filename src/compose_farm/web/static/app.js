@@ -1069,6 +1069,9 @@ function initLiveStats() {
     updateSortIndicators();
 }
 
+// Debounce timer for row updates (prevents race conditions with slow connections)
+let rowUpdateTimer = null;
+
 // Re-apply filter/sort after HTMX row refresh
 document.body.addEventListener('htmx:afterSwap', e => {
     const target = e.detail.target;
@@ -1076,21 +1079,30 @@ document.body.addEventListener('htmx:afterSwap', e => {
     // Full table refresh
     if (target.id === 'container-rows') {
         liveStats.lastUpdate = Date.now();
-        renumberRows();
-        doSort();
-        if (document.getElementById('filter-input')?.value) filterTable();
+        scheduleRowUpdate();
     }
 
     // Per-host row load (row swaps itself with multiple rows)
     if (target.closest && target.closest('#container-rows')) {
-        renumberRows();
-        doSort();
-        if (document.getElementById('filter-input')?.value) filterTable();
+        scheduleRowUpdate();
     }
 });
 
+function scheduleRowUpdate() {
+    // Debounce: wait for DOM to settle before updating rows
+    // This prevents race conditions when multiple hosts load simultaneously
+    if (rowUpdateTimer) clearTimeout(rowUpdateTimer);
+    rowUpdateTimer = setTimeout(() => {
+        rowUpdateTimer = null;
+        renumberRows();
+        doSort();
+        if (document.getElementById('filter-input')?.value) filterTable();
+    }, 50);  // 50ms debounce
+}
+
 function renumberRows() {
-    const rows = document.querySelectorAll('#container-rows tr');
+    // Convert to static array to avoid issues with live NodeList during iteration
+    const rows = Array.from(document.querySelectorAll('#container-rows tr'));
     rows.forEach((row, i) => {
         if (row.cells[0] && !row.cells[0].colSpan) {
             row.cells[0].textContent = i + 1;

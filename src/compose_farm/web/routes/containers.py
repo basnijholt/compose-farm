@@ -126,20 +126,22 @@ def _render_row(c: ContainerStats, idx: int) -> str:
     uptime_sec = _parse_uptime_seconds(c.uptime)
     actions = _render_actions(stack)
     update_cell = _render_update_cell(image_name, tag)
-    return f"""<tr>
-<td class="text-xs opacity-50">{idx}</td>
-<td data-sort="{stack.lower()}"><a href="/stack/{stack}" class="link link-hover link-primary" hx-boost="true">{stack}</a></td>
-<td data-sort="{service.lower()}" class="text-xs opacity-70">{service}</td>
-<td>{actions}</td>
-<td data-sort="{c.host.lower()}"><span class="badge badge-outline badge-xs">{c.host}</span></td>
-<td data-sort="{c.image.lower()}"><code class="text-xs bg-base-200 px-1 rounded">{image_name}:{tag}</code></td>
-{update_cell}
-<td data-sort="{c.status.lower()}"><span class="{_status_class(c.status)}">{c.status}</span></td>
-<td data-sort="{uptime_sec}" class="text-xs">{c.uptime or "-"}</td>
-<td data-sort="{cpu}"><div class="flex flex-col gap-0.5"><progress class="progress {cpu_class} w-12 h-2" value="{min(cpu, 100)}" max="100"></progress><span class="text-xs">{cpu:.0f}%</span></div></td>
-<td data-sort="{c.memory_usage}"><div class="flex flex-col gap-0.5"><progress class="progress {mem_class} w-12 h-2" value="{min(mem, 100)}" max="100"></progress><span class="text-xs">{_format_bytes(c.memory_usage)}</span></div></td>
-<td data-sort="{c.network_rx + c.network_tx}" class="text-xs font-mono">↓{_format_bytes(c.network_rx)} ↑{_format_bytes(c.network_tx)}</td>
-</tr>"""
+    # Render as single line to avoid whitespace nodes in DOM
+    return (
+        f'<tr><td class="text-xs opacity-50">{idx}</td>'
+        f'<td data-sort="{stack.lower()}"><a href="/stack/{stack}" class="link link-hover link-primary" hx-boost="true">{stack}</a></td>'
+        f'<td data-sort="{service.lower()}" class="text-xs opacity-70">{service}</td>'
+        f"<td>{actions}</td>"
+        f'<td data-sort="{c.host.lower()}"><span class="badge badge-outline badge-xs">{c.host}</span></td>'
+        f'<td data-sort="{c.image.lower()}"><code class="text-xs bg-base-200 px-1 rounded">{image_name}:{tag}</code></td>'
+        f"{update_cell}"
+        f'<td data-sort="{c.status.lower()}"><span class="{_status_class(c.status)}">{c.status}</span></td>'
+        f'<td data-sort="{uptime_sec}" class="text-xs">{c.uptime or "-"}</td>'
+        f'<td data-sort="{cpu}"><div class="flex flex-col gap-0.5"><progress class="progress {cpu_class} w-12 h-2" value="{min(cpu, 100)}" max="100"></progress><span class="text-xs">{cpu:.0f}%</span></div></td>'
+        f'<td data-sort="{c.memory_usage}"><div class="flex flex-col gap-0.5"><progress class="progress {mem_class} w-12 h-2" value="{min(mem, 100)}" max="100"></progress><span class="text-xs">{_format_bytes(c.memory_usage)}</span></div></td>'
+        f'<td data-sort="{c.network_rx + c.network_tx}" class="text-xs font-mono">↓{_format_bytes(c.network_rx)} ↑{_format_bytes(c.network_tx)}</td>'
+        "</tr>"
+    )
 
 
 def _render_actions(stack: str) -> str:
