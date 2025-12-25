@@ -6,9 +6,10 @@ import asyncio
 import logging
 import sys
 from contextlib import asynccontextmanager, suppress
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from rich.logging import RichHandler
@@ -63,6 +64,9 @@ def create_app() -> FastAPI:
         description="Web UI for managing Docker Compose stacks across multiple hosts",
         lifespan=lifespan,
     )
+
+    # Enable Gzip compression for faster transfers over slow networks
+    app.add_middleware(cast("Any", GZipMiddleware), minimum_size=1000)
 
     # Mount static files
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
