@@ -219,7 +219,7 @@ class TestSshConnectKwargs:
             assert result["client_keys"] == [str(key_path)]
 
     def test_includes_both_agent_and_key(self, tmp_path: Path) -> None:
-        """Include both agent_path and client_keys when both available."""
+        """Prioritize client_keys over agent_path when both available."""
         host = Host(address="example.com")
         key_path = tmp_path / "compose-farm"
 
@@ -229,7 +229,8 @@ class TestSshConnectKwargs:
         ):
             result = ssh_connect_kwargs(host)
 
-            assert result["agent_path"] == "/tmp/agent.sock"
+            # Agent should be ignored in favor of the dedicated key
+            assert "agent_path" not in result
             assert result["client_keys"] == [str(key_path)]
 
     def test_custom_port(self) -> None:
