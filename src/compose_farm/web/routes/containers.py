@@ -308,5 +308,8 @@ async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
         _update_check_cache.set(full_image, html)
         return HTMLResponse(html)
     except Exception:
-        # Don't cache errors - they might be transient
+        # Cache errors for 1 minute to prevent hammering registry on failures
+        # (e.g. auth errors, rate limits, non-existent tags)
+        # Use a distinctive error marker if needed, or just the dash
+        _update_check_cache.set(full_image, _DASH_HTML, ttl_seconds=60.0)
         return HTMLResponse(_DASH_HTML)
