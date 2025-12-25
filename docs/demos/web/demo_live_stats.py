@@ -31,9 +31,9 @@ def test_demo_live_stats(recording_page: Page, server_url: str) -> None:
     """Record Live Stats page demo."""
     page = recording_page
 
-    # Start on dashboard (zoomed out to 80% so Live Stats table fits)
+    # Start on dashboard (zoomed out to 70% so Live Stats table + timer fits)
     page.goto(server_url)
-    page.evaluate("document.body.style.zoom = '0.8'")
+    page.evaluate("document.body.style.zoom = '0.7'")
     wait_for_sidebar(page)
     pause(page, 1000)
 
