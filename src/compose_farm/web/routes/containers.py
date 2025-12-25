@@ -222,11 +222,11 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
         return HTMLResponse("")
 
     host = config.hosts[host_name]
-    containers = await fetch_container_stats(host_name, host.address)
+    containers, error = await fetch_container_stats(host_name, host.address)
 
     if containers is None:
         return HTMLResponse(
-            f'<tr class="text-error"><td colspan="12" class="text-center py-2">Connection failed: {host_name}</td></tr>'
+            f'<tr class="text-error"><td colspan="12" class="text-center py-2">Error: {error}</td></tr>'
         )
 
     if not containers:

@@ -162,8 +162,15 @@ async def fetch_container_stats(
     host_address: str,
     port: int = DEFAULT_GLANCES_PORT,
     request_timeout: float = 10.0,
-) -> list[ContainerStats] | None:
-    """Fetch container stats from a single host's Glances API."""
+) -> tuple[list[ContainerStats] | None, str | None]:
+    """Fetch container stats from a single host's Glances API.
+
+    Returns:
+        (containers, error_message)
+        - Success: ([...], None)
+        - Failure: (None, "error message")
+
+    """
     import httpx  # noqa: PLC0415
 
     url = f"http://{host_address}:{port}/api/4/containers"
@@ -172,11 +179,15 @@ async def fetch_container_stats(
         async with httpx.AsyncClient(timeout=request_timeout) as client:
             response = await client.get(url)
             if not response.is_success:
-                return None
+                return None, f"HTTP {response.status_code}: {response.reason_phrase}"
             data = response.json()
-            return [_parse_container(c, host_name) for c in data]
-    except Exception:
-        return None
+            return [_parse_container(c, host_name) for c in data], None
+    except httpx.ConnectError:
+        return None, "Connection refused (Glances offline?)"
+    except httpx.TimeoutException:
+        return None, "Connection timed out"
+    except Exception as e:
+        return None, str(e)
 
 
 async def fetch_all_container_stats(
@@ -193,9 +204,10 @@ async def fetch_all_container_stats(
         # Fetch Glances stats and compose labels in parallel
         stats_task = fetch_container_stats(host_name, host_address, port)
         labels_task = get_container_compose_labels(config, host_name)
-        containers, labels = await asyncio.gather(stats_task, labels_task)
+        (containers, _), labels = await asyncio.gather(stats_task, labels_task)
 
         if containers is None:
+            # Skip failed hosts in aggregate view
             return []
 
         # Enrich containers with compose labels (mutate in place)
