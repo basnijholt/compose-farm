@@ -149,12 +149,12 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
 def _render_actions(stack: str) -> str:
     """Render actions dropdown for a container row."""
     return f"""<div class="dropdown dropdown-end">
-<label tabindex="0" class="btn btn-circle btn-ghost btn-xs"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" /></svg></label>
+<label tabindex="0" class="btn btn-circle btn-ghost btn-xs"><svg class="h-4 w-4"><use href="#icon-menu" /></svg></label>
 <ul tabindex="0" class="dropdown-content menu menu-sm bg-base-200 rounded-box shadow-lg w-36 z-50 p-2">
-<li><a hx-post="/api/stack/{stack}/restart" hx-swap="none" hx-confirm="Restart {stack}?"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Restart</a></li>
-<li><a hx-post="/api/stack/{stack}/pull" hx-swap="none"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>Pull</a></li>
-<li><a hx-post="/api/stack/{stack}/update" hx-swap="none" hx-confirm="Update {stack}?"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>Update</a></li>
-<li><a href="/stack/{stack}" hx-boost="true"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>Logs</a></li>
+<li><a hx-post="/api/stack/{stack}/restart" hx-swap="none" hx-confirm="Restart {stack}?"><svg class="h-4 w-4"><use href="#icon-restart" /></svg>Restart</a></li>
+<li><a hx-post="/api/stack/{stack}/pull" hx-swap="none"><svg class="h-4 w-4"><use href="#icon-pull" /></svg>Pull</a></li>
+<li><a hx-post="/api/stack/{stack}/update" hx-swap="none" hx-confirm="Update {stack}?"><svg class="h-4 w-4"><use href="#icon-update" /></svg>Update</a></li>
+<li><a href="/stack/{stack}" hx-boost="true"><svg class="h-4 w-4"><use href="#icon-logs" /></svg>Logs</a></li>
 </ul>
 </div>"""
 
