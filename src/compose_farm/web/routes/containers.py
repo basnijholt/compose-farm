@@ -9,10 +9,15 @@ import humanize
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
+from compose_farm.executor import TTLCache
 from compose_farm.glances import ContainerStats, fetch_all_container_stats
 from compose_farm.web.deps import get_config, get_templates
 
 router = APIRouter(tags=["containers"])
+
+# Cache registry update checks for 5 minutes (300 seconds)
+# Registry calls are slow and often rate-limited
+_update_check_cache = TTLCache(ttl_seconds=300.0)
 
 # Minimum parts needed to infer stack/service from container name
 MIN_NAME_PARTS = 2
@@ -207,6 +212,8 @@ async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
     - Green checkmark: up to date
     - Orange badge: updates available (with count)
     - Gray dash: check failed or unsupported
+
+    Results are cached for 5 minutes to reduce registry API calls.
     """
     import httpx  # noqa: PLC0415
 
@@ -219,21 +226,31 @@ async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
 
     full_image = f"{image}:{tag}"
 
+    # Check cache first
+    cached_html: str | None = _update_check_cache.get(full_image)
+    if cached_html is not None:
+        return HTMLResponse(cached_html)
+
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             result = await check_image_updates(full_image, client)
 
         if result.error:
-            return HTMLResponse(_DASH_HTML)
-
-        updates = result.available_updates
-        if updates:
+            html = _DASH_HTML
+        elif result.available_updates:
+            updates = result.available_updates
             count = len(updates)
             title = f"Newer: {', '.join(updates[:3])}" + ("..." if count > 3 else "")  # noqa: PLR2004
-            return HTMLResponse(
+            html = (
                 f'<span class="badge badge-warning badge-xs cursor-help" title="{title}">'
                 f"{count} new</span>"
             )
-        return HTMLResponse('<span class="text-success text-xs" title="Up to date">✓</span>')
+        else:
+            html = '<span class="text-success text-xs" title="Up to date">✓</span>'
+
+        # Cache the result
+        _update_check_cache.set(full_image, html)
+        return HTMLResponse(html)
     except Exception:
+        # Don't cache errors - they might be transient
         return HTMLResponse(_DASH_HTML)
