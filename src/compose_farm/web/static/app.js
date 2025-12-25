@@ -1076,10 +1076,15 @@ function replaceHostRows(host, html) {
         if (id) {
             const existing = document.getElementById(id);
             if (existing) {
-                // Morph in place (preserves sorted position)
-                Idiomorph.morph(existing, newRow);
+                // Morph in place if Idiomorph is available, otherwise replace
+                if (typeof Idiomorph !== 'undefined') {
+                    Idiomorph.morph(existing, newRow);
+                } else {
+                    existing.replaceWith(newRow);
+                }
+
                 // Re-process HTMX if needed (though inner content usually carries attributes)
-                if (window.htmx) htmx.process(existing);
+                if (window.htmx) htmx.process(document.getElementById(id));
             } else {
                 // New row - append (will be sorted later)
                 tbody.appendChild(newRow);
@@ -1121,7 +1126,17 @@ async function loadHostRows(host) {
         const html = response.ok ? await response.text() : '';
         replaceHostRows(host, html);
     } catch (e) {
-        replaceHostRows(host, buildHostRow(host, `Unable to reach ${host}`, 'host-empty'));
+        console.error(`Failed to load ${host}:`, e);
+        const msg = e.message || String(e);
+        // Fallback to simpler error display if replaceHostRows fails (e.g. Idiomorph missing)
+        try {
+            replaceHostRows(host, buildHostRow(host, `Error: ${msg}`, 'text-error'));
+        } catch (err2) {
+            // Last resort: find row and force innerHTML
+            const tbody = document.getElementById('container-rows');
+            const row = tbody?.querySelector(`tr[data-host="${host}"]`);
+            if (row) row.innerHTML = `<td colspan="12" class="text-center text-error">Error: ${msg}</td>`;
+        }
     } finally {
         liveStats.loadingHosts.delete(host);
     }
