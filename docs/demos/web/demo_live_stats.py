@@ -31,8 +31,9 @@ def test_demo_live_stats(recording_page: Page, server_url: str) -> None:
     """Record Live Stats page demo."""
     page = recording_page
 
-    # Start on dashboard
+    # Start on dashboard (zoomed out to 80% so Live Stats table fits)
     page.goto(server_url)
+    page.evaluate("document.body.style.zoom = '0.8'")
     wait_for_sidebar(page)
     pause(page, 1000)
 
@@ -43,9 +44,6 @@ def test_demo_live_stats(recording_page: Page, server_url: str) -> None:
     pause(page, 500)
     page.keyboard.press("Enter")
     page.wait_for_url("**/live-stats", timeout=5000)
-
-    # Zoom out to 80% so all columns are visible without horizontal scroll
-    page.evaluate("document.body.style.zoom = '0.8'")
 
     # Wait for containers to load
     page.wait_for_selector("#container-rows tr:not(:has(.loading))", timeout=10000)
