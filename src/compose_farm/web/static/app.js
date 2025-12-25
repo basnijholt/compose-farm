@@ -870,6 +870,7 @@ function initPage() {
     initMonacoEditors();
     initSaveButton();
     updateShortcutKeys();
+    initLiveStats();
 }
 
 /**
@@ -931,3 +932,161 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         // Not valid JSON, ignore
     }
 });
+
+// ============================================================================
+// LIVE STATS PAGE
+// ============================================================================
+
+// State persists across SPA navigation (intervals must be cleared on re-init)
+let liveStats = {
+    sortCol: 9,
+    sortAsc: false,
+    lastUpdate: 0,
+    dropdownOpen: false,
+    intervals: []
+};
+
+const REFRESH_INTERVAL = 3000;
+const NUMERIC_COLS = new Set([8, 9, 10, 11]);  // uptime, cpu, mem, net
+
+function filterTable() {
+    const filter = document.getElementById('filter-input')?.value.toLowerCase() || '';
+    const rows = document.querySelectorAll('#container-rows tr');
+    let visible = 0;
+
+    rows.forEach(row => {
+        const show = row.textContent.toLowerCase().includes(filter);
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+
+    const countEl = document.getElementById('container-count');
+    if (countEl) {
+        countEl.textContent = filter ? `${visible} matching` : '';
+    }
+}
+window.filterTable = filterTable;
+
+function sortTable(col) {
+    if (liveStats.sortCol === col) {
+        liveStats.sortAsc = !liveStats.sortAsc;
+    } else {
+        liveStats.sortCol = col;
+        liveStats.sortAsc = false;
+    }
+    updateSortIndicators();
+    doSort();
+}
+window.sortTable = sortTable;
+
+function updateSortIndicators() {
+    document.querySelectorAll('thead th').forEach((th, i) => {
+        const span = th.querySelector('.sort-indicator');
+        if (span) {
+            span.textContent = (i === liveStats.sortCol) ? (liveStats.sortAsc ? '↑' : '↓') : '';
+            span.style.opacity = (i === liveStats.sortCol) ? '1' : '0.3';
+        }
+    });
+}
+
+function doSort() {
+    const tbody = document.getElementById('container-rows');
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if (rows.length === 0) return;
+    if (rows.length === 1 && rows[0].cells[0]?.colSpan > 1) return;  // Empty state row
+
+    const isNumeric = NUMERIC_COLS.has(liveStats.sortCol);
+    rows.sort((a, b) => {
+        const aVal = a.cells[liveStats.sortCol]?.dataset?.sort ?? '';
+        const bVal = b.cells[liveStats.sortCol]?.dataset?.sort ?? '';
+        const cmp = isNumeric ? aVal - bVal : aVal.localeCompare(bVal);
+        return liveStats.sortAsc ? cmp : -cmp;
+    });
+
+    rows.forEach((row, i) => {
+        row.cells[0].textContent = i + 1;
+        tbody.appendChild(row);
+    });
+}
+
+function initLiveStats() {
+    if (!document.getElementById('refresh-timer')) return;
+
+    // Clear previous intervals (important for SPA navigation)
+    liveStats.intervals.forEach(clearInterval);
+    liveStats.intervals = [];
+    liveStats.lastUpdate = Date.now();
+    liveStats.dropdownOpen = false;
+
+    // Dropdown pauses refresh
+    document.body.addEventListener('click', e => {
+        liveStats.dropdownOpen = !!e.target.closest('.dropdown');
+    });
+    document.body.addEventListener('keydown', e => {
+        if (e.key === 'Escape') liveStats.dropdownOpen = false;
+    });
+
+    // Auto-refresh every 3 seconds
+    liveStats.intervals.push(setInterval(() => {
+        if (!liveStats.dropdownOpen && document.getElementById('container-rows')) {
+            htmx.ajax('GET', '/api/containers/rows', {target: '#container-rows', swap: 'innerHTML'});
+        }
+    }, REFRESH_INTERVAL));
+
+    // Timer display (updates every 100ms)
+    liveStats.intervals.push(setInterval(() => {
+        const timer = document.getElementById('refresh-timer');
+        if (!timer) {
+            liveStats.intervals.forEach(clearInterval);
+            return;
+        }
+
+        window.refreshPaused = liveStats.dropdownOpen;
+        if (liveStats.dropdownOpen) {
+            timer.textContent = '⏸';
+            return;
+        }
+
+        const elapsed = Date.now() - liveStats.lastUpdate;
+        const remaining = Math.max(0, REFRESH_INTERVAL - elapsed);
+        timer.textContent = `↻ ${Math.ceil(remaining / 1000)}s`;
+    }, 100));
+
+    updateSortIndicators();
+}
+
+// Re-apply filter/sort after HTMX row refresh
+document.body.addEventListener('htmx:afterSwap', e => {
+    if (e.detail.target.id === 'container-rows') {
+        liveStats.lastUpdate = Date.now();
+        doSort();
+        if (document.getElementById('filter-input')?.value) filterTable();
+    }
+});
+
+// ============================================================================
+// STACKS BY HOST FILTER
+// ============================================================================
+
+function sbhFilter() {
+    const query = (document.getElementById('sbh-filter')?.value || '').toLowerCase();
+    const hostFilter = document.getElementById('sbh-host-select')?.value || '';
+
+    document.querySelectorAll('.sbh-group').forEach(group => {
+        if (hostFilter && group.dataset.h !== hostFilter) {
+            group.hidden = true;
+            return;
+        }
+
+        let visibleCount = 0;
+        group.querySelectorAll('li[data-s]').forEach(li => {
+            const show = !query || li.dataset.s.includes(query);
+            li.hidden = !show;
+            if (show) visibleCount++;
+        });
+        group.hidden = visibleCount === 0;
+    });
+}
+window.sbhFilter = sbhFilter;
