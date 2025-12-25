@@ -947,8 +947,6 @@ let liveStats = {
     scrollTimer: null,
     loadingHosts: new Set(),
     eventsBound: false,
-    stream: null,
-    needsRefresh: false,
     intervals: []
 };
 
@@ -1080,8 +1078,6 @@ function replaceHostRows(host, html) {
         newRows.forEach(row => htmx.process(row));
     }
 
-    liveStats.loadingHosts.delete(host);
-
     scheduleRowUpdate();
 }
 
@@ -1107,46 +1103,6 @@ function refreshLiveStats() {
 }
 window.refreshLiveStats = refreshLiveStats;
 
-function startLiveStatsStream() {
-    if (window.CF_DISABLE_SSE || !window.EventSource) {
-        return false;
-    }
-
-    if (liveStats.stream) {
-        liveStats.stream.close();
-    }
-
-    const stream = new EventSource('/api/containers/stream');
-    liveStats.stream = stream;
-
-    stream.onmessage = (event) => {
-        if (liveStats.dropdownOpen || liveStats.scrolling) {
-            liveStats.needsRefresh = true;
-            return;
-        }
-
-        let payload;
-        try {
-            payload = JSON.parse(event.data);
-        } catch {
-            return;
-        }
-
-        if (!payload?.host) return;
-        liveStats.lastUpdate = Date.now();
-        replaceHostRows(payload.host, payload.html || '');
-    };
-
-    stream.onerror = () => {
-        stream.close();
-        if (liveStats.stream === stream) {
-            liveStats.stream = null;
-        }
-    };
-
-    return true;
-}
-
 function initLiveStats() {
     if (!document.getElementById('refresh-timer')) return;
 
@@ -1158,12 +1114,7 @@ function initLiveStats() {
     liveStats.scrolling = false;
     if (liveStats.scrollTimer) clearTimeout(liveStats.scrollTimer);
     liveStats.scrollTimer = null;
-    liveStats.loadingHosts = new Set(getLiveStatsHosts());
-    liveStats.needsRefresh = false;
-    if (liveStats.stream) {
-        liveStats.stream.close();
-        liveStats.stream = null;
-    }
+    liveStats.loadingHosts.clear();
 
     if (!liveStats.eventsBound) {
         liveStats.eventsBound = true;
@@ -1194,13 +1145,11 @@ function initLiveStats() {
         }, { passive: true });
     }
 
-    const streamActive = startLiveStatsStream();
-    if (!streamActive) {
-        liveStats.intervals.push(setInterval(() => {
-            if (liveStats.dropdownOpen || liveStats.scrolling || isLoading()) return;
-            refreshLiveStats();
-        }, REFRESH_INTERVAL));
-    }
+    // Auto-refresh every 3 seconds (skip if still loading or dropdown open)
+    liveStats.intervals.push(setInterval(() => {
+        if (liveStats.dropdownOpen || liveStats.scrolling || isLoading()) return;
+        refreshLiveStats();
+    }, REFRESH_INTERVAL));
 
     // Timer display (updates every 100ms)
     liveStats.intervals.push(setInterval(() => {
@@ -1222,17 +1171,10 @@ function initLiveStats() {
         const elapsed = Date.now() - liveStats.lastUpdate;
         const remaining = Math.max(0, REFRESH_INTERVAL - elapsed);
         timer.textContent = loading ? '↻ …' : `↻ ${Math.ceil(remaining / 1000)}s`;
-
-        if (!paused && liveStats.needsRefresh) {
-            liveStats.needsRefresh = false;
-            refreshLiveStats();
-        }
     }, 100));
 
     updateSortIndicators();
-    if (!streamActive) {
-        refreshLiveStats();
-    }
+    refreshLiveStats();
 }
 
 // Debounce timer for row updates (prevents race conditions with slow connections)

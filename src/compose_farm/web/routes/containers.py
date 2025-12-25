@@ -2,18 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
 import re
-from typing import TYPE_CHECKING
 from urllib.parse import quote
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
 
 import humanize
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse
 
 from compose_farm.executor import TTLCache
 from compose_farm.glances import ContainerStats, fetch_all_container_stats
@@ -21,12 +15,9 @@ from compose_farm.web.deps import get_config, get_templates
 
 router = APIRouter(tags=["containers"])
 
-# Cache registry update checks for 10 minutes (600 seconds)
+# Cache registry update checks for 5 minutes (300 seconds)
 # Registry calls are slow and often rate-limited
-_update_check_cache = TTLCache(ttl_seconds=600.0)
-
-# Skip update checks for certain tags that don't make sense to check
-_SKIP_UPDATE_TAGS = {"latest", "dev", "develop", "main", "master", "nightly"}
+_update_check_cache = TTLCache(ttl_seconds=300.0)
 
 # Minimum parts needed to infer stack/service from container name
 MIN_NAME_PARTS = 2
@@ -117,14 +108,6 @@ def _progress_class(percent: float) -> str:
 
 def _render_update_cell(image: str, tag: str) -> str:
     """Render update check cell with lazy loading via HTMX."""
-    if tag.lower() in _SKIP_UPDATE_TAGS:
-        return f"<td>{_DASH_HTML}</td>"
-
-    full_image = f"{image}:{tag}"
-    cached_html: str | None = _update_check_cache.get(full_image)
-    if cached_html is not None:
-        return f"<td>{cached_html}</td>"
-
     encoded_image = quote(image, safe="")
     encoded_tag = quote(tag, safe="")
     return f"""<td hx-get="/api/containers/check-update?image={encoded_image}&tag={encoded_tag}" hx-trigger="load" hx-swap="innerHTML"><span class="loading loading-spinner loading-xs"></span></td>"""
@@ -258,54 +241,6 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
     return HTMLResponse(rows)
 
 
-@router.get("/api/containers/stream")
-async def stream_containers(request: Request) -> StreamingResponse:
-    """Stream container rows per host via Server-Sent Events."""
-    from compose_farm.glances import fetch_container_stats  # noqa: PLC0415
-
-    config = get_config()
-
-    if not config.glances_stack:
-
-        async def _disabled() -> AsyncGenerator[str, None]:
-            yield "event: error\ndata: Glances not configured\n\n"
-
-        return StreamingResponse(_disabled(), media_type="text/event-stream")
-
-    async def _fetch_host_rows(host_name: str, host_address: str) -> tuple[str, str]:
-        containers = await fetch_container_stats(host_name, host_address)
-        if not containers:
-            return host_name, ""
-
-        for c in containers:
-            c.stack, c.service = _infer_stack_service(c.name)
-        rows = "\n".join(_render_row(c, "-") for c in containers)
-        return host_name, rows
-
-    async def _event_stream() -> AsyncGenerator[str, None]:
-        interval = 3.0
-        while True:
-            if await request.is_disconnected():
-                break
-
-            cycle_start = asyncio.get_running_loop().time()
-            tasks = [_fetch_host_rows(name, host.address) for name, host in config.hosts.items()]
-
-            for task in asyncio.as_completed(tasks):
-                host_name, rows = await task
-                payload = json.dumps({"host": host_name, "html": rows})
-                yield f"data: {payload}\n\n"
-
-            elapsed = asyncio.get_running_loop().time() - cycle_start
-            await asyncio.sleep(max(0.0, interval - elapsed))
-
-    return StreamingResponse(
-        _event_stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache"},
-    )
-
-
 @router.get("/api/containers/check-update", response_class=HTMLResponse)
 async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
     """Check for updates and return HTML badge for HTMX.
@@ -321,7 +256,9 @@ async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
 
     from compose_farm.registry import check_image_updates  # noqa: PLC0415
 
-    if tag.lower() in _SKIP_UPDATE_TAGS:
+    # Skip update checks for certain tags that don't make sense to check
+    skip_tags = {"latest", "dev", "develop", "main", "master", "nightly"}
+    if tag.lower() in skip_tags:
         return HTMLResponse(_DASH_HTML)
 
     full_image = f"{image}:{tag}"
