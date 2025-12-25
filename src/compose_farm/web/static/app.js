@@ -943,6 +943,9 @@ let liveStats = {
     sortAsc: false,
     lastUpdate: 0,
     dropdownOpen: false,
+    scrolling: false,
+    scrollTimer: null,
+    loadingHosts: new Set(),
     intervals: []
 };
 
@@ -999,22 +1002,119 @@ function doSort() {
 
     const isNumeric = NUMERIC_COLS.has(liveStats.sortCol);
     rows.sort((a, b) => {
+        // Pin placeholders/empty rows to the bottom
+        const aLoading = a.classList.contains('loading-row') || a.classList.contains('host-empty') || a.cells[0]?.colSpan > 1;
+        const bLoading = b.classList.contains('loading-row') || b.classList.contains('host-empty') || b.cells[0]?.colSpan > 1;
+        if (aLoading && !bLoading) return 1;
+        if (!aLoading && bLoading) return -1;
+        if (aLoading && bLoading) return 0;
+
         const aVal = a.cells[liveStats.sortCol]?.dataset?.sort ?? '';
         const bVal = b.cells[liveStats.sortCol]?.dataset?.sort ?? '';
         const cmp = isNumeric ? aVal - bVal : aVal.localeCompare(bVal);
         return liveStats.sortAsc ? cmp : -cmp;
     });
 
-    rows.forEach((row, i) => {
-        row.cells[0].textContent = i + 1;
+    let index = 1;
+    rows.forEach((row) => {
+        if (row.cells.length > 1) {
+            row.cells[0].textContent = index++;
+        }
         tbody.appendChild(row);
     });
 }
 
 function isLoading() {
-    // Check if any loading placeholders still present (rows with hx-get that haven't loaded yet)
-    return document.querySelectorAll('#container-rows tr[hx-get]').length > 0;
+    return liveStats.loadingHosts.size > 0;
 }
+
+function cssEscape(value) {
+    if (window.CSS && typeof window.CSS.escape === 'function') {
+        return window.CSS.escape(value);
+    }
+    return value.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+}
+
+function getLiveStatsHosts() {
+    const tbody = document.getElementById('container-rows');
+    if (!tbody) return [];
+    const dataHosts = tbody.dataset.hosts || '';
+    const fromData = dataHosts.split(',').map(h => h.trim()).filter(Boolean);
+    if (fromData.length > 0) return fromData;
+
+    const hosts = new Set();
+    tbody.querySelectorAll('tr[data-host]').forEach(row => {
+        if (row.dataset.host) hosts.add(row.dataset.host);
+    });
+    return Array.from(hosts);
+}
+
+function buildHostRow(host, message, className) {
+    return (
+        `<tr class="${className}" data-host="${host}">` +
+        `<td colspan="12" class="text-center py-2">` +
+        `<span class="text-sm opacity-60">${message}</span>` +
+        `</td></tr>`
+    );
+}
+
+function replaceHostRows(host, html) {
+    const tbody = document.getElementById('container-rows');
+    if (!tbody) return;
+
+    const template = document.createElement('template');
+    template.innerHTML = html.trim();
+    let newRows = Array.from(template.content.children).filter(el => el.tagName === 'TR');
+
+    if (newRows.length === 0) {
+        template.innerHTML = buildHostRow(host, `No containers on ${host}`, 'host-empty');
+        newRows = Array.from(template.content.children);
+    }
+
+    newRows.forEach(row => {
+        if (!row.dataset.host) row.dataset.host = host;
+        row.classList.remove('loading-row');
+    });
+
+    const selector = `tr[data-host="${cssEscape(host)}"]`;
+    const existing = Array.from(tbody.querySelectorAll(selector));
+    const anchor = existing[0] || null;
+
+    if (anchor) {
+        newRows.forEach(row => tbody.insertBefore(row, anchor));
+        existing.forEach(row => row.remove());
+    } else {
+        newRows.forEach(row => tbody.appendChild(row));
+    }
+
+    if (window.htmx) {
+        newRows.forEach(row => htmx.process(row));
+    }
+
+    scheduleRowUpdate();
+}
+
+async function loadHostRows(host) {
+    liveStats.loadingHosts.add(host);
+    try {
+        const response = await fetch(`/api/containers/rows/${encodeURIComponent(host)}`);
+        const html = response.ok ? await response.text() : '';
+        replaceHostRows(host, html);
+    } catch (e) {
+        replaceHostRows(host, buildHostRow(host, `Unable to reach ${host}`, 'host-empty'));
+    } finally {
+        liveStats.loadingHosts.delete(host);
+    }
+}
+
+function refreshLiveStats() {
+    if (liveStats.dropdownOpen || liveStats.scrolling) return;
+    const hosts = getLiveStatsHosts();
+    if (hosts.length === 0) return;
+    liveStats.lastUpdate = Date.now();
+    hosts.forEach(loadHostRows);
+}
+window.refreshLiveStats = refreshLiveStats;
 
 function initLiveStats() {
     if (!document.getElementById('refresh-timer')) return;
@@ -1024,21 +1124,40 @@ function initLiveStats() {
     liveStats.intervals = [];
     liveStats.lastUpdate = Date.now();
     liveStats.dropdownOpen = false;
+    liveStats.scrolling = false;
+    if (liveStats.scrollTimer) clearTimeout(liveStats.scrollTimer);
+    liveStats.scrollTimer = null;
+    liveStats.loadingHosts.clear();
 
     // Dropdown pauses refresh
     document.body.addEventListener('click', e => {
         liveStats.dropdownOpen = !!e.target.closest('.dropdown');
     });
+    document.body.addEventListener('focusin', e => {
+        if (e.target.closest('.dropdown')) liveStats.dropdownOpen = true;
+    });
+    document.body.addEventListener('focusout', () => {
+        setTimeout(() => {
+            liveStats.dropdownOpen = !!document.activeElement?.closest('.dropdown');
+        }, 150);
+    });
     document.body.addEventListener('keydown', e => {
         if (e.key === 'Escape') liveStats.dropdownOpen = false;
     });
 
+    // Pause refresh while scrolling (helps on slow mobile browsers)
+    window.addEventListener('scroll', () => {
+        liveStats.scrolling = true;
+        if (liveStats.scrollTimer) clearTimeout(liveStats.scrollTimer);
+        liveStats.scrollTimer = setTimeout(() => {
+            liveStats.scrolling = false;
+        }, 200);
+    }, { passive: true });
+
     // Auto-refresh every 3 seconds (skip if still loading or dropdown open)
     liveStats.intervals.push(setInterval(() => {
-        if (liveStats.dropdownOpen || isLoading()) return;
-        if (!document.getElementById('container-rows')) return;
-
-        htmx.ajax('GET', '/api/containers/hosts', {target: '#container-rows', swap: 'innerHTML'});
+        if (liveStats.dropdownOpen || liveStats.scrolling || isLoading()) return;
+        refreshLiveStats();
     }, REFRESH_INTERVAL));
 
     // Timer display (updates every 100ms)
@@ -1050,43 +1169,25 @@ function initLiveStats() {
         }
 
         const loading = isLoading();
-        window.refreshPaused = liveStats.dropdownOpen || loading;
+        const paused = liveStats.dropdownOpen || liveStats.scrolling;
+        window.refreshPaused = paused || loading;
 
-        if (loading) {
-            timer.textContent = '⏳';
-            return;
-        }
-        if (liveStats.dropdownOpen) {
-            timer.textContent = '⏸';
+        if (paused) {
+            timer.textContent = 'paused';
             return;
         }
 
         const elapsed = Date.now() - liveStats.lastUpdate;
         const remaining = Math.max(0, REFRESH_INTERVAL - elapsed);
-        timer.textContent = `↻ ${Math.ceil(remaining / 1000)}s`;
+        timer.textContent = loading ? '↻ …' : `↻ ${Math.ceil(remaining / 1000)}s`;
     }, 100));
 
     updateSortIndicators();
+    refreshLiveStats();
 }
 
 // Debounce timer for row updates (prevents race conditions with slow connections)
 let rowUpdateTimer = null;
-
-// Re-apply filter/sort after HTMX row refresh
-document.body.addEventListener('htmx:afterSwap', e => {
-    const target = e.detail.target;
-
-    // Full table refresh
-    if (target.id === 'container-rows') {
-        liveStats.lastUpdate = Date.now();
-        scheduleRowUpdate();
-    }
-
-    // Per-host row load (row swaps itself with multiple rows)
-    if (target.closest && target.closest('#container-rows')) {
-        scheduleRowUpdate();
-    }
-});
 
 function scheduleRowUpdate() {
     // Debounce: wait for DOM to settle before updating rows
@@ -1094,20 +1195,9 @@ function scheduleRowUpdate() {
     if (rowUpdateTimer) clearTimeout(rowUpdateTimer);
     rowUpdateTimer = setTimeout(() => {
         rowUpdateTimer = null;
-        renumberRows();
         doSort();
         if (document.getElementById('filter-input')?.value) filterTable();
     }, 50);  // 50ms debounce
-}
-
-function renumberRows() {
-    // Convert to static array to avoid issues with live NodeList during iteration
-    const rows = Array.from(document.querySelectorAll('#container-rows tr'));
-    rows.forEach((row, i) => {
-        if (row.cells[0] && !row.cells[0].colSpan) {
-            row.cells[0].textContent = i + 1;
-        }
-    });
 }
 
 // ============================================================================

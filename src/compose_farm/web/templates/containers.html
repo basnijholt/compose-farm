@@ -19,14 +19,14 @@
 
     <!-- Action Bar -->
     <div class="flex flex-wrap items-center gap-4 mb-6">
-        <button class="btn btn-outline btn-sm" hx-get="/api/containers/hosts" hx-target="#container-rows" hx-swap="innerHTML">
+        <button class="btn btn-outline btn-sm" type="button" onclick="refreshLiveStats()">
             {{ refresh_cw() }} Refresh
         </button>
         <input type="text" id="filter-input" placeholder="Filter containers..."
                class="input input-bordered input-sm w-64" onkeyup="filterTable()">
         <span id="container-count" class="text-sm text-base-content/60"></span>
         <div class="ml-auto flex items-center gap-2">
-            <span class="badge badge-ghost font-mono text-xs" id="refresh-timer"></span>
+            <span class="badge badge-outline font-mono text-xs min-w-14 justify-center" id="refresh-timer">↻</span>
         </div>
     </div>
 
@@ -49,14 +49,15 @@
                     <th class="cursor-pointer" onclick="sortTable(11)">Net I/O<span class="sort-indicator"></span></th>
                 </tr>
             </thead>
-            <tbody id="container-rows"
-                   hx-get="/api/containers/hosts"
-                   hx-trigger="load"
-                   hx-swap="innerHTML">
-                <tr><td colspan="12" class="text-center py-8">
-                    <span class="loading loading-spinner loading-md"></span>
-                    <span class="ml-2">Loading hosts...</span>
-                </td></tr>
+            <tbody id="container-rows" data-hosts="{{ hosts | join(',') }}">
+                {% for host in hosts %}
+                <tr class="loading-row" data-host="{{ host }}">
+                    <td colspan="12" class="text-center py-2">
+                        <span class="loading loading-spinner loading-xs"></span>
+                        <span class="text-sm opacity-60">Loading {{ host }}...</span>
+                    </td>
+                </tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>

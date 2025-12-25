@@ -2396,27 +2396,35 @@ class TestContainersPagePause:
         when focus moves within the dropdown, causing refresh to resume
         while dropdown is still visually open.
         """
-        # Mock the containers hosts API to return test rows directly
+        # Mock container rows and update checks
         page.route(
-            "**/api/containers/hosts",
+            "**/api/containers/rows/*",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/html",
                 body=self.MOCK_ROWS_HTML,
             ),
         )
+        page.route(
+            "**/api/containers/check-update*",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/html",
+                body="<span>-</span>",
+            ),
+        )
 
         page.goto(f"{server_url}/live-stats")
 
         # Wait for container rows to load
-        page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)
+        page.wait_for_function(
+            "document.querySelectorAll('#container-rows tr:not(.loading-row)').length > 0",
+            timeout=TIMEOUT,
+        )
 
         # Wait for timer to start (refreshPaused is set in timer interval)
         page.wait_for_function("typeof window.refreshPaused === 'boolean'", timeout=TIMEOUT)
-
-        # Get initial state
-        initial_paused = page.evaluate("window.refreshPaused")
-        assert initial_paused is False, "Refresh should not be paused initially"
+        page.wait_for_function("window.refreshPaused === false", timeout=TIMEOUT)
 
         # Click on a dropdown to open it
         dropdown_label = page.locator(".dropdown label").first
@@ -2433,7 +2441,7 @@ class TestContainersPagePause:
             f"Refresh should be paused after clicking dropdown. "
             f"refreshPaused={paused_after_click}, timer='{timer_text}'"
         )
-        assert "⏸" in timer_text, f"Timer should show pause icon, got '{timer_text}'"
+        assert "paused" in timer_text.lower(), f"Timer should show paused state, got '{timer_text}'"
 
     def test_refresh_stays_paused_while_dropdown_open(self, page: Page, server_url: str) -> None:
         """Refresh remains paused for duration dropdown is open (>3s refresh interval).
@@ -2441,23 +2449,35 @@ class TestContainersPagePause:
         This is the critical test for the pause bug: refresh should stay paused
         for longer than the 3-second refresh interval while dropdown is open.
         """
-        # Mock the containers hosts API to return test rows directly
+        # Mock container rows and update checks
         page.route(
-            "**/api/containers/hosts",
+            "**/api/containers/rows/*",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/html",
                 body=self.MOCK_ROWS_HTML,
             ),
         )
+        page.route(
+            "**/api/containers/check-update*",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/html",
+                body="<span>-</span>",
+            ),
+        )
 
         page.goto(f"{server_url}/live-stats")
 
         # Wait for container rows to load
-        page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)
+        page.wait_for_function(
+            "document.querySelectorAll('#container-rows tr:not(.loading-row)').length > 0",
+            timeout=TIMEOUT,
+        )
 
         # Wait for timer to start
         page.wait_for_function("typeof window.refreshPaused === 'boolean'", timeout=TIMEOUT)
+        page.wait_for_function("window.refreshPaused === false", timeout=TIMEOUT)
 
         # Record a marker in the first row to detect if refresh happened
         page.evaluate("""
@@ -2495,23 +2515,35 @@ class TestContainersPagePause:
 
     def test_refresh_resumes_after_dropdown_closes(self, page: Page, server_url: str) -> None:
         """Refresh resumes after dropdown is closed."""
-        # Mock the containers hosts API to return test rows directly
+        # Mock container rows and update checks
         page.route(
-            "**/api/containers/hosts",
+            "**/api/containers/rows/*",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/html",
                 body=self.MOCK_ROWS_HTML,
             ),
         )
+        page.route(
+            "**/api/containers/check-update*",
+            lambda route: route.fulfill(
+                status=200,
+                content_type="text/html",
+                body="<span>-</span>",
+            ),
+        )
 
         page.goto(f"{server_url}/live-stats")
 
         # Wait for container rows to load
-        page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)
+        page.wait_for_function(
+            "document.querySelectorAll('#container-rows tr:not(.loading-row)').length > 0",
+            timeout=TIMEOUT,
+        )
 
         # Wait for timer to start
         page.wait_for_function("typeof window.refreshPaused === 'boolean'", timeout=TIMEOUT)
+        page.wait_for_function("window.refreshPaused === false", timeout=TIMEOUT)
 
         # Click dropdown to pause
         dropdown_label = page.locator(".dropdown label").first

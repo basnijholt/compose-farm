@@ -80,6 +80,7 @@ async def containers_page(request: Request) -> HTMLResponse:
         {
             "request": request,
             "glances_enabled": glances_enabled,
+            "hosts": sorted(config.hosts.keys()) if glances_enabled else [],
         },
     )
 
@@ -112,7 +113,7 @@ def _render_update_cell(image: str, tag: str) -> str:
     return f"""<td hx-get="/api/containers/check-update?image={encoded_image}&tag={encoded_tag}" hx-trigger="load" hx-swap="innerHTML"><span class="loading loading-spinner loading-xs"></span></td>"""
 
 
-def _render_row(c: ContainerStats, idx: int) -> str:
+def _render_row(c: ContainerStats, idx: int | str) -> str:
     """Render a single container as an HTML table row."""
     image_name, tag = _parse_image(c.image)
     stack = c.stack if c.stack else _infer_stack_service(c.name)[0]
@@ -128,7 +129,7 @@ def _render_row(c: ContainerStats, idx: int) -> str:
     update_cell = _render_update_cell(image_name, tag)
     # Render as single line to avoid whitespace nodes in DOM
     return (
-        f'<tr><td class="text-xs opacity-50">{idx}</td>'
+        f'<tr data-host="{c.host}"><td class="text-xs opacity-50">{idx}</td>'
         f'<td data-sort="{stack.lower()}"><a href="/stack/{stack}" class="link link-hover link-primary" hx-boost="true">{stack}</a></td>'
         f'<td data-sort="{service.lower()}" class="text-xs opacity-70">{service}</td>'
         f"<td>{actions}</td>"
@@ -206,28 +207,6 @@ async def get_containers_rows() -> HTMLResponse:
     return HTMLResponse(rows)
 
 
-@router.get("/api/containers/hosts", response_class=HTMLResponse)
-async def get_container_hosts() -> HTMLResponse:
-    """Return loading placeholders for each host that will load their own rows."""
-    config = get_config()
-
-    if not config.glances_stack:
-        return HTMLResponse(
-            '<tr><td colspan="12" class="text-center text-error">Glances not configured</td></tr>'
-        )
-
-    # Return a loading row for each host that triggers its own load
-    rows = [
-        f'<tr hx-get="/api/containers/rows/{host_name}" hx-trigger="load" hx-swap="outerHTML">'
-        f'<td colspan="12" class="text-center py-2">'
-        f'<span class="loading loading-spinner loading-xs"></span> '
-        f'<span class="text-sm opacity-60">Loading {host_name}...</span>'
-        f"</td></tr>"
-        for host_name in config.hosts
-    ]
-    return HTMLResponse("\n".join(rows))
-
-
 @router.get("/api/containers/rows/{host_name}", response_class=HTMLResponse)
 async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
     """Get container rows for a specific host.
@@ -245,6 +224,11 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
     host = config.hosts[host_name]
     containers = await fetch_container_stats(host_name, host.address)
 
+    if containers is None:
+        return HTMLResponse(
+            f'<tr class="text-error"><td colspan="12" class="text-center py-2">Connection failed: {host_name}</td></tr>'
+        )
+
     if not containers:
         return HTMLResponse("")  # No rows for this host
 
@@ -253,7 +237,7 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
         c.stack, c.service = _infer_stack_service(c.name)
 
     # Use placeholder index (will be renumbered by JS after all hosts load)
-    rows = "\n".join(_render_row(c, 0) for c in containers)
+    rows = "\n".join(_render_row(c, "-") for c in containers)
     return HTMLResponse(rows)
 
 
