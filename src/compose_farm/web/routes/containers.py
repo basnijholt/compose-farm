@@ -190,17 +190,68 @@ async def get_containers_rows() -> HTMLResponse:
 
     if not config.glances_stack:
         return HTMLResponse(
-            '<tr><td colspan="11" class="text-center text-error">Glances not configured</td></tr>'
+            '<tr><td colspan="12" class="text-center text-error">Glances not configured</td></tr>'
         )
 
     containers = await fetch_all_container_stats(config)
 
     if not containers:
         return HTMLResponse(
-            '<tr><td colspan="11" class="text-center py-4 opacity-60">No containers found</td></tr>'
+            '<tr><td colspan="12" class="text-center py-4 opacity-60">No containers found</td></tr>'
         )
 
     rows = "\n".join(_render_row(c, i + 1) for i, c in enumerate(containers))
+    return HTMLResponse(rows)
+
+
+@router.get("/api/containers/hosts", response_class=HTMLResponse)
+async def get_container_hosts() -> HTMLResponse:
+    """Return loading placeholders for each host that will load their own rows."""
+    config = get_config()
+
+    if not config.glances_stack:
+        return HTMLResponse(
+            '<tr><td colspan="12" class="text-center text-error">Glances not configured</td></tr>'
+        )
+
+    # Return a loading row for each host that triggers its own load
+    rows = [
+        f'<tr hx-get="/api/containers/rows/{host_name}" hx-trigger="load" hx-swap="outerHTML">'
+        f'<td colspan="12" class="text-center py-2">'
+        f'<span class="loading loading-spinner loading-xs"></span> '
+        f'<span class="text-sm opacity-60">Loading {host_name}...</span>'
+        f"</td></tr>"
+        for host_name in config.hosts
+    ]
+    return HTMLResponse("\n".join(rows))
+
+
+@router.get("/api/containers/rows/{host_name}", response_class=HTMLResponse)
+async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
+    """Get container rows for a specific host.
+
+    Returns immediately with Glances data. Stack/service are inferred from
+    container names for instant display (no SSH wait).
+    """
+    from compose_farm.glances import fetch_container_stats  # noqa: PLC0415
+
+    config = get_config()
+
+    if host_name not in config.hosts:
+        return HTMLResponse("")
+
+    host = config.hosts[host_name]
+    containers = await fetch_container_stats(host_name, host.address)
+
+    if not containers:
+        return HTMLResponse("")  # No rows for this host
+
+    # Infer stack/service from container name (fast, no SSH)
+    for c in containers:
+        c.stack, c.service = _infer_stack_service(c.name)
+
+    # Use placeholder index (will be renumbered by JS after all hosts load)
+    rows = "\n".join(_render_row(c, 0) for c in containers)
     return HTMLResponse(rows)
 
 

@@ -2396,9 +2396,9 @@ class TestContainersPagePause:
         when focus moves within the dropdown, causing refresh to resume
         while dropdown is still visually open.
         """
-        # Mock the containers rows API to return test data
+        # Mock the containers hosts API to return test rows directly
         page.route(
-            "**/api/containers/rows",
+            "**/api/containers/hosts",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/html",
@@ -2410,6 +2410,9 @@ class TestContainersPagePause:
 
         # Wait for container rows to load
         page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)
+
+        # Wait for timer to start (refreshPaused is set in timer interval)
+        page.wait_for_function("typeof window.refreshPaused === 'boolean'", timeout=TIMEOUT)
 
         # Get initial state
         initial_paused = page.evaluate("window.refreshPaused")
@@ -2438,9 +2441,9 @@ class TestContainersPagePause:
         This is the critical test for the pause bug: refresh should stay paused
         for longer than the 3-second refresh interval while dropdown is open.
         """
-        # Mock the containers rows API
+        # Mock the containers hosts API to return test rows directly
         page.route(
-            "**/api/containers/rows",
+            "**/api/containers/hosts",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/html",
@@ -2452,6 +2455,9 @@ class TestContainersPagePause:
 
         # Wait for container rows to load
         page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)
+
+        # Wait for timer to start
+        page.wait_for_function("typeof window.refreshPaused === 'boolean'", timeout=TIMEOUT)
 
         # Record a marker in the first row to detect if refresh happened
         page.evaluate("""
@@ -2489,9 +2495,9 @@ class TestContainersPagePause:
 
     def test_refresh_resumes_after_dropdown_closes(self, page: Page, server_url: str) -> None:
         """Refresh resumes after dropdown is closed."""
-        # Mock the containers rows API
+        # Mock the containers hosts API to return test rows directly
         page.route(
-            "**/api/containers/rows",
+            "**/api/containers/hosts",
             lambda route: route.fulfill(
                 status=200,
                 content_type="text/html",
@@ -2503,6 +2509,9 @@ class TestContainersPagePause:
 
         # Wait for container rows to load
         page.wait_for_selector("#container-rows tr", timeout=TIMEOUT)
+
+        # Wait for timer to start
+        page.wait_for_function("typeof window.refreshPaused === 'boolean'", timeout=TIMEOUT)
 
         # Click dropdown to pause
         dropdown_label = page.locator(".dropdown label").first

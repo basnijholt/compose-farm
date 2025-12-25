@@ -27,13 +27,12 @@ if TYPE_CHECKING:
 
 
 @pytest.mark.browser  # type: ignore[misc]
-def test_demo_live_stats(recording_page: Page, server_url: str) -> None:
+def test_demo_live_stats(wide_recording_page: Page, server_url: str) -> None:
     """Record Live Stats page demo."""
-    page = recording_page
+    page = wide_recording_page
 
-    # Start on dashboard (zoomed out to 70% so Live Stats table + timer fits)
+    # Start on dashboard
     page.goto(server_url)
-    page.evaluate("document.body.style.zoom = '0.7'")
     wait_for_sidebar(page)
     pause(page, 1000)
 
@@ -45,9 +44,9 @@ def test_demo_live_stats(recording_page: Page, server_url: str) -> None:
     page.keyboard.press("Enter")
     page.wait_for_url("**/live-stats", timeout=5000)
 
-    # Wait for containers to load
-    page.wait_for_selector("#container-rows tr:not(:has(.loading))", timeout=10000)
-    pause(page, 2000)  # Let viewer see the full table
+    # Wait for containers to load (may take ~10s on first load due to SSH)
+    page.wait_for_selector("#container-rows tr:not(:has(.loading))", timeout=30000)
+    pause(page, 2000)  # Let viewer see the full table with timer
 
     # Filter containers
     slow_type(page, "#filter-input", "jelly", delay=100)

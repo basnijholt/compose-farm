@@ -1011,6 +1011,11 @@ function doSort() {
     });
 }
 
+function isLoading() {
+    // Check if any loading placeholders still present (rows with hx-get that haven't loaded yet)
+    return document.querySelectorAll('#container-rows tr[hx-get]').length > 0;
+}
+
 function initLiveStats() {
     if (!document.getElementById('refresh-timer')) return;
 
@@ -1028,11 +1033,12 @@ function initLiveStats() {
         if (e.key === 'Escape') liveStats.dropdownOpen = false;
     });
 
-    // Auto-refresh every 3 seconds
+    // Auto-refresh every 3 seconds (skip if still loading or dropdown open)
     liveStats.intervals.push(setInterval(() => {
-        if (!liveStats.dropdownOpen && document.getElementById('container-rows')) {
-            htmx.ajax('GET', '/api/containers/rows', {target: '#container-rows', swap: 'innerHTML'});
-        }
+        if (liveStats.dropdownOpen || isLoading()) return;
+        if (!document.getElementById('container-rows')) return;
+
+        htmx.ajax('GET', '/api/containers/hosts', {target: '#container-rows', swap: 'innerHTML'});
     }, REFRESH_INTERVAL));
 
     // Timer display (updates every 100ms)
@@ -1043,7 +1049,13 @@ function initLiveStats() {
             return;
         }
 
-        window.refreshPaused = liveStats.dropdownOpen;
+        const loading = isLoading();
+        window.refreshPaused = liveStats.dropdownOpen || loading;
+
+        if (loading) {
+            timer.textContent = '⏳';
+            return;
+        }
         if (liveStats.dropdownOpen) {
             timer.textContent = '⏸';
             return;
@@ -1059,12 +1071,32 @@ function initLiveStats() {
 
 // Re-apply filter/sort after HTMX row refresh
 document.body.addEventListener('htmx:afterSwap', e => {
-    if (e.detail.target.id === 'container-rows') {
+    const target = e.detail.target;
+
+    // Full table refresh
+    if (target.id === 'container-rows') {
         liveStats.lastUpdate = Date.now();
+        renumberRows();
+        doSort();
+        if (document.getElementById('filter-input')?.value) filterTable();
+    }
+
+    // Per-host row load (row swaps itself with multiple rows)
+    if (target.closest && target.closest('#container-rows')) {
+        renumberRows();
         doSort();
         if (document.getElementById('filter-input')?.value) filterTable();
     }
 });
+
+function renumberRows() {
+    const rows = document.querySelectorAll('#container-rows tr');
+    rows.forEach((row, i) => {
+        if (row.cells[0] && !row.cells[0].colSpan) {
+            row.cells[0].textContent = i + 1;
+        }
+    });
+}
 
 // ============================================================================
 // STACKS BY HOST FILTER

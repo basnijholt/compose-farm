@@ -19,7 +19,7 @@
 
     <!-- Action Bar -->
     <div class="flex flex-wrap items-center gap-4 mb-6">
-        <button class="btn btn-outline btn-sm" hx-get="/api/containers/rows" hx-target="#container-rows" hx-swap="innerHTML">
+        <button class="btn btn-outline btn-sm" hx-get="/api/containers/hosts" hx-target="#container-rows" hx-swap="innerHTML">
             {{ refresh_cw() }} Refresh
         </button>
         <input type="text" id="filter-input" placeholder="Filter containers..."
@@ -50,12 +50,12 @@
                 </tr>
             </thead>
             <tbody id="container-rows"
-                   hx-get="/api/containers/rows"
+                   hx-get="/api/containers/hosts"
                    hx-trigger="load"
                    hx-swap="innerHTML">
                 <tr><td colspan="12" class="text-center py-8">
                     <span class="loading loading-spinner loading-md"></span>
-                    <span class="ml-2">Loading containers...</span>
+                    <span class="ml-2">Loading hosts...</span>
                 </td></tr>
             </tbody>
         </table>
