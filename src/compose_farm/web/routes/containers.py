@@ -100,10 +100,10 @@ def _status_class(status: str) -> str:
 def _progress_class(percent: float) -> str:
     """Get CSS class for progress bar color."""
     if percent > 80:  # noqa: PLR2004
-        return "progress-error"
+        return "bg-error"
     if percent > 50:  # noqa: PLR2004
-        return "progress-warning"
-    return "progress-success"
+        return "bg-warning"
+    return "bg-success"
 
 
 def _render_update_cell(image: str, tag: str) -> str:
@@ -139,8 +139,8 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
         f"{update_cell}"
         f'<td data-sort="{c.status.lower()}"><span class="{_status_class(c.status)}">{c.status}</span></td>'
         f'<td data-sort="{uptime_sec}" class="text-xs">{c.uptime or "-"}</td>'
-        f'<td data-sort="{cpu}"><div class="flex flex-col gap-0.5"><progress class="progress {cpu_class} w-12 h-2" value="{min(cpu, 100)}" max="100"></progress><span class="text-xs">{cpu:.0f}%</span></div></td>'
-        f'<td data-sort="{c.memory_usage}"><div class="flex flex-col gap-0.5"><progress class="progress {mem_class} w-12 h-2" value="{min(mem, 100)}" max="100"></progress><span class="text-xs">{_format_bytes(c.memory_usage)}</span></div></td>'
+        f'<td data-sort="{cpu}"><div class="flex flex-col gap-0.5"><div class="w-12 h-2 bg-base-300 rounded-full overflow-hidden"><div class="h-full {cpu_class}" style="width: {min(cpu, 100)}%"></div></div><span class="text-xs">{cpu:.0f}%</span></div></td>'
+        f'<td data-sort="{c.memory_usage}"><div class="flex flex-col gap-0.5"><div class="w-12 h-2 bg-base-300 rounded-full overflow-hidden"><div class="h-full {mem_class}" style="width: {min(mem, 100)}%"></div></div><span class="text-xs">{_format_bytes(c.memory_usage)}</span></div></td>'
         f'<td data-sort="{c.network_rx + c.network_tx}" class="text-xs font-mono">↓{_format_bytes(c.network_rx)} ↑{_format_bytes(c.network_tx)}</td>'
         "</tr>"
     )
