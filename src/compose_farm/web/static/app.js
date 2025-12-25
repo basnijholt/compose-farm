@@ -1163,14 +1163,18 @@ function initLiveStats() {
         const paused = liveStats.dropdownOpen || liveStats.scrolling;
         window.refreshPaused = paused || loading;
 
+        let text;
         if (paused) {
-            timer.textContent = '⏸';
-            return;
+            text = '❚❚';
+        } else {
+            const elapsed = Date.now() - liveStats.lastUpdate;
+            const remaining = Math.max(0, REFRESH_INTERVAL - elapsed);
+            text = loading ? '↻ …' : `↻ ${Math.ceil(remaining / 1000)}s`;
         }
 
-        const elapsed = Date.now() - liveStats.lastUpdate;
-        const remaining = Math.max(0, REFRESH_INTERVAL - elapsed);
-        timer.textContent = loading ? '↻ …' : `↻ ${Math.ceil(remaining / 1000)}s`;
+        if (timer.textContent !== text) {
+            timer.textContent = text;
+        }
     }, 100));
 
     updateSortIndicators();
