@@ -46,6 +46,7 @@ def _get_filtered_config() -> CFConfig:
         stacks=filtered_stacks,
         traefik_file=config.traefik_file,
         traefik_stack=config.traefik_stack,
+        glances_stack=config.glances_stack,
         config_path=config.config_path,
     )
 
@@ -90,6 +91,7 @@ def server_url() -> Generator[str, None, None]:
         patch("compose_farm.web.routes.pages.get_config", _get_filtered_config),
         patch("compose_farm.web.routes.api.get_config", _get_filtered_config),
         patch("compose_farm.web.routes.actions.get_config", _get_filtered_config),
+        patch("compose_farm.web.routes.containers.get_config", _get_filtered_config),
         patch("compose_farm.web.app.get_config", _get_filtered_config),
         patch("compose_farm.web.ws.get_config", _get_filtered_config),
     ]
