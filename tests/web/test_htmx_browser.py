@@ -2441,7 +2441,7 @@ class TestContainersPagePause:
             f"Refresh should be paused after clicking dropdown. "
             f"refreshPaused={paused_after_click}, timer='{timer_text}'"
         )
-        assert "paused" in timer_text.lower(), f"Timer should show paused state, got '{timer_text}'"
+        assert "⏸" in timer_text, f"Timer should show pause icon, got '{timer_text}'"
 
     def test_refresh_stays_paused_while_dropdown_open(self, page: Page, server_url: str) -> None:
         """Refresh remains paused for duration dropdown is open (>3s refresh interval).

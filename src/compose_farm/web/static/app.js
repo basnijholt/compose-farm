@@ -1164,7 +1164,7 @@ function initLiveStats() {
         window.refreshPaused = paused || loading;
 
         if (paused) {
-            timer.textContent = 'paused';
+            timer.textContent = '⏸';
             return;
         }
 
