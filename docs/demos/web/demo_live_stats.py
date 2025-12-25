@@ -71,5 +71,14 @@ def test_demo_live_stats(recording_page: Page, server_url: str) -> None:
     # Watch auto-refresh timer count down
     pause(page, 3500)  # Wait for refresh to happen
 
-    # Final pause to show refreshed data
-    pause(page, 1500)
+    # Click on a dropdown to show pause behavior
+    dropdown = page.locator(".dropdown").first
+    dropdown.click()
+    pause(page, 2000)  # Show paused state (timer shows ⏸)
+
+    # Click outside to close dropdown and resume refresh
+    page.click("body", position={"x": 10, "y": 10})
+    pause(page, 3500)  # Watch countdown resume and refresh happen
+
+    # Final pause
+    pause(page, 1000)
