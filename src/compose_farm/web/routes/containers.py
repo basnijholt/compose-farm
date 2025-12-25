@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from urllib.parse import quote
 
+import humanize
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
@@ -12,11 +13,6 @@ from compose_farm.glances import ContainerStats, fetch_all_container_stats
 from compose_farm.web.deps import get_config, get_templates
 
 router = APIRouter(tags=["containers"])
-
-# Byte size constants
-KB = 1024
-MB = KB * 1024
-GB = MB * 1024
 
 # Minimum parts needed to infer stack/service from container name
 MIN_NAME_PARTS = 2
@@ -27,13 +23,7 @@ _DASH_HTML = '<span class="text-xs opacity-50">-</span>'
 
 def _format_bytes(bytes_val: int) -> str:
     """Format bytes to human readable string."""
-    if bytes_val < KB:
-        return f"{bytes_val}B"
-    if bytes_val < MB:
-        return f"{bytes_val / KB:.1f}KB"
-    if bytes_val < GB:
-        return f"{bytes_val / MB:.1f}MB"
-    return f"{bytes_val / GB:.1f}GB"
+    return humanize.naturalsize(bytes_val, binary=True, format="%.1f")
 
 
 def _parse_image(image: str) -> tuple[str, str]:
