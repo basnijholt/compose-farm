@@ -43,8 +43,8 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
   - [What Compose Farm doesn't do](#what-compose-farm-doesnt-do)
 - [Installation](#installation)
 - [SSH Authentication](#ssh-authentication)
-  - [SSH Agent (default)](#ssh-agent-default)
-  - [Dedicated SSH Key (recommended for Docker/Web UI)](#dedicated-ssh-key-recommended-for-dockerweb-ui)
+  - [SSH Agent](#ssh-agent)
+  - [Dedicated SSH Key (default for Docker)](#dedicated-ssh-key-default-for-docker)
 - [Configuration](#configuration)
   - [Single-host example](#single-host-example)
   - [Multi-host example](#multi-host-example)
@@ -209,9 +209,9 @@ cp .envrc.example .envrc && direnv allow
 
 Compose Farm uses SSH to run commands on remote hosts. There are two authentication methods:
 
-### SSH Agent (default)
+### SSH Agent
 
-Works out of the box if you have an SSH agent running with your keys loaded:
+Works out of the box when running locally if you have an SSH agent running with your keys loaded:
 
 ```bash
 # Verify your agent has keys
@@ -221,9 +221,9 @@ ssh-add -l
 cf up --all
 ```
 
-### Dedicated SSH Key (recommended for Docker/Web UI)
+### Dedicated SSH Key (default for Docker)
 
-When running compose-farm in Docker, the SSH agent connection can be lost (e.g., after container restart). The `cf ssh` command sets up a dedicated key that persists:
+When running in Docker, SSH agent sockets are ephemeral and can be lost after container restarts. The `cf ssh` command sets up a dedicated key that persists:
 
 ```bash
 # Generate key and copy to all configured hosts
@@ -250,6 +250,13 @@ volumes:
 volumes:
   - cf-ssh:${CF_HOME:-/root}/.ssh
 ```
+
+**Option 3: SSH agent forwarding** - if you prefer using your host's ssh-agent
+```yaml
+volumes:
+  - ${SSH_AUTH_SOCK}:/ssh-agent:ro
+```
+Note: Requires `SSH_AUTH_SOCK` environment variable to be set. The socket path is ephemeral and changes across sessions.
 
 Run setup once after starting the container (while the SSH agent still works):
 

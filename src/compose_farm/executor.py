@@ -191,14 +191,18 @@ def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
         "known_hosts": None,
         "gss_auth": False,  # Disable GSSAPI - causes multi-second delays
     }
-    # Add SSH agent path (auto-detect forwarded agent if needed)
-    agent_path = get_ssh_auth_sock()
-    if agent_path:
-        kwargs["agent_path"] = agent_path
-    # Add key file fallback for when SSH agent is unavailable
+    # Add key file fallback (prioritized over agent if present)
     key_path = get_key_path()
+    agent_path = get_ssh_auth_sock()
+
     if key_path:
+        # If dedicated key exists, force use of it and ignore agent
+        # This avoids issues with stale/broken forwarded agents in Docker
         kwargs["client_keys"] = [str(key_path)]
+    elif agent_path:
+        # Fallback to agent if no dedicated key
+        kwargs["agent_path"] = agent_path
+
     return kwargs
 
 
