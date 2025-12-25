@@ -43,7 +43,7 @@ async def fetch_host_stats(
     host_name: str,
     host_address: str,
     port: int = DEFAULT_GLANCES_PORT,
-    request_timeout: float = 5.0,
+    request_timeout: float = 10.0,
 ) -> HostStats:
     """Fetch stats from a single host's Glances API."""
     import httpx  # noqa: PLC0415
@@ -161,8 +161,8 @@ async def fetch_container_stats(
     host_name: str,
     host_address: str,
     port: int = DEFAULT_GLANCES_PORT,
-    request_timeout: float = 5.0,
-) -> list[ContainerStats]:
+    request_timeout: float = 10.0,
+) -> list[ContainerStats] | None:
     """Fetch container stats from a single host's Glances API."""
     import httpx  # noqa: PLC0415
 
@@ -172,11 +172,11 @@ async def fetch_container_stats(
         async with httpx.AsyncClient(timeout=request_timeout) as client:
             response = await client.get(url)
             if not response.is_success:
-                return []
+                return None
             data = response.json()
             return [_parse_container(c, host_name) for c in data]
     except Exception:
-        return []
+        return None
 
 
 async def fetch_all_container_stats(
@@ -194,6 +194,9 @@ async def fetch_all_container_stats(
         stats_task = fetch_container_stats(host_name, host_address, port)
         labels_task = get_container_compose_labels(config, host_name)
         containers, labels = await asyncio.gather(stats_task, labels_task)
+
+        if containers is None:
+            return []
 
         # Enrich containers with compose labels (mutate in place)
         for c in containers:

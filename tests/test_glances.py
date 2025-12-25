@@ -249,6 +249,7 @@ class TestFetchContainerStats:
 
             containers = await fetch_container_stats("nas", "192.168.1.6")
 
+        assert containers is not None
         assert len(containers) == 2
         assert containers[0].name == "nginx"
         assert containers[0].host == "nas"
@@ -264,7 +265,7 @@ class TestFetchContainerStats:
 
             containers = await fetch_container_stats("nas", "192.168.1.6")
 
-        assert containers == []
+        assert containers is None
 
     @pytest.mark.asyncio
     async def test_fetch_container_stats_handles_string_image(self) -> None:
@@ -294,6 +295,7 @@ class TestFetchContainerStats:
 
             containers = await fetch_container_stats("nas", "192.168.1.6")
 
+        assert containers is not None
         assert len(containers) == 1
         assert containers[0].image == "myimage:v1"
 
