@@ -946,6 +946,7 @@ let liveStats = {
     scrolling: false,
     scrollTimer: null,
     loadingHosts: new Set(),
+    eventsBound: false,
     intervals: []
 };
 
@@ -1028,25 +1029,11 @@ function isLoading() {
     return liveStats.loadingHosts.size > 0;
 }
 
-function cssEscape(value) {
-    if (window.CSS && typeof window.CSS.escape === 'function') {
-        return window.CSS.escape(value);
-    }
-    return value.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
-}
-
 function getLiveStatsHosts() {
     const tbody = document.getElementById('container-rows');
     if (!tbody) return [];
     const dataHosts = tbody.dataset.hosts || '';
-    const fromData = dataHosts.split(',').map(h => h.trim()).filter(Boolean);
-    if (fromData.length > 0) return fromData;
-
-    const hosts = new Set();
-    tbody.querySelectorAll('tr[data-host]').forEach(row => {
-        if (row.dataset.host) hosts.add(row.dataset.host);
-    });
-    return Array.from(hosts);
+    return dataHosts.split(',').map(h => h.trim()).filter(Boolean);
 }
 
 function buildHostRow(host, message, className) {
@@ -1076,8 +1063,8 @@ function replaceHostRows(host, html) {
         row.classList.remove('loading-row');
     });
 
-    const selector = `tr[data-host="${cssEscape(host)}"]`;
-    const existing = Array.from(tbody.querySelectorAll(selector));
+    const existing = Array.from(tbody.querySelectorAll('tr[data-host]'))
+        .filter(row => row.dataset.host === host);
     const anchor = existing[0] || null;
 
     if (anchor) {
@@ -1129,30 +1116,34 @@ function initLiveStats() {
     liveStats.scrollTimer = null;
     liveStats.loadingHosts.clear();
 
-    // Dropdown pauses refresh
-    document.body.addEventListener('click', e => {
-        liveStats.dropdownOpen = !!e.target.closest('.dropdown');
-    });
-    document.body.addEventListener('focusin', e => {
-        if (e.target.closest('.dropdown')) liveStats.dropdownOpen = true;
-    });
-    document.body.addEventListener('focusout', () => {
-        setTimeout(() => {
-            liveStats.dropdownOpen = !!document.activeElement?.closest('.dropdown');
-        }, 150);
-    });
-    document.body.addEventListener('keydown', e => {
-        if (e.key === 'Escape') liveStats.dropdownOpen = false;
-    });
+    if (!liveStats.eventsBound) {
+        liveStats.eventsBound = true;
 
-    // Pause refresh while scrolling (helps on slow mobile browsers)
-    window.addEventListener('scroll', () => {
-        liveStats.scrolling = true;
-        if (liveStats.scrollTimer) clearTimeout(liveStats.scrollTimer);
-        liveStats.scrollTimer = setTimeout(() => {
-            liveStats.scrolling = false;
-        }, 200);
-    }, { passive: true });
+        // Dropdown pauses refresh
+        document.body.addEventListener('click', e => {
+            liveStats.dropdownOpen = !!e.target.closest('.dropdown');
+        });
+        document.body.addEventListener('focusin', e => {
+            if (e.target.closest('.dropdown')) liveStats.dropdownOpen = true;
+        });
+        document.body.addEventListener('focusout', () => {
+            setTimeout(() => {
+                liveStats.dropdownOpen = !!document.activeElement?.closest('.dropdown');
+            }, 150);
+        });
+        document.body.addEventListener('keydown', e => {
+            if (e.key === 'Escape') liveStats.dropdownOpen = false;
+        });
+
+        // Pause refresh while scrolling (helps on slow mobile browsers)
+        window.addEventListener('scroll', () => {
+            liveStats.scrolling = true;
+            if (liveStats.scrollTimer) clearTimeout(liveStats.scrollTimer);
+            liveStats.scrollTimer = setTimeout(() => {
+                liveStats.scrolling = false;
+            }, 200);
+        }, { passive: true });
+    }
 
     // Auto-refresh every 3 seconds (skip if still loading or dropdown open)
     liveStats.intervals.push(setInterval(() => {
