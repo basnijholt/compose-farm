@@ -28,22 +28,24 @@ class TTLCache:
     """Simple TTL cache for async function results."""
 
     def __init__(self, ttl_seconds: float = 30.0) -> None:
-        """Initialize cache with TTL in seconds."""
-        self._cache: dict[str, tuple[float, Any]] = {}
-        self._ttl = ttl_seconds
+        """Initialize cache with default TTL in seconds."""
+        # Cache stores: key -> (timestamp, value, item_ttl)
+        self._cache: dict[str, tuple[float, Any, float]] = {}
+        self._default_ttl = ttl_seconds
 
     def get(self, key: str) -> Any | None:
         """Get value if exists and not expired."""
         if key in self._cache:
-            timestamp, value = self._cache[key]
-            if time.monotonic() - timestamp < self._ttl:
+            timestamp, value, item_ttl = self._cache[key]
+            if time.monotonic() - timestamp < item_ttl:
                 return value
             del self._cache[key]
         return None
 
-    def set(self, key: str, value: Any) -> None:
-        """Set value with current timestamp."""
-        self._cache[key] = (time.monotonic(), value)
+    def set(self, key: str, value: Any, ttl_seconds: float | None = None) -> None:
+        """Set value with current timestamp and optional custom TTL."""
+        ttl = ttl_seconds if ttl_seconds is not None else self._default_ttl
+        self._cache[key] = (time.monotonic(), value, ttl)
 
     def clear(self) -> None:
         """Clear all cached values."""
