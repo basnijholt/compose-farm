@@ -62,6 +62,14 @@
         </table>
     </div>
     {% endif %}
+
+    <!-- Shared Action Menu -->
+    <ul id="shared-action-menu" class="menu menu-sm bg-base-200 rounded-box shadow-lg w-36 fixed z-50 p-2 hidden">
+        <li><a data-action="restart"><svg class="h-4 w-4"><use href="#icon-restart" /></svg>Restart</a></li>
+        <li><a data-action="pull"><svg class="h-4 w-4"><use href="#icon-pull" /></svg>Pull</a></li>
+        <li><a data-action="update"><svg class="h-4 w-4"><use href="#icon-update" /></svg>Update</a></li>
+        <li><a data-action="logs"><svg class="h-4 w-4"><use href="#icon-logs" /></svg>Logs</a></li>
+    </ul>
 </div>
 {% endblock %}
 

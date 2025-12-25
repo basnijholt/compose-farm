@@ -871,6 +871,89 @@ function initPage() {
     initSaveButton();
     updateShortcutKeys();
     initLiveStats();
+    initSharedActionMenu();
+}
+
+/**
+ * Initialize shared action menu for container rows
+ */
+function initSharedActionMenu() {
+    const menuEl = document.getElementById('shared-action-menu');
+    if (!menuEl) return;
+
+    window.openActionMenu = function(event, stack) {
+        event.stopPropagation();
+        // Update current stack context
+        menuEl.dataset.stack = stack;
+
+        // Position menu relative to button
+        const rect = event.currentTarget.getBoundingClientRect();
+        // Default: align right edge of menu to right edge of button
+        const left = rect.right - menuEl.offsetWidth + window.scrollX;
+        const top = rect.bottom + window.scrollY;
+
+        menuEl.style.top = `${top}px`;
+        menuEl.style.left = `${left}px`;
+        menuEl.classList.remove('hidden');
+
+        // Pause stats refresh
+        if (typeof liveStats !== 'undefined') liveStats.dropdownOpen = true;
+    };
+
+    menuEl.addEventListener('click', (e) => {
+        const link = e.target.closest('a[data-action]');
+        const stack = menuEl.dataset.stack;
+        if (!link || !stack) return;
+
+        const action = link.dataset.action;
+        e.preventDefault();
+
+        if (action === 'logs') {
+             const url = `/stack/${stack}`;
+             if (window.htmx) {
+                 htmx.ajax('GET', url, {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
+                     history.pushState({}, '', url);
+                     window.scrollTo(0, 0);
+                 });
+             } else {
+                 window.location.href = url;
+             }
+        } else {
+             const url = `/api/stack/${stack}/${action}`;
+             const confirmMsg = (action === 'restart' || action === 'update') ?
+                `${action.charAt(0).toUpperCase() + action.slice(1)} ${stack}?` : null;
+
+             if (confirmMsg && !confirm(confirmMsg)) {
+                 closeMenu();
+                 return;
+             }
+
+             if (window.htmx) {
+                 htmx.ajax('POST', url, {swap: 'none'});
+             }
+        }
+        closeMenu();
+    });
+
+    function closeMenu() {
+        menuEl.classList.add('hidden');
+        if (typeof liveStats !== 'undefined') liveStats.dropdownOpen = false;
+        menuEl.dataset.stack = '';
+    }
+
+    // Close on outside click
+    document.body.addEventListener('click', (e) => {
+        if (!menuEl.classList.contains('hidden') &&
+            !menuEl.contains(e.target) &&
+            !e.target.closest('button[onclick^="openActionMenu"]')) {
+            closeMenu();
+        }
+    });
+
+    // Close on Escape
+    document.body.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMenu();
+    });
 }
 
 /**

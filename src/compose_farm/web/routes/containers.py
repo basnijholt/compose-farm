@@ -148,15 +148,9 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
 
 def _render_actions(stack: str) -> str:
     """Render actions dropdown for a container row."""
-    return f"""<div class="dropdown dropdown-end">
-<label tabindex="0" class="btn btn-circle btn-ghost btn-xs"><svg class="h-4 w-4"><use href="#icon-menu" /></svg></label>
-<ul tabindex="0" class="dropdown-content menu menu-sm bg-base-200 rounded-box shadow-lg w-36 z-50 p-2">
-<li><a hx-post="/api/stack/{stack}/restart" hx-swap="none" hx-confirm="Restart {stack}?"><svg class="h-4 w-4"><use href="#icon-restart" /></svg>Restart</a></li>
-<li><a hx-post="/api/stack/{stack}/pull" hx-swap="none"><svg class="h-4 w-4"><use href="#icon-pull" /></svg>Pull</a></li>
-<li><a hx-post="/api/stack/{stack}/update" hx-swap="none" hx-confirm="Update {stack}?"><svg class="h-4 w-4"><use href="#icon-update" /></svg>Update</a></li>
-<li><a href="/stack/{stack}" hx-boost="true"><svg class="h-4 w-4"><use href="#icon-logs" /></svg>Logs</a></li>
-</ul>
-</div>"""
+    return f"""<button class="btn btn-circle btn-ghost btn-xs" onclick="openActionMenu(event, '{stack}')" aria-label="Actions for {stack}">
+<svg class="h-4 w-4"><use href="#icon-menu" /></svg>
+</button>"""
 
 
 def _parse_uptime_seconds(uptime: str) -> int:
