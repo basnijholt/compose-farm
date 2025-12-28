@@ -14,19 +14,23 @@ Run the Compose Farm web UI in Docker.
 curl -O https://raw.githubusercontent.com/basnijholt/compose-farm/main/docker-compose.yml
 ```
 
-**2. Create `.env` file:**
+**2. Generate `.env` file:**
 
 ```bash
-cat > .env << 'EOF'
-DOMAIN=example.com
-CF_COMPOSE_DIR=/opt/stacks
-EOF
+cf config init-env -o .env
 ```
+
+This auto-detects settings from your `compose-farm.yaml`:
+- `DOMAIN` from existing traefik labels
+- `CF_COMPOSE_DIR` from config
+- `CF_UID/GID/HOME/USER` from current user
+- `CF_LOCAL_HOST` by matching hostname to config
+
+Review the output and edit if needed (especially `CF_LOCAL_HOST` if not detected).
 
 **3. Set up SSH keys:**
 
 ```bash
-# Generate keys and copy to your hosts
 docker compose run --rm cf ssh setup
 ```
 
