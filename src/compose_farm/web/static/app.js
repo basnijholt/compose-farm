@@ -1307,8 +1307,8 @@ function toggleAutoRefresh() {
     liveStats.autoRefresh = !liveStats.autoRefresh;
     const timer = document.getElementById('refresh-timer');
     if (timer) {
-        timer.classList.toggle('badge-error', !liveStats.autoRefresh);
-        timer.classList.toggle('badge-outline', liveStats.autoRefresh);
+        timer.classList.toggle('btn-error', !liveStats.autoRefresh);
+        timer.classList.toggle('btn-outline', liveStats.autoRefresh);
     }
     if (liveStats.autoRefresh) {
         // Re-enabling: trigger immediate refresh
