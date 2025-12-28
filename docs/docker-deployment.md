@@ -24,9 +24,9 @@ This auto-detects settings from your `compose-farm.yaml`:
 - `DOMAIN` from existing traefik labels
 - `CF_COMPOSE_DIR` from config
 - `CF_UID/GID/HOME/USER` from current user
-- `CF_LOCAL_HOST` by matching hostname to config
+- `CF_LOCAL_HOST` by matching local IPs to config hosts
 
-Review the output and edit if needed (especially `CF_LOCAL_HOST` if not detected).
+Review the output and edit if needed.
 
 **3. Set up SSH keys:**
 

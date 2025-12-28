@@ -7,7 +7,6 @@ import platform
 import re
 import shlex
 import shutil
-import socket
 import subprocess
 from importlib import resources
 from pathlib import Path
@@ -310,7 +309,7 @@ def config_init_env(
 
     Reads the compose-farm.yaml config and auto-detects settings:
     - CF_COMPOSE_DIR from compose_dir
-    - CF_LOCAL_HOST by matching hostname to config hosts
+    - CF_LOCAL_HOST by detecting which config host matches local IPs
     - CF_UID/GID/HOME/USER from current user
     - DOMAIN from traefik labels in stacks (if found)
 
@@ -345,22 +344,12 @@ def config_init_env(
     user = os.environ.get("USER", "user")
     compose_dir = str(cfg.compose_dir)
 
-    # Detect local host by matching hostname or IP to config
-    hostname = socket.gethostname().lower()
+    # Detect local host using is_local (checks IPs)
     local_host = None
-
-    # First try hostname match
-    for name in cfg.hosts:
-        if name.lower() == hostname or hostname.startswith(name.lower()):
+    for name, host in cfg.hosts.items():
+        if is_local(host):
             local_host = name
             break
-
-    # If no hostname match, try is_local detection
-    if not local_host:
-        for name, host in cfg.hosts.items():
-            if is_local(host):
-                local_host = name
-                break
 
     # Try to detect domain from traefik labels in existing stacks
     domain = None
