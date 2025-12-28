@@ -884,19 +884,17 @@ function initSharedActionMenu() {
     if (menuEl.dataset.bound === '1') return;
     menuEl.dataset.bound = '1';
 
-    window.openActionMenu = function(event, stack) {
-        event.stopPropagation();
-        // Update current stack context
+    let hoverTimeout = null;
+
+    function showMenuForButton(btn, stack) {
         menuEl.dataset.stack = stack;
 
         // Position menu relative to button
-        const rect = event.currentTarget.getBoundingClientRect();
-        // Make menu measurable before positioning
+        const rect = btn.getBoundingClientRect();
         menuEl.classList.remove('hidden');
         menuEl.style.visibility = 'hidden';
         const menuRect = menuEl.getBoundingClientRect();
 
-        // Default: align right edge of menu to right edge of button (document coords)
         const left = rect.right - menuRect.width + window.scrollX;
         const top = rect.bottom + window.scrollY;
 
@@ -904,27 +902,68 @@ function initSharedActionMenu() {
         menuEl.style.left = `${left}px`;
         menuEl.style.visibility = '';
 
-        // Pause stats refresh
         if (typeof liveStats !== 'undefined') liveStats.dropdownOpen = true;
-    };
-
-    menuEl.addEventListener('click', (e) => {
-        const link = e.target.closest('a[data-action]');
-        const stack = menuEl.dataset.stack;
-        if (!link || !stack) return;
-
-        const action = link.dataset.action;
-        e.preventDefault();
-
-        navigateToStack(stack, action);
-        closeMenu();
-    });
+    }
 
     function closeMenu() {
         menuEl.classList.add('hidden');
         if (typeof liveStats !== 'undefined') liveStats.dropdownOpen = false;
         menuEl.dataset.stack = '';
     }
+
+    function scheduleClose() {
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+        hoverTimeout = setTimeout(closeMenu, 100);
+    }
+
+    function cancelClose() {
+        if (hoverTimeout) {
+            clearTimeout(hoverTimeout);
+            hoverTimeout = null;
+        }
+    }
+
+    // Button hover: show menu (event delegation on tbody)
+    const tbody = document.getElementById('container-rows');
+    if (tbody) {
+        tbody.addEventListener('mouseenter', (e) => {
+            const btn = e.target.closest('button[onclick^="openActionMenu"]');
+            if (!btn) return;
+
+            // Extract stack from onclick attribute
+            const match = btn.getAttribute('onclick')?.match(/openActionMenu\(event,\s*'([^']+)'\)/);
+            if (!match) return;
+
+            cancelClose();
+            showMenuForButton(btn, match[1]);
+        }, true);
+
+        tbody.addEventListener('mouseleave', (e) => {
+            const btn = e.target.closest('button[onclick^="openActionMenu"]');
+            if (btn) scheduleClose();
+        }, true);
+    }
+
+    // Keep menu open while hovering over it
+    menuEl.addEventListener('mouseenter', cancelClose);
+    menuEl.addEventListener('mouseleave', scheduleClose);
+
+    // Click action in menu
+    menuEl.addEventListener('click', (e) => {
+        const link = e.target.closest('a[data-action]');
+        const stack = menuEl.dataset.stack;
+        if (!link || !stack) return;
+
+        e.preventDefault();
+        navigateToStack(stack, link.dataset.action);
+        closeMenu();
+    });
+
+    // Also support click on button (for touch/accessibility)
+    window.openActionMenu = function(event, stack) {
+        event.stopPropagation();
+        showMenuForButton(event.currentTarget, stack);
+    };
 
     // Close on outside click
     document.body.addEventListener('click', (e) => {
