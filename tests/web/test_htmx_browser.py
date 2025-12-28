@@ -2406,11 +2406,11 @@ class TestContainersPagePause:
             ),
         )
         page.route(
-            "**/api/containers/check-update*",
+            "**/api/containers/check-updates",
             lambda route: route.fulfill(
                 status=200,
-                content_type="text/html",
-                body="<span>-</span>",
+                content_type="application/json",
+                body='{"results": []}',
             ),
         )
 
@@ -2459,11 +2459,11 @@ class TestContainersPagePause:
             ),
         )
         page.route(
-            "**/api/containers/check-update*",
+            "**/api/containers/check-updates",
             lambda route: route.fulfill(
                 status=200,
-                content_type="text/html",
-                body="<span>-</span>",
+                content_type="application/json",
+                body='{"results": []}',
             ),
         )
 
@@ -2525,11 +2525,11 @@ class TestContainersPagePause:
             ),
         )
         page.route(
-            "**/api/containers/check-update*",
+            "**/api/containers/check-updates",
             lambda route: route.fulfill(
                 status=200,
-                content_type="text/html",
-                body="<span>-</span>",
+                content_type="application/json",
+                body='{"results": []}',
             ),
         )
 

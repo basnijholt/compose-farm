@@ -1030,10 +1030,12 @@ let liveStats = {
     scrollTimer: null,
     loadingHosts: new Set(),
     eventsBound: false,
-    intervals: []
+    intervals: [],
+    updateCheckTimes: new Map()
 };
 
 const REFRESH_INTERVAL = 3000;
+const UPDATE_CHECK_TTL = 120000;
 const NUMERIC_COLS = new Set([8, 9, 10, 11]);  // uptime, cpu, mem, net
 
 function filterTable() {
@@ -1128,6 +1130,64 @@ function buildHostRow(host, message, className) {
     );
 }
 
+async function checkUpdatesForHost(host) {
+    if (liveStats.dropdownOpen || liveStats.scrolling) return;
+    const last = liveStats.updateCheckTimes.get(host) || 0;
+    if (Date.now() - last < UPDATE_CHECK_TTL) return;
+
+    const cells = Array.from(
+        document.querySelectorAll(`tr[data-host="${host}"] td.update-cell[data-image][data-tag]`)
+    );
+    if (cells.length === 0) return;
+
+    const items = [];
+    const seen = new Set();
+    cells.forEach(cell => {
+        const image = decodeURIComponent(cell.dataset.image || '');
+        const tag = decodeURIComponent(cell.dataset.tag || '');
+        const key = `${image}:${tag}`;
+        if (!image || seen.has(key)) return;
+        seen.add(key);
+        items.push({ image, tag });
+    });
+
+    if (items.length === 0) return;
+
+    try {
+        const response = await fetch('/api/containers/check-updates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items })
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const results = Array.isArray(data?.results) ? data.results : [];
+        const htmlMap = new Map();
+        results.forEach(result => {
+            const key = `${result.image}:${result.tag}`;
+            htmlMap.set(key, result.html);
+        });
+
+        cells.forEach(cell => {
+            const image = decodeURIComponent(cell.dataset.image || '');
+            const tag = decodeURIComponent(cell.dataset.tag || '');
+            const key = `${image}:${tag}`;
+            const html = htmlMap.get(key);
+            if (html && cell.innerHTML !== html) {
+                cell.innerHTML = html;
+            }
+        });
+
+        liveStats.updateCheckTimes.set(host, Date.now());
+    } catch (e) {
+        console.error('Update check failed:', e);
+    }
+}
+
+function scheduleUpdateChecks(host) {
+    checkUpdatesForHost(host);
+}
+
 function replaceHostRows(host, html) {
     const tbody = document.getElementById('container-rows');
     if (!tbody) return;
@@ -1199,6 +1259,7 @@ function replaceHostRows(host, html) {
     });
 
     liveStats.loadingHosts.delete(host);
+    scheduleUpdateChecks(host);
     scheduleRowUpdate();
 }
 
@@ -1246,6 +1307,7 @@ function initLiveStats() {
     if (liveStats.scrollTimer) clearTimeout(liveStats.scrollTimer);
     liveStats.scrollTimer = null;
     liveStats.loadingHosts.clear();
+    liveStats.updateCheckTimes = new Map();
 
     if (!liveStats.eventsBound) {
         liveStats.eventsBound = true;

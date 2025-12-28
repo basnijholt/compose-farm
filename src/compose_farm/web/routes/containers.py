@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 import humanize
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from compose_farm.executor import TTLCache
 from compose_farm.glances import ContainerStats, fetch_all_container_stats
 from compose_farm.web.deps import get_config, get_templates
 
 router = APIRouter(tags=["containers"])
+
+if TYPE_CHECKING:
+    from compose_farm.registry import TagCheckResult
 
 # Cache registry update checks for 5 minutes (300 seconds)
 # Registry calls are slow and often rate-limited
@@ -107,10 +111,13 @@ def _progress_class(percent: float) -> str:
 
 
 def _render_update_cell(image: str, tag: str) -> str:
-    """Render update check cell with lazy loading via HTMX."""
+    """Render update check cell with client-side batch updates."""
     encoded_image = quote(image, safe="")
     encoded_tag = quote(tag, safe="")
-    return f"""<td hx-get="/api/containers/check-update?image={encoded_image}&tag={encoded_tag}" hx-trigger="load" hx-swap="innerHTML"><span class="loading loading-spinner loading-xs"></span></td>"""
+    return (
+        f"""<td class="update-cell" data-image="{encoded_image}" data-tag="{encoded_tag}">"""
+        f"{_DASH_HTML}</td>"
+    )
 
 
 def _render_row(c: ContainerStats, idx: int | str) -> str:
@@ -260,56 +267,61 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
     return HTMLResponse(rows)
 
 
-@router.get("/api/containers/check-update", response_class=HTMLResponse)
-async def check_container_update_html(image: str, tag: str) -> HTMLResponse:
-    """Check for updates and return HTML badge for HTMX.
+def _render_update_badge(result: TagCheckResult) -> str:
+    if result.error:
+        return _DASH_HTML
+    if result.available_updates:
+        updates = result.available_updates
+        count = len(updates)
+        title = f"Newer: {', '.join(updates[:3])}" + ("..." if count > 3 else "")  # noqa: PLR2004
+        return (
+            f'<span class="badge badge-warning badge-xs cursor-help" title="{title}">'
+            f"{count} new</span>"
+        )
+    return '<span class="text-success text-xs" title="Up to date">✓</span>'
 
-    Returns a badge indicating update availability:
-    - Green checkmark: up to date
-    - Orange badge: updates available (with count)
-    - Gray dash: check failed or unsupported
 
-    Results are cached for 5 minutes to reduce registry API calls.
+@router.post("/api/containers/check-updates", response_class=JSONResponse)
+async def check_container_updates_batch(request: Request) -> JSONResponse:
+    """Batch update checks for a list of images.
+
+    Payload: {"items": [{"image": "...", "tag": "..."}, ...]}
+    Returns: {"results": [{"image": "...", "tag": "...", "html": "..."}, ...]}
     """
     import httpx  # noqa: PLC0415
 
+    payload = await request.json()
+    items = payload.get("items", []) if isinstance(payload, dict) else []
+    if not items:
+        return JSONResponse({"results": []})
+
+    results = []
+    skip_tags = {"latest", "dev", "develop", "main", "master", "nightly"}
+
     from compose_farm.registry import check_image_updates  # noqa: PLC0415
 
-    # Skip update checks for certain tags that don't make sense to check
-    skip_tags = {"latest", "dev", "develop", "main", "master", "nightly"}
-    if tag.lower() in skip_tags:
-        return HTMLResponse(_DASH_HTML)
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        for item in items:
+            image = item.get("image", "")
+            tag = item.get("tag", "")
+            full_image = f"{image}:{tag}"
+            if not image or not tag or tag.lower() in skip_tags:
+                results.append({"image": image, "tag": tag, "html": _DASH_HTML})
+                continue
 
-    full_image = f"{image}:{tag}"
+            cached_html: str | None = _update_check_cache.get(full_image)
+            if cached_html is not None:
+                results.append({"image": image, "tag": tag, "html": cached_html})
+                continue
 
-    # Check cache first
-    cached_html: str | None = _update_check_cache.get(full_image)
-    if cached_html is not None:
-        return HTMLResponse(cached_html)
+            try:
+                result = await check_image_updates(full_image, client)
+                html = _render_update_badge(result)
+                _update_check_cache.set(full_image, html)
+            except Exception:
+                _update_check_cache.set(full_image, _DASH_HTML, ttl_seconds=60.0)
+                html = _DASH_HTML
 
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            result = await check_image_updates(full_image, client)
+            results.append({"image": image, "tag": tag, "html": html})
 
-        if result.error:
-            html = _DASH_HTML
-        elif result.available_updates:
-            updates = result.available_updates
-            count = len(updates)
-            title = f"Newer: {', '.join(updates[:3])}" + ("..." if count > 3 else "")  # noqa: PLR2004
-            html = (
-                f'<span class="badge badge-warning badge-xs cursor-help" title="{title}">'
-                f"{count} new</span>"
-            )
-        else:
-            html = '<span class="text-success text-xs" title="Up to date">✓</span>'
-
-        # Cache the result
-        _update_check_cache.set(full_image, html)
-        return HTMLResponse(html)
-    except Exception:
-        # Cache errors for 1 minute to prevent hammering registry on failures
-        # (e.g. auth errors, rate limits, non-existent tags)
-        # Use a distinctive error marker if needed, or just the dash
-        _update_check_cache.set(full_image, _DASH_HTML, ttl_seconds=60.0)
-        return HTMLResponse(_DASH_HTML)
+    return JSONResponse({"results": results})
