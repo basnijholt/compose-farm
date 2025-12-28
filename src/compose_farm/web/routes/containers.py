@@ -145,6 +145,11 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
     cpu_class = _progress_class(cpu)
     mem_class = _progress_class(mem)
 
+    # Highlight rows with high resource usage
+    high_cpu = cpu > 80  # noqa: PLR2004
+    high_mem = mem > 90  # noqa: PLR2004
+    row_class = "high-usage" if (high_cpu or high_mem) else ""
+
     uptime_sec = _parse_uptime_seconds(c.uptime)
     actions = _render_actions(stack)
     update_cell = _render_update_cell(image_name, tag)
@@ -160,8 +165,9 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
         image_html = f'<code class="text-xs bg-base-200 px-1 rounded">{image_label}</code>'
     # Render as single line to avoid whitespace nodes in DOM
     row_id = f"c-{c.host}-{c.name}"
+    class_attr = f' class="{row_class}"' if row_class else ""
     return (
-        f'<tr id="{row_id}" data-host="{c.host}"><td class="text-xs opacity-50">{idx}</td>'
+        f'<tr id="{row_id}" data-host="{c.host}"{class_attr}><td class="text-xs opacity-50">{idx}</td>'
         f'<td data-sort="{stack.lower()}"><a href="/stack/{stack}" class="link link-hover link-primary" hx-boost="true">{stack}</a></td>'
         f'<td data-sort="{service.lower()}" class="text-xs opacity-70">{service}</td>'
         f"<td>{actions}</td>"
