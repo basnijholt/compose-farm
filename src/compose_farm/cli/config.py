@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import platform
-import re
 import shlex
 import shutil
 import subprocess
@@ -15,7 +14,7 @@ from typing import Annotated
 import typer
 
 from compose_farm.cli.app import app
-from compose_farm.config import load_config
+from compose_farm.config import COMPOSE_FILENAMES, Config, load_config
 from compose_farm.console import MSG_CONFIG_NOT_FOUND, console, print_error, print_success
 from compose_farm.executor import is_local
 from compose_farm.paths import config_search_paths, default_config_path, find_config_path
@@ -296,12 +295,46 @@ def config_symlink(
     console.print(f"    -> {target_path}")
 
 
+def _detect_domain(cfg: Config) -> str | None:
+    """Try to detect DOMAIN from traefik labels in existing stacks."""
+    for stack_name in list(cfg.stacks.keys())[:5]:  # Check first 5 stacks
+        compose_path = cfg.compose_dir / stack_name
+        for filename in COMPOSE_FILENAMES:
+            compose_file = compose_path / filename
+            if not compose_file.exists():
+                continue
+            try:
+                content = compose_file.read_text()
+                # Check for DOMAIN variable usage in traefik labels
+                if "${DOMAIN}" not in content and "$DOMAIN" not in content:
+                    continue
+                # Try to read from stack's .env
+                stack_env = compose_path / ".env"
+                if stack_env.exists():
+                    for line in stack_env.read_text().splitlines():
+                        if line.startswith("DOMAIN="):
+                            return line.split("=", 1)[1].strip().strip('"').strip("'")
+            except OSError:
+                continue  # Skip files we can't read
+    return None
+
+
+def _detect_local_host(cfg: Config) -> str | None:
+    """Find which config host matches local machine's IPs."""
+    for name, host in cfg.hosts.items():
+        if is_local(host):
+            return name
+    return None
+
+
 @config_app.command("init-env")
 def config_init_env(
     path: _PathOption = None,
     output: Annotated[
         Path | None,
-        typer.Option("--output", "-o", help="Output .env file path. Defaults to .env in config directory."),
+        typer.Option(
+            "--output", "-o", help="Output .env file path. Defaults to .env in config directory."
+        ),
     ] = None,
     force: _ForceOption = False,
 ) -> None:
@@ -313,9 +346,11 @@ def config_init_env(
     - CF_UID/GID/HOME/USER from current user
     - DOMAIN from traefik labels in stacks (if found)
 
-    Example:
+    Example::
+
         cf config init-env           # Create .env next to config
         cf config init-env -o .env   # Create .env in current directory
+
     """
     config_file = _get_config_file(path)
     if config_file is None:
@@ -343,45 +378,8 @@ def config_init_env(
     home = os.environ.get("HOME", f"/home/{os.environ.get('USER', 'user')}")
     user = os.environ.get("USER", "user")
     compose_dir = str(cfg.compose_dir)
-
-    # Detect local host using is_local (checks IPs)
-    local_host = None
-    for name, host in cfg.hosts.items():
-        if is_local(host):
-            local_host = name
-            break
-
-    # Try to detect domain from traefik labels in existing stacks
-    domain = None
-    for stack_name in list(cfg.stacks.keys())[:5]:  # Check first 5 stacks
-        compose_path = cfg.compose_dir / stack_name
-        for filename in ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"):
-            compose_file = compose_path / filename
-            if compose_file.exists():
-                try:
-                    content = compose_file.read_text()
-                    # Look for traefik.http.routers.*.rule=Host(`...${DOMAIN}`)
-                    # Check for DOMAIN variable usage
-                    if "${DOMAIN}" in content or "$DOMAIN" in content:
-                        # Try to read from stack's .env
-                        stack_env = compose_path / ".env"
-                        if stack_env.exists():
-                            for line in stack_env.read_text().splitlines():
-                                if line.startswith("DOMAIN="):
-                                    domain = line.split("=", 1)[1].strip().strip('"').strip("'")
-                                    break
-                    # Also try to find hardcoded domains
-                    if not domain:
-                        match = re.search(r"Host\(`([^`]+)\.\$", content)
-                        if match:
-                            # Found pattern like Host(`app.${DOMAIN}`) - need to find DOMAIN value
-                            pass
-                except Exception:
-                    pass
-            if domain:
-                break
-        if domain:
-            break
+    local_host = _detect_local_host(cfg)
+    domain = _detect_domain(cfg)
 
     # Generate .env content
     lines = [
