@@ -18,7 +18,7 @@ import typer
 from compose_farm.cli.app import app
 from compose_farm.config import load_config
 from compose_farm.console import MSG_CONFIG_NOT_FOUND, console, print_error, print_success
-from compose_farm.executor import _get_local_ips
+from compose_farm.executor import is_local
 from compose_farm.paths import config_search_paths, default_config_path, find_config_path
 
 config_app = typer.Typer(
@@ -355,11 +355,10 @@ def config_init_env(
             local_host = name
             break
 
-    # If no hostname match, try IP match
+    # If no hostname match, try is_local detection
     if not local_host:
-        local_ips = _get_local_ips()
         for name, host in cfg.hosts.items():
-            if host.address in local_ips:
+            if is_local(host):
                 local_host = name
                 break
 
