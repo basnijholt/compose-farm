@@ -326,7 +326,6 @@ async def check_container_updates_batch(request: Request) -> JSONResponse:
         return JSONResponse({"results": []})
 
     results = []
-    skip_tags: set[str] = set()
 
     from compose_farm.registry import check_image_updates  # noqa: PLC0415
 
@@ -335,7 +334,7 @@ async def check_container_updates_batch(request: Request) -> JSONResponse:
             image = item.get("image", "")
             tag = item.get("tag", "")
             full_image = f"{image}:{tag}"
-            if not image or not tag or tag.lower() in skip_tags:
+            if not image or not tag:
                 results.append({"image": image, "tag": tag, "html": _DASH_HTML})
                 continue
 
