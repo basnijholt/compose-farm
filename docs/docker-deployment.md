@@ -46,32 +46,29 @@ Open `http://localhost:9000` (or `https://compose-farm.example.com` if using Tra
 
 ## Configuration
 
-### Required
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DOMAIN` | Your domain (for Traefik labels) | `lab.example.com` |
-| `CF_COMPOSE_DIR` | Path to your compose files | `/opt/stacks` |
-
-### Optional: Run as Non-Root
-
-Required if using NFS mounts or you want files owned by your user:
+The `cf config init-env` command auto-detects most settings. After running it, review the generated `.env` file and edit if needed:
 
 ```bash
-cat >> .env << EOF
-CF_UID=$(id -u)
-CF_GID=$(id -g)
-CF_HOME=$HOME
-CF_USER=$USER
-EOF
+$EDITOR .env
 ```
 
-### Optional: Glances Monitoring
+### What init-env detects
 
-To show host CPU/memory stats in the dashboard, deploy [Glances](https://nicolargo.github.io/glances/) on your hosts and add:
+| Variable | How it's detected |
+|----------|-------------------|
+| `DOMAIN` | Extracted from traefik labels in your stacks |
+| `CF_COMPOSE_DIR` | From `compose_dir` in your config |
+| `CF_UID/GID/HOME/USER` | From current user (for NFS compatibility) |
+| `CF_LOCAL_HOST` | By matching local IPs to configured hosts |
+
+If auto-detection fails for any value, edit the `.env` file manually.
+
+### Glances Monitoring
+
+To show host CPU/memory stats in the dashboard, deploy [Glances](https://nicolargo.github.io/glances/) on your hosts. If `CF_LOCAL_HOST` wasn't detected correctly, set it to your local hostname:
 
 ```bash
-echo "CF_LOCAL_HOST=nas" >> .env  # Your local hostname
+CF_LOCAL_HOST=nas  # Replace with your local host name
 ```
 
 See [Host Resource Monitoring](https://github.com/basnijholt/compose-farm#host-resource-monitoring-glances) in the README.
