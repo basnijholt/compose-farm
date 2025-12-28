@@ -872,6 +872,12 @@ function initPage() {
     updateShortcutKeys();
     initLiveStats();
     initSharedActionMenu();
+    maybeRunStackAction();
+}
+
+function navigateToStack(stack, action = null) {
+    const url = action ? `/stack/${stack}?action=${action}` : `/stack/${stack}`;
+    window.location.href = url;
 }
 
 /**
@@ -913,30 +919,7 @@ function initSharedActionMenu() {
         const action = link.dataset.action;
         e.preventDefault();
 
-        if (action === 'logs') {
-             const url = `/stack/${stack}`;
-             if (window.htmx) {
-                 htmx.ajax('GET', url, {target: '#main-content', select: '#main-content', swap: 'outerHTML'}).then(() => {
-                     history.pushState({}, '', url);
-                     window.scrollTo(0, 0);
-                 });
-             } else {
-                 window.location.href = url;
-             }
-        } else {
-             const url = `/api/stack/${stack}/${action}`;
-             const confirmMsg = (action === 'restart' || action === 'update') ?
-                `${action.charAt(0).toUpperCase() + action.slice(1)} ${stack}?` : null;
-
-             if (confirmMsg && !confirm(confirmMsg)) {
-                 closeMenu();
-                 return;
-             }
-
-             if (window.htmx) {
-                 htmx.ajax('POST', url, {swap: 'none'});
-             }
-        }
+        navigateToStack(stack, action);
         closeMenu();
     });
 
@@ -977,6 +960,30 @@ function tryReconnectToTask(path) {
         expandTerminal();
         initTerminal('terminal-output', taskId);
     });
+}
+
+function maybeRunStackAction() {
+    const params = new URLSearchParams(window.location.search);
+    const stackEl = document.querySelector('[data-stack-name]');
+    const stackName = stackEl?.dataset?.stackName;
+    if (!stackName) return;
+
+    const action = params.get('action');
+    if (!action) return;
+
+    const button = document.querySelector(`button[hx-post="/api/stack/${stackName}/${action}"]`);
+    if (!button) return;
+
+    params.delete('action');
+    const newQuery = params.toString();
+    const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
+    history.replaceState({}, '', newUrl);
+
+    if (window.htmx) {
+        htmx.trigger(button, 'click');
+    } else {
+        button.click();
+    }
 }
 
 // Initialize on page load

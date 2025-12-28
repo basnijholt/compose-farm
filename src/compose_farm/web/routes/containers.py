@@ -219,6 +219,7 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
     import logging  # noqa: PLC0415
     import time  # noqa: PLC0415
 
+    from compose_farm.executor import get_container_compose_labels  # noqa: PLC0415
     from compose_farm.glances import fetch_container_stats  # noqa: PLC0415
 
     logger = logging.getLogger(__name__)
@@ -248,9 +249,12 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
     if not containers:
         return HTMLResponse("")  # No rows for this host
 
-    # Infer stack/service from container name (fast, no SSH)
+    labels = await get_container_compose_labels(config, host_name)
     for c in containers:
-        c.stack, c.service = _infer_stack_service(c.name)
+        stack, service = labels.get(c.name, ("", ""))
+        if not stack or not service:
+            stack, service = _infer_stack_service(c.name)
+        c.stack, c.service = stack, service
 
     # Use placeholder index (will be renumbered by JS after all hosts load)
     rows = "\n".join(_render_row(c, "-") for c in containers)
