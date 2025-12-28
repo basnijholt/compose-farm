@@ -23,6 +23,8 @@ class HostStats:
     swap_percent: float
     load: float
     disk_percent: float
+    net_rx_rate: float = 0.0  # bytes/sec
+    net_tx_rate: float = 0.0  # bytes/sec
     error: str | None = None
 
     @classmethod
@@ -35,6 +37,8 @@ class HostStats:
             swap_percent=0,
             load=0,
             disk_percent=0,
+            net_rx_rate=0,
+            net_tx_rate=0,
             error=error,
         )
 
@@ -58,23 +62,32 @@ async def fetch_host_stats(
                 return HostStats.from_error(host_name, f"HTTP {response.status_code}")
             data = response.json()
 
-            # Fetch filesystem stats for disk usage
+            # Fetch filesystem stats for disk usage (root fs or max across all)
             disk_percent = 0.0
             try:
                 fs_response = await client.get(f"{base_url}/fs")
                 if fs_response.is_success:
                     fs_data = fs_response.json()
-                    # Find root filesystem or use max usage across all filesystems
-                    for fs in fs_data:
-                        if fs.get("mnt_point") == "/":
-                            disk_percent = fs.get("percent", 0)
-                            break
-                    else:
-                        # No root found, use highest usage
-                        if fs_data:
-                            disk_percent = max(fs.get("percent", 0) for fs in fs_data)
+                    root = next((fs for fs in fs_data if fs.get("mnt_point") == "/"), None)
+                    disk_percent = (
+                        root.get("percent", 0)
+                        if root
+                        else max((fs.get("percent", 0) for fs in fs_data), default=0)
+                    )
             except httpx.HTTPError:
                 pass  # Disk stats are optional
+
+            # Fetch network stats for rate (sum across non-loopback interfaces)
+            net_rx_rate, net_tx_rate = 0.0, 0.0
+            try:
+                net_response = await client.get(f"{base_url}/network")
+                if net_response.is_success:
+                    for iface in net_response.json():
+                        if not iface.get("interface_name", "").startswith("lo"):
+                            net_rx_rate += iface.get("bytes_recv_rate_per_sec") or 0
+                            net_tx_rate += iface.get("bytes_sent_rate_per_sec") or 0
+            except httpx.HTTPError:
+                pass  # Network stats are optional
 
             return HostStats(
                 host=host_name,
@@ -83,6 +96,8 @@ async def fetch_host_stats(
                 swap_percent=data.get("swap", 0),
                 load=data.get("load", 0),
                 disk_percent=disk_percent,
+                net_rx_rate=net_rx_rate,
+                net_tx_rate=net_tx_rate,
             )
     except httpx.TimeoutException:
         return HostStats.from_error(host_name, "timeout")
