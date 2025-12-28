@@ -305,28 +305,35 @@ def config_symlink(
 
 
 def _detect_domain(cfg: Config) -> str | None:
-    """Try to detect DOMAIN from traefik labels in existing stacks."""
-    from dotenv import dotenv_values  # noqa: PLC0415
+    """Try to detect DOMAIN from traefik Host() rules in existing stacks.
 
-    from compose_farm.config import COMPOSE_FILENAMES  # noqa: PLC0415
+    Uses extract_website_urls from traefik module to get interpolated
+    URLs, then extracts the domain from the first valid URL.
+    Skips local domains (.local, localhost, etc.).
+    """
+    from urllib.parse import urlparse  # noqa: PLC0415
 
-    for stack_name in list(cfg.stacks.keys())[:5]:  # Check first 5 stacks
-        compose_path = cfg.compose_dir / stack_name
-        for filename in COMPOSE_FILENAMES:
-            compose_file = compose_path / filename
-            if not compose_file.exists():
+    from compose_farm.traefik import extract_website_urls  # noqa: PLC0415
+
+    max_stacks_to_check = 10
+    min_domain_parts = 2
+    subdomain_parts = 4
+    skip_tlds = {"local", "localhost", "internal", "lan", "home"}
+
+    for stack_name in list(cfg.stacks.keys())[:max_stacks_to_check]:
+        urls = extract_website_urls(cfg, stack_name)
+        for url in urls:
+            host = urlparse(url).netloc
+            parts = host.split(".")
+            # Skip local/internal domains
+            if parts[-1].lower() in skip_tlds:
                 continue
-            try:
-                content = compose_file.read_text()
-                # Check for DOMAIN variable usage in traefik labels
-                if "${DOMAIN}" not in content and "$DOMAIN" not in content:
-                    continue
-                # Try to read DOMAIN from stack's .env
-                env_values = dotenv_values(compose_path / ".env")
-                if domain := env_values.get("DOMAIN"):
-                    return domain
-            except OSError:
-                continue  # Skip files we can't read
+            if len(parts) >= subdomain_parts:
+                # e.g., "app.lab.nijho.lt" -> "lab.nijho.lt"
+                return ".".join(parts[-3:])
+            if len(parts) >= min_domain_parts:
+                # e.g., "app.example.com" -> "example.com"
+                return ".".join(parts[-2:])
     return None
 
 
