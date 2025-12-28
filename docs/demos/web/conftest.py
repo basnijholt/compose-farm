@@ -21,24 +21,37 @@ import uvicorn
 
 from compose_farm.config import Config as CFConfig
 from compose_farm.config import load_config
+from compose_farm.executor import (
+    get_container_compose_labels as _original_get_compose_labels,
+)
+from compose_farm.glances import ContainerStats
+from compose_farm.glances import fetch_container_stats as _original_fetch_container_stats
 from compose_farm.state import load_state as _original_load_state
-from compose_farm.web.app import create_app
 from compose_farm.web.cdn import CDN_ASSETS, ensure_vendor_cache
+
+# NOTE: Do NOT import create_app here - it must be imported AFTER patches are applied
+# to ensure the patched get_config is used by all route modules
 
 if TYPE_CHECKING:
     from collections.abc import Generator
 
     from playwright.sync_api import BrowserContext, Page, Route
 
-# Stacks to exclude from demo recordings (exact match)
-DEMO_EXCLUDE_STACKS = {"arr"}
+# Substrings to exclude from demo recordings (case-insensitive)
+DEMO_EXCLUDE_PATTERNS = {"arr", "vpn", "tash"}
+
+
+def _should_exclude(name: str) -> bool:
+    """Check if a stack/container name should be excluded from demo."""
+    name_lower = name.lower()
+    return any(pattern in name_lower for pattern in DEMO_EXCLUDE_PATTERNS)
 
 
 def _get_filtered_config() -> CFConfig:
     """Load config but filter out excluded stacks."""
     config = load_config()
     filtered_stacks = {
-        name: host for name, host in config.stacks.items() if name not in DEMO_EXCLUDE_STACKS
+        name: host for name, host in config.stacks.items() if not _should_exclude(name)
     }
     return CFConfig(
         compose_dir=config.compose_dir,
@@ -46,6 +59,7 @@ def _get_filtered_config() -> CFConfig:
         stacks=filtered_stacks,
         traefik_file=config.traefik_file,
         traefik_stack=config.traefik_stack,
+        glances_stack=config.glances_stack,
         config_path=config.config_path,
     )
 
@@ -53,7 +67,37 @@ def _get_filtered_config() -> CFConfig:
 def _get_filtered_state(config: CFConfig) -> dict[str, str | list[str]]:
     """Load state but filter out excluded stacks."""
     state = _original_load_state(config)
-    return {name: host for name, host in state.items() if name not in DEMO_EXCLUDE_STACKS}
+    return {name: host for name, host in state.items() if not _should_exclude(name)}
+
+
+async def _filtered_fetch_container_stats(
+    host_name: str,
+    host_address: str,
+    port: int = 61208,
+    request_timeout: float = 10.0,
+) -> tuple[list[ContainerStats] | None, str | None]:
+    """Fetch container stats but filter out excluded containers."""
+    containers, error = await _original_fetch_container_stats(
+        host_name, host_address, port, request_timeout
+    )
+    if containers:
+        # Filter by container name (stack is empty at this point)
+        containers = [c for c in containers if not _should_exclude(c.name)]
+    return containers, error
+
+
+async def _filtered_get_compose_labels(
+    config: CFConfig,
+    host_name: str,
+) -> dict[str, tuple[str, str]]:
+    """Get compose labels but filter out excluded stacks."""
+    labels = await _original_get_compose_labels(config, host_name)
+    # Filter out containers whose stack (project) name should be excluded
+    return {
+        name: (stack, service)
+        for name, (stack, service) in labels.items()
+        if not _should_exclude(stack)
+    }
 
 
 @pytest.fixture(scope="session")
@@ -84,18 +128,22 @@ def server_url() -> Generator[str, None, None]:
 
     # Patch at source module level so all callers get filtered versions
     patches = [
-        # Patch load_state at source - all functions calling it get filtered state
+        # Patch load_config at source - get_config() calls this internally
+        patch("compose_farm.config.load_config", _get_filtered_config),
+        # Patch load_state at source and where imported
         patch("compose_farm.state.load_state", _get_filtered_state),
-        # Patch get_config where imported
-        patch("compose_farm.web.routes.pages.get_config", _get_filtered_config),
-        patch("compose_farm.web.routes.api.get_config", _get_filtered_config),
-        patch("compose_farm.web.routes.actions.get_config", _get_filtered_config),
-        patch("compose_farm.web.app.get_config", _get_filtered_config),
-        patch("compose_farm.web.ws.get_config", _get_filtered_config),
+        patch("compose_farm.web.routes.pages.load_state", _get_filtered_state),
+        # Patch container fetch to filter out excluded containers (Live Stats page)
+        patch("compose_farm.glances.fetch_container_stats", _filtered_fetch_container_stats),
+        # Patch compose labels to filter out excluded stacks
+        patch("compose_farm.executor.get_container_compose_labels", _filtered_get_compose_labels),
     ]
 
     for p in patches:
         p.start()
+
+    # Import create_app AFTER patches are started so route modules see patched get_config
+    from compose_farm.web.app import create_app  # noqa: PLC0415
 
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -160,6 +208,7 @@ def recording_context(
             if url.startswith(url_prefix):
                 route.fulfill(status=200, content_type=content_type, body=filepath.read_bytes())
                 return
+        print(f"UNCACHED CDN request: {url}")
         route.abort("failed")
 
     context.route(re.compile(r"https://(cdn\.jsdelivr\.net|unpkg\.com)/.*"), handle_cdn)
@@ -172,6 +221,35 @@ def recording_context(
 def recording_page(recording_context: BrowserContext) -> Generator[Page, None, None]:
     """Page with recording and slow motion enabled."""
     page = recording_context.new_page()
+    yield page
+    page.close()
+
+
+@pytest.fixture
+def wide_recording_context(
+    browser: Any,  # pytest-playwright's browser fixture
+    recording_output_dir: Path,
+) -> Generator[BrowserContext, None, None]:
+    """Browser context with wider viewport for demos needing more horizontal space.
+
+    NOTE: This fixture does NOT use CDN interception (unlike recording_context).
+    CDN interception was causing inline scripts from containers.html to be
+    removed from the DOM, likely due to Tailwind's browser plugin behavior.
+    """
+    context = browser.new_context(
+        viewport={"width": 1920, "height": 1080},
+        record_video_dir=str(recording_output_dir),
+        record_video_size={"width": 1920, "height": 1080},
+    )
+
+    yield context
+    context.close()
+
+
+@pytest.fixture
+def wide_recording_page(wide_recording_context: BrowserContext) -> Generator[Page, None, None]:
+    """Page with wider viewport for demos needing more horizontal space."""
+    page = wide_recording_context.new_page()
     yield page
     page.close()
 

@@ -9,7 +9,6 @@
 // ANSI escape codes for terminal output
 const ANSI = {
     RED: '\x1b[31m',
-    GREEN: '\x1b[32m',
     DIM: '\x1b[2m',
     RESET: '\x1b[0m',
     CRLF: '\r\n'
@@ -122,7 +121,6 @@ function whenXtermReady(callback, maxAttempts = 20) {
     };
     tryInit(maxAttempts);
 }
-window.whenXtermReady = whenXtermReady;
 
 // ============================================================================
 // TERMINAL
@@ -208,8 +206,6 @@ function initTerminal(elementId, taskId) {
     terminals[taskId] = { ...wrapper, ws };
     return { term, ws };
 }
-
-window.initTerminal = initTerminal;
 
 /**
  * Initialize an interactive exec terminal
@@ -432,7 +428,7 @@ function initMonacoEditors() {
  * Save all editors
  */
 async function saveAllEditors() {
-    const saveBtn = document.getElementById('save-btn') || document.getElementById('save-config-btn');
+    const saveBtn = getSaveButton();
     const results = [];
 
     for (const [id, editor] of Object.entries(editors)) {
@@ -468,10 +464,14 @@ async function saveAllEditors() {
  * Initialize save button handler
  */
 function initSaveButton() {
-    const saveBtn = document.getElementById('save-btn') || document.getElementById('save-config-btn');
+    const saveBtn = getSaveButton();
     if (!saveBtn) return;
 
     saveBtn.onclick = saveAllEditors;
+}
+
+function getSaveButton() {
+    return document.getElementById('save-btn') || document.getElementById('save-config-btn');
 }
 
 // ============================================================================
@@ -607,6 +607,7 @@ function playFabIntro() {
             cmd('action', 'Update All', 'Update all stacks', dashboardAction('update-all'), icons.refresh_cw),
             cmd('app', 'Theme', 'Change color theme', openThemePicker, icons.palette),
             cmd('app', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
+            cmd('app', 'Live Stats', 'View all containers across hosts', nav('/live-stats'), icons.box),
             cmd('app', 'Console', 'Go to console', nav('/console'), icons.terminal),
             cmd('app', 'Edit Config', 'Edit compose-farm.yaml', nav('/console#editor'), icons.file_code),
             cmd('app', 'Docs', 'Open documentation', openExternal('https://compose-farm.nijho.lt/'), icons.book_open),
@@ -743,11 +744,6 @@ function playFabIntro() {
         input.focus();
     }
 
-    function close() {
-        dialog.close();
-        restoreTheme();
-    }
-
     function exec() {
         const cmd = filtered[selected];
         if (cmd) {
@@ -869,6 +865,119 @@ function initPage() {
     initMonacoEditors();
     initSaveButton();
     updateShortcutKeys();
+    initLiveStats();
+    initSharedActionMenu();
+    maybeRunStackAction();
+}
+
+function navigateToStack(stack, action = null) {
+    const url = action ? `/stack/${stack}?action=${action}` : `/stack/${stack}`;
+    window.location.href = url;
+}
+
+/**
+ * Initialize shared action menu for container rows
+ */
+function initSharedActionMenu() {
+    const menuEl = document.getElementById('shared-action-menu');
+    if (!menuEl) return;
+    if (menuEl.dataset.bound === '1') return;
+    menuEl.dataset.bound = '1';
+
+    let hoverTimeout = null;
+
+    function showMenuForButton(btn, stack) {
+        menuEl.dataset.stack = stack;
+
+        // Position menu relative to button
+        const rect = btn.getBoundingClientRect();
+        menuEl.classList.remove('hidden');
+        menuEl.style.visibility = 'hidden';
+        const menuRect = menuEl.getBoundingClientRect();
+
+        const left = rect.right - menuRect.width + window.scrollX;
+        const top = rect.bottom + window.scrollY;
+
+        menuEl.style.top = `${top}px`;
+        menuEl.style.left = `${left}px`;
+        menuEl.style.visibility = '';
+
+        if (typeof liveStats !== 'undefined') liveStats.dropdownOpen = true;
+    }
+
+    function closeMenu() {
+        menuEl.classList.add('hidden');
+        if (typeof liveStats !== 'undefined') liveStats.dropdownOpen = false;
+        menuEl.dataset.stack = '';
+    }
+
+    function scheduleClose() {
+        if (hoverTimeout) clearTimeout(hoverTimeout);
+        hoverTimeout = setTimeout(closeMenu, 100);
+    }
+
+    function cancelClose() {
+        if (hoverTimeout) {
+            clearTimeout(hoverTimeout);
+            hoverTimeout = null;
+        }
+    }
+
+    // Button hover: show menu (event delegation on tbody)
+    const tbody = document.getElementById('container-rows');
+    if (tbody) {
+        tbody.addEventListener('mouseenter', (e) => {
+            const btn = e.target.closest('button[onclick^="openActionMenu"]');
+            if (!btn) return;
+
+            // Extract stack from onclick attribute
+            const match = btn.getAttribute('onclick')?.match(/openActionMenu\(event,\s*'([^']+)'\)/);
+            if (!match) return;
+
+            cancelClose();
+            showMenuForButton(btn, match[1]);
+        }, true);
+
+        tbody.addEventListener('mouseleave', (e) => {
+            const btn = e.target.closest('button[onclick^="openActionMenu"]');
+            if (btn) scheduleClose();
+        }, true);
+    }
+
+    // Keep menu open while hovering over it
+    menuEl.addEventListener('mouseenter', cancelClose);
+    menuEl.addEventListener('mouseleave', scheduleClose);
+
+    // Click action in menu
+    menuEl.addEventListener('click', (e) => {
+        const link = e.target.closest('a[data-action]');
+        const stack = menuEl.dataset.stack;
+        if (!link || !stack) return;
+
+        e.preventDefault();
+        navigateToStack(stack, link.dataset.action);
+        closeMenu();
+    });
+
+    // Also support click on button (for touch/accessibility)
+    window.openActionMenu = function(event, stack) {
+        event.stopPropagation();
+        showMenuForButton(event.currentTarget, stack);
+    };
+
+    // Close on outside click
+    document.body.addEventListener('click', (e) => {
+        if (!menuEl.classList.contains('hidden') &&
+            !menuEl.contains(e.target) &&
+            !e.target.closest('button[onclick^="openActionMenu"]')) {
+            closeMenu();
+        }
+    });
+
+    // Close on Escape
+    document.body.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMenu();
+    });
 }
 
 /**
@@ -887,6 +996,30 @@ function tryReconnectToTask(path) {
         expandTerminal();
         initTerminal('terminal-output', taskId);
     });
+}
+
+function maybeRunStackAction() {
+    const params = new URLSearchParams(window.location.search);
+    const stackEl = document.querySelector('[data-stack-name]');
+    const stackName = stackEl?.dataset?.stackName;
+    if (!stackName) return;
+
+    const action = params.get('action');
+    if (!action) return;
+
+    const button = document.querySelector(`button[hx-post="/api/stack/${stackName}/${action}"]`);
+    if (!button) return;
+
+    params.delete('action');
+    const newQuery = params.toString();
+    const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
+    history.replaceState({}, '', newUrl);
+
+    if (window.htmx) {
+        htmx.trigger(button, 'click');
+    } else {
+        button.click();
+    }
 }
 
 // Initialize on page load
@@ -930,3 +1063,443 @@ document.body.addEventListener('htmx:afterRequest', function(evt) {
         // Not valid JSON, ignore
     }
 });
+
+// ============================================================================
+// LIVE STATS PAGE
+// ============================================================================
+
+// State persists across SPA navigation (intervals must be cleared on re-init)
+let liveStats = {
+    sortCol: 9,
+    sortAsc: false,
+    lastUpdate: 0,
+    dropdownOpen: false,
+    scrolling: false,
+    scrollTimer: null,
+    loadingHosts: new Set(),
+    eventsBound: false,
+    intervals: [],
+    updateCheckTimes: new Map(),
+    autoRefresh: true
+};
+
+const REFRESH_INTERVAL = 5000;
+const UPDATE_CHECK_TTL = 120000;
+const NUMERIC_COLS = new Set([8, 9, 10, 11]);  // uptime, cpu, mem, net
+
+function filterTable() {
+    const textFilter = document.getElementById('filter-input')?.value.toLowerCase() || '';
+    const hostFilter = document.getElementById('host-filter')?.value || '';
+    const rows = document.querySelectorAll('#container-rows tr');
+    let visible = 0;
+    let total = 0;
+
+    rows.forEach(row => {
+        // Skip loading/empty/error rows (they have colspan)
+        if (row.cells[0]?.colSpan > 1) return;
+        total++;
+        const matchesText = !textFilter || row.textContent.toLowerCase().includes(textFilter);
+        const matchesHost = !hostFilter || row.dataset.host === hostFilter;
+        const show = matchesText && matchesHost;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+
+    const countEl = document.getElementById('container-count');
+    if (countEl) {
+        const isFiltering = textFilter || hostFilter;
+        countEl.textContent = total > 0
+            ? (isFiltering ? `${visible} of ${total} containers` : `${total} containers`)
+            : '';
+    }
+}
+window.filterTable = filterTable;
+
+function sortTable(col) {
+    if (liveStats.sortCol === col) {
+        liveStats.sortAsc = !liveStats.sortAsc;
+    } else {
+        liveStats.sortCol = col;
+        liveStats.sortAsc = false;
+    }
+    updateSortIndicators();
+    doSort();
+}
+window.sortTable = sortTable;
+
+function updateSortIndicators() {
+    document.querySelectorAll('thead th').forEach((th, i) => {
+        const span = th.querySelector('.sort-indicator');
+        if (span) {
+            span.textContent = (i === liveStats.sortCol) ? (liveStats.sortAsc ? '↑' : '↓') : '';
+            span.style.opacity = (i === liveStats.sortCol) ? '1' : '0.3';
+        }
+    });
+}
+
+function doSort() {
+    const tbody = document.getElementById('container-rows');
+    if (!tbody) return;
+
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    if (rows.length === 0) return;
+    if (rows.length === 1 && rows[0].cells[0]?.colSpan > 1) return;  // Empty state row
+
+    const isNumeric = NUMERIC_COLS.has(liveStats.sortCol);
+    rows.sort((a, b) => {
+        // Pin placeholders/empty rows to the bottom
+        const aLoading = a.classList.contains('loading-row') || a.classList.contains('host-empty') || a.cells[0]?.colSpan > 1;
+        const bLoading = b.classList.contains('loading-row') || b.classList.contains('host-empty') || b.cells[0]?.colSpan > 1;
+        if (aLoading && !bLoading) return 1;
+        if (!aLoading && bLoading) return -1;
+        if (aLoading && bLoading) return 0;
+
+        const aVal = a.cells[liveStats.sortCol]?.dataset?.sort ?? '';
+        const bVal = b.cells[liveStats.sortCol]?.dataset?.sort ?? '';
+        const cmp = isNumeric ? aVal - bVal : aVal.localeCompare(bVal);
+        return liveStats.sortAsc ? cmp : -cmp;
+    });
+
+    let index = 1;
+    const fragment = document.createDocumentFragment();
+    rows.forEach((row) => {
+        if (row.cells.length > 1) {
+            row.cells[0].textContent = index++;
+        }
+        fragment.appendChild(row);
+    });
+    tbody.appendChild(fragment);
+}
+
+function isLoading() {
+    return liveStats.loadingHosts.size > 0;
+}
+
+function getLiveStatsHosts() {
+    const tbody = document.getElementById('container-rows');
+    if (!tbody) return [];
+    const dataHosts = tbody.dataset.hosts || '';
+    return dataHosts.split(',').map(h => h.trim()).filter(Boolean);
+}
+
+function buildHostRow(host, message, className) {
+    return (
+        `<tr class="${className}" data-host="${host}">` +
+        `<td colspan="12" class="text-center py-2">` +
+        `<span class="text-sm opacity-60">${message}</span>` +
+        `</td></tr>`
+    );
+}
+
+async function checkUpdatesForHost(host) {
+    // Update checks always run - they only update small cells, not disruptive
+    const last = liveStats.updateCheckTimes.get(host) || 0;
+    if (Date.now() - last < UPDATE_CHECK_TTL) return;
+
+    const cells = Array.from(
+        document.querySelectorAll(`tr[data-host="${host}"] td.update-cell[data-image][data-tag]`)
+    );
+    if (cells.length === 0) return;
+
+    const items = [];
+    const seen = new Set();
+    cells.forEach(cell => {
+        const image = decodeURIComponent(cell.dataset.image || '');
+        const tag = decodeURIComponent(cell.dataset.tag || '');
+        const key = `${image}:${tag}`;
+        if (!image || seen.has(key)) return;
+        seen.add(key);
+        items.push({ image, tag });
+    });
+
+    if (items.length === 0) return;
+
+    try {
+        const response = await fetch('/api/containers/check-updates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items })
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        const results = Array.isArray(data?.results) ? data.results : [];
+        const htmlMap = new Map();
+        results.forEach(result => {
+            const key = `${result.image}:${result.tag}`;
+            htmlMap.set(key, result.html);
+        });
+
+        cells.forEach(cell => {
+            const image = decodeURIComponent(cell.dataset.image || '');
+            const tag = decodeURIComponent(cell.dataset.tag || '');
+            const key = `${image}:${tag}`;
+            const html = htmlMap.get(key);
+            if (html && cell.innerHTML !== html) {
+                cell.innerHTML = html;
+            }
+        });
+
+        liveStats.updateCheckTimes.set(host, Date.now());
+    } catch (e) {
+        console.error('Update check failed:', e);
+    }
+}
+
+function replaceHostRows(host, html) {
+    const tbody = document.getElementById('container-rows');
+    if (!tbody) return;
+
+    // Remove loading indicator for this host if present
+    const loadingRow = tbody.querySelector(`tr.loading-row[data-host="${host}"]`);
+    if (loadingRow) loadingRow.remove();
+
+    const template = document.createElement('template');
+    template.innerHTML = html.trim();
+    let newRows = Array.from(template.content.children).filter(el => el.tagName === 'TR');
+
+    if (newRows.length === 0) {
+        // Only show empty message if we don't have any rows for this host
+        const existing = tbody.querySelector(`tr[data-host="${host}"]:not(.loading-row)`);
+        if (!existing) {
+            template.innerHTML = buildHostRow(host, `No containers on ${host}`, 'host-empty');
+            newRows = Array.from(template.content.children);
+        }
+    }
+
+    // Track which IDs we've seen in this update
+    const newIds = new Set();
+
+    newRows.forEach(newRow => {
+        const id = newRow.id;
+        if (id) newIds.add(id);
+
+        if (id) {
+            const existing = document.getElementById(id);
+            if (existing) {
+                // Morph in place if Idiomorph is available, otherwise replace
+                if (typeof Idiomorph !== 'undefined') {
+                    Idiomorph.morph(existing, newRow);
+                } else {
+                    existing.replaceWith(newRow);
+                }
+
+                // Re-process HTMX if needed (though inner content usually carries attributes)
+                const morphedRow = document.getElementById(id);
+                if (window.htmx) htmx.process(morphedRow);
+
+                // Trigger refresh animation
+                if (morphedRow) {
+                    morphedRow.classList.add('row-updated');
+                    setTimeout(() => morphedRow.classList.remove('row-updated'), 500);
+                }
+            } else {
+                // New row - append (will be sorted later)
+                tbody.appendChild(newRow);
+                if (window.htmx) htmx.process(newRow);
+                // Animate new rows too
+                newRow.classList.add('row-updated');
+                setTimeout(() => newRow.classList.remove('row-updated'), 500);
+            }
+        } else {
+            // Fallback for rows without ID (like error/empty messages)
+            // Just append them, cleaning up previous generic rows handled below
+            tbody.appendChild(newRow);
+        }
+    });
+
+    // Remove orphaned rows for this host (rows that exist in DOM but not in new response)
+    // Be careful not to remove rows that were just added (if they lack IDs)
+    const currentHostRows = Array.from(tbody.querySelectorAll(`tr[data-host="${host}"]`));
+    currentHostRows.forEach(row => {
+        // Skip if it's one of the new rows we just appended (check presence in newRows?)
+        // Actually, if we just appended it, it is in DOM.
+        // We rely on ID matching.
+        // Error/Empty rows usually don't have ID, but we handle them by clearing old ones?
+        // Let's assume data rows have IDs.
+        if (row.id && !newIds.has(row.id)) {
+            row.remove();
+        }
+        // Also remove old empty/error messages if we now have data
+        if (!row.id && newRows.length > 0 && newRows[0].id) {
+             row.remove();
+        }
+    });
+
+    liveStats.loadingHosts.delete(host);
+    checkUpdatesForHost(host);
+    scheduleRowUpdate();
+}
+
+async function loadHostRows(host) {
+    liveStats.loadingHosts.add(host);
+    try {
+        const response = await fetch(`/api/containers/rows/${encodeURIComponent(host)}`);
+        const html = response.ok ? await response.text() : '';
+        replaceHostRows(host, html);
+    } catch (e) {
+        console.error(`Failed to load ${host}:`, e);
+        const msg = e.message || String(e);
+        // Fallback to simpler error display if replaceHostRows fails (e.g. Idiomorph missing)
+        try {
+            replaceHostRows(host, buildHostRow(host, `Error: ${msg}`, 'text-error'));
+        } catch (err2) {
+            // Last resort: find row and force innerHTML
+            const tbody = document.getElementById('container-rows');
+            const row = tbody?.querySelector(`tr[data-host="${host}"]`);
+            if (row) row.innerHTML = `<td colspan="12" class="text-center text-error">Error: ${msg}</td>`;
+        }
+    } finally {
+        liveStats.loadingHosts.delete(host);
+    }
+}
+
+function refreshLiveStats() {
+    if (liveStats.dropdownOpen || liveStats.scrolling) return;
+    const hosts = getLiveStatsHosts();
+    if (hosts.length === 0) return;
+    liveStats.lastUpdate = Date.now();
+    hosts.forEach(loadHostRows);
+}
+window.refreshLiveStats = refreshLiveStats;
+
+function toggleAutoRefresh() {
+    liveStats.autoRefresh = !liveStats.autoRefresh;
+    const timer = document.getElementById('refresh-timer');
+    if (timer) {
+        timer.classList.toggle('btn-error', !liveStats.autoRefresh);
+        timer.classList.toggle('btn-outline', liveStats.autoRefresh);
+    }
+    if (liveStats.autoRefresh) {
+        // Re-enabling: trigger immediate refresh
+        refreshLiveStats();
+    } else {
+        // Disabling: ensure update checks run for current data
+        const hosts = getLiveStatsHosts();
+        hosts.forEach(host => checkUpdatesForHost(host));
+    }
+}
+window.toggleAutoRefresh = toggleAutoRefresh;
+
+function initLiveStats() {
+    if (!document.getElementById('refresh-timer')) return;
+
+    // Clear previous intervals (important for SPA navigation)
+    liveStats.intervals.forEach(clearInterval);
+    liveStats.intervals = [];
+    liveStats.lastUpdate = Date.now();
+    liveStats.dropdownOpen = false;
+    liveStats.scrolling = false;
+    if (liveStats.scrollTimer) clearTimeout(liveStats.scrollTimer);
+    liveStats.scrollTimer = null;
+    liveStats.loadingHosts.clear();
+    liveStats.updateCheckTimes = new Map();
+    liveStats.autoRefresh = true;
+
+    if (!liveStats.eventsBound) {
+        liveStats.eventsBound = true;
+
+        // Dropdown pauses refresh
+        document.body.addEventListener('click', e => {
+            liveStats.dropdownOpen = !!e.target.closest('.dropdown');
+        });
+        document.body.addEventListener('focusin', e => {
+            if (e.target.closest('.dropdown')) liveStats.dropdownOpen = true;
+        });
+        document.body.addEventListener('focusout', () => {
+            setTimeout(() => {
+                liveStats.dropdownOpen = !!document.activeElement?.closest('.dropdown');
+            }, 150);
+        });
+        document.body.addEventListener('keydown', e => {
+            if (e.key === 'Escape') liveStats.dropdownOpen = false;
+        });
+
+        // Pause refresh while scrolling (helps on slow mobile browsers)
+        window.addEventListener('scroll', () => {
+            liveStats.scrolling = true;
+            if (liveStats.scrollTimer) clearTimeout(liveStats.scrollTimer);
+            liveStats.scrollTimer = setTimeout(() => {
+                liveStats.scrolling = false;
+            }, 200);
+        }, { passive: true });
+    }
+
+    // Auto-refresh every 5 seconds (skip if disabled, loading, or dropdown open)
+    liveStats.intervals.push(setInterval(() => {
+        if (!liveStats.autoRefresh) return;
+        if (liveStats.dropdownOpen || liveStats.scrolling || isLoading()) return;
+        refreshLiveStats();
+    }, REFRESH_INTERVAL));
+
+    // Timer display (updates every 100ms)
+    liveStats.intervals.push(setInterval(() => {
+        const timer = document.getElementById('refresh-timer');
+        if (!timer) {
+            liveStats.intervals.forEach(clearInterval);
+            return;
+        }
+
+        const loading = isLoading();
+        const paused = liveStats.dropdownOpen || liveStats.scrolling;
+        const elapsed = Date.now() - liveStats.lastUpdate;
+        window.refreshPaused = paused || loading || !liveStats.autoRefresh;
+
+        // Update refresh timer button
+        let text;
+        if (!liveStats.autoRefresh) {
+            text = 'OFF';
+        } else if (paused) {
+            text = '❚❚';
+        } else {
+            const remaining = Math.max(0, REFRESH_INTERVAL - elapsed);
+            text = loading ? '↻ …' : `↻ ${Math.ceil(remaining / 1000)}s`;
+        }
+        if (timer.textContent !== text) {
+            timer.textContent = text;
+        }
+
+        // Update "last updated" display
+        const lastUpdatedEl = document.getElementById('last-updated');
+        if (lastUpdatedEl) {
+            const secs = Math.floor(elapsed / 1000);
+            const updatedText = secs < 5 ? 'Updated just now' : `Updated ${secs}s ago`;
+            if (lastUpdatedEl.textContent !== updatedText) {
+                lastUpdatedEl.textContent = updatedText;
+            }
+        }
+    }, 100));
+
+    updateSortIndicators();
+    refreshLiveStats();
+}
+
+function scheduleRowUpdate() {
+    // Sort and filter immediately to prevent flicker
+    doSort();
+    filterTable();
+}
+
+// ============================================================================
+// STACKS BY HOST FILTER
+// ============================================================================
+
+function sbhFilter() {
+    const query = (document.getElementById('sbh-filter')?.value || '').toLowerCase();
+    const hostFilter = document.getElementById('sbh-host-select')?.value || '';
+
+    document.querySelectorAll('.sbh-group').forEach(group => {
+        if (hostFilter && group.dataset.h !== hostFilter) {
+            group.hidden = true;
+            return;
+        }
+
+        let visibleCount = 0;
+        group.querySelectorAll('li[data-s]').forEach(li => {
+            const show = !query || li.dataset.s.includes(query);
+            li.hidden = !show;
+            if (show) visibleCount++;
+        });
+        group.hidden = visibleCount === 0;
+    });
+}
+window.sbhFilter = sbhFilter;

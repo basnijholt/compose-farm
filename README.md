@@ -54,6 +54,7 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
   - [CLI `--help` Output](#cli---help-output)
   - [Auto-Migration](#auto-migration)
 - [Traefik Multihost Ingress (File Provider)](#traefik-multihost-ingress-file-provider)
+- [Host Resource Monitoring (Glances)](#host-resource-monitoring-glances)
 - [Comparison with Alternatives](#comparison-with-alternatives)
 - [License](#license)
 
@@ -1324,6 +1325,52 @@ Update your Traefik config to use directory watching instead of a single file:
 - --providers.file.directory=/dynamic.d
 - --providers.file.watch=true
 ```
+
+## Host Resource Monitoring (Glances)
+
+The web UI can display real-time CPU, memory, and load stats for all configured hosts. This uses [Glances](https://nicolargo.github.io/glances/), a cross-platform system monitoring tool with a REST API.
+
+**Setup**
+
+1. Deploy a Glances stack that runs on all hosts:
+
+```yaml
+# glances/compose.yaml
+name: glances
+services:
+  glances:
+    image: nicolargo/glances:latest
+    container_name: glances
+    restart: unless-stopped
+    pid: host
+    ports:
+      - "61208:61208"
+    environment:
+      - GLANCES_OPT=-w  # Enable web server mode
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+```
+
+2. Add it to your config as a multi-host stack:
+
+```yaml
+# compose-farm.yaml
+stacks:
+  glances: all  # Runs on every host
+
+glances_stack: glances  # Enables resource stats in web UI
+```
+
+3. Deploy: `cf up glances`
+
+The web UI dashboard will now show a "Host Resources" section with live stats from all hosts. Hosts where Glances is unreachable show an error indicator.
+
+**Live Stats Page**
+
+With Glances configured, a Live Stats page (`/live-stats`) shows all running containers across all hosts:
+
+- **Columns**: Stack, Service, Host, Image, Status, Uptime, CPU, Memory, Net I/O
+- **Features**: Sorting, filtering, live updates (no SSH required—uses Glances REST API)
 
 ## Comparison with Alternatives
 

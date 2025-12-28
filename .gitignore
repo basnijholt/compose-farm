@@ -37,6 +37,7 @@ ENV/
 .coverage
 .pytest_cache/
 htmlcov/
+.code/
 
 # Local config (don't commit real configs)
 compose-farm.yaml
@@ -45,3 +46,4 @@ coverage.xml
 .env
 homepage/
 site/
+.playwright-mcp/

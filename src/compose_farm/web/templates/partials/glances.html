@@ -1,0 +1,66 @@
+{# Glances resource stats display #}
+{% from "partials/icons.html" import cpu, memory_stick, gauge, server, activity, hard_drive, arrow_down_up, refresh_cw %}
+
+{% macro progress_bar(percent, color="primary") %}
+<div class="flex items-center gap-2 min-w-32">
+    <progress class="progress progress-{{ color }} flex-1" value="{{ percent }}" max="100"></progress>
+    <span class="text-xs w-10 text-right">{{ "%.1f"|format(percent) }}%</span>
+</div>
+{% endmacro %}
+
+{% macro format_rate(bytes_per_sec) %}
+{%- if bytes_per_sec >= 1048576 -%}
+{{ "%.1f"|format(bytes_per_sec / 1048576) }} MB/s
+{%- elif bytes_per_sec >= 1024 -%}
+{{ "%.1f"|format(bytes_per_sec / 1024) }} KB/s
+{%- else -%}
+{{ "%.0f"|format(bytes_per_sec) }} B/s
+{%- endif -%}
+{% endmacro %}
+
+{% macro host_row(host_stats) %}
+<tr>
+    <td class="font-medium">{{ server(14) }} {{ host_stats.host }}</td>
+    {% if host_stats.error %}
+    <td colspan="5" class="text-error text-xs">{{ host_stats.error }}</td>
+    {% else %}
+    <td>{{ progress_bar(host_stats.cpu_percent, "info") }}</td>
+    <td>{{ progress_bar(host_stats.mem_percent, "success") }}</td>
+    <td>{{ progress_bar(host_stats.disk_percent, "warning") }}</td>
+    <td class="text-xs font-mono">↓{{ format_rate(host_stats.net_rx_rate) }} ↑{{ format_rate(host_stats.net_tx_rate) }}</td>
+    <td class="text-sm">{{ "%.1f"|format(host_stats.load) }}</td>
+    {% endif %}
+</tr>
+{% endmacro %}
+
+<div class="card bg-base-100 shadow mt-4 mb-4">
+    <div class="card-body p-4">
+        <div class="flex items-center justify-between">
+            <h2 class="card-title text-base gap-2">{{ activity(18) }} Host Resources</h2>
+            <button class="btn btn-ghost btn-xs opacity-50 hover:opacity-100"
+                    hx-get="/api/glances" hx-target="#glances-stats" hx-swap="innerHTML"
+                    title="Refresh">
+                {{ refresh_cw(14) }}
+            </button>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Host</th>
+                        <th>{{ cpu(14) }} CPU</th>
+                        <th>{{ memory_stick(14) }} Memory</th>
+                        <th>{{ hard_drive(14) }} Disk</th>
+                        <th>{{ arrow_down_up(14) }} Net</th>
+                        <th>{{ gauge(14) }} Load</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for host_name, host_stats in stats.items() %}
+                    {{ host_row(host_stats) }}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

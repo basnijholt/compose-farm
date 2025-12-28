@@ -51,9 +51,31 @@ Press `Ctrl+K` (or `Cmd+K` on macOS) to open the command palette. Use fuzzy sear
 ### Dashboard (`/`)
 
 - Stack overview with status indicators
-- Host statistics
+- Host statistics (CPU, memory, disk, load via Glances)
 - Pending operations (migrations, orphaned stacks)
 - Quick actions via command palette
+
+### Live Stats (`/live-stats`)
+
+Real-time container monitoring across all hosts, powered by [Glances](https://nicolargo.github.io/glances/).
+
+- **Live metrics**: CPU, memory, network I/O for every container
+- **Auto-refresh**: Updates every 3 seconds (pauses when dropdown menus are open)
+- **Filtering**: Type to filter containers by name, stack, host, or image
+- **Sorting**: Click column headers to sort by any metric
+- **Update detection**: Shows when container images have updates available
+
+<video autoplay loop muted playsinline>
+  <source src="/assets/web-live_stats.webm" type="video/webm">
+</video>
+
+#### Requirements
+
+Live Stats requires Glances to be deployed on all hosts:
+
+1. Add `glances_stack: glances` to your `compose-farm.yaml`
+2. Deploy a Glances stack that runs on all hosts (see [example](https://github.com/basnijholt/compose-farm/tree/main/examples/glances))
+3. Glances must expose its REST API on port 61208
 
 ### Stack Detail (`/stack/{name}`)
 

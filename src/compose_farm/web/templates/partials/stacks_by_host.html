@@ -20,20 +20,4 @@
     {% else %}
     <p class="text-base-content/60 italic">No stacks currently running.</p>
     {% endfor %}
-    <script>
-    function sbhFilter() {
-        const q = (document.getElementById('sbh-filter')?.value || '').toLowerCase();
-        const h = document.getElementById('sbh-host-select')?.value || '';
-        document.querySelectorAll('.sbh-group').forEach(g => {
-            if (h && g.dataset.h !== h) { g.hidden = true; return; }
-            let n = 0;
-            g.querySelectorAll('li[data-s]').forEach(li => {
-                const show = !q || li.dataset.s.includes(q);
-                li.hidden = !show;
-                if (show) n++;
-            });
-            g.hidden = !n;
-        });
-    }
-    </script>
 {% endcall %}
