@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import re
 from typing import TYPE_CHECKING
 from urllib.parse import quote
@@ -299,11 +300,13 @@ def _render_update_badge(result: TagCheckResult) -> str:
         updates = result.available_updates
         count = len(updates)
         title = f"Newer: {', '.join(updates[:3])}" + ("..." if count > 3 else "")  # noqa: PLR2004
+        tip = html.escape(title, quote=True)
         return (
-            f'<span class="badge badge-warning badge-xs cursor-help" title="{title}">'
-            f"{count} new</span>"
+            f'<span class="tooltip" data-tip="{tip}">'
+            f'<span class="badge badge-warning badge-xs cursor-help">{count} new</span>'
+            "</span>"
         )
-    return '<span class="text-success text-xs" title="Up to date">✓</span>'
+    return '<span class="tooltip" data-tip="Up to date"><span class="text-success text-xs">✓</span></span>'
 
 
 @router.post("/api/containers/check-updates", response_class=JSONResponse)
