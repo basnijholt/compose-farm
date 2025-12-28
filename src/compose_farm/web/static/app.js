@@ -9,7 +9,6 @@
 // ANSI escape codes for terminal output
 const ANSI = {
     RED: '\x1b[31m',
-    GREEN: '\x1b[32m',
     DIM: '\x1b[2m',
     RESET: '\x1b[0m',
     CRLF: '\r\n'
@@ -744,11 +743,6 @@ function playFabIntro() {
         input.focus();
     }
 
-    function close() {
-        dialog.close();
-        restoreTheme();
-    }
-
     function exec() {
         const cmd = filtered[selected];
         if (cmd) {
@@ -1197,10 +1191,6 @@ async function checkUpdatesForHost(host) {
     }
 }
 
-function scheduleUpdateChecks(host) {
-    checkUpdatesForHost(host);
-}
-
 function replaceHostRows(host, html) {
     const tbody = document.getElementById('container-rows');
     if (!tbody) return;
@@ -1272,7 +1262,7 @@ function replaceHostRows(host, html) {
     });
 
     liveStats.loadingHosts.delete(host);
-    scheduleUpdateChecks(host);
+    checkUpdatesForHost(host);
     scheduleRowUpdate();
 }
 
@@ -1370,7 +1360,7 @@ function initLiveStats() {
         }, { passive: true });
     }
 
-    // Auto-refresh every 3 seconds (skip if disabled, loading, or dropdown open)
+    // Auto-refresh every 5 seconds (skip if disabled, loading, or dropdown open)
     liveStats.intervals.push(setInterval(() => {
         if (!liveStats.autoRefresh) return;
         if (liveStats.dropdownOpen || liveStats.scrolling || isLoading()) return;
@@ -1387,8 +1377,6 @@ function initLiveStats() {
 
         const loading = isLoading();
         const paused = liveStats.dropdownOpen || liveStats.scrolling;
-        window.refreshPaused = paused || loading || !liveStats.autoRefresh;
-
         let text;
         if (!liveStats.autoRefresh) {
             text = 'OFF';
