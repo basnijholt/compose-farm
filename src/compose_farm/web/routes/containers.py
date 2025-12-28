@@ -338,6 +338,11 @@ async def check_container_updates_batch(request: Request) -> JSONResponse:
                 results.append({"image": image, "tag": tag, "html": _DASH_HTML})
                 continue
 
+            # NOTE: Tag-based checks cannot detect digest changes for moving tags
+            # like "latest". A future improvement could compare remote vs local
+            # digests using dockerfarm-log.toml (from `cf refresh`) or a per-host
+            # digest lookup.
+
             cached_html: str | None = _update_check_cache.get(full_image)
             if cached_html is not None:
                 results.append({"image": image, "tag": tag, "html": cached_html})
