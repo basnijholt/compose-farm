@@ -76,22 +76,14 @@ def _load_config_with_path(path: Path | None) -> tuple[Path, Config]:
 
     Exits with error if config not found or invalid.
     """
-    from compose_farm.config import load_config  # noqa: PLC0415
+    from compose_farm.cli.common import load_config_or_exit  # noqa: PLC0415
 
     config_file = _get_config_file(path)
     if config_file is None:
         print_error(MSG_CONFIG_NOT_FOUND)
         raise typer.Exit(1)
 
-    try:
-        cfg = load_config(config_file)
-    except FileNotFoundError as e:
-        print_error(str(e))
-        raise typer.Exit(1) from e
-    except Exception as e:
-        print_error(f"Invalid config: {e}")
-        raise typer.Exit(1) from e
-
+    cfg = load_config_or_exit(config_file)
     return config_file, cfg
 
 

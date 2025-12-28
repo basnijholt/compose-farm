@@ -142,6 +142,9 @@ def load_config_or_exit(config_path: Path | None) -> Config:
     except FileNotFoundError as e:
         print_error(str(e))
         raise typer.Exit(1) from e
+    except Exception as e:
+        print_error(f"Invalid config: {e}")
+        raise typer.Exit(1) from e
 
 
 def get_stacks(
