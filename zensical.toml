@@ -16,6 +16,7 @@ extra_javascript = ["javascripts/video-fix.js"]
 nav = [
   { "Home" = "index.md" },
   { "Getting Started" = "getting-started.md" },
+  { "Docker Deployment" = "docker-deployment.md" },
   { "Configuration" = "configuration.md" },
   { "Commands" = "commands.md" },
   { "Web UI" = "web-ui.md" },
