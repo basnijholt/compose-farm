@@ -286,6 +286,9 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
             stack, service = _infer_stack_service(c.name)
         c.stack, c.service = stack, service
 
+    # Only show containers from stacks in config (filters out orphaned/unknown stacks)
+    containers = [c for c in containers if not c.stack or c.stack in config.stacks]
+
     # Use placeholder index (will be renumbered by JS after all hosts load)
     rows = "\n".join(_render_row(c, "-") for c in containers)
     t2 = time.monotonic()

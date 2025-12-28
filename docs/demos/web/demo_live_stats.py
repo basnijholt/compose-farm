@@ -48,8 +48,8 @@ def test_demo_live_stats(wide_recording_page: Page, server_url: str) -> None:
     page.wait_for_selector("#container-rows tr:not(:has(.loading))", timeout=30000)
     pause(page, 2000)  # Let viewer see the full table with timer
 
-    # Filter containers
-    slow_type(page, "#filter-input", "jelly", delay=100)
+    # Demonstrate filtering
+    slow_type(page, "#filter-input", "grocy", delay=100)
     pause(page, 1500)  # Show filtered results
 
     # Clear filter
@@ -71,13 +71,14 @@ def test_demo_live_stats(wide_recording_page: Page, server_url: str) -> None:
     # Watch auto-refresh timer count down
     pause(page, 3500)  # Wait for refresh to happen
 
-    # Click on a dropdown to show pause behavior
-    dropdown = page.locator(".dropdown").first
-    dropdown.click()
-    pause(page, 2000)  # Show paused state (timer shows ⏸)
+    # Hover on action menu to show pause behavior
+    action_btn = page.locator('button[onclick^="openActionMenu"]').first
+    action_btn.scroll_into_view_if_needed()
+    action_btn.hover()
+    pause(page, 2000)  # Show paused state (timer shows ⏸) and action menu
 
-    # Click outside to close dropdown and resume refresh
-    page.click("body", position={"x": 10, "y": 10})
+    # Move away to close menu and resume refresh
+    page.locator("h2").first.hover()  # Move to header
     pause(page, 3500)  # Watch countdown resume and refresh happen
 
     # Final pause
