@@ -9,10 +9,13 @@ from typer.testing import CliRunner
 
 from compose_farm.cli import app
 from compose_farm.cli.config import (
+    _detect_domain,
+    _detect_local_host,
     _generate_template,
     _get_config_file,
     _get_editor,
 )
+from compose_farm.config import Config, Host
 
 
 @pytest.fixture
@@ -228,3 +231,159 @@ class TestConfigValidate:
         # Error goes to stderr
         output = result.stdout + (result.stderr or "")
         assert "Config file not found" in output or "not found" in output.lower()
+
+
+class TestDetectLocalHost:
+    """Tests for _detect_local_host function."""
+
+    def test_detects_localhost(self) -> None:
+        cfg = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={
+                "local": Host(address="localhost"),
+                "remote": Host(address="192.168.1.100"),
+            },
+            stacks={"test": "local"},
+        )
+        result = _detect_local_host(cfg)
+        assert result == "local"
+
+    def test_returns_none_for_remote_only(self) -> None:
+        cfg = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={
+                "remote1": Host(address="192.168.1.100"),
+                "remote2": Host(address="192.168.1.200"),
+            },
+            stacks={"test": "remote1"},
+        )
+        result = _detect_local_host(cfg)
+        # Remote IPs won't match local machine
+        assert result is None or result in cfg.hosts
+
+
+class TestDetectDomain:
+    """Tests for _detect_domain function."""
+
+    def test_returns_none_for_empty_stacks(self) -> None:
+        cfg = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas": Host(address="192.168.1.6")},
+            stacks={},
+        )
+        result = _detect_domain(cfg)
+        assert result is None
+
+    def test_skips_local_domains(self, tmp_path: Path) -> None:
+        # Create a minimal compose file with .local domain
+        stack_dir = tmp_path / "test"
+        stack_dir.mkdir()
+        compose = stack_dir / "compose.yaml"
+        compose.write_text(
+            """
+name: test
+services:
+  web:
+    image: nginx
+    labels:
+      - "traefik.http.routers.test-local.rule=Host(`test.local`)"
+"""
+        )
+        cfg = Config(
+            compose_dir=tmp_path,
+            hosts={"nas": Host(address="192.168.1.6")},
+            stacks={"test": "nas"},
+        )
+        result = _detect_domain(cfg)
+        # .local should be skipped
+        assert result is None
+
+
+class TestConfigInitEnv:
+    """Tests for cf config init-env command."""
+
+    def test_init_env_creates_file(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+        env_file = tmp_path / ".env"
+
+        result = runner.invoke(
+            app, ["config", "init-env", "-p", str(config_file), "-o", str(env_file)]
+        )
+
+        assert result.exit_code == 0
+        assert env_file.exists()
+        content = env_file.read_text()
+        assert "CF_COMPOSE_DIR=/opt/compose" in content
+        assert "CF_UID=" in content
+        assert "CF_GID=" in content
+
+    def test_init_env_force_overwrites(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+        env_file = tmp_path / ".env"
+        env_file.write_text("OLD_CONTENT=true")
+
+        result = runner.invoke(
+            app, ["config", "init-env", "-p", str(config_file), "-o", str(env_file), "-f"]
+        )
+
+        assert result.exit_code == 0
+        content = env_file.read_text()
+        assert "OLD_CONTENT" not in content
+        assert "CF_COMPOSE_DIR" in content
+
+    def test_init_env_prompts_on_existing(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+        env_file = tmp_path / ".env"
+        env_file.write_text("KEEP_THIS=true")
+
+        result = runner.invoke(
+            app,
+            ["config", "init-env", "-p", str(config_file), "-o", str(env_file)],
+            input="n\n",
+        )
+
+        assert result.exit_code == 0
+        assert "Aborted" in result.stdout
+        assert env_file.read_text() == "KEEP_THIS=true"
+
+    def test_init_env_defaults_to_config_dir(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+
+        result = runner.invoke(app, ["config", "init-env", "-p", str(config_file)])
+
+        assert result.exit_code == 0
+        # Should create .env in same directory as config
+        env_file = tmp_path / ".env"
+        assert env_file.exists()

@@ -11,6 +11,7 @@ from compose_farm.glances import (
     DEFAULT_GLANCES_PORT,
     ContainerStats,
     HostStats,
+    _get_glances_address,
     fetch_all_container_stats,
     fetch_all_host_stats,
     fetch_container_stats,
@@ -347,3 +348,62 @@ class TestFetchAllContainerStats:
         hosts = {c.host for c in containers}
         assert "nas" in hosts
         assert "nuc" in hosts
+
+
+class TestGetGlancesAddress:
+    """Tests for _get_glances_address function."""
+
+    def test_returns_host_address_outside_container(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without CF_WEB_STACK, always return host address."""
+        monkeypatch.delenv("CF_WEB_STACK", raising=False)
+        monkeypatch.delenv("CF_LOCAL_HOST", raising=False)
+        host = Host(address="192.168.1.6")
+        result = _get_glances_address("nas", host, "glances")
+        assert result == "192.168.1.6"
+
+    def test_returns_host_address_without_glances_container(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """In container without glances_stack config, return host address."""
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        monkeypatch.delenv("CF_LOCAL_HOST", raising=False)
+        host = Host(address="192.168.1.6")
+        result = _get_glances_address("nas", host, None)
+        assert result == "192.168.1.6"
+
+    def test_returns_container_name_for_explicit_local_host(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """CF_LOCAL_HOST explicitly marks which host uses container name."""
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        monkeypatch.setenv("CF_LOCAL_HOST", "nas")
+        host = Host(address="192.168.1.6")
+        result = _get_glances_address("nas", host, "glances")
+        assert result == "glances"
+
+    def test_returns_host_address_for_non_local_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Non-local hosts use their IP address even in container mode."""
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        monkeypatch.setenv("CF_LOCAL_HOST", "nas")
+        host = Host(address="192.168.1.2")
+        result = _get_glances_address("nuc", host, "glances")
+        assert result == "192.168.1.2"
+
+    def test_fallback_to_is_local_detection(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Without CF_LOCAL_HOST, falls back to is_local detection."""
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        monkeypatch.delenv("CF_LOCAL_HOST", raising=False)
+        # Use localhost which should be detected as local
+        host = Host(address="localhost")
+        result = _get_glances_address("local", host, "glances")
+        assert result == "glances"
+
+    def test_remote_host_not_affected_by_container_mode(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Remote hosts always use their IP, even in container mode."""
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        monkeypatch.delenv("CF_LOCAL_HOST", raising=False)
+        host = Host(address="192.168.1.100")
+        result = _get_glances_address("remote", host, "glances")
+        assert result == "192.168.1.100"
