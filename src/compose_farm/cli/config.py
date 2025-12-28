@@ -71,6 +71,30 @@ def _get_config_file(path: Path | None) -> Path | None:
     return config_path.resolve() if config_path else None
 
 
+def _load_config_with_path(path: Path | None) -> tuple[Path, Config]:
+    """Load config and return both the resolved path and Config object.
+
+    Exits with error if config not found or invalid.
+    """
+    from compose_farm.config import load_config  # noqa: PLC0415
+
+    config_file = _get_config_file(path)
+    if config_file is None:
+        print_error(MSG_CONFIG_NOT_FOUND)
+        raise typer.Exit(1)
+
+    try:
+        cfg = load_config(config_file)
+    except FileNotFoundError as e:
+        print_error(str(e))
+        raise typer.Exit(1) from e
+    except Exception as e:
+        print_error(f"Invalid config: {e}")
+        raise typer.Exit(1) from e
+
+    return config_file, cfg
+
+
 def _report_missing_config(explicit_path: Path | None = None) -> None:
     """Report that a config file was not found."""
     console.print("[yellow]Config file not found.[/yellow]")
@@ -210,23 +234,7 @@ def config_validate(
     path: _PathOption = None,
 ) -> None:
     """Validate the config file syntax and schema."""
-    config_file = _get_config_file(path)
-
-    if config_file is None:
-        print_error(MSG_CONFIG_NOT_FOUND)
-        raise typer.Exit(1)
-
-    # Lazy import: pydantic adds ~50ms to startup, only load when actually needed
-    from compose_farm.config import load_config  # noqa: PLC0415
-
-    try:
-        cfg = load_config(config_file)
-    except FileNotFoundError as e:
-        print_error(str(e))
-        raise typer.Exit(1) from e
-    except Exception as e:
-        print_error(f"Invalid config: {e}")
-        raise typer.Exit(1) from e
+    config_file, cfg = _load_config_with_path(path)
 
     print_success(f"Valid config: {config_file}")
     console.print(f"  Hosts: {len(cfg.hosts)}")
@@ -357,18 +365,7 @@ def config_init_env(
         cf config init-env -o .env   # Create .env in current directory
 
     """
-    from compose_farm.config import load_config  # noqa: PLC0415
-
-    config_file = _get_config_file(path)
-    if config_file is None:
-        print_error(MSG_CONFIG_NOT_FOUND)
-        raise typer.Exit(1)
-
-    try:
-        cfg = load_config(config_file)
-    except Exception as e:
-        print_error(f"Failed to load config: {e}")
-        raise typer.Exit(1) from e
+    config_file, cfg = _load_config_with_path(path)
 
     # Determine output path
     env_path = output.expanduser().resolve() if output else config_file.parent / ".env"
