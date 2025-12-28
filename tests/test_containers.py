@@ -219,7 +219,7 @@ class TestContainersRowsAPI:
             response = client.get("/api/containers/rows")
 
         assert response.status_code == 200
-        assert "<tr>" in response.text
+        assert "<tr " in response.text  # <tr id="..."> has attributes
         assert "nginx" in response.text
         assert "running" in response.text
 
