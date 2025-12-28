@@ -1003,6 +1003,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ validate   Validate the config file syntax and schema.                       │
 │ symlink    Create a symlink from the default config location to a config     │
 │            file.                                                             │
+│ init-env   Generate a .env file for Docker deployment.                       │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```
