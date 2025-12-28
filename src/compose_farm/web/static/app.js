@@ -1053,8 +1053,12 @@ function filterTable() {
     const hostFilter = document.getElementById('host-filter')?.value || '';
     const rows = document.querySelectorAll('#container-rows tr');
     let visible = 0;
+    let total = 0;
 
     rows.forEach(row => {
+        // Skip loading/empty/error rows (they have colspan)
+        if (row.cells[0]?.colSpan > 1) return;
+        total++;
         const matchesText = !textFilter || row.textContent.toLowerCase().includes(textFilter);
         const matchesHost = !hostFilter || row.dataset.host === hostFilter;
         const show = matchesText && matchesHost;
@@ -1064,7 +1068,10 @@ function filterTable() {
 
     const countEl = document.getElementById('container-count');
     if (countEl) {
-        countEl.textContent = (textFilter || hostFilter) ? `${visible} matching` : '';
+        const isFiltering = textFilter || hostFilter;
+        countEl.textContent = total > 0
+            ? (isFiltering ? `${visible} of ${total} containers` : `${total} containers`)
+            : '';
     }
 }
 window.filterTable = filterTable;
@@ -1415,7 +1422,7 @@ function scheduleRowUpdate() {
     rowUpdateTimer = setTimeout(() => {
         rowUpdateTimer = null;
         doSort();
-        if (document.getElementById('filter-input')?.value) filterTable();
+        filterTable();  // Always call to update count display
     }, 50);  // 50ms debounce
 }
 
