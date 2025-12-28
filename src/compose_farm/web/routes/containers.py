@@ -326,7 +326,7 @@ async def check_container_updates_batch(request: Request) -> JSONResponse:
         return JSONResponse({"results": []})
 
     results = []
-    skip_tags = {"latest", "dev", "develop", "main", "master", "nightly"}
+    skip_tags: set[str] = set()
 
     from compose_farm.registry import check_image_updates  # noqa: PLC0415
 
