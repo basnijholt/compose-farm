@@ -1049,19 +1049,22 @@ const UPDATE_CHECK_TTL = 120000;
 const NUMERIC_COLS = new Set([8, 9, 10, 11]);  // uptime, cpu, mem, net
 
 function filterTable() {
-    const filter = document.getElementById('filter-input')?.value.toLowerCase() || '';
+    const textFilter = document.getElementById('filter-input')?.value.toLowerCase() || '';
+    const hostFilter = document.getElementById('host-filter')?.value || '';
     const rows = document.querySelectorAll('#container-rows tr');
     let visible = 0;
 
     rows.forEach(row => {
-        const show = row.textContent.toLowerCase().includes(filter);
+        const matchesText = !textFilter || row.textContent.toLowerCase().includes(textFilter);
+        const matchesHost = !hostFilter || row.dataset.host === hostFilter;
+        const show = matchesText && matchesHost;
         row.style.display = show ? '' : 'none';
         if (show) visible++;
     });
 
     const countEl = document.getElementById('container-count');
     if (countEl) {
-        countEl.textContent = filter ? `${visible} matching` : '';
+        countEl.textContent = (textFilter || hostFilter) ? `${visible} matching` : '';
     }
 }
 window.filterTable = filterTable;

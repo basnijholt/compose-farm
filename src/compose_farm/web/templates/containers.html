@@ -30,6 +30,10 @@
         </div>
         <input type="text" id="filter-input" placeholder="Filter containers..."
                class="input input-bordered input-sm w-64" onkeyup="filterTable()">
+        <select id="host-filter" class="select select-bordered select-sm" onchange="filterTable()">
+            <option value="">All hosts</option>
+            {% for host in hosts %}<option value="{{ host }}">{{ host }}</option>{% endfor %}
+        </select>
         <span id="container-count" class="text-sm text-base-content/60"></span>
     </div>
 
