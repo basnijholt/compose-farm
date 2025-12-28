@@ -881,6 +881,8 @@ function navigateToStack(stack, action = null) {
 function initSharedActionMenu() {
     const menuEl = document.getElementById('shared-action-menu');
     if (!menuEl) return;
+    if (menuEl.dataset.bound === '1') return;
+    menuEl.dataset.bound = '1';
 
     window.openActionMenu = function(event, stack) {
         event.stopPropagation();
