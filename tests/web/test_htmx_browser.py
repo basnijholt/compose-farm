@@ -2422,9 +2422,11 @@ class TestContainersPagePause:
             timeout=TIMEOUT,
         )
 
-        # Wait for timer to start (refreshPaused is set in timer interval)
-        page.wait_for_function("typeof window.refreshPaused === 'boolean'", timeout=TIMEOUT)
-        page.wait_for_function("window.refreshPaused === false", timeout=TIMEOUT)
+        # Wait for timer to start
+        page.wait_for_function(
+            "document.getElementById('refresh-timer')?.textContent?.includes('↻')",
+            timeout=TIMEOUT,
+        )
 
         # Click on a dropdown to open it
         dropdown_label = page.locator(".dropdown label").first
@@ -2434,17 +2436,15 @@ class TestContainersPagePause:
         page.wait_for_timeout(200)
 
         # Verify pause is engaged
-        paused_after_click = page.evaluate("window.refreshPaused")
         timer_text = page.locator("#refresh-timer").inner_text()
 
-        assert paused_after_click is True, (
-            f"Refresh should be paused after clicking dropdown. "
-            f"refreshPaused={paused_after_click}, timer='{timer_text}'"
+        assert timer_text == "❚❚", (
+            f"Refresh should be paused after clicking dropdown. timer='{timer_text}'"
         )
         assert "❚❚" in timer_text, f"Timer should show pause icon, got '{timer_text}'"
 
     def test_refresh_stays_paused_while_dropdown_open(self, page: Page, server_url: str) -> None:
-        """Refresh remains paused for duration dropdown is open (>3s refresh interval).
+        """Refresh remains paused for duration dropdown is open (>5s refresh interval).
 
         This is the critical test for the pause bug: refresh should stay paused
         for longer than the 3-second refresh interval while dropdown is open.
@@ -2476,8 +2476,10 @@ class TestContainersPagePause:
         )
 
         # Wait for timer to start
-        page.wait_for_function("typeof window.refreshPaused === 'boolean'", timeout=TIMEOUT)
-        page.wait_for_function("window.refreshPaused === false", timeout=TIMEOUT)
+        page.wait_for_function(
+            "document.getElementById('refresh-timer')?.textContent?.includes('↻')",
+            timeout=TIMEOUT,
+        )
 
         # Record a marker in the first row to detect if refresh happened
         page.evaluate("""
@@ -2491,13 +2493,12 @@ class TestContainersPagePause:
         page.wait_for_timeout(200)
 
         # Confirm paused
-        assert page.evaluate("window.refreshPaused") is True
+        assert page.locator("#refresh-timer").inner_text() == "❚❚"
 
-        # Wait longer than the 3-second refresh interval
-        page.wait_for_timeout(4000)
+        # Wait longer than the 5-second refresh interval
+        page.wait_for_timeout(6000)
 
         # Check if still paused
-        still_paused = page.evaluate("window.refreshPaused")
         timer_text = page.locator("#refresh-timer").inner_text()
 
         # Check if the row was replaced (marker would be gone)
@@ -2505,10 +2506,7 @@ class TestContainersPagePause:
             document.querySelector('#container-rows tr')?.dataset?.testMarker
         """)
 
-        assert still_paused is True, (
-            f"Refresh should still be paused after 4s. "
-            f"refreshPaused={still_paused}, timer='{timer_text}'"
-        )
+        assert timer_text == "❚❚", f"Refresh should still be paused after 6s. timer='{timer_text}'"
         assert marker == "original", (
             "Table was refreshed while dropdown was open - pause mechanism failed"
         )
@@ -2542,23 +2540,26 @@ class TestContainersPagePause:
         )
 
         # Wait for timer to start
-        page.wait_for_function("typeof window.refreshPaused === 'boolean'", timeout=TIMEOUT)
-        page.wait_for_function("window.refreshPaused === false", timeout=TIMEOUT)
+        page.wait_for_function(
+            "document.getElementById('refresh-timer')?.textContent?.includes('↻')",
+            timeout=TIMEOUT,
+        )
 
         # Click dropdown to pause
         dropdown_label = page.locator(".dropdown label").first
         dropdown_label.click()
         page.wait_for_timeout(200)
 
-        assert page.evaluate("window.refreshPaused") is True
+        assert page.locator("#refresh-timer").inner_text() == "❚❚"
 
         # Close dropdown by pressing Escape or clicking elsewhere
         page.keyboard.press("Escape")
         page.wait_for_timeout(300)  # Wait for focusout timeout (150ms) + buffer
 
         # Verify refresh resumed
-        paused = page.evaluate("window.refreshPaused")
         timer_text = page.locator("#refresh-timer").inner_text()
 
-        assert paused is False, f"Refresh should resume after closing dropdown, got {paused}"
+        assert timer_text != "❚❚", (
+            f"Refresh should resume after closing dropdown. timer='{timer_text}'"
+        )
         assert "↻" in timer_text, f"Timer should show countdown, got '{timer_text}'"
