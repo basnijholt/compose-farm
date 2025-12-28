@@ -121,7 +121,6 @@ function whenXtermReady(callback, maxAttempts = 20) {
     };
     tryInit(maxAttempts);
 }
-window.whenXtermReady = whenXtermReady;
 
 // ============================================================================
 // TERMINAL
@@ -207,8 +206,6 @@ function initTerminal(elementId, taskId) {
     terminals[taskId] = { ...wrapper, ws };
     return { term, ws };
 }
-
-window.initTerminal = initTerminal;
 
 /**
  * Initialize an interactive exec terminal
