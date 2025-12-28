@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from compose_farm.executor import TTLCache
 from compose_farm.glances import ContainerStats, fetch_all_container_stats
+from compose_farm.registry import DOCKER_HUB_ALIASES, ImageRef
 from compose_farm.web.deps import get_config, get_templates
 
 router = APIRouter(tags=["containers"])
@@ -122,6 +123,16 @@ def _render_update_cell(image: str, tag: str) -> str:
     )
 
 
+def _image_web_url(image: str) -> str | None:
+    """Return a human-friendly registry URL for an image (without tag)."""
+    ref = ImageRef.parse(image)
+    if ref.registry in DOCKER_HUB_ALIASES:
+        if ref.namespace == "library":
+            return f"https://hub.docker.com/_/{ref.name}"
+        return f"https://hub.docker.com/r/{ref.namespace}/{ref.name}"
+    return f"https://{ref.registry}/{ref.full_name}"
+
+
 def _render_row(c: ContainerStats, idx: int | str) -> str:
     """Render a single container as an HTML table row."""
     image_name, tag = _parse_image(c.image)
@@ -134,6 +145,16 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
     uptime_sec = _parse_uptime_seconds(c.uptime)
     actions = _render_actions(stack)
     update_cell = _render_update_cell(image_name, tag)
+    image_label = f"{image_name}:{tag}"
+    image_url = _image_web_url(image_name)
+    if image_url:
+        image_html = (
+            f'<a href="{image_url}" target="_blank" rel="noopener noreferrer" '
+            f'class="link link-hover">'
+            f'<code class="text-xs bg-base-200 px-1 rounded">{image_label}</code></a>'
+        )
+    else:
+        image_html = f'<code class="text-xs bg-base-200 px-1 rounded">{image_label}</code>'
     # Render as single line to avoid whitespace nodes in DOM
     row_id = f"c-{c.host}-{c.name}"
     return (
@@ -142,7 +163,7 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
         f'<td data-sort="{service.lower()}" class="text-xs opacity-70">{service}</td>'
         f"<td>{actions}</td>"
         f'<td data-sort="{c.host.lower()}"><span class="badge badge-outline badge-xs">{c.host}</span></td>'
-        f'<td data-sort="{c.image.lower()}"><code class="text-xs bg-base-200 px-1 rounded">{image_name}:{tag}</code></td>'
+        f'<td data-sort="{c.image.lower()}">{image_html}</td>'
         f"{update_cell}"
         f'<td data-sort="{c.status.lower()}"><span class="{_status_class(c.status)}">{c.status}</span></td>'
         f'<td data-sort="{uptime_sec}" class="text-xs">{c.uptime or "-"}</td>'
