@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+
+from .executor import is_local
 
 if TYPE_CHECKING:
     from .config import Config, Host
@@ -118,10 +121,6 @@ async def fetch_all_host_stats(
     we use the Glances container name (from glances_stack config) for the local host.
     Set CF_LOCAL_HOST=<hostname> to explicitly specify which host is local.
     """
-    import os  # noqa: PLC0415
-
-    from .executor import is_local  # noqa: PLC0415
-
     glances_container = config.glances_stack  # e.g., "glances"
     # Only use container name when running inside a Docker container
     in_container = os.environ.get("CF_WEB_STACK") is not None
