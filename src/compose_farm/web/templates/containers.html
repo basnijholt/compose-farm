@@ -26,7 +26,8 @@
                class="input input-bordered input-sm w-64" onkeyup="filterTable()">
         <span id="container-count" class="text-sm text-base-content/60"></span>
         <div class="ml-auto flex items-center gap-2">
-            <span class="badge badge-outline font-mono text-xs w-16 justify-center" id="refresh-timer">↻</span>
+            <button class="badge badge-outline font-mono text-xs w-16 justify-center cursor-pointer hover:badge-primary"
+                    id="refresh-timer" onclick="toggleAutoRefresh()" title="Click to toggle auto-refresh">↻</button>
         </div>
     </div>
 

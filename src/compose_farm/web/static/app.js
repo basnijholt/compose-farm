@@ -1031,7 +1031,8 @@ let liveStats = {
     loadingHosts: new Set(),
     eventsBound: false,
     intervals: [],
-    updateCheckTimes: new Map()
+    updateCheckTimes: new Map(),
+    autoRefresh: true
 };
 
 const REFRESH_INTERVAL = 3000;
@@ -1131,7 +1132,7 @@ function buildHostRow(host, message, className) {
 }
 
 async function checkUpdatesForHost(host) {
-    if (liveStats.dropdownOpen || liveStats.scrolling) return;
+    // Update checks always run - they only update small cells, not disruptive
     const last = liveStats.updateCheckTimes.get(host) || 0;
     if (Date.now() - last < UPDATE_CHECK_TTL) return;
 
@@ -1295,6 +1296,24 @@ function refreshLiveStats() {
 }
 window.refreshLiveStats = refreshLiveStats;
 
+function toggleAutoRefresh() {
+    liveStats.autoRefresh = !liveStats.autoRefresh;
+    const timer = document.getElementById('refresh-timer');
+    if (timer) {
+        timer.classList.toggle('badge-error', !liveStats.autoRefresh);
+        timer.classList.toggle('badge-outline', liveStats.autoRefresh);
+    }
+    if (liveStats.autoRefresh) {
+        // Re-enabling: trigger immediate refresh
+        refreshLiveStats();
+    } else {
+        // Disabling: ensure update checks run for current data
+        const hosts = getLiveStatsHosts();
+        hosts.forEach(host => checkUpdatesForHost(host));
+    }
+}
+window.toggleAutoRefresh = toggleAutoRefresh;
+
 function initLiveStats() {
     if (!document.getElementById('refresh-timer')) return;
 
@@ -1308,6 +1327,7 @@ function initLiveStats() {
     liveStats.scrollTimer = null;
     liveStats.loadingHosts.clear();
     liveStats.updateCheckTimes = new Map();
+    liveStats.autoRefresh = true;
 
     if (!liveStats.eventsBound) {
         liveStats.eventsBound = true;
@@ -1338,8 +1358,9 @@ function initLiveStats() {
         }, { passive: true });
     }
 
-    // Auto-refresh every 3 seconds (skip if still loading or dropdown open)
+    // Auto-refresh every 3 seconds (skip if disabled, loading, or dropdown open)
     liveStats.intervals.push(setInterval(() => {
+        if (!liveStats.autoRefresh) return;
         if (liveStats.dropdownOpen || liveStats.scrolling || isLoading()) return;
         refreshLiveStats();
     }, REFRESH_INTERVAL));
@@ -1354,10 +1375,12 @@ function initLiveStats() {
 
         const loading = isLoading();
         const paused = liveStats.dropdownOpen || liveStats.scrolling;
-        window.refreshPaused = paused || loading;
+        window.refreshPaused = paused || loading || !liveStats.autoRefresh;
 
         let text;
-        if (paused) {
+        if (!liveStats.autoRefresh) {
+            text = 'OFF';
+        } else if (paused) {
             text = '❚❚';
         } else {
             const elapsed = Date.now() - liveStats.lastUpdate;
