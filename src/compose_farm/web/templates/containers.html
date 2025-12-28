@@ -19,9 +19,11 @@
 
     <!-- Action Bar -->
     <div class="flex flex-wrap items-center gap-4 mb-6">
-        <button class="btn btn-outline btn-sm" type="button" onclick="refreshLiveStats()">
-            {{ refresh_cw() }} Refresh
-        </button>
+        <div class="tooltip" data-tip="Refresh now">
+            <button class="btn btn-outline btn-sm" type="button" onclick="refreshLiveStats()">
+                {{ refresh_cw() }} Refresh
+            </button>
+        </div>
         <div class="tooltip" data-tip="Click to toggle auto-refresh">
             <button class="btn btn-outline btn-sm font-mono w-20 justify-center"
                     id="refresh-timer" onclick="toggleAutoRefresh()">↻</button>
