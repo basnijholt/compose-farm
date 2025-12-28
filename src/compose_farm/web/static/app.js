@@ -1392,19 +1392,31 @@ function initLiveStats() {
 
         const loading = isLoading();
         const paused = liveStats.dropdownOpen || liveStats.scrolling;
+        const elapsed = Date.now() - liveStats.lastUpdate;
+        window.refreshPaused = paused || loading || !liveStats.autoRefresh;
+
+        // Update refresh timer button
         let text;
         if (!liveStats.autoRefresh) {
             text = 'OFF';
         } else if (paused) {
             text = '❚❚';
         } else {
-            const elapsed = Date.now() - liveStats.lastUpdate;
             const remaining = Math.max(0, REFRESH_INTERVAL - elapsed);
             text = loading ? '↻ …' : `↻ ${Math.ceil(remaining / 1000)}s`;
         }
-
         if (timer.textContent !== text) {
             timer.textContent = text;
+        }
+
+        // Update "last updated" display
+        const lastUpdatedEl = document.getElementById('last-updated');
+        if (lastUpdatedEl) {
+            const secs = Math.floor(elapsed / 1000);
+            const updatedText = secs < 5 ? 'Updated just now' : `Updated ${secs}s ago`;
+            if (lastUpdatedEl.textContent !== updatedText) {
+                lastUpdatedEl.textContent = updatedText;
+            }
         }
     }, 100));
 
