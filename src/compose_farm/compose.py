@@ -47,6 +47,31 @@ def _load_env(compose_path: Path) -> dict[str, str]:
     return env
 
 
+def parse_compose_data(content: str) -> dict[str, Any]:
+    """Parse compose YAML content into a dict."""
+    compose_data = yaml.safe_load(content) or {}
+    return compose_data if isinstance(compose_data, dict) else {}
+
+
+def load_compose_data(compose_path: Path) -> dict[str, Any]:
+    """Load compose YAML from a file path."""
+    return parse_compose_data(compose_path.read_text())
+
+
+def load_compose_data_for_stack(config: Config, stack: str) -> tuple[Path, dict[str, Any]]:
+    """Load compose YAML for a stack, returning (path, data)."""
+    compose_path = config.get_compose_path(stack)
+    if not compose_path.exists():
+        return compose_path, {}
+    return compose_path, load_compose_data(compose_path)
+
+
+def extract_services(compose_data: dict[str, Any]) -> dict[str, Any]:
+    """Extract services mapping from compose data."""
+    raw_services = compose_data.get("services", {})
+    return raw_services if isinstance(raw_services, dict) else {}
+
+
 def _interpolate(value: str, env: dict[str, str]) -> str:
     """Perform ${VAR} and ${VAR:-default} interpolation."""
 
@@ -173,16 +198,15 @@ def parse_host_volumes(config: Config, stack: str) -> list[str]:
     Returns a list of absolute host paths used as volume mounts.
     Skips named volumes and resolves relative paths.
     """
-    compose_path = config.get_compose_path(stack)
+    compose_path, compose_data = load_compose_data_for_stack(config, stack)
     if not compose_path.exists():
         return []
 
-    env = _load_env(compose_path)
-    compose_data = yaml.safe_load(compose_path.read_text()) or {}
-    raw_services = compose_data.get("services", {})
-    if not isinstance(raw_services, dict):
+    raw_services = extract_services(compose_data)
+    if not raw_services:
         return []
 
+    env = _load_env(compose_path)
     paths: list[str] = []
     compose_dir = compose_path.parent
 
@@ -209,16 +233,15 @@ def parse_devices(config: Config, stack: str) -> list[str]:
 
     Returns a list of host device paths (e.g., /dev/dri, /dev/dri/renderD128).
     """
-    compose_path = config.get_compose_path(stack)
+    compose_path, compose_data = load_compose_data_for_stack(config, stack)
     if not compose_path.exists():
         return []
 
-    env = _load_env(compose_path)
-    compose_data = yaml.safe_load(compose_path.read_text()) or {}
-    raw_services = compose_data.get("services", {})
-    if not isinstance(raw_services, dict):
+    raw_services = extract_services(compose_data)
+    if not raw_services:
         return []
 
+    env = _load_env(compose_path)
     devices: list[str] = []
     for definition in raw_services.values():
         if not isinstance(definition, dict):
@@ -248,11 +271,10 @@ def parse_external_networks(config: Config, stack: str) -> list[str]:
 
     Returns a list of network names marked as external: true.
     """
-    compose_path = config.get_compose_path(stack)
+    compose_path, compose_data = load_compose_data_for_stack(config, stack)
     if not compose_path.exists():
         return []
 
-    compose_data = yaml.safe_load(compose_path.read_text()) or {}
     networks = compose_data.get("networks", {})
     if not isinstance(networks, dict):
         return []
@@ -273,15 +295,14 @@ def load_compose_services(
 
     Returns (services_dict, env_dict, host_address).
     """
-    compose_path = config.get_compose_path(stack)
+    compose_path, compose_data = load_compose_data_for_stack(config, stack)
     if not compose_path.exists():
         message = f"[{stack}] Compose file not found: {compose_path}"
         raise FileNotFoundError(message)
 
     env = _load_env(compose_path)
-    compose_data = yaml.safe_load(compose_path.read_text()) or {}
-    raw_services = compose_data.get("services", {})
-    if not isinstance(raw_services, dict):
+    raw_services = extract_services(compose_data)
+    if not raw_services:
         return {}, env, config.get_host(stack).address
     return raw_services, env, config.get_host(stack).address
 

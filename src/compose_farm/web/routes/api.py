@@ -19,7 +19,7 @@ import yaml
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
-from compose_farm.compose import get_container_name
+from compose_farm.compose import extract_services, get_container_name, load_compose_data_for_stack
 from compose_farm.executor import is_local, run_compose_on_host, ssh_connect_kwargs
 from compose_farm.glances import fetch_all_host_stats
 from compose_farm.paths import backup_dir, find_config_path
@@ -107,13 +107,11 @@ def _get_compose_services(config: Any, stack: str, hosts: list[str]) -> list[dic
 
     Returns one entry per container per host for multi-host stacks.
     """
-    compose_path = config.get_compose_path(stack)
-    if not compose_path or not compose_path.exists():
+    compose_path, compose_data = load_compose_data_for_stack(config, stack)
+    if not compose_path.exists():
         return []
-
-    compose_data = yaml.safe_load(compose_path.read_text()) or {}
-    raw_services = compose_data.get("services", {})
-    if not isinstance(raw_services, dict):
+    raw_services = extract_services(compose_data)
+    if not raw_services:
         return []
 
     # Project name is the directory name (docker compose default)
