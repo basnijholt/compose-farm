@@ -345,13 +345,25 @@ def config_init_env(
     user = os.environ.get("USER", "user")
     compose_dir = str(cfg.compose_dir)
 
-    # Detect local host by matching hostname to config
+    # Detect local host by matching hostname or IP to config
     hostname = socket.gethostname().lower()
     local_host = None
+
+    # First try hostname match
     for name in cfg.hosts:
         if name.lower() == hostname or hostname.startswith(name.lower()):
             local_host = name
             break
+
+    # If no hostname match, try IP match
+    if not local_host:
+        from compose_farm.executor import _get_local_ips  # noqa: PLC0415
+
+        local_ips = _get_local_ips()
+        for name, host in cfg.hosts.items():
+            if host.address in local_ips:
+                local_host = name
+                break
 
     # Try to detect domain from traefik labels in existing stacks
     domain = None
