@@ -56,7 +56,6 @@ from compose_farm.operations import (
     check_stack_requirements,
 )
 from compose_farm.state import get_orphaned_stacks, load_state, save_state
-from compose_farm.traefik import generate_traefik_config, render_traefik_config
 
 # --- Sync helpers ---
 
@@ -328,6 +327,8 @@ def _report_orphaned_stacks(cfg: Config) -> bool:
 
 def _report_traefik_status(cfg: Config, stacks: list[str]) -> None:
     """Check and report traefik label status."""
+    from compose_farm.traefik import generate_traefik_config  # noqa: PLC0415
+
     try:
         _, warnings = generate_traefik_config(cfg, stacks, check_all=True)
     except (FileNotFoundError, ValueError):
@@ -447,6 +448,11 @@ def traefik_file(
     config: ConfigOption = None,
 ) -> None:
     """Generate a Traefik file-provider fragment from compose Traefik labels."""
+    from compose_farm.traefik import (  # noqa: PLC0415
+        generate_traefik_config,
+        render_traefik_config,
+    )
+
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
     try:
         dynamic, warnings = generate_traefik_config(cfg, stack_list)
