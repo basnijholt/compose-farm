@@ -1245,11 +1245,21 @@ function replaceHostRows(host, html) {
                 }
 
                 // Re-process HTMX if needed (though inner content usually carries attributes)
-                if (window.htmx) htmx.process(document.getElementById(id));
+                const morphedRow = document.getElementById(id);
+                if (window.htmx) htmx.process(morphedRow);
+
+                // Trigger refresh animation
+                if (morphedRow) {
+                    morphedRow.classList.add('row-updated');
+                    setTimeout(() => morphedRow.classList.remove('row-updated'), 500);
+                }
             } else {
                 // New row - append (will be sorted later)
                 tbody.appendChild(newRow);
                 if (window.htmx) htmx.process(newRow);
+                // Animate new rows too
+                newRow.classList.add('row-updated');
+                setTimeout(() => newRow.classList.remove('row-updated'), 500);
             }
         } else {
             // Fallback for rows without ID (like error/empty messages)

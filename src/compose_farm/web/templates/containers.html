@@ -89,6 +89,12 @@
 /* Row hover actions */
 tr:hover .row-actions { display: flex !important; }
 tr:hover .row-menu { display: none !important; }
+/* Refresh animation */
+@keyframes row-pulse {
+    0% { background-color: oklch(var(--p) / 0.2); }
+    100% { background-color: transparent; }
+}
+.row-updated { animation: row-pulse 0.5s ease-out; }
 </style>
 {% endif %}
 {% endblock %}
