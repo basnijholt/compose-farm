@@ -1112,12 +1112,14 @@ function doSort() {
     });
 
     let index = 1;
+    const fragment = document.createDocumentFragment();
     rows.forEach((row) => {
         if (row.cells.length > 1) {
             row.cells[0].textContent = index++;
         }
-        tbody.appendChild(row);
+        fragment.appendChild(row);
     });
+    tbody.appendChild(fragment);
 }
 
 function isLoading() {
