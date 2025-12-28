@@ -888,13 +888,18 @@ function initSharedActionMenu() {
 
         // Position menu relative to button
         const rect = event.currentTarget.getBoundingClientRect();
-        // Default: align right edge of menu to right edge of button
-        const left = rect.right - menuEl.offsetWidth + window.scrollX;
+        // Make menu measurable before positioning
+        menuEl.classList.remove('hidden');
+        menuEl.style.visibility = 'hidden';
+        const menuRect = menuEl.getBoundingClientRect();
+
+        // Default: align right edge of menu to right edge of button (document coords)
+        const left = rect.right - menuRect.width + window.scrollX;
         const top = rect.bottom + window.scrollY;
 
         menuEl.style.top = `${top}px`;
         menuEl.style.left = `${left}px`;
-        menuEl.classList.remove('hidden');
+        menuEl.style.visibility = '';
 
         // Pause stats refresh
         if (typeof liveStats !== 'undefined') liveStats.dropdownOpen = true;
