@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from pydantic import ValidationError
 
-from compose_farm.compose import get_container_name
+from compose_farm.compose import extract_services, get_container_name, parse_compose_data
 from compose_farm.paths import find_config_path
 from compose_farm.state import (
     get_orphaned_stacks,
@@ -166,9 +166,9 @@ async def stack_detail(request: Request, name: str) -> HTMLResponse:
     containers: dict[str, dict[str, str]] = {}
     shell_host = current_host[0] if isinstance(current_host, list) else current_host
     if compose_content:
-        compose_data = yaml.safe_load(compose_content) or {}
-        raw_services = compose_data.get("services", {})
-        if isinstance(raw_services, dict):
+        compose_data = parse_compose_data(compose_content)
+        raw_services = extract_services(compose_data)
+        if raw_services:
             services = list(raw_services.keys())
             # Build container info for shell access (only if stack is running)
             if shell_host:
