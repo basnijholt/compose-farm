@@ -431,7 +431,7 @@ function initMonacoEditors() {
  * Save all editors
  */
 async function saveAllEditors() {
-    const saveBtn = document.getElementById('save-btn') || document.getElementById('save-config-btn');
+    const saveBtn = getSaveButton();
     const results = [];
 
     for (const [id, editor] of Object.entries(editors)) {
@@ -467,10 +467,14 @@ async function saveAllEditors() {
  * Initialize save button handler
  */
 function initSaveButton() {
-    const saveBtn = document.getElementById('save-btn') || document.getElementById('save-config-btn');
+    const saveBtn = getSaveButton();
     if (!saveBtn) return;
 
     saveBtn.onclick = saveAllEditors;
+}
+
+function getSaveButton() {
+    return document.getElementById('save-btn') || document.getElementById('save-config-btn');
 }
 
 // ============================================================================
