@@ -298,6 +298,8 @@ def config_symlink(
 
 def _detect_domain(cfg: Config) -> str | None:
     """Try to detect DOMAIN from traefik labels in existing stacks."""
+    from dotenv import dotenv_values  # noqa: PLC0415
+
     from compose_farm.config import COMPOSE_FILENAMES  # noqa: PLC0415
 
     for stack_name in list(cfg.stacks.keys())[:5]:  # Check first 5 stacks
@@ -311,12 +313,10 @@ def _detect_domain(cfg: Config) -> str | None:
                 # Check for DOMAIN variable usage in traefik labels
                 if "${DOMAIN}" not in content and "$DOMAIN" not in content:
                     continue
-                # Try to read from stack's .env
-                stack_env = compose_path / ".env"
-                if stack_env.exists():
-                    for line in stack_env.read_text().splitlines():
-                        if line.startswith("DOMAIN="):
-                            return line.split("=", 1)[1].strip().strip('"').strip("'")
+                # Try to read DOMAIN from stack's .env
+                env_values = dotenv_values(compose_path / ".env")
+                if domain := env_values.get("DOMAIN"):
+                    return domain
             except OSError:
                 continue  # Skip files we can't read
     return None
