@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from .executor import is_local
+
 if TYPE_CHECKING:
-    from .config import Config
+    from .config import Config, Host
 
 # Default Glances REST API port
 DEFAULT_GLANCES_PORT = 61208
@@ -111,8 +114,36 @@ async def fetch_all_host_stats(
     config: Config,
     port: int = DEFAULT_GLANCES_PORT,
 ) -> dict[str, HostStats]:
-    """Fetch stats from all hosts in parallel."""
-    tasks = [fetch_host_stats(name, host.address, port) for name, host in config.hosts.items()]
+    """Fetch stats from all hosts in parallel.
+
+    When running in a Docker container (CF_WEB_STACK set), the local host's Glances
+    may not be reachable via its LAN IP due to Docker network isolation. In this case,
+    we use the Glances container name (from glances_stack config) for the local host.
+    Set CF_LOCAL_HOST=<hostname> to explicitly specify which host is local.
+    """
+    glances_container = config.glances_stack  # e.g., "glances"
+    # Only use container name when running inside a Docker container
+    in_container = os.environ.get("CF_WEB_STACK") is not None
+    # CF_LOCAL_HOST explicitly tells us which host to reach via container name
+    explicit_local = os.environ.get("CF_LOCAL_HOST")
+
+    def get_glances_address(host_name: str, host: Host) -> str:
+        """Get the address to use for Glances API requests."""
+        # When running in a container, use container name for the local host
+        if in_container and glances_container:
+            # Use container name if explicitly configured as local
+            if explicit_local and host_name == explicit_local:
+                return glances_container
+            # Fall back to is_local detection (may not work in container)
+            if is_local(host):
+                return glances_container
+        # Otherwise use the host's IP address
+        return host.address
+
+    tasks = [
+        fetch_host_stats(name, get_glances_address(name, host), port)
+        for name, host in config.hosts.items()
+    ]
     results = await asyncio.gather(*tasks)
     return {stats.host: stats for stats in results}
 
