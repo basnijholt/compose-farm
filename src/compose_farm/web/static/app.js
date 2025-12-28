@@ -1035,7 +1035,7 @@ let liveStats = {
     autoRefresh: true
 };
 
-const REFRESH_INTERVAL = 3000;
+const REFRESH_INTERVAL = 5000;
 const UPDATE_CHECK_TTL = 120000;
 const NUMERIC_COLS = new Set([8, 9, 10, 11]);  // uptime, cpu, mem, net
 
