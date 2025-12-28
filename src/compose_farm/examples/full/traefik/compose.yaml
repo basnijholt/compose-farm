@@ -1,0 +1,37 @@
+# Traefik - Reverse proxy and load balancer
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: cf-traefik
+    networks:
+      - mynetwork
+    ports:
+      - "9080:80"    # HTTP (use 80:80 in production)
+      - "9443:443"   # HTTPS (use 443:443 in production)
+      - "9081:8080"  # Dashboard - remove in production
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /mnt/data/traefik:/etc/traefik
+    command:
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=mynetwork
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --log.level=INFO
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.traefik.rule=Host(`traefik.${DOMAIN}`)
+      - traefik.http.routers.traefik.entrypoints=websecure
+      - traefik.http.routers.traefik-local.rule=Host(`traefik.local`)
+      - traefik.http.routers.traefik-local.entrypoints=web
+      - traefik.http.services.traefik.loadbalancer.server.port=8080
+      - kuma.traefik.http.name=Traefik
+      - kuma.traefik.http.url=https://traefik.${DOMAIN}
+    restart: unless-stopped
+
+networks:
+  mynetwork:
+    external: true

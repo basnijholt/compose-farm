@@ -350,14 +350,18 @@ When you run `cf up autokuma`, it starts the stack on all hosts in parallel. Mul
 Compose Farm includes a `config` subcommand to help manage configuration files:
 
 ```bash
-cf config init      # Create a new config file with documented example
-cf config show      # Display current config with syntax highlighting
-cf config path      # Print the config file path (useful for scripting)
-cf config validate  # Validate config syntax and schema
-cf config edit      # Open config in $EDITOR
+cf config init              # Create a new config file with documented example
+cf config init --discover   # Auto-detect compose files and interactively create config
+cf config show              # Display current config with syntax highlighting
+cf config path              # Print the config file path (useful for scripting)
+cf config validate          # Validate config syntax and schema
+cf config edit              # Open config in $EDITOR
+cf config example --list    # List available example templates
+cf config example whoami    # Generate sample stack files
+cf config example full      # Generate complete Traefik + whoami setup
 ```
 
-Use `cf config init` to get started with a fully documented template.
+Use `cf config init` to get started with a template, or `cf config init --discover` if you already have compose files.
 
 ## Usage
 
@@ -1003,6 +1007,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ validate   Validate the config file syntax and schema.                       │
 │ symlink    Create a symlink from the default config location to a config     │
 │            file.                                                             │
+│ example    Generate example stack files from built-in templates.             │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```

@@ -149,6 +149,24 @@ cd /opt/stacks
 cf config init
 ```
 
+**Already have compose files?** Use `--discover` to auto-detect them and interactively build your config:
+
+```bash
+cf config init --discover
+```
+
+This scans for directories containing compose files, lets you select which stacks to include, and generates a ready-to-use config.
+
+**Starting fresh?** Generate example stacks to learn from:
+
+```bash
+# List available examples
+cf config example --list
+
+# Generate a complete Traefik + whoami setup
+cf config example full
+```
+
 Alternatively, use `~/.config/compose-farm/compose-farm.yaml` for a global config. You can also symlink a working directory config to the global location:
 
 ```bash
