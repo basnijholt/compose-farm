@@ -114,9 +114,11 @@ def _render_update_cell(image: str, tag: str) -> str:
     """Render update check cell with client-side batch updates."""
     encoded_image = quote(image, safe="")
     encoded_tag = quote(tag, safe="")
+    cached_html = _update_check_cache.get(f"{image}:{tag}")
+    inner = cached_html if cached_html is not None else _DASH_HTML
     return (
         f"""<td class="update-cell" data-image="{encoded_image}" data-tag="{encoded_tag}">"""
-        f"{_DASH_HTML}</td>"
+        f"{inner}</td>"
     )
 
 
