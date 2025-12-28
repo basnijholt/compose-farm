@@ -9,15 +9,16 @@ import shutil
 import subprocess
 from importlib import resources
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
 from compose_farm.cli.app import app
-from compose_farm.config import COMPOSE_FILENAMES, Config, load_config
 from compose_farm.console import MSG_CONFIG_NOT_FOUND, console, print_error, print_success
-from compose_farm.executor import is_local
 from compose_farm.paths import config_search_paths, default_config_path, find_config_path
+
+if TYPE_CHECKING:
+    from compose_farm.config import Config
 
 config_app = typer.Typer(
     name="config",
@@ -297,6 +298,8 @@ def config_symlink(
 
 def _detect_domain(cfg: Config) -> str | None:
     """Try to detect DOMAIN from traefik labels in existing stacks."""
+    from compose_farm.config import COMPOSE_FILENAMES  # noqa: PLC0415
+
     for stack_name in list(cfg.stacks.keys())[:5]:  # Check first 5 stacks
         compose_path = cfg.compose_dir / stack_name
         for filename in COMPOSE_FILENAMES:
@@ -321,6 +324,8 @@ def _detect_domain(cfg: Config) -> str | None:
 
 def _detect_local_host(cfg: Config) -> str | None:
     """Find which config host matches local machine's IPs."""
+    from compose_farm.executor import is_local  # noqa: PLC0415
+
     for name, host in cfg.hosts.items():
         if is_local(host):
             return name
@@ -352,6 +357,8 @@ def config_init_env(
         cf config init-env -o .env   # Create .env in current directory
 
     """
+    from compose_farm.config import load_config  # noqa: PLC0415
+
     config_file = _get_config_file(path)
     if config_file is None:
         print_error(MSG_CONFIG_NOT_FOUND)
