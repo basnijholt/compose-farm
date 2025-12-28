@@ -51,10 +51,10 @@
                     <th class="cursor-pointer" onclick="sortTable(5)">Image<span class="sort-indicator"></span></th>
                     <th class="w-16">Update</th>
                     <th class="cursor-pointer" onclick="sortTable(7)">Status<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(8)">Uptime<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(9)">CPU<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(10)">Mem<span class="sort-indicator"></span></th>
-                    <th class="cursor-pointer" onclick="sortTable(11)">Net I/O<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer text-right" onclick="sortTable(8)">Uptime<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer text-right" onclick="sortTable(9)">CPU<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer text-right" onclick="sortTable(10)">Mem<span class="sort-indicator"></span></th>
+                    <th class="cursor-pointer text-right" onclick="sortTable(11)">Net I/O<span class="sort-indicator"></span></th>
                 </tr>
             </thead>
             <tbody id="container-rows" data-hosts="{{ hosts | join(',') }}">
