@@ -184,23 +184,10 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
 
 
 def _render_actions(stack: str) -> str:
-    """Render actions cell with hover actions and fallback menu button."""
-    # Hover actions (hidden by default, shown on row hover)
-    hover_actions = (
-        f'<div class="row-actions hidden gap-1">'
-        f'<button class="btn btn-circle btn-ghost btn-xs" onclick="navigateToStack(\'{stack}\', \'restart\')" title="Restart"><svg class="h-3 w-3"><use href="#icon-restart" /></svg></button>'
-        f'<button class="btn btn-circle btn-ghost btn-xs" onclick="navigateToStack(\'{stack}\', \'pull\')" title="Pull"><svg class="h-3 w-3"><use href="#icon-pull" /></svg></button>'
-        f'<button class="btn btn-circle btn-ghost btn-xs" onclick="navigateToStack(\'{stack}\', \'update\')" title="Update"><svg class="h-3 w-3"><use href="#icon-update" /></svg></button>'
-        f'<button class="btn btn-circle btn-ghost btn-xs" onclick="navigateToStack(\'{stack}\', \'logs\')" title="Logs"><svg class="h-3 w-3"><use href="#icon-logs" /></svg></button>'
-        f"</div>"
-    )
-    # Fallback menu button (shown by default, hidden on row hover)
-    menu_btn = (
-        f'<button class="btn btn-circle btn-ghost btn-xs row-menu" '
-        f'onclick="openActionMenu(event, \'{stack}\')" aria-label="Actions for {stack}">'
-        f'<svg class="h-4 w-4"><use href="#icon-menu" /></svg></button>'
-    )
-    return f'<div class="flex items-center">{hover_actions}{menu_btn}</div>'
+    """Render actions dropdown for a container row."""
+    return f"""<button class="btn btn-circle btn-ghost btn-xs" onclick="openActionMenu(event, '{stack}')" aria-label="Actions for {stack}">
+<svg class="h-4 w-4"><use href="#icon-menu" /></svg>
+</button>"""
 
 
 def _parse_uptime_seconds(uptime: str) -> int:
