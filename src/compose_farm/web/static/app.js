@@ -1473,18 +1473,10 @@ function initLiveStats() {
     refreshLiveStats();
 }
 
-// Debounce timer for row updates (prevents race conditions with slow connections)
-let rowUpdateTimer = null;
-
 function scheduleRowUpdate() {
-    // Debounce: wait for DOM to settle before updating rows
-    // This prevents race conditions when multiple hosts load simultaneously
-    if (rowUpdateTimer) clearTimeout(rowUpdateTimer);
-    rowUpdateTimer = setTimeout(() => {
-        rowUpdateTimer = null;
-        doSort();
-        filterTable();  // Always call to update count display
-    }, 50);  // 50ms debounce
+    // Sort and filter immediately to prevent flicker
+    doSort();
+    filterTable();
 }
 
 // ============================================================================
