@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import shlex
 import shutil
+import socket
 import subprocess
 from importlib import resources
 from pathlib import Path
@@ -14,7 +16,9 @@ from typing import Annotated
 import typer
 
 from compose_farm.cli.app import app
+from compose_farm.config import load_config
 from compose_farm.console import MSG_CONFIG_NOT_FOUND, console, print_error, print_success
+from compose_farm.executor import _get_local_ips
 from compose_farm.paths import config_search_paths, default_config_path, find_config_path
 
 config_app = typer.Typer(
@@ -314,10 +318,6 @@ def config_init_env(
         cf config init-env           # Create .env next to config
         cf config init-env -o .env   # Create .env in current directory
     """
-    import socket  # noqa: PLC0415
-
-    from compose_farm.config import load_config  # noqa: PLC0415
-
     config_file = _get_config_file(path)
     if config_file is None:
         print_error(MSG_CONFIG_NOT_FOUND)
@@ -357,8 +357,6 @@ def config_init_env(
 
     # If no hostname match, try IP match
     if not local_host:
-        from compose_farm.executor import _get_local_ips  # noqa: PLC0415
-
         local_ips = _get_local_ips()
         for name, host in cfg.hosts.items():
             if host.address in local_ips:
@@ -375,8 +373,6 @@ def config_init_env(
                 try:
                     content = compose_file.read_text()
                     # Look for traefik.http.routers.*.rule=Host(`...${DOMAIN}`)
-                    import re  # noqa: PLC0415
-
                     # Check for DOMAIN variable usage
                     if "${DOMAIN}" in content or "$DOMAIN" in content:
                         # Try to read from stack's .env
