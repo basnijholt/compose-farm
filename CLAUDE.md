@@ -144,6 +144,6 @@ CLI available as `cf` or `compose-farm`.
 | `check` | Validate config, traefik labels, mounts, networks; show host compatibility |
 | `init-network` | Create Docker network on hosts with consistent subnet/gateway |
 | `traefik-file` | Generate Traefik file-provider config from compose labels |
-| `config` | Manage config files (init, show, path, validate, edit, symlink) |
+| `config` | Manage config files (init, init-env, show, path, validate, edit, symlink) |
 | `ssh`   | Manage SSH keys (setup, status, keygen) |
 | `web`   | Start web UI server |

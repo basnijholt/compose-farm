@@ -9,13 +9,16 @@ import shutil
 import subprocess
 from importlib import resources
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
 from compose_farm.cli.app import app
 from compose_farm.console import MSG_CONFIG_NOT_FOUND, console, print_error, print_success
 from compose_farm.paths import config_search_paths, default_config_path, find_config_path
+
+if TYPE_CHECKING:
+    from compose_farm.config import Config
 
 config_app = typer.Typer(
     name="config",
@@ -66,6 +69,22 @@ def _get_config_file(path: Path | None) -> Path | None:
 
     config_path = find_config_path()
     return config_path.resolve() if config_path else None
+
+
+def _load_config_with_path(path: Path | None) -> tuple[Path, Config]:
+    """Load config and return both the resolved path and Config object.
+
+    Exits with error if config not found or invalid.
+    """
+    from compose_farm.cli.common import load_config_or_exit  # noqa: PLC0415
+
+    config_file = _get_config_file(path)
+    if config_file is None:
+        print_error(MSG_CONFIG_NOT_FOUND)
+        raise typer.Exit(1)
+
+    cfg = load_config_or_exit(config_file)
+    return config_file, cfg
 
 
 def _report_missing_config(explicit_path: Path | None = None) -> None:
@@ -207,23 +226,7 @@ def config_validate(
     path: _PathOption = None,
 ) -> None:
     """Validate the config file syntax and schema."""
-    config_file = _get_config_file(path)
-
-    if config_file is None:
-        print_error(MSG_CONFIG_NOT_FOUND)
-        raise typer.Exit(1)
-
-    # Lazy import: pydantic adds ~50ms to startup, only load when actually needed
-    from compose_farm.config import load_config  # noqa: PLC0415
-
-    try:
-        cfg = load_config(config_file)
-    except FileNotFoundError as e:
-        print_error(str(e))
-        raise typer.Exit(1) from e
-    except Exception as e:
-        print_error(f"Invalid config: {e}")
-        raise typer.Exit(1) from e
+    config_file, cfg = _load_config_with_path(path)
 
     print_success(f"Valid config: {config_file}")
     console.print(f"  Hosts: {len(cfg.hosts)}")
@@ -291,6 +294,130 @@ def config_symlink(
     print_success("Created symlink:")
     console.print(f"    {symlink_path}")
     console.print(f"    -> {target_path}")
+
+
+def _detect_domain(cfg: Config) -> str | None:
+    """Try to detect DOMAIN from traefik Host() rules in existing stacks.
+
+    Uses extract_website_urls from traefik module to get interpolated
+    URLs, then extracts the domain from the first valid URL.
+    Skips local domains (.local, localhost, etc.).
+    """
+    from urllib.parse import urlparse  # noqa: PLC0415
+
+    from compose_farm.traefik import extract_website_urls  # noqa: PLC0415
+
+    max_stacks_to_check = 10
+    min_domain_parts = 2
+    subdomain_parts = 4
+    skip_tlds = {"local", "localhost", "internal", "lan", "home"}
+
+    for stack_name in list(cfg.stacks.keys())[:max_stacks_to_check]:
+        urls = extract_website_urls(cfg, stack_name)
+        for url in urls:
+            host = urlparse(url).netloc
+            parts = host.split(".")
+            # Skip local/internal domains
+            if parts[-1].lower() in skip_tlds:
+                continue
+            if len(parts) >= subdomain_parts:
+                # e.g., "app.lab.nijho.lt" -> "lab.nijho.lt"
+                return ".".join(parts[-3:])
+            if len(parts) >= min_domain_parts:
+                # e.g., "app.example.com" -> "example.com"
+                return ".".join(parts[-2:])
+    return None
+
+
+def _detect_local_host(cfg: Config) -> str | None:
+    """Find which config host matches local machine's IPs."""
+    from compose_farm.executor import is_local  # noqa: PLC0415
+
+    for name, host in cfg.hosts.items():
+        if is_local(host):
+            return name
+    return None
+
+
+@config_app.command("init-env")
+def config_init_env(
+    path: _PathOption = None,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output", "-o", help="Output .env file path. Defaults to .env in config directory."
+        ),
+    ] = None,
+    force: _ForceOption = False,
+) -> None:
+    """Generate a .env file for Docker deployment.
+
+    Reads the compose-farm.yaml config and auto-detects settings:
+    - CF_COMPOSE_DIR from compose_dir
+    - CF_LOCAL_HOST by detecting which config host matches local IPs
+    - CF_UID/GID/HOME/USER from current user
+    - DOMAIN from traefik labels in stacks (if found)
+
+    Example::
+
+        cf config init-env           # Create .env next to config
+        cf config init-env -o .env   # Create .env in current directory
+
+    """
+    config_file, cfg = _load_config_with_path(path)
+
+    # Determine output path
+    env_path = output.expanduser().resolve() if output else config_file.parent / ".env"
+
+    if env_path.exists() and not force:
+        console.print(f"[yellow].env file already exists:[/] {env_path}")
+        if not typer.confirm("Overwrite?"):
+            console.print("[dim]Aborted.[/dim]")
+            raise typer.Exit(0)
+
+    # Auto-detect values
+    uid = os.getuid()
+    gid = os.getgid()
+    home = os.environ.get("HOME", "/root")
+    user = os.environ.get("USER", "root")
+    compose_dir = str(cfg.compose_dir)
+    local_host = _detect_local_host(cfg)
+    domain = _detect_domain(cfg)
+
+    # Generate .env content
+    lines = [
+        "# Generated by: cf config init-env",
+        f"# From config: {config_file}",
+        "",
+        "# Domain for Traefik labels",
+        f"DOMAIN={domain or 'example.com'}",
+        "",
+        "# Compose files location",
+        f"CF_COMPOSE_DIR={compose_dir}",
+        "",
+        "# Run as current user (recommended for NFS)",
+        f"CF_UID={uid}",
+        f"CF_GID={gid}",
+        f"CF_HOME={home}",
+        f"CF_USER={user}",
+        "",
+        "# Local hostname for Glances integration",
+        f"CF_LOCAL_HOST={local_host or '# auto-detect failed - set manually'}",
+        "",
+    ]
+
+    env_path.write_text("\n".join(lines), encoding="utf-8")
+
+    print_success(f"Created .env file: {env_path}")
+    console.print()
+    console.print("[dim]Detected settings:[/dim]")
+    console.print(f"  DOMAIN: {domain or '[yellow]example.com[/] (edit this)'}")
+    console.print(f"  CF_COMPOSE_DIR: {compose_dir}")
+    console.print(f"  CF_UID/GID: {uid}:{gid}")
+    console.print(f"  CF_LOCAL_HOST: {local_host or '[yellow]not detected[/] (set manually)'}")
+    console.print()
+    console.print("[dim]Review and edit as needed:[/dim]")
+    console.print(f"  [cyan]$EDITOR {env_path}[/cyan]")
 
 
 # Register config subcommand on the shared app

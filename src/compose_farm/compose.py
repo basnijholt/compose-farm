@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
+from dotenv import dotenv_values
 
 if TYPE_CHECKING:
     from .config import Config
@@ -40,21 +41,8 @@ def _load_env(compose_path: Path) -> dict[str, str]:
     Reads from .env file in the same directory as compose file,
     then overlays current environment variables.
     """
-    env: dict[str, str] = {}
     env_path = compose_path.parent / ".env"
-    if env_path.exists():
-        for line in env_path.read_text().splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#") or "=" not in stripped:
-                continue
-            key, value = stripped.split("=", 1)
-            key = key.strip()
-            value = value.strip()
-            if (value.startswith('"') and value.endswith('"')) or (
-                value.startswith("'") and value.endswith("'")
-            ):
-                value = value[1:-1]
-            env[key] = value
+    env: dict[str, str] = {k: v for k, v in dotenv_values(env_path).items() if v is not None}
     env.update({k: v for k, v in os.environ.items() if isinstance(v, str)})
     return env
 

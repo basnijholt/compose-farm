@@ -3,14 +3,46 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from .executor import is_local
+
 if TYPE_CHECKING:
-    from .config import Config
+    from .config import Config, Host
 
 # Default Glances REST API port
 DEFAULT_GLANCES_PORT = 61208
+
+
+def _get_glances_address(
+    host_name: str,
+    host: Host,
+    glances_container: str | None,
+) -> str:
+    """Get the address to use for Glances API requests.
+
+    When running in a Docker container (CF_WEB_STACK set), the local host's Glances
+    may not be reachable via its LAN IP due to Docker network isolation. In this case,
+    we use the Glances container name for the local host.
+    Set CF_LOCAL_HOST=<hostname> to explicitly specify which host is local.
+    """
+    # Only use container name when running inside a Docker container
+    in_container = os.environ.get("CF_WEB_STACK") is not None
+    if not in_container or not glances_container:
+        return host.address
+
+    # CF_LOCAL_HOST explicitly tells us which host to reach via container name
+    explicit_local = os.environ.get("CF_LOCAL_HOST")
+    if explicit_local and host_name == explicit_local:
+        return glances_container
+
+    # Fall back to is_local detection (may not work in container)
+    if is_local(host):
+        return glances_container
+
+    return host.address
 
 
 @dataclass
@@ -112,7 +144,11 @@ async def fetch_all_host_stats(
     port: int = DEFAULT_GLANCES_PORT,
 ) -> dict[str, HostStats]:
     """Fetch stats from all hosts in parallel."""
-    tasks = [fetch_host_stats(name, host.address, port) for name, host in config.hosts.items()]
+    glances_container = config.glances_stack
+    tasks = [
+        fetch_host_stats(name, _get_glances_address(name, host, glances_container), port)
+        for name, host in config.hosts.items()
+    ]
     results = await asyncio.gather(*tasks)
     return {stats.host: stats for stats in results}
 
@@ -212,6 +248,8 @@ async def fetch_all_container_stats(
     """Fetch container stats from all hosts in parallel, enriched with compose labels."""
     from .executor import get_container_compose_labels  # noqa: PLC0415
 
+    glances_container = config.glances_stack
+
     async def fetch_host_data(
         host_name: str,
         host_address: str,
@@ -230,7 +268,10 @@ async def fetch_all_container_stats(
             c.stack, c.service = labels.get(c.name, ("", ""))
         return containers
 
-    tasks = [fetch_host_data(name, host.address) for name, host in config.hosts.items()]
+    tasks = [
+        fetch_host_data(name, _get_glances_address(name, host, glances_container))
+        for name, host in config.hosts.items()
+    ]
     results = await asyncio.gather(*tasks)
     # Flatten list of lists
     return [container for host_containers in results for container in host_containers]
