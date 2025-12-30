@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import platform
 import shlex
 import shutil
 import subprocess
@@ -46,8 +45,6 @@ def _get_editor() -> str:
     """Get the user's preferred editor ($EDITOR > $VISUAL > platform default)."""
     if editor := os.environ.get("EDITOR") or os.environ.get("VISUAL"):
         return editor
-    if platform.system() == "Windows":
-        return "notepad"
     return next((e for e in ("nano", "vim", "vi") if shutil.which(e)), "vi")
 
 
@@ -154,7 +151,7 @@ def config_edit(
     console.print(f"[dim]Opening {config_file} with {editor}...[/dim]")
 
     try:
-        editor_cmd = shlex.split(editor, posix=os.name != "nt")
+        editor_cmd = shlex.split(editor)
     except ValueError as e:
         print_error("Invalid editor command. Check [bold]$EDITOR[/]/[bold]$VISUAL[/]")
         raise typer.Exit(1) from e

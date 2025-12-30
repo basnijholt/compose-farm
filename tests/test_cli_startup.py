@@ -11,9 +11,7 @@ import time
 import pytest
 
 # Thresholds in seconds, per OS
-if sys.platform == "win32":
-    CLI_STARTUP_THRESHOLD = 2.0
-elif sys.platform == "darwin":
+if sys.platform == "darwin":
     CLI_STARTUP_THRESHOLD = 0.35
 else:  # Linux
     CLI_STARTUP_THRESHOLD = 0.25
