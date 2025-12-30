@@ -110,6 +110,11 @@ Browser tests are marked with `@pytest.mark.browser`. They use Playwright to tes
 Use `gh release create` to create releases. The tag is created automatically.
 
 ```bash
+# IMPORTANT: Ensure you're on latest origin/main before releasing!
+git fetch origin
+git checkout main
+git reset --hard origin/main
+
 # Check current version
 git tag --sort=-v:refname | head -1
 
