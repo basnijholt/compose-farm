@@ -437,3 +437,71 @@ class TestDownOrphaned:
             )
 
         assert exc_info.value.exit_code == 1
+
+
+class TestSortWebStackLast:
+    """Tests for the sort_web_stack_last helper."""
+
+    def test_no_web_stack_env(self) -> None:
+        """When CF_WEB_STACK is not set, list is unchanged."""
+        from compose_farm.cli import common
+
+        original = common.CF_WEB_STACK
+        try:
+            common.CF_WEB_STACK = ""
+            stacks = ["a", "b", "c"]
+            result = common.sort_web_stack_last(stacks)
+            assert result == ["a", "b", "c"]
+        finally:
+            common.CF_WEB_STACK = original
+
+    def test_web_stack_not_in_list(self) -> None:
+        """When web stack is not in list, list is unchanged."""
+        from compose_farm.cli import common
+
+        original = common.CF_WEB_STACK
+        try:
+            common.CF_WEB_STACK = "webstack"
+            stacks = ["a", "b", "c"]
+            result = common.sort_web_stack_last(stacks)
+            assert result == ["a", "b", "c"]
+        finally:
+            common.CF_WEB_STACK = original
+
+    def test_web_stack_moved_to_end(self) -> None:
+        """When web stack is in list, it's moved to the end."""
+        from compose_farm.cli import common
+
+        original = common.CF_WEB_STACK
+        try:
+            common.CF_WEB_STACK = "webstack"
+            stacks = ["a", "webstack", "b", "c"]
+            result = common.sort_web_stack_last(stacks)
+            assert result == ["a", "b", "c", "webstack"]
+        finally:
+            common.CF_WEB_STACK = original
+
+    def test_web_stack_already_last(self) -> None:
+        """When web stack is already last, list is unchanged."""
+        from compose_farm.cli import common
+
+        original = common.CF_WEB_STACK
+        try:
+            common.CF_WEB_STACK = "webstack"
+            stacks = ["a", "b", "webstack"]
+            result = common.sort_web_stack_last(stacks)
+            assert result == ["a", "b", "webstack"]
+        finally:
+            common.CF_WEB_STACK = original
+
+    def test_empty_list(self) -> None:
+        """Empty list returns empty list."""
+        from compose_farm.cli import common
+
+        original = common.CF_WEB_STACK
+        try:
+            common.CF_WEB_STACK = "webstack"
+            result = common.sort_web_stack_last([])
+            assert result == []
+        finally:
+            common.CF_WEB_STACK = original
