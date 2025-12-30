@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 from contextlib import asynccontextmanager, suppress
 from typing import TYPE_CHECKING, Any, cast
 
@@ -17,6 +16,7 @@ from rich.logging import RichHandler
 from compose_farm.web.deps import STATIC_DIR, get_config
 from compose_farm.web.routes import actions, api, containers, pages
 from compose_farm.web.streaming import TASK_TTL_SECONDS, cleanup_stale_tasks
+from compose_farm.web.ws import router as ws_router
 
 # Configure logging with Rich handler for compose_farm.web modules
 logging.basicConfig(
@@ -76,10 +76,6 @@ def create_app() -> FastAPI:
     app.include_router(api.router, prefix="/api")
     app.include_router(actions.router, prefix="/api")
 
-    # WebSocket routes use Unix-only modules (fcntl, pty)
-    if sys.platform != "win32":
-        from compose_farm.web.ws import router as ws_router  # noqa: PLC0415
-
-        app.include_router(ws_router)
+    app.include_router(ws_router)
 
     return app
