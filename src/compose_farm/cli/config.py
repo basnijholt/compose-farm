@@ -375,11 +375,11 @@ def config_init_env(
             console.print("[dim]Aborted.[/dim]")
             raise typer.Exit(0)
 
-    # Auto-detect values (getuid/getgid are Unix-only)
-    uid = getattr(os, "getuid", lambda: 1000)()
-    gid = getattr(os, "getgid", lambda: 1000)()
-    home = os.environ.get("HOME") or os.environ.get("USERPROFILE", "/root")
-    user = os.environ.get("USER") or os.environ.get("USERNAME", "user")
+    # Auto-detect values
+    uid = os.getuid()
+    gid = os.getgid()
+    home = os.environ.get("HOME", "/root")
+    user = os.environ.get("USER", "root")
     compose_dir = str(cfg.compose_dir)
     local_host = _detect_local_host(cfg)
     domain = _detect_domain(cfg)
