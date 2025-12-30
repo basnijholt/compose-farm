@@ -51,7 +51,6 @@ def _backup_file(file_path: Path) -> Path | None:
 
     # Create backup directory mirroring original path structure
     # e.g., /opt/stacks/plex/compose.yaml -> ~/.config/compose-farm/backups/opt/stacks/plex/
-    # On Windows: C:\Users\foo\stacks -> backups/Users/foo/stacks
     resolved = file_path.resolve()
     file_backup_dir = backup_dir() / resolved.parent.relative_to(resolved.anchor)
     file_backup_dir.mkdir(parents=True, exist_ok=True)
