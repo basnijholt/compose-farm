@@ -4,7 +4,7 @@ Run with: uv run pytest tests/web/test_htmx_browser.py -v --no-cov
 
 CDN assets are cached locally (in .pytest_cache/vendor/) to eliminate network
 variability. If a test fails with "Uncached CDN request", add the URL to
-compose_farm.web.cdn.CDN_ASSETS.
+src/compose_farm/web/vendor-assets.json.
 """
 
 from __future__ import annotations
@@ -90,7 +90,7 @@ def page(page: Page, vendor_cache: Path) -> Page:
                 return
         # Uncached CDN request - abort with helpful error
         route.abort("failed")
-        msg = f"Uncached CDN request: {url}\n\nAdd this URL to CDN_ASSETS in tests/web/test_htmx_browser.py"
+        msg = f"Uncached CDN request: {url}\n\nAdd this URL to src/compose_farm/web/vendor-assets.json"
         raise RuntimeError(msg)
 
     page.route(re.compile(r"https://(cdn\.jsdelivr\.net|unpkg\.com)/.*"), handle_cdn)

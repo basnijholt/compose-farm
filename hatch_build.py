@@ -1,7 +1,7 @@
 """Hatch build hook to vendor CDN assets for offline use.
 
 During wheel builds, this hook:
-1. Parses base.html to find elements with data-vendor attributes
+1. Reads vendor-assets.json to find assets marked for vendoring
 2. Downloads each CDN asset to a temporary vendor directory
 3. Rewrites base.html to use local /static/vendor/ paths
 4. Fetches and bundles license information
@@ -13,6 +13,7 @@ distributed wheel has vendored assets.
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
@@ -22,22 +23,6 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
-
-# Matches elements with data-vendor attribute: extracts URL and target filename
-# Example: <script src="https://..." data-vendor="htmx.js">
-# Captures: (1) src/href, (2) URL, (3) attributes between, (4) vendor filename
-VENDOR_PATTERN = re.compile(r'(src|href)="(https://[^"]+)"([^>]*?)data-vendor="([^"]+)"')
-
-# License URLs for each package (GitHub raw URLs)
-LICENSE_URLS: dict[str, tuple[str, str]] = {
-    "htmx": ("MIT", "https://raw.githubusercontent.com/bigskysoftware/htmx/master/LICENSE"),
-    "xterm": ("MIT", "https://raw.githubusercontent.com/xtermjs/xterm.js/master/LICENSE"),
-    "daisyui": ("MIT", "https://raw.githubusercontent.com/saadeghi/daisyui/master/LICENSE"),
-    "tailwindcss": (
-        "MIT",
-        "https://raw.githubusercontent.com/tailwindlabs/tailwindcss/master/LICENSE",
-    ),
-}
 
 
 def _download(url: str) -> bytes:
@@ -61,7 +46,14 @@ def _download(url: str) -> bytes:
     return bytes(result.stdout)
 
 
-def _generate_licenses_file(temp_dir: Path) -> None:
+def _load_vendor_assets(root: Path) -> dict[str, Any]:
+    """Load vendor-assets.json from the web module."""
+    json_path = root / "src" / "compose_farm" / "web" / "vendor-assets.json"
+    with json_path.open() as f:
+        return json.load(f)
+
+
+def _generate_licenses_file(temp_dir: Path, licenses: dict[str, dict[str, str]]) -> None:
     """Download and combine license files into LICENSES.txt."""
     lines = [
         "# Vendored Dependencies - License Information",
@@ -73,7 +65,9 @@ def _generate_licenses_file(temp_dir: Path) -> None:
         "",
     ]
 
-    for pkg_name, (license_type, license_url) in LICENSE_URLS.items():
+    for pkg_name, license_info in licenses.items():
+        license_type = license_info["type"]
+        license_url = license_info["url"]
         lines.append(f"## {pkg_name} ({license_type})")
         lines.append(f"Source: {license_url}")
         lines.append("")
@@ -107,44 +101,57 @@ class VendorAssetsHook(BuildHookInterface):  # type: ignore[misc]
         if not base_html_path.exists():
             return
 
+        # Load vendor assets configuration
+        vendor_config = _load_vendor_assets(Path(self.root))
+        assets_to_vendor = vendor_config["assets"]
+
+        if not assets_to_vendor:
+            return
+
         # Create temp directory for vendored assets
         temp_dir = Path(tempfile.mkdtemp(prefix="compose_farm_vendor_"))
         vendor_dir = temp_dir / "vendor"
         vendor_dir.mkdir()
 
-        # Read and parse base.html
+        # Read base.html
         html_content = base_html_path.read_text()
+
+        # Build URL to filename mapping and download assets
         url_to_filename: dict[str, str] = {}
-
-        # Find all elements with data-vendor attribute and download them
-        for match in VENDOR_PATTERN.finditer(html_content):
-            url = match.group(2)
-            filename = match.group(4)
-
-            if url in url_to_filename:
-                continue
-
+        for asset in assets_to_vendor:
+            url = asset["url"]
+            filename = asset["filename"]
             url_to_filename[url] = filename
+            filepath = vendor_dir / filename
+            filepath.parent.mkdir(parents=True, exist_ok=True)
             content = _download(url)
-            (vendor_dir / filename).write_bytes(content)
+            filepath.write_bytes(content)
 
-        if not url_to_filename:
-            return
+        # Generate LICENSES.txt from the JSON config
+        _generate_licenses_file(vendor_dir, vendor_config["licenses"])
 
-        # Generate LICENSES.txt
-        _generate_licenses_file(vendor_dir)
+        # Rewrite HTML: replace CDN URLs with local paths and remove data-vendor attributes
+        # Pattern matches: src="URL" ... data-vendor="filename" or href="URL" ... data-vendor="filename"
+        vendor_pattern = re.compile(r'(src|href)="(https://[^"]+)"([^>]*?)data-vendor="([^"]+)"')
 
-        # Rewrite HTML to use local paths (remove data-vendor, update URL)
         def replace_vendor_tag(match: re.Match[str]) -> str:
             attr = match.group(1)  # src or href
             url = match.group(2)
             between = match.group(3)  # attributes between URL and data-vendor
-            filename = match.group(4)
             if url in url_to_filename:
+                filename = url_to_filename[url]
                 return f'{attr}="/static/vendor/{filename}"{between}'
             return match.group(0)
 
-        modified_html = VENDOR_PATTERN.sub(replace_vendor_tag, html_content)
+        modified_html = vendor_pattern.sub(replace_vendor_tag, html_content)
+
+        # Inject vendored mode flag for JavaScript to detect
+        # Insert right after <head> tag so it's available early
+        modified_html = modified_html.replace(
+            "<head>",
+            "<head>\n    <script>window.CF_VENDORED=true;</script>",
+            1,  # Only replace first occurrence
+        )
 
         # Write modified base.html to temp
         templates_dir = temp_dir / "templates"
