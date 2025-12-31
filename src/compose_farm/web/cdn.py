@@ -68,6 +68,7 @@ def ensure_vendor_cache(cache_dir: Path) -> Path:
         filepath = cache_dir / filename
         if filepath.exists():
             continue
+        filepath.parent.mkdir(parents=True, exist_ok=True)
         content = download_url(url)
         if not content:
             msg = f"Failed to download {url} - check network/curl"
