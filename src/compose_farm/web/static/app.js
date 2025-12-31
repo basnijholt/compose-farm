@@ -332,10 +332,14 @@ function loadMonaco(callback) {
     monacoLoading = true;
 
     // Load the Monaco loader script
+    // Use local paths when running from vendored wheel, CDN otherwise
+    const monacoBase = window.CF_VENDORED
+        ? '/static/vendor/monaco'
+        : 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs';
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js';
+    script.src = monacoBase + '/loader.js';
     script.onload = function() {
-        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs' }});
+        require.config({ paths: { vs: monacoBase }});
         require(['vs/editor/editor.main'], function() {
             monacoLoaded = true;
             monacoLoading = false;

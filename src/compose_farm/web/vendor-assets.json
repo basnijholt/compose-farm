@@ -1,117 +1,106 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$comment": "CDN assets for vendoring (production builds) and test caching",
+  "$comment": "CDN assets vendored into production builds and cached for tests",
   "assets": [
     {
       "url": "https://cdn.jsdelivr.net/npm/daisyui@5",
       "filename": "daisyui.css",
       "content_type": "text/css",
-      "package": "daisyui",
-      "vendor": true
+      "package": "daisyui"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/daisyui@5/themes.css",
       "filename": "daisyui-themes.css",
       "content_type": "text/css",
-      "package": "daisyui",
-      "vendor": true
+      "package": "daisyui"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
       "filename": "tailwind.js",
       "content_type": "application/javascript",
-      "package": "tailwindcss",
-      "vendor": true
+      "package": "tailwindcss"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css",
       "filename": "xterm.css",
       "content_type": "text/css",
-      "package": "xterm",
-      "vendor": true
+      "package": "xterm"
     },
     {
       "url": "https://unpkg.com/htmx.org@2.0.4",
       "filename": "htmx.js",
       "content_type": "application/javascript",
-      "package": "htmx",
-      "vendor": true
+      "package": "htmx"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js",
       "filename": "xterm.js",
       "content_type": "application/javascript",
-      "package": "xterm",
-      "vendor": true
+      "package": "xterm"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js",
       "filename": "xterm-fit.js",
       "content_type": "application/javascript",
-      "package": "xterm",
-      "vendor": true
+      "package": "xterm"
     },
     {
       "url": "https://unpkg.com/idiomorph/dist/idiomorph.min.js",
       "filename": "idiomorph.js",
       "content_type": "application/javascript",
-      "package": "idiomorph",
-      "vendor": false
+      "package": "idiomorph"
     },
     {
       "url": "https://unpkg.com/idiomorph/dist/idiomorph-ext.min.js",
       "filename": "idiomorph-ext.js",
       "content_type": "application/javascript",
-      "package": "idiomorph",
-      "vendor": false
+      "package": "idiomorph"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js",
-      "filename": "monaco-loader.js",
+      "filename": "monaco/loader.js",
       "content_type": "application/javascript",
-      "package": "monaco-editor",
-      "vendor": false
+      "package": "monaco-editor"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.js",
-      "filename": "monaco-editor-main.js",
+      "filename": "monaco/editor/editor.main.js",
       "content_type": "application/javascript",
-      "package": "monaco-editor",
-      "vendor": false
+      "package": "monaco-editor"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.css",
-      "filename": "monaco-editor-main.css",
+      "filename": "monaco/editor/editor.main.css",
       "content_type": "text/css",
-      "package": "monaco-editor",
-      "vendor": false
+      "package": "monaco-editor"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/worker/workerMain.js",
-      "filename": "monaco-workerMain.js",
+      "filename": "monaco/base/worker/workerMain.js",
       "content_type": "application/javascript",
-      "package": "monaco-editor",
-      "vendor": false
+      "package": "monaco-editor"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/basic-languages/yaml/yaml.js",
-      "filename": "monaco-yaml.js",
+      "filename": "monaco/basic-languages/yaml/yaml.js",
       "content_type": "application/javascript",
-      "package": "monaco-editor",
-      "vendor": false
+      "package": "monaco-editor"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/browser/ui/codicons/codicon/codicon.ttf",
-      "filename": "monaco-codicon.ttf",
+      "filename": "monaco/base/browser/ui/codicons/codicon/codicon.ttf",
       "content_type": "font/ttf",
-      "package": "monaco-editor",
-      "vendor": false
+      "package": "monaco-editor"
     }
   ],
   "licenses": {
     "htmx": {
       "type": "MIT",
       "url": "https://raw.githubusercontent.com/bigskysoftware/htmx/master/LICENSE"
+    },
+    "idiomorph": {
+      "type": "BSD-2-Clause",
+      "url": "https://raw.githubusercontent.com/bigskysoftware/idiomorph/main/LICENSE"
     },
     "xterm": {
       "type": "MIT",
@@ -124,6 +113,10 @@
     "tailwindcss": {
       "type": "MIT",
       "url": "https://raw.githubusercontent.com/tailwindlabs/tailwindcss/master/LICENSE"
+    },
+    "monaco-editor": {
+      "type": "MIT",
+      "url": "https://raw.githubusercontent.com/microsoft/monaco-editor/main/LICENSE.txt"
     }
   }
 }

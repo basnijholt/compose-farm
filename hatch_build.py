@@ -103,7 +103,7 @@ class VendorAssetsHook(BuildHookInterface):  # type: ignore[misc]
 
         # Load vendor assets configuration
         vendor_config = _load_vendor_assets(Path(self.root))
-        assets_to_vendor = [a for a in vendor_config["assets"] if a.get("vendor", False)]
+        assets_to_vendor = vendor_config["assets"]
 
         if not assets_to_vendor:
             return
@@ -122,8 +122,10 @@ class VendorAssetsHook(BuildHookInterface):  # type: ignore[misc]
             url = asset["url"]
             filename = asset["filename"]
             url_to_filename[url] = filename
+            filepath = vendor_dir / filename
+            filepath.parent.mkdir(parents=True, exist_ok=True)
             content = _download(url)
-            (vendor_dir / filename).write_bytes(content)
+            filepath.write_bytes(content)
 
         # Generate LICENSES.txt from the JSON config
         _generate_licenses_file(vendor_dir, vendor_config["licenses"])
@@ -142,6 +144,14 @@ class VendorAssetsHook(BuildHookInterface):  # type: ignore[misc]
             return match.group(0)
 
         modified_html = vendor_pattern.sub(replace_vendor_tag, html_content)
+
+        # Inject vendored mode flag for JavaScript to detect
+        # Insert right after <head> tag so it's available early
+        modified_html = modified_html.replace(
+            "<head>",
+            "<head>\n    <script>window.CF_VENDORED=true;</script>",
+            1,  # Only replace first occurrence
+        )
 
         # Write modified base.html to temp
         templates_dir = temp_dir / "templates"
