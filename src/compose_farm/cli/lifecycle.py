@@ -23,7 +23,6 @@ from compose_farm.cli.common import (
     maybe_regenerate_traefik,
     report_results,
     run_async,
-    sort_web_stack_last,
     validate_host_for_stack,
     validate_stacks,
 )
@@ -172,8 +171,6 @@ def restart(
         raw = True
         results = run_async(run_on_stacks(cfg, stack_list, f"restart {service}", raw=raw))
     else:
-        # Sort web stack last to avoid self-restart canceling remaining restarts
-        stack_list = sort_web_stack_last(stack_list)
         raw = len(stack_list) == 1
         results = run_async(run_sequential_on_stacks(cfg, stack_list, ["down", "up -d"], raw=raw))
     maybe_regenerate_traefik(cfg, results)
@@ -209,8 +206,6 @@ def update(
             )
         )
     else:
-        # Sort web stack last to avoid self-restart canceling remaining updates
-        stack_list = sort_web_stack_last(stack_list)
         raw = len(stack_list) == 1
         results = run_async(
             run_sequential_on_stacks(
@@ -332,11 +327,6 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
     if dry_run:
         console.print(f"\n{MSG_DRY_RUN}")
         return
-
-    # Sort web stack last in each phase to avoid self-restart canceling remaining work
-    migrations = sort_web_stack_last(migrations)
-    missing = sort_web_stack_last(missing)
-    to_refresh = sort_web_stack_last(to_refresh)
 
     # Execute changes
     console.print()
