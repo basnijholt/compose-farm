@@ -18,7 +18,7 @@
         {{ action_btn("Apply", "/api/apply", "primary", "Make reality match config", check()) }}
         {{ action_btn("Refresh", "/api/refresh", "outline", "Update state from reality", refresh_cw()) }}
         {{ action_btn("Pull All", "/api/pull-all", "outline", "Pull latest images for all stacks", cloud_download()) }}
-        {{ action_btn("Update All", "/api/update-all", "outline", "Update all stacks (pull + build + down + up)", rotate_cw()) }}
+        {{ action_btn("Update All", "/api/update-all", "outline", "Update all stacks except web (pull + build + down + up)", rotate_cw()) }}
         <div class="tooltip" data-tip="Save compose-farm.yaml config file"><button id="save-config-btn" class="btn btn-outline">{{ save() }} Save Config</button></div>
     </div>
 

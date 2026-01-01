@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, TypeVar
 
@@ -68,21 +67,6 @@ ServiceOption = Annotated[
 # --- Constants (internal) ---
 _MISSING_PATH_PREVIEW_LIMIT = 2
 _STATS_PREVIEW_LIMIT = 3  # Max number of pending migrations to show by name
-
-# Environment variable to identify the web stack (for self-update ordering)
-CF_WEB_STACK = os.environ.get("CF_WEB_STACK", "")
-
-
-def sort_web_stack_last(stacks: list[str]) -> list[str]:
-    """Move the web stack to the end of the list.
-
-    When updating all stacks, the web UI stack (compose-farm) should be updated
-    last. Otherwise, the container restarts mid-process and cancels remaining
-    updates. The CF_WEB_STACK env var identifies the web stack.
-    """
-    if CF_WEB_STACK and CF_WEB_STACK in stacks:
-        return [s for s in stacks if s != CF_WEB_STACK] + [CF_WEB_STACK]
-    return stacks
 
 
 def format_host(host: str | list[str]) -> str:

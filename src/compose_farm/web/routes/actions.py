@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -13,6 +14,9 @@ if TYPE_CHECKING:
 
 from compose_farm.web.deps import get_config
 from compose_farm.web.streaming import run_cli_streaming, run_compose_streaming, tasks
+
+# Environment variable to identify the web stack (for exclusion from bulk updates)
+CF_WEB_STACK = os.environ.get("CF_WEB_STACK", "")
 
 router = APIRouter(tags=["actions"])
 
@@ -96,7 +100,15 @@ async def pull_all() -> dict[str, Any]:
 
 @router.post("/update-all")
 async def update_all() -> dict[str, Any]:
-    """Update all stacks (pull + build + down + up)."""
+    """Update all stacks (pull + build + down + up), excluding the web stack.
+
+    The web stack is excluded to prevent the UI from shutting down mid-operation.
+    Use 'cf update <web-stack>' manually to update the web UI.
+    """
     config = get_config()
-    task_id = _start_task(lambda tid: run_cli_streaming(config, ["update", "--all"], tid))
-    return {"task_id": task_id, "command": "update --all"}
+    # Get all stacks except the web stack to avoid self-shutdown
+    stacks = [s for s in config.stacks if s != CF_WEB_STACK]
+    if not stacks:
+        return {"task_id": "", "command": "update (no stacks)", "skipped": True}
+    task_id = _start_task(lambda tid: run_cli_streaming(config, ["update", *stacks], tid))
+    return {"task_id": task_id, "command": f"update {' '.join(stacks)}"}
