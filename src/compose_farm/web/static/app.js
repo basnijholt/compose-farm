@@ -608,7 +608,7 @@ function playFabIntro() {
             cmd('action', 'Apply', 'Make reality match config', dashboardAction('apply'), icons.check),
             cmd('action', 'Refresh', 'Update state from reality', dashboardAction('refresh'), icons.refresh_cw),
             cmd('action', 'Pull All', 'Pull latest images for all stacks', dashboardAction('pull-all'), icons.cloud_download),
-            cmd('action', 'Update All', 'Update all stacks', dashboardAction('update-all'), icons.refresh_cw),
+            cmd('action', 'Update All', 'Update all stacks except web', dashboardAction('update-all'), icons.refresh_cw),
             cmd('app', 'Theme', 'Change color theme', openThemePicker, icons.palette),
             cmd('app', 'Dashboard', 'Go to dashboard', nav('/'), icons.home),
             cmd('app', 'Live Stats', 'View all containers across hosts', nav('/live-stats'), icons.box),
