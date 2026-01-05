@@ -195,8 +195,7 @@ def update(
     service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
-    """Update stacks. Only recreates containers if images changed."""
-    # update is just up --pull --build
+    """Update stacks (pull + build + up). Shorthand for 'up --pull --build'."""
     up(stacks=stacks, all_stacks=all_stacks, service=service, pull=True, build=True, config=config)
 
 
