@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <title>Compose Farm - reconcile loop</title>
+  <defs>
+    <linearGradient id="cfBlue17" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2496ED"/>
+      <stop offset="100%" stop-color="#1565C0"/>
+    </linearGradient>
+    <linearGradient id="cfGreen17" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#66BB6A"/>
+      <stop offset="100%" stop-color="#2E7D32"/>
+    </linearGradient>
+    <marker id="arrowGreen17" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#2E7D32"/>
+    </marker>
+    <marker id="arrowBlue17" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#1565C0"/>
+    </marker>
+  </defs>
+
+  <!-- Reconcile arrows -->
+  <g fill="none" stroke-linecap="round" opacity="0.9">
+    <path d="M46 112 A70 70 0 0 1 112 40" stroke="url(#cfGreen17)" stroke-width="6" marker-end="url(#arrowGreen17)"/>
+    <path d="M154 88 A70 70 0 0 1 88 160" stroke="url(#cfBlue17)" stroke-width="6" marker-end="url(#arrowBlue17)"/>
+  </g>
+
+  <!-- Central container -->
+  <g transform="translate(60,78)">
+    <rect x="0" y="0" width="80" height="52" rx="8" fill="url(#cfBlue17)"/>
+    <rect x="0" y="0" width="10" height="52" rx="4" fill="#0D47A1" opacity="0.9"/>
+    <rect x="70" y="0" width="10" height="52" rx="4" fill="#0D47A1" opacity="0.9"/>
+    <g fill="#1A7AC7" opacity="0.9">
+      <rect x="12" y="10" width="56" height="9" rx="3"/>
+      <rect x="12" y="22" width="56" height="9" rx="3"/>
+      <rect x="12" y="34" width="56" height="9" rx="3"/>
+    </g>
+  </g>
+
+  <!-- Apply check -->
+  <path d="M84 105 L96 117 L118 93" fill="none" stroke="#E8F5E9" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+</svg>
