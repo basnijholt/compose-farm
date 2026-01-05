@@ -14,6 +14,7 @@ from compose_farm.executor import CommandResult
 from compose_farm.operations import (
     _migrate_stack,
     build_discovery_results,
+    build_up_cmd,
 )
 
 
@@ -95,22 +96,47 @@ class TestMigrationCommands:
         assert pull_idx < build_idx
 
 
+class TestBuildUpCmd:
+    """Tests for build_up_cmd helper."""
+
+    def test_basic(self) -> None:
+        """Basic up command without flags."""
+        assert build_up_cmd() == "up -d"
+
+    def test_with_pull(self) -> None:
+        """Up command with pull flag."""
+        assert build_up_cmd(pull=True) == "up -d --pull always"
+
+    def test_with_build(self) -> None:
+        """Up command with build flag."""
+        assert build_up_cmd(build=True) == "up -d --build"
+
+    def test_with_pull_and_build(self) -> None:
+        """Up command with both flags."""
+        assert build_up_cmd(pull=True, build=True) == "up -d --pull always --build"
+
+    def test_with_service(self) -> None:
+        """Up command targeting a specific service."""
+        assert build_up_cmd(service="web") == "up -d web"
+
+    def test_with_all_options(self) -> None:
+        """Up command with all options."""
+        assert (
+            build_up_cmd(pull=True, build=True, service="web") == "up -d --pull always --build web"
+        )
+
+
 class TestUpdateCommandSequence:
     """Tests for update command sequence."""
 
-    def test_update_command_uses_pull_always_and_build(self) -> None:
-        """Update command should use --pull always --build flags."""
-        # This is a static check of the command sequence in lifecycle.py
-        # The actual command sequence is defined in the update function
-
+    def test_update_delegates_to_up_with_pull_and_build(self) -> None:
+        """Update command should delegate to up with pull=True and build=True."""
         source = inspect.getsource(lifecycle.update)
 
-        # Verify the command uses --pull always (only recreates if image changed)
-        assert "--pull always" in source
-        # Verify --build is included for buildable services
-        assert "--build" in source
-        # Verify up -d is used
-        assert "up -d" in source
+        # Verify update calls up with pull=True and build=True
+        assert "up(" in source
+        assert "pull=True" in source
+        assert "build=True" in source
 
 
 class TestBuildDiscoveryResults:
