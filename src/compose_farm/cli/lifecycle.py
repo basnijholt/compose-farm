@@ -49,6 +49,14 @@ def up(
     all_stacks: AllOption = False,
     host: HostOption = None,
     service: ServiceOption = None,
+    pull: Annotated[
+        bool,
+        typer.Option("--pull", help="Pull images before starting (--pull always)"),
+    ] = False,
+    build: Annotated[
+        bool,
+        typer.Option("--build", help="Build images before starting"),
+    ] = False,
     config: ConfigOption = None,
 ) -> None:
     """Start stacks (docker compose up -d). Auto-migrates if host changed."""
@@ -58,9 +66,10 @@ def up(
             print_error("--service requires exactly one stack")
             raise typer.Exit(1)
         # For service-level up, use run_on_stacks directly (no migration logic)
-        results = run_async(run_on_stacks(cfg, stack_list, f"up -d {service}", raw=True))
+        cmd = f"up -d{' --pull always' if pull else ''}{' --build' if build else ''} {service}"
+        results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=True))
     else:
-        results = run_async(up_stacks(cfg, stack_list, raw=True))
+        results = run_async(up_stacks(cfg, stack_list, raw=True, pull=pull, build=build))
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
 
