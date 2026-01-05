@@ -29,6 +29,8 @@ from .state import (
 )
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from .config import Config
 
 
@@ -185,18 +187,35 @@ def _report_preflight_failures(
         print_error(f"  missing device: {dev}")
 
 
+def _build_up_command(
+    compose_path: str | Path,
+    *,
+    pull: bool = False,
+    build: bool = False,
+) -> str:
+    """Build the docker compose up command with optional flags."""
+    parts = ["docker compose", f"-f {compose_path}", "up -d"]
+    if pull:
+        parts.append("--pull always")
+    if build:
+        parts.append("--build")
+    return " ".join(parts)
+
+
 async def _up_multi_host_stack(
     cfg: Config,
     stack: str,
     prefix: str,
     *,
     raw: bool = False,
+    pull: bool = False,
+    build: bool = False,
 ) -> list[CommandResult]:
     """Start a multi-host stack on all configured hosts."""
     host_names = cfg.get_hosts(stack)
     results: list[CommandResult] = []
     compose_path = cfg.get_compose_path(stack)
-    command = f"docker compose -f {compose_path} up -d"
+    command = _build_up_command(compose_path, pull=pull, build=build)
 
     # Pre-flight checks on all hosts
     for host_name in host_names:
@@ -269,6 +288,8 @@ async def _up_single_stack(
     prefix: str,
     *,
     raw: bool,
+    pull: bool = False,
+    build: bool = False,
 ) -> CommandResult:
     """Start a single-host stack with migration support."""
     target_host = cfg.get_hosts(stack)[0]
@@ -297,7 +318,12 @@ async def _up_single_stack(
 
     # Start on target host
     console.print(f"{prefix} Starting on [magenta]{target_host}[/]...")
-    up_result = await _run_compose_step(cfg, stack, "up -d", raw=raw)
+    up_cmd = "up -d"
+    if pull:
+        up_cmd += " --pull always"
+    if build:
+        up_cmd += " --build"
+    up_result = await _run_compose_step(cfg, stack, up_cmd, raw=raw)
 
     # Update state on success, or rollback on failure
     if up_result.success:
@@ -321,6 +347,8 @@ async def up_stacks(
     stacks: list[str],
     *,
     raw: bool = False,
+    pull: bool = False,
+    build: bool = False,
 ) -> list[CommandResult]:
     """Start stacks with automatic migration if host changed."""
     results: list[CommandResult] = []
@@ -331,9 +359,13 @@ async def up_stacks(
             prefix = f"[dim][{idx}/{total}][/] [cyan]\\[{stack}][/]"
 
             if cfg.is_multi_host(stack):
-                results.extend(await _up_multi_host_stack(cfg, stack, prefix, raw=raw))
+                results.extend(
+                    await _up_multi_host_stack(cfg, stack, prefix, raw=raw, pull=pull, build=build)
+                )
             else:
-                results.append(await _up_single_stack(cfg, stack, prefix, raw=raw))
+                results.append(
+                    await _up_single_stack(cfg, stack, prefix, raw=raw, pull=pull, build=build)
+                )
     except OperationInterruptedError:
         raise KeyboardInterrupt from None
 
