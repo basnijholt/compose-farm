@@ -196,15 +196,8 @@ def update(
     config: ConfigOption = None,
 ) -> None:
     """Update stacks. Only recreates containers if images changed."""
-    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
-    if service and len(stack_list) != 1:
-        print_error("--service requires exactly one stack")
-        raise typer.Exit(1)
-    cmd = build_up_cmd(pull=True, build=True, service=service)
-    raw = len(stack_list) == 1
-    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
-    maybe_regenerate_traefik(cfg, results)
-    report_results(results)
+    # update is just up --pull --build
+    up(stacks=stacks, all_stacks=all_stacks, service=service, pull=True, build=True, config=config)
 
 
 def _discover_strays(cfg: Config) -> dict[str, list[str]]:

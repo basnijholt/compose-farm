@@ -129,15 +129,12 @@ class TestBuildUpCmd:
 class TestUpdateCommandSequence:
     """Tests for update command sequence."""
 
-    def test_update_command_uses_pull_always_and_build(self) -> None:
-        """Update command should use --pull always --build flags."""
-        # This is a static check of the command sequence in lifecycle.py
-        # The actual command sequence is defined in the update function
-
+    def test_update_delegates_to_up_with_pull_and_build(self) -> None:
+        """Update command should delegate to up with pull=True and build=True."""
         source = inspect.getsource(lifecycle.update)
 
-        # Verify update uses build_up_cmd with pull=True and build=True
-        assert "build_up_cmd" in source
+        # Verify update calls up with pull=True and build=True
+        assert "up(" in source
         assert "pull=True" in source
         assert "build=True" in source
 
