@@ -487,7 +487,8 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │                stop).                                                        │
 │ pull           Pull latest images (docker compose pull).                     │
 │ restart        Restart running containers (docker compose restart).          │
-│ update         Update stacks. Only recreates containers if images changed.   │
+│ update         Update stacks (pull + build + up). Shorthand for 'up --pull   │
+│                --build'.                                                     │
 │ apply          Make reality match config (start, migrate, stop               │
 │                strays/orphans as needed).                                    │
 │ compose        Run any docker compose command on a stack.                    │
@@ -707,7 +708,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Usage: cf update [OPTIONS] [STACKS]...
 
- Update stacks. Only recreates containers if images changed.
+ Update stacks (pull + build + up). Shorthand for 'up --pull --build'.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │   stacks      [STACKS]...  Stacks to operate on                              │
