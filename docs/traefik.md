@@ -139,7 +139,6 @@ stacks:
 With `traefik_file` set, these commands auto-regenerate the config:
 - `cf up`
 - `cf down`
-- `cf restart`
 - `cf update`
 - `cf apply`
 

@@ -137,7 +137,7 @@ CLI available as `cf` or `compose-farm`.
 | `down`  | Stop stacks (`docker compose down`). Use `--orphaned` to stop stacks removed from config |
 | `stop`  | Stop services without removing containers (`docker compose stop`) |
 | `pull`  | Pull latest images |
-| `restart` | `down` + `up -d` |
+| `restart` | Restart running containers (`docker compose restart`) |
 | `update` | Pull, build, recreate only if changed (`up -d --pull always --build`) |
 | `apply` | Make reality match config: migrate stacks + stop orphans. Use `--dry-run` to preview |
 | `compose` | Run any docker compose command on a stack (passthrough) |

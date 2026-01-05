@@ -5,7 +5,7 @@
 
 compose_dir: /opt/stacks/compose-farm/examples
 
-# Auto-regenerate Traefik file-provider config after up/down/restart/update
+# Auto-regenerate Traefik file-provider config after up/down/update
 traefik_file: /opt/stacks/compose-farm/examples/traefik/dynamic.d/compose-farm.yml
 traefik_stack: traefik  # Skip Traefik's host in file-provider (docker provider handles it)
 

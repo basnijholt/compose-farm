@@ -76,7 +76,7 @@ stacks:
 # traefik_file: (optional) Auto-generate Traefik file-provider config
 # ------------------------------------------------------------------------------
 # When set, compose-farm automatically regenerates this file after
-# up/down/restart/update commands. Traefik watches this file for changes.
+# up/down/update commands. Traefik watches this file for changes.
 #
 # traefik_file: /opt/compose/traefik/dynamic.d/compose-farm.yml
 
