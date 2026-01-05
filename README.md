@@ -475,8 +475,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ pull           Pull latest images (docker compose pull).                     │
 │ restart        Restart stacks (down + up). With --service, restarts just     │
 │                that service.                                                 │
-│ update         Update stacks (pull + build + down + up). With --service,     │
-│                updates just that service.                                    │
+│ update         Update stacks. Only recreates containers if images changed.   │
 │ apply          Make reality match config (start, migrate, stop               │
 │                strays/orphans as needed).                                    │
 │ compose        Run any docker compose command on a stack.                    │
@@ -694,8 +693,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Usage: cf update [OPTIONS] [STACKS]...
 
- Update stacks (pull + build + down + up). With --service, updates just that
- service.
+ Update stacks. Only recreates containers if images changed.
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │   stacks      [STACKS]...  Stacks to operate on                              │
