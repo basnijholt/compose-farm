@@ -51,6 +51,8 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
   - [Multi-Host Stacks](#multi-host-stacks)
   - [Config Command](#config-command)
 - [Usage](#usage)
+  - [Docker Compose Commands](#docker-compose-commands)
+  - [Compose Farm Commands](#compose-farm-commands)
   - [CLI `--help` Output](#cli---help-output)
   - [Auto-Migration](#auto-migration)
 - [Traefik Multihost Ingress (File Provider)](#traefik-multihost-ingress-file-provider)
