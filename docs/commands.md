@@ -8,6 +8,8 @@ The Compose Farm CLI is available as both `compose-farm` and the shorter alias `
 
 ## Command Overview
 
+Commands are either **Docker Compose wrappers** (`up`, `down`, `stop`, `restart`, `pull`, `logs`, `ps`, `compose`) with multi-host superpowers, or **Compose Farm originals** (`apply`, `update`, `refresh`, `check`) for orchestration Docker Compose can't do.
+
 | Category | Command | Description |
 |----------|---------|-------------|
 | **Lifecycle** | `apply` | Make reality match config |
@@ -15,7 +17,7 @@ The Compose Farm CLI is available as both `compose-farm` and the shorter alias `
 | | `down` | Stop stacks |
 | | `stop` | Stop services without removing containers |
 | | `restart` | Restart running containers |
-| | `update` | Update stacks (only recreates if images changed) |
+| | `update` | Shorthand for `up --pull --build` |
 | | `pull` | Pull latest images |
 | | `compose` | Run any docker compose command |
 | **Monitoring** | `ps` | Show stack status |
@@ -225,7 +227,7 @@ cf restart immich --service database
 
 ### cf update
 
-Update stacks. Only recreates containers if images changed. With `--service`, updates just that service.
+Update stacks (pull + build + up). Shorthand for `up --pull --build`. With `--service`, updates just that service.
 
 <video autoplay loop muted playsinline>
   <source src="/assets/update.webm" type="video/webm">
