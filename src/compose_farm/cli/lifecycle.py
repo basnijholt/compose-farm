@@ -30,6 +30,7 @@ from compose_farm.cli.management import _discover_stacks_full
 from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success
 from compose_farm.executor import run_compose_on_host, run_on_stacks
 from compose_farm.operations import (
+    build_up_cmd,
     stop_orphaned_stacks,
     stop_stray_stacks,
     up_stacks,
@@ -66,8 +67,11 @@ def up(
             print_error("--service requires exactly one stack")
             raise typer.Exit(1)
         # For service-level up, use run_on_stacks directly (no migration logic)
-        cmd = f"up -d{' --pull always' if pull else ''}{' --build' if build else ''} {service}"
-        results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=True))
+        results = run_async(
+            run_on_stacks(
+                cfg, stack_list, build_up_cmd(pull=pull, build=build, service=service), raw=True
+            )
+        )
     else:
         results = run_async(up_stacks(cfg, stack_list, raw=True, pull=pull, build=build))
     maybe_regenerate_traefik(cfg, results)
@@ -193,13 +197,10 @@ def update(
 ) -> None:
     """Update stacks. Only recreates containers if images changed."""
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
-    if service:
-        if len(stack_list) != 1:
-            print_error("--service requires exactly one stack")
-            raise typer.Exit(1)
-        cmd = f"up -d --pull always --build {service}"
-    else:
-        cmd = "up -d --pull always --build"
+    if service and len(stack_list) != 1:
+        print_error("--service requires exactly one stack")
+        raise typer.Exit(1)
+    cmd = build_up_cmd(pull=True, build=True, service=service)
     raw = len(stack_list) == 1
     results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
     maybe_regenerate_traefik(cfg, results)

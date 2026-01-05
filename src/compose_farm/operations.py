@@ -29,8 +29,6 @@ from .state import (
 )
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from .config import Config
 
 
@@ -187,18 +185,20 @@ def _report_preflight_failures(
         print_error(f"  missing device: {dev}")
 
 
-def _build_up_command(
-    compose_path: str | Path,
+def build_up_cmd(
     *,
     pull: bool = False,
     build: bool = False,
+    service: str | None = None,
 ) -> str:
-    """Build the docker compose up command with optional flags."""
-    parts = ["docker compose", f"-f {compose_path}", "up -d"]
+    """Build compose 'up' subcommand with optional flags."""
+    parts = ["up", "-d"]
     if pull:
         parts.append("--pull always")
     if build:
         parts.append("--build")
+    if service:
+        parts.append(service)
     return " ".join(parts)
 
 
@@ -215,7 +215,7 @@ async def _up_multi_host_stack(
     host_names = cfg.get_hosts(stack)
     results: list[CommandResult] = []
     compose_path = cfg.get_compose_path(stack)
-    command = _build_up_command(compose_path, pull=pull, build=build)
+    command = f"docker compose -f {compose_path} {build_up_cmd(pull=pull, build=build)}"
 
     # Pre-flight checks on all hosts
     for host_name in host_names:
@@ -318,12 +318,7 @@ async def _up_single_stack(
 
     # Start on target host
     console.print(f"{prefix} Starting on [magenta]{target_host}[/]...")
-    up_cmd = "up -d"
-    if pull:
-        up_cmd += " --pull always"
-    if build:
-        up_cmd += " --build"
-    up_result = await _run_compose_step(cfg, stack, up_cmd, raw=raw)
+    up_result = await _run_compose_step(cfg, stack, build_up_cmd(pull=pull, build=build), raw=raw)
 
     # Update state on success, or rollback on failure
     if up_result.success:
@@ -359,15 +354,8 @@ async def _up_stack_simple(
         _report_preflight_failures(stack, target_host, preflight)
         return CommandResult(stack=stack, exit_code=1, success=False)
 
-    # Build command
-    up_cmd = "up -d"
-    if pull:
-        up_cmd += " --pull always"
-    if build:
-        up_cmd += " --build"
-
     # Run with streaming for parallel output
-    result = await run_compose(cfg, stack, up_cmd, raw=raw)
+    result = await run_compose(cfg, stack, build_up_cmd(pull=pull, build=build), raw=raw)
     if raw:
         print()
     if result.interrupted:
