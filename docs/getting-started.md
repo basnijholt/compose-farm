@@ -329,7 +329,7 @@ cf apply
 
 ```bash
 cf update --all
-# Runs: pull + build + down + up for each stack
+# Only recreates containers if images changed
 ```
 
 ## Next Steps

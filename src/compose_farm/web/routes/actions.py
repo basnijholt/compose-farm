@@ -100,7 +100,7 @@ async def pull_all() -> dict[str, Any]:
 
 @router.post("/update-all")
 async def update_all() -> dict[str, Any]:
-    """Update all stacks (pull + build + down + up), excluding the web stack.
+    """Update all stacks, excluding the web stack. Only recreates if images changed.
 
     The web stack is excluded to prevent the UI from shutting down mid-operation.
     Use 'cf update <web-stack>' manually to update the web UI.

@@ -184,34 +184,17 @@ def update(
     service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
-    """Update stacks (pull + build + down + up). With --service, updates just that service."""
+    """Update stacks. Only recreates containers if images changed."""
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
     if service:
         if len(stack_list) != 1:
             print_error("--service requires exactly one stack")
             raise typer.Exit(1)
-        # For service-level update: pull + build + stop + up (stop instead of down)
-        raw = True
-        results = run_async(
-            run_sequential_on_stacks(
-                cfg,
-                stack_list,
-                [
-                    f"pull --ignore-buildable {service}",
-                    f"build {service}",
-                    f"stop {service}",
-                    f"up -d {service}",
-                ],
-                raw=raw,
-            )
-        )
+        cmd = f"up -d --pull always --build {service}"
     else:
-        raw = len(stack_list) == 1
-        results = run_async(
-            run_sequential_on_stacks(
-                cfg, stack_list, ["pull --ignore-buildable", "build", "down", "up -d"], raw=raw
-            )
-        )
+        cmd = "up -d --pull always --build"
+    raw = len(stack_list) == 1
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
 

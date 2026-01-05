@@ -1,5 +1,5 @@
 # Update Demo
-# Shows updating stacks (pull + build + down + up)
+# Shows updating stacks (only recreates containers if images changed)
 
 Output docs/assets/update.gif
 Output docs/assets/update.webm
