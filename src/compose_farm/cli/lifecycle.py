@@ -406,5 +406,9 @@ def compose(
         raise typer.Exit(result.exit_code)
 
 
-# Alias: cf a = cf apply
-app.command("a", hidden=True)(apply)
+# Aliases (hidden from help, shown in --help as "Aliases: ...")
+app.command("a", hidden=True)(apply)  # cf a = cf apply
+app.command("r", hidden=True)(restart)  # cf r = cf restart
+app.command("u", hidden=True)(update)  # cf u = cf update
+app.command("p", hidden=True)(pull)  # cf p = cf pull
+app.command("c", hidden=True)(compose)  # cf c = cf compose
