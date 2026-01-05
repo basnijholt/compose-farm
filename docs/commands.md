@@ -15,7 +15,7 @@ The Compose Farm CLI is available as both `compose-farm` and the shorter alias `
 | | `down` | Stop stacks |
 | | `stop` | Stop services without removing containers |
 | | `restart` | Restart stacks (down + up) |
-| | `update` | Update stacks (pull + build + down + up) |
+| | `update` | Update stacks (only recreates if images changed) |
 | | `pull` | Pull latest images |
 | | `compose` | Run any docker compose command |
 | **Monitoring** | `ps` | Show stack status |
@@ -225,7 +225,7 @@ cf restart immich --service database
 
 ### cf update
 
-Update stacks (pull + build + down + up). With `--service`, updates just that service.
+Update stacks. Only recreates containers if images changed. With `--service`, updates just that service.
 
 <video autoplay loop muted playsinline>
   <source src="/assets/update.webm" type="video/webm">

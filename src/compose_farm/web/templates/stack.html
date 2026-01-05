@@ -23,7 +23,7 @@
         {{ action_btn("Up", "/api/stack/" ~ name ~ "/up", "primary", "Start stack (docker compose up -d)", play()) }}
         {{ action_btn("Down", "/api/stack/" ~ name ~ "/down", "outline", "Stop stack (docker compose down)", square()) }}
         {{ action_btn("Restart", "/api/stack/" ~ name ~ "/restart", "secondary", "Restart stack (down + up)", rotate_cw()) }}
-        {{ action_btn("Update", "/api/stack/" ~ name ~ "/update", "accent", "Update to latest (pull + build + down + up)", download()) }}
+        {{ action_btn("Update", "/api/stack/" ~ name ~ "/update", "accent", "Update to latest (only restarts if changed)", download()) }}
 
         <div class="divider divider-horizontal mx-0"></div>
 
