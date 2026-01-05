@@ -523,6 +523,8 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ --all      -a            Run on all stacks                                   │
 │ --host     -H      TEXT  Filter to stacks on this host                       │
 │ --service  -s      TEXT  Target a specific service within the stack          │
+│ --pull                   Pull images before starting (--pull always)         │
+│ --build                  Build images before starting                        │
 │ --config   -c      PATH  Path to config file                                 │
 │ --help     -h            Show this message and exit.                         │
 ╰──────────────────────────────────────────────────────────────────────────────╯
