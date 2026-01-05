@@ -28,7 +28,7 @@ from compose_farm.cli.common import (
 )
 from compose_farm.cli.management import _discover_stacks_full
 from compose_farm.console import MSG_DRY_RUN, console, print_error, print_success
-from compose_farm.executor import run_compose_on_host, run_on_stacks, run_sequential_on_stacks
+from compose_farm.executor import run_compose_on_host, run_on_stacks
 from compose_farm.operations import (
     stop_orphaned_stacks,
     stop_stray_stacks,
@@ -161,19 +161,17 @@ def restart(
     service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
-    """Restart stacks (down + up). With --service, restarts just that service."""
+    """Restart running containers (docker compose restart)."""
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
     if service:
         if len(stack_list) != 1:
             print_error("--service requires exactly one stack")
             raise typer.Exit(1)
-        # For service-level restart, use docker compose restart (more efficient)
-        raw = True
-        results = run_async(run_on_stacks(cfg, stack_list, f"restart {service}", raw=raw))
+        cmd = f"restart {service}"
     else:
-        raw = len(stack_list) == 1
-        results = run_async(run_sequential_on_stacks(cfg, stack_list, ["down", "up -d"], raw=raw))
-    maybe_regenerate_traefik(cfg, results)
+        cmd = "restart"
+    raw = len(stack_list) == 1
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
     report_results(results)
 
 

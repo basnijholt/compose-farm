@@ -107,7 +107,7 @@ Supported compose file names (checked in order):
 
 ### traefik_file
 
-Path to auto-generated Traefik file-provider config. When set, Compose Farm regenerates this file after `up`, `down`, `restart`, and `update` commands.
+Path to auto-generated Traefik file-provider config. When set, Compose Farm regenerates this file after `up`, `down`, and `update` commands.
 
 ```yaml
 traefik_file: /opt/traefik/dynamic.d/compose-farm.yml

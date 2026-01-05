@@ -168,4 +168,4 @@ traefik_file: /opt/stacks/traefik/dynamic.d/compose-farm.yml
 traefik_stack: traefik
 ```
 
-With `traefik_file` configured, compose-farm automatically regenerates the config after `up`, `down`, `restart`, and `update` commands.
+With `traefik_file` configured, compose-farm automatically regenerates the config after `up`, `down`, and `update` commands.

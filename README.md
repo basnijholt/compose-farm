@@ -369,7 +369,7 @@ The CLI is available as both `compose-farm` and the shorter `cf` alias.
 | `cf up <stack>` | Start stack (auto-migrates if host changed) |
 | `cf down <stack>` | Stop and remove stack containers |
 | `cf stop <stack>` | Stop stack without removing containers |
-| `cf restart <stack>` | down + up |
+| `cf restart <stack>` | Restart running containers |
 | `cf update <stack>` | Pull, build, recreate only if changed |
 | `cf pull <stack>` | Pull latest images |
 | `cf logs -f <stack>` | Follow logs |
@@ -400,7 +400,7 @@ cf down --orphaned     # stop stacks removed from config
 # Pull latest images
 cf pull --all
 
-# Restart (down + up)
+# Restart running containers
 cf restart plex
 
 # Update (pull + build, only recreates containers if images changed)
@@ -473,8 +473,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ stop           Stop services without removing containers (docker compose     │
 │                stop).                                                        │
 │ pull           Pull latest images (docker compose pull).                     │
-│ restart        Restart stacks (down + up). With --service, restarts just     │
-│                that service.                                                 │
+│ restart        Restart running containers (docker compose restart).          │
 │ update         Update stacks. Only recreates containers if images changed.   │
 │ apply          Make reality match config (start, migrate, stop               │
 │                strays/orphans as needed).                                    │
@@ -658,7 +657,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Usage: cf restart [OPTIONS] [STACKS]...
 
- Restart stacks (down + up). With --service, restarts just that service.
+ Restart running containers (docker compose restart).
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │   stacks      [STACKS]...  Stacks to operate on                              │
@@ -1281,12 +1280,12 @@ published ports.
 
 **Auto-regeneration**
 
-To automatically regenerate the Traefik config after `up`, `down`, `restart`, or `update`,
+To automatically regenerate the Traefik config after `up`, `down`, or `update`,
 add `traefik_file` to your config:
 
 ```yaml
 compose_dir: /opt/compose
-traefik_file: /opt/traefik/dynamic.d/compose-farm.yml  # auto-regenerate on up/down/restart/update
+traefik_file: /opt/traefik/dynamic.d/compose-farm.yml  # auto-regenerate on up/down/update
 traefik_stack: traefik  # skip stacks on same host (docker provider handles them)
 
 hosts:

@@ -628,7 +628,7 @@ function playFabIntro() {
                 stackCmd('Down', 'Stop', 'down', icons.square),
                 stackCmd('Restart', 'Restart', 'restart', icons.rotate_cw),
                 stackCmd('Pull', 'Pull', 'pull', icons.cloud_download),
-                stackCmd('Update', 'Pull + restart', 'update', icons.refresh_cw),
+                stackCmd('Update', 'Pull + recreate', 'update', icons.refresh_cw),
                 stackCmd('Logs', 'View logs for', 'logs', icons.file_text),
             );
 

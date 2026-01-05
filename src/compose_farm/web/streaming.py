@@ -103,8 +103,8 @@ def _is_self_update(stack: str, command: str) -> bool:
     """
     if not CF_WEB_STACK or stack != CF_WEB_STACK:
         return False
-    # Commands that involve 'down' need SSH: update, restart, down
-    return command in ("update", "restart", "down")
+    # Commands that involve 'down' need SSH: update, down
+    return command in ("update", "down")
 
 
 async def _run_cli_via_ssh(

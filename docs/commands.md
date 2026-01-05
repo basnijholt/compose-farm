@@ -14,7 +14,7 @@ The Compose Farm CLI is available as both `compose-farm` and the shorter alias `
 | | `up` | Start stacks |
 | | `down` | Stop stacks |
 | | `stop` | Stop services without removing containers |
-| | `restart` | Restart stacks (down + up) |
+| | `restart` | Restart running containers |
 | | `update` | Update stacks (only recreates if images changed) |
 | | `pull` | Pull latest images |
 | | `compose` | Run any docker compose command |
@@ -197,7 +197,7 @@ cf stop immich --service database
 
 ### cf restart
 
-Restart stacks (down + up). With `--service`, restarts just that service.
+Restart running containers (`docker compose restart`). With `--service`, restarts just that service.
 
 ```bash
 cf restart [OPTIONS] [STACKS]...
