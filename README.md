@@ -476,7 +476,6 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ restart        Restart stacks (down + up). With --service, restarts just     │
 │                that service.                                                 │
 │ update         Update stacks. Only recreates containers if images changed.   │
-│                With --service, updates just that service.                    │
 │ apply          Make reality match config (start, migrate, stop               │
 │                strays/orphans as needed).                                    │
 │ compose        Run any docker compose command on a stack.                    │
@@ -660,7 +659,6 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Usage: cf restart [OPTIONS] [STACKS]...
 
  Restart stacks (down + up). With --service, restarts just that service.
-
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │   stacks      [STACKS]...  Stacks to operate on                              │
