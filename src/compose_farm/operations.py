@@ -342,6 +342,44 @@ async def _up_single_stack(
     return up_result
 
 
+async def _up_stack_simple(
+    cfg: Config,
+    stack: str,
+    *,
+    raw: bool = False,
+    pull: bool = False,
+    build: bool = False,
+) -> CommandResult:
+    """Start a single-host stack without migration (parallel-safe)."""
+    target_host = cfg.get_hosts(stack)[0]
+
+    # Pre-flight check
+    preflight = await check_stack_requirements(cfg, stack, target_host)
+    if not preflight.ok:
+        _report_preflight_failures(stack, target_host, preflight)
+        return CommandResult(stack=stack, exit_code=1, success=False)
+
+    # Build command
+    up_cmd = "up -d"
+    if pull:
+        up_cmd += " --pull always"
+    if build:
+        up_cmd += " --build"
+
+    # Run with streaming for parallel output
+    result = await run_compose(cfg, stack, up_cmd, raw=raw)
+    if raw:
+        print()
+    if result.interrupted:
+        raise OperationInterruptedError
+
+    # Update state on success
+    if result.success:
+        set_stack_host(cfg, stack, target_host)
+
+    return result
+
+
 async def up_stacks(
     cfg: Config,
     stacks: list[str],
@@ -350,22 +388,62 @@ async def up_stacks(
     pull: bool = False,
     build: bool = False,
 ) -> list[CommandResult]:
-    """Start stacks with automatic migration if host changed."""
+    """Start stacks with automatic migration if host changed.
+
+    Stacks without migration run in parallel. Migration stacks run sequentially.
+    """
+    # Categorize stacks
+    multi_host: list[str] = []
+    needs_migration: list[str] = []
+    simple: list[str] = []
+
+    for stack in stacks:
+        if cfg.is_multi_host(stack):
+            multi_host.append(stack)
+        else:
+            target = cfg.get_hosts(stack)[0]
+            current = get_stack_host(cfg, stack)
+            if current and current != target:
+                needs_migration.append(stack)
+            else:
+                simple.append(stack)
+
     results: list[CommandResult] = []
-    total = len(stacks)
 
     try:
-        for idx, stack in enumerate(stacks, 1):
-            prefix = f"[dim][{idx}/{total}][/] [cyan]\\[{stack}][/]"
+        # Simple stacks: run in parallel (no migration needed)
+        if simple:
+            use_raw = raw and len(simple) == 1
+            simple_results = await asyncio.gather(
+                *[
+                    _up_stack_simple(cfg, stack, raw=use_raw, pull=pull, build=build)
+                    for stack in simple
+                ]
+            )
+            results.extend(simple_results)
 
-            if cfg.is_multi_host(stack):
-                results.extend(
-                    await _up_multi_host_stack(cfg, stack, prefix, raw=raw, pull=pull, build=build)
-                )
-            else:
+        # Multi-host stacks: run in parallel
+        if multi_host:
+            multi_results = await asyncio.gather(
+                *[
+                    _up_multi_host_stack(
+                        cfg, stack, f"[cyan]\\[{stack}][/]", raw=raw, pull=pull, build=build
+                    )
+                    for stack in multi_host
+                ]
+            )
+            for result_list in multi_results:
+                results.extend(result_list)
+
+        # Migration stacks: run sequentially for clear output and rollback
+        if needs_migration:
+            total = len(needs_migration)
+            for idx, stack in enumerate(needs_migration, 1):
+                prefix = f"[dim][{idx}/{total}][/] [cyan]\\[{stack}][/]"
                 results.append(
                     await _up_single_stack(cfg, stack, prefix, raw=raw, pull=pull, build=build)
                 )
+
     except OperationInterruptedError:
         raise KeyboardInterrupt from None
 
