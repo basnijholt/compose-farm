@@ -53,6 +53,7 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 - [Usage](#usage)
   - [Docker Compose Commands](#docker-compose-commands)
   - [Compose Farm Commands](#compose-farm-commands)
+  - [Aliases](#aliases)
   - [CLI `--help` Output](#cli---help-output)
   - [Auto-Migration](#auto-migration)
 - [Traefik Multihost Ingress (File Provider)](#traefik-multihost-ingress-file-provider)
@@ -394,6 +395,18 @@ Multi-host orchestration that Docker Compose can't do:
 | `cf traefik-file` | Generate Traefik file-provider config |
 | `cf config` | Manage config files (init, show, validate, edit, symlink) |
 | `cf ssh` | Manage SSH keys (setup, status, keygen) |
+
+### Aliases
+
+Short aliases for frequently used commands:
+
+| Alias | Command | Alias | Command |
+|-------|---------|-------|---------|
+| `cf a` | `apply` | `cf s` | `stats` |
+| `cf l` | `logs` | `cf c` | `compose` |
+| `cf r` | `restart` | `cf rf` | `refresh` |
+| `cf u` | `update` | `cf ck` | `check` |
+| `cf p` | `pull` | `cf tf` | `traefik-file` |
 
 Each command replaces: look up host → SSH → find compose file → run `ssh host "cd /opt/compose/plex && docker compose up -d"`.
 

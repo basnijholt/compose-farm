@@ -201,3 +201,8 @@ def stats(
 
     console.print()
     console.print(_build_summary_table(cfg, state, pending))
+
+
+# Aliases (hidden from help)
+app.command("l", hidden=True)(logs)  # cf l = cf logs
+app.command("s", hidden=True)(stats)  # cf s = cf stats

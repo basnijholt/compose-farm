@@ -659,3 +659,9 @@ def init_network(
     failed = [r for r in results if not r.success]
     if failed:
         raise typer.Exit(1)
+
+
+# Aliases (hidden from help)
+app.command("rf", hidden=True)(refresh)  # cf rf = cf refresh
+app.command("ck", hidden=True)(check)  # cf ck = cf check
+app.command("tf", hidden=True)(traefik_file)  # cf tf = cf traefik-file
