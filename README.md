@@ -51,6 +51,8 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
   - [Multi-Host Stacks](#multi-host-stacks)
   - [Config Command](#config-command)
 - [Usage](#usage)
+  - [Docker Compose Commands](#docker-compose-commands)
+  - [Compose Farm Commands](#compose-farm-commands)
   - [CLI `--help` Output](#cli---help-output)
   - [Auto-Migration](#auto-migration)
 - [Traefik Multihost Ingress (File Provider)](#traefik-multihost-ingress-file-provider)
@@ -363,24 +365,35 @@ Use `cf config init` to get started with a fully documented template.
 
 The CLI is available as both `compose-farm` and the shorter `cf` alias.
 
+### Docker Compose Commands
+
+These wrap `docker compose` with multi-host superpowers:
+
+| Command | Wraps | Compose Farm Additions |
+|---------|-------|------------------------|
+| `cf up` | `up -d` | `--all`, `--host`, parallel execution, auto-migration |
+| `cf down` | `down` | `--all`, `--host`, `--orphaned`, state tracking |
+| `cf stop` | `stop` | `--all`, `--service` |
+| `cf restart` | `restart` | `--all`, `--service` |
+| `cf pull` | `pull` | `--all`, `--service`, parallel execution |
+| `cf logs` | `logs` | `--all`, `--host`, multi-stack output |
+| `cf ps` | `ps` | `--all`, `--host`, unified cross-host view |
+| `cf compose` | any | passthrough for commands not listed above |
+
+### Compose Farm Commands
+
+Multi-host orchestration that Docker Compose can't do:
+
 | Command | Description |
 |---------|-------------|
-| **`cf apply`** | **Make reality match config (start + migrate + stop orphans)** |
-| `cf up <stack>` | Start stack (auto-migrates if host changed) |
-| `cf down <stack>` | Stop and remove stack containers |
-| `cf stop <stack>` | Stop stack without removing containers |
-| `cf restart <stack>` | Restart running containers |
-| `cf update <stack>` | Pull, build, recreate only if changed |
-| `cf pull <stack>` | Pull latest images |
-| `cf logs -f <stack>` | Follow logs |
-| `cf ps` | Show status of all stacks |
-| `cf refresh` | Update state from running stacks |
+| **`cf apply`** | **Reconcile: start missing, migrate moved, stop orphans** |
+| `cf update` | Shorthand for `up --pull --build` |
+| `cf refresh` | Sync state from what's actually running |
 | `cf check` | Validate config, mounts, networks |
-| `cf init-network` | Create Docker network on hosts |
+| `cf init-network` | Create Docker network on all hosts |
 | `cf traefik-file` | Generate Traefik file-provider config |
-| `cf config <cmd>` | Manage config files (init, show, path, validate, edit, symlink) |
-
-All commands support `--all` to operate on all stacks.
+| `cf config` | Manage config files (init, show, validate, edit, symlink) |
+| `cf ssh` | Manage SSH keys (setup, status, keygen) |
 
 Each command replaces: look up host → SSH → find compose file → run `ssh host "cd /opt/compose/plex && docker compose up -d"`.
 
