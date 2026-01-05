@@ -370,7 +370,7 @@ The CLI is available as both `compose-farm` and the shorter `cf` alias.
 | `cf down <stack>` | Stop and remove stack containers |
 | `cf stop <stack>` | Stop stack without removing containers |
 | `cf restart <stack>` | down + up |
-| `cf update <stack>` | pull + build + down + up |
+| `cf update <stack>` | Pull, build, recreate only if changed |
 | `cf pull <stack>` | Pull latest images |
 | `cf logs -f <stack>` | Follow logs |
 | `cf ps` | Show status of all stacks |
@@ -403,7 +403,7 @@ cf pull --all
 # Restart (down + up)
 cf restart plex
 
-# Update (pull + build + down + up) - the end-to-end update command
+# Update (pull + build, only recreates containers if images changed)
 cf update --all
 
 # Update state from reality (discovers running stacks + captures digests)
@@ -476,6 +476,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ restart        Restart stacks (down + up). With --service, restarts just     │
 │                that service.                                                 │
 │ update         Update stacks. Only recreates containers if images changed.   │
+│                With --service, updates just that service.                    │
 │ apply          Make reality match config (start, migrate, stop               │
 │                strays/orphans as needed).                                    │
 │ compose        Run any docker compose command on a stack.                    │
@@ -659,6 +660,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Usage: cf restart [OPTIONS] [STACKS]...
 
  Restart stacks (down + up). With --service, restarts just that service.
+
 
 ╭─ Arguments ──────────────────────────────────────────────────────────────────╮
 │   stacks      [STACKS]...  Stacks to operate on                              │
