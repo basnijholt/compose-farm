@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Minimal: geometric container with abstract sprout -->
+
+  <!-- Container base - single rounded rectangle -->
+  <rect x="40" y="95" width="120" height="75" rx="8" fill="#2496ED"/>
+
+  <!-- Simple horizontal lines -->
+  <line x1="50" y1="115" x2="150" y2="115" stroke="#1565C0" stroke-width="3" stroke-linecap="round"/>
+  <line x1="50" y1="135" x2="150" y2="135" stroke="#1565C0" stroke-width="3" stroke-linecap="round"/>
+  <line x1="50" y1="155" x2="150" y2="155" stroke="#1565C0" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Abstract sprout - two simple leaves -->
+  <path d="M100 95 L100 55" stroke="#4CAF50" stroke-width="4" stroke-linecap="round"/>
+  <ellipse cx="85" cy="55" rx="18" ry="10" fill="#4CAF50" transform="rotate(-35 85 55)"/>
+  <ellipse cx="115" cy="55" rx="18" ry="10" fill="#4CAF50" transform="rotate(35 115 55)"/>
+</svg>
