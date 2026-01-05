@@ -98,19 +98,18 @@ class TestMigrationCommands:
 class TestUpdateCommandSequence:
     """Tests for update command sequence."""
 
-    def test_update_command_sequence_includes_build(self) -> None:
-        """Update command should use pull --ignore-buildable and build."""
+    def test_update_command_uses_pull_always_and_build(self) -> None:
+        """Update command should use --pull always --build flags."""
         # This is a static check of the command sequence in lifecycle.py
         # The actual command sequence is defined in the update function
 
         source = inspect.getsource(lifecycle.update)
 
-        # Verify the command sequence includes pull --ignore-buildable
-        assert "pull --ignore-buildable" in source
-        # Verify build is included
-        assert '"build"' in source or "'build'" in source
-        # Verify the sequence is pull, build, down, up
-        assert "down" in source
+        # Verify the command uses --pull always (only recreates if image changed)
+        assert "--pull always" in source
+        # Verify --build is included for buildable services
+        assert "--build" in source
+        # Verify up -d is used
         assert "up -d" in source
 
 
