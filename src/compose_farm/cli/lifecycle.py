@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -393,10 +394,10 @@ def compose(
     else:
         target_host = hosts[0]
 
-    # Build the full compose command
+    # Build the full compose command (quote args to preserve spaces)
     full_cmd = command
     if args:
-        full_cmd += " " + " ".join(args)
+        full_cmd += " " + " ".join(shlex.quote(arg) for arg in args)
 
     # Run with raw=True for proper TTY handling (progress bars, interactive)
     result = run_async(run_compose_on_host(cfg, resolved_stack, target_host, full_cmd, raw=True))
