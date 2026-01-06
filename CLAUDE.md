@@ -20,15 +20,17 @@ src/compose_farm/
 │   ├── monitoring.py  # logs, ps, stats commands
 │   ├── ssh.py         # SSH key management (setup, status, keygen)
 │   └── web.py         # Web UI server command
-├── config.py          # Pydantic models, YAML loading
 ├── compose.py         # Compose file parsing (.env, ports, volumes, networks)
+├── config.py          # Pydantic models, YAML loading
 ├── console.py         # Shared Rich console instances
 ├── executor.py        # SSH/local command execution, streaming output
-├── operations.py      # Business logic (up, migrate, discover, preflight checks)
-├── state.py           # Deployment state tracking (which stack on which host)
+├── glances.py         # Glances API integration for host resource stats
 ├── logs.py            # Image digest snapshots (dockerfarm-log.toml)
+├── operations.py      # Business logic (up, migrate, discover, preflight checks)
 ├── paths.py           # Path utilities, config file discovery
+├── registry.py        # Container registry client for update checking
 ├── ssh_keys.py        # SSH key path constants and utilities
+├── state.py           # Deployment state tracking (which stack on which host)
 ├── traefik.py         # Traefik file-provider config generation from labels
 └── web/               # Web UI (FastAPI + HTMX)
 ```

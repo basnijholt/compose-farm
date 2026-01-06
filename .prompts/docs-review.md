@@ -59,17 +59,19 @@ Check:
 - Config file search order is accurate
 - Example YAML would actually work
 
-### 4. Verify docs/architecture.md
+### 4. Verify docs/architecture.md and CLAUDE.md
 
 ```bash
 # What source files actually exist?
 git ls-files "src/**/*.py"
 ```
 
-Check:
+Check **both** `docs/architecture.md` and `CLAUDE.md` (Architecture section):
 - Listed files exist
 - No files are missing from the list
 - Descriptions match what the code does
+
+Both files have architecture listings that can drift independently.
 
 ### 5. Check Examples
 
