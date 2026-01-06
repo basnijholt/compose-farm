@@ -38,6 +38,18 @@ cf --version, -v    # Show version
 cf --help, -h       # Show help
 ```
 
+## Command Aliases
+
+Short aliases for frequently used commands:
+
+| Alias | Command | Alias | Command |
+|-------|---------|-------|---------|
+| `cf a` | `apply` | `cf s` | `stats` |
+| `cf l` | `logs` | `cf c` | `compose` |
+| `cf r` | `restart` | `cf rf` | `refresh` |
+| `cf u` | `update` | `cf ck` | `check` |
+| `cf p` | `pull` | `cf tf` | `traefik-file` |
+
 ---
 
 ## Lifecycle Commands
@@ -60,14 +72,16 @@ cf apply [OPTIONS]
 |--------|-------------|
 | `--dry-run, -n` | Preview changes without executing |
 | `--no-orphans` | Skip stopping orphaned stacks |
+| `--no-strays` | Skip stopping stray stacks (running on wrong host) |
 | `--full, -f` | Also refresh running stacks |
 | `--config, -c PATH` | Path to config file |
 
 **What it does:**
 
 1. Stops orphaned stacks (in state but removed from config)
-2. Migrates stacks on wrong host
-3. Starts missing stacks (in config but not running)
+2. Stops stray stacks (running on unauthorized hosts)
+3. Migrates stacks on wrong host
+4. Starts missing stacks (in config but not running)
 
 **Examples:**
 
@@ -80,6 +94,9 @@ cf apply
 
 # Only start/migrate, don't stop orphans
 cf apply --no-orphans
+
+# Don't stop stray stacks
+cf apply --no-strays
 
 # Also refresh all running stacks
 cf apply --full
@@ -102,6 +119,8 @@ cf up [OPTIONS] [STACKS]...
 | `--all, -a` | Start all stacks |
 | `--host, -H TEXT` | Filter to stacks on this host |
 | `--service, -s TEXT` | Target a specific service within the stack |
+| `--pull` | Pull images before starting (`--pull always`) |
+| `--build` | Build images before starting |
 | `--config, -c PATH` | Path to config file |
 
 **Examples:**
@@ -589,6 +608,7 @@ cf config COMMAND
 | Command | Description |
 |---------|-------------|
 | `init` | Create new config with examples |
+| `init-env` | Generate .env file for Docker deployment |
 | `show` | Display config with highlighting |
 | `path` | Print config file path |
 | `validate` | Validate syntax and schema |
@@ -600,6 +620,7 @@ cf config COMMAND
 | Subcommand | Options |
 |------------|---------|
 | `init` | `--path/-p PATH`, `--force/-f` |
+| `init-env` | `--path/-p PATH`, `--output/-o PATH`, `--force/-f` |
 | `show` | `--path/-p PATH`, `--raw/-r` |
 | `edit` | `--path/-p PATH` |
 | `path` | `--path/-p PATH` |
@@ -635,6 +656,12 @@ cf config symlink
 
 # Create symlink to specific file
 cf config symlink /opt/compose-farm/config.yaml
+
+# Generate .env file for Docker deployment
+cf config init-env
+
+# Generate .env in current directory
+cf config init-env -o .env
 ```
 
 ---
