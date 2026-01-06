@@ -351,3 +351,11 @@ Integration with [Glances](https://nicolargo.github.io/glances/) for real-time h
 - Fetches CPU, memory, and load from Glances REST API on each host
 - Used by web UI dashboard to display host resource usage
 - Requires `glances_stack` config option pointing to a Glances stack running on all hosts
+
+### Container Registry Client (`src/compose_farm/registry.py`)
+
+OCI Distribution API client for checking image updates:
+
+- Parses image references (registry, namespace, name, tag, digest)
+- Fetches available tags from Docker Hub, GHCR, and other registries
+- Compares semantic versions to find newer releases
