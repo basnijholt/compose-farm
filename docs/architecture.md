@@ -96,7 +96,7 @@ Typer-based CLI with subcommand modules:
 cli/
 ├── app.py          # Shared Typer app, version callback
 ├── common.py       # Shared helpers, options, progress utilities
-├── config.py       # config subcommand (init, show, path, validate, edit, symlink)
+├── config.py       # config subcommand (init, init-env, show, path, validate, edit, symlink)
 ├── lifecycle.py    # up, down, stop, pull, restart, update, apply, compose
 ├── management.py   # refresh, check, init-network, traefik-file
 ├── monitoring.py   # logs, ps, stats
@@ -343,3 +343,11 @@ For repeated connections to the same host, SSH reuses connections.
 ```
 
 Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templates/partials/icons.html`.
+
+### Host Resource Monitoring (`src/compose_farm/glances.py`)
+
+Integration with [Glances](https://nicolargo.github.io/glances/) for real-time host stats:
+
+- Fetches CPU, memory, and load from Glances REST API on each host
+- Used by web UI dashboard to display host resource usage
+- Requires `glances_stack` config option pointing to a Glances stack running on all hosts

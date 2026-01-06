@@ -121,6 +121,16 @@ Stack name running Traefik. Stacks on the same host are skipped in file-provider
 traefik_stack: traefik
 ```
 
+### glances_stack
+
+Stack name running [Glances](https://nicolargo.github.io/glances/) for host resource monitoring. When set, the web UI displays CPU, memory, and load stats for all hosts.
+
+```yaml
+glances_stack: glances
+```
+
+The Glances stack should run on all hosts and expose port 61208. See the README for full setup instructions.
+
 ## Hosts Configuration
 
 ### Basic Host
