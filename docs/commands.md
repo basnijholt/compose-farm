@@ -73,7 +73,7 @@ cf apply [OPTIONS]
 | `--dry-run, -n` | Preview changes without executing |
 | `--no-orphans` | Skip stopping orphaned stacks |
 | `--no-strays` | Skip stopping stray stacks (running on wrong host) |
-| `--full, -f` | Also run up on all stacks (applies config changes) |
+| `--full, -f` | Also run up on all stacks (applies compose/env changes, triggers migrations) |
 | `--config, -c PATH` | Path to config file |
 
 **What it does:**
@@ -98,7 +98,7 @@ cf apply --no-orphans
 # Don't stop stray stacks
 cf apply --no-strays
 
-# Also run up on all stacks (applies config changes)
+# Also run up on all stacks (applies compose/env changes, triggers migrations)
 cf apply --full
 ```
 
