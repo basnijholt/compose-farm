@@ -693,11 +693,11 @@ cf config symlink
 # Create symlink to specific file
 cf config symlink /opt/compose-farm/config.yaml
 
-# Generate .env file for Docker deployment
+# Generate .env file in current directory
 cf config init-env
 
-# Generate .env in current directory
-cf config init-env -o .env
+# Generate .env at specific path
+cf config init-env -o /opt/stacks/.env
 ```
 
 ---
