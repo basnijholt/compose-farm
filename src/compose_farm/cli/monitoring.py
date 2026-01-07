@@ -27,6 +27,8 @@ from compose_farm.executor import run_command, run_on_stacks
 from compose_farm.state import get_stacks_needing_migration, group_stacks_by_host, load_state
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from compose_farm.config import Config
     from compose_farm.glances import ContainerStats
 
@@ -113,16 +115,9 @@ def _build_summary_table(
     return table
 
 
-def _format_bytes(bytes_val: int) -> str:
-    """Format bytes to human readable string."""
-    from compose_farm.glances import format_bytes  # noqa: PLC0415
-
-    return format_bytes(bytes_val)
-
-
-def _format_network(rx: int, tx: int) -> str:
+def _format_network(rx: int, tx: int, fmt: Callable[[int], str]) -> str:
     """Format network I/O."""
-    return f"[dim]↓[/]{_format_bytes(rx)} [dim]↑[/]{_format_bytes(tx)}"
+    return f"[dim]↓[/]{fmt(rx)} [dim]↑[/]{fmt(tx)}"
 
 
 def _cpu_style(percent: float) -> str:
@@ -160,6 +155,8 @@ def _build_containers_table(
     host_filter: str | None = None,
 ) -> Table:
     """Build Rich table for container stats."""
+    from compose_farm.glances import format_bytes  # noqa: PLC0415
+
     table = Table(title="Containers", show_header=True, header_style="bold cyan")
     table.add_column("Stack", style="cyan")
     table.add_column("Service", style="dim")
@@ -186,8 +183,8 @@ def _build_containers_table(
             f"[{_status_style(c.status)}]{c.status}[/]",
             c.uptime or "[dim]-[/]",
             f"[{_cpu_style(c.cpu_percent)}]{c.cpu_percent:.1f}%[/]",
-            f"[{_mem_style(c.memory_percent)}]{_format_bytes(c.memory_usage)}[/]",
-            _format_network(c.network_rx, c.network_tx),
+            f"[{_mem_style(c.memory_percent)}]{format_bytes(c.memory_usage)}[/]",
+            _format_network(c.network_rx, c.network_tx, format_bytes),
         )
 
     return table

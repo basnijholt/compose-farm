@@ -31,11 +31,6 @@ MIN_NAME_PARTS = 2
 _DASH_HTML = '<span class="text-xs opacity-50">-</span>'
 
 
-def _format_bytes(bytes_val: int) -> str:
-    """Format bytes to human readable string."""
-    return format_bytes(bytes_val)
-
-
 def _parse_image(image: str) -> tuple[str, str]:
     """Parse image string into (name, tag)."""
     # Handle registry prefix (e.g., ghcr.io/user/repo:tag)
@@ -176,8 +171,8 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
         f'<td data-sort="{c.status.lower()}"><span class="{_status_class(c.status)}">{c.status}</span></td>'
         f'<td data-sort="{uptime_sec}" class="text-xs text-right font-mono">{c.uptime or "-"}</td>'
         f'<td data-sort="{cpu}" class="text-right font-mono"><div class="flex flex-col items-end gap-0.5"><div class="w-12 h-2 bg-base-300 rounded-full overflow-hidden"><div class="h-full {cpu_class}" style="width: {min(cpu, 100)}%"></div></div><span class="text-xs">{cpu:.0f}%</span></div></td>'
-        f'<td data-sort="{c.memory_usage}" class="text-right font-mono"><div class="flex flex-col items-end gap-0.5"><div class="w-12 h-2 bg-base-300 rounded-full overflow-hidden"><div class="h-full {mem_class}" style="width: {min(mem, 100)}%"></div></div><span class="text-xs">{_format_bytes(c.memory_usage)}</span></div></td>'
-        f'<td data-sort="{c.network_rx + c.network_tx}" class="text-xs text-right font-mono">↓{_format_bytes(c.network_rx)} ↑{_format_bytes(c.network_tx)}</td>'
+        f'<td data-sort="{c.memory_usage}" class="text-right font-mono"><div class="flex flex-col items-end gap-0.5"><div class="w-12 h-2 bg-base-300 rounded-full overflow-hidden"><div class="h-full {mem_class}" style="width: {min(mem, 100)}%"></div></div><span class="text-xs">{format_bytes(c.memory_usage)}</span></div></td>'
+        f'<td data-sort="{c.network_rx + c.network_tx}" class="text-xs text-right font-mono">↓{format_bytes(c.network_rx)} ↑{format_bytes(c.network_tx)}</td>'
         "</tr>"
     )
 
