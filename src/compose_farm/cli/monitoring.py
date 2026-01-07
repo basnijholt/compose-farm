@@ -31,8 +31,9 @@ if TYPE_CHECKING:
     from compose_farm.glances import ContainerStats
 
 
-def _get_container_counts(cfg: Config) -> dict[str, int]:
-    """Get container counts from all hosts with a progress bar."""
+def _get_container_counts(cfg: Config, hosts: list[str] | None = None) -> dict[str, int]:
+    """Get container counts from hosts with a progress bar."""
+    host_list = hosts if hosts is not None else list(cfg.hosts.keys())
 
     async def get_count(host_name: str) -> tuple[str, int]:
         host = cfg.hosts[host_name]
@@ -45,7 +46,7 @@ def _get_container_counts(cfg: Config) -> dict[str, int]:
 
     results = run_parallel_with_progress(
         "Querying hosts",
-        list(cfg.hosts.keys()),
+        host_list,
         get_count,
     )
     return dict(results)
@@ -68,7 +69,7 @@ def _build_host_table(
     if show_containers:
         table.add_column("Containers", justify="right")
 
-    for host_name in sorted(cfg.hosts.keys()):
+    for host_name in sorted(stacks_by_host.keys()):
         host = cfg.hosts[host_name]
         configured = len(stacks_by_host[host_name])
         running = len(running_by_host[host_name])
@@ -291,16 +292,32 @@ def stats(
         console.print(_build_containers_table(container_list, host_filter=host))
         return
 
+    # Validate and filter by host if specified
+    if host:
+        from compose_farm.cli.common import validate_hosts  # noqa: PLC0415
+
+        validate_hosts(cfg, host)
+        all_hosts = [host]
+    else:
+        all_hosts = list(cfg.hosts.keys())
+
     state = load_state(cfg)
     pending = get_stacks_needing_migration(cfg)
-
-    all_hosts = list(cfg.hosts.keys())
+    # Filter pending migrations to selected host(s)
+    if host:
+        pending = [
+            s for s in pending if cfg.stacks.get(s) == host or host in str(cfg.stacks.get(s, ""))
+        ]
     stacks_by_host = group_stacks_by_host(cfg.stacks, cfg.hosts, all_hosts)
     running_by_host = group_stacks_by_host(state, cfg.hosts, all_hosts)
+    # Filter to selected hosts only
+    if host:
+        stacks_by_host = {h: stacks_by_host[h] for h in all_hosts if h in stacks_by_host}
+        running_by_host = {h: running_by_host[h] for h in all_hosts if h in running_by_host}
 
     container_counts: dict[str, int] = {}
     if live:
-        container_counts = _get_container_counts(cfg)
+        container_counts = _get_container_counts(cfg, all_hosts)
 
     host_table = _build_host_table(
         cfg, stacks_by_host, running_by_host, container_counts, show_containers=live
