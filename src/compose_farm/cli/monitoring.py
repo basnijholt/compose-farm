@@ -203,6 +203,37 @@ def stats(
     console.print(_build_summary_table(cfg, state, pending))
 
 
+@app.command("list", rich_help_panel="Monitoring")
+def list_(
+    host: HostOption = None,
+    simple: Annotated[
+        bool,
+        typer.Option("--simple", "-s", help="Plain output (one stack per line, for scripting)"),
+    ] = False,
+    config: ConfigOption = None,
+) -> None:
+    """List all stacks and their assigned hosts."""
+    cfg = load_config_or_exit(config)
+
+    stacks: list[tuple[str, str | list[str]]] = list(cfg.stacks.items())
+    if host:
+        stacks = [(s, h) for s, h in stacks if str(h) == host or host in str(h).split(",")]
+
+    if simple:
+        for stack, _ in sorted(stacks):
+            console.print(stack)
+    else:
+        table = Table(title="Stacks", show_header=True, header_style="bold cyan")
+        table.add_column("Stack", style="magenta")
+        table.add_column("Host")
+
+        for stack, host_val in sorted(stacks):
+            table.add_row(stack, str(host_val))
+
+        console.print(table)
+
+
 # Aliases (hidden from help)
 app.command("l", hidden=True)(logs)  # cf l = cf logs
+app.command("ls", hidden=True)(list_)  # cf ls = cf list
 app.command("s", hidden=True)(stats)  # cf s = cf stats
