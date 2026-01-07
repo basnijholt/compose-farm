@@ -7,12 +7,11 @@ import re
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
-import humanize
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from compose_farm.executor import TTLCache
-from compose_farm.glances import ContainerStats, fetch_all_container_stats
+from compose_farm.glances import ContainerStats, fetch_all_container_stats, format_bytes
 from compose_farm.registry import DOCKER_HUB_ALIASES, ImageRef
 from compose_farm.web.deps import get_config, get_templates
 
@@ -34,7 +33,7 @@ _DASH_HTML = '<span class="text-xs opacity-50">-</span>'
 
 def _format_bytes(bytes_val: int) -> str:
     """Format bytes to human readable string."""
-    return humanize.naturalsize(bytes_val, binary=True, format="%.1f")
+    return format_bytes(bytes_val)
 
 
 def _parse_image(image: str) -> tuple[str, str]:

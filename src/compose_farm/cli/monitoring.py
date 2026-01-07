@@ -22,12 +22,13 @@ from compose_farm.cli.common import (
     run_async,
     run_parallel_with_progress,
 )
-from compose_farm.console import console, print_error
+from compose_farm.console import console, print_error, print_warning
 from compose_farm.executor import run_command, run_on_stacks
 from compose_farm.state import get_stacks_needing_migration, group_stacks_by_host, load_state
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
+    from compose_farm.glances import ContainerStats
 
 
 def _get_container_counts(cfg: Config) -> dict[str, int]:
@@ -111,6 +112,86 @@ def _build_summary_table(
     return table
 
 
+def _format_bytes(bytes_val: int) -> str:
+    """Format bytes to human readable string."""
+    from compose_farm.glances import format_bytes  # noqa: PLC0415
+
+    return format_bytes(bytes_val)
+
+
+def _format_network(rx: int, tx: int) -> str:
+    """Format network I/O."""
+    return f"[dim]↓[/]{_format_bytes(rx)} [dim]↑[/]{_format_bytes(tx)}"
+
+
+def _cpu_style(percent: float) -> str:
+    """Rich style for CPU percentage."""
+    if percent > 80:  # noqa: PLR2004
+        return "red"
+    if percent > 50:  # noqa: PLR2004
+        return "yellow"
+    return "green"
+
+
+def _mem_style(percent: float) -> str:
+    """Rich style for memory percentage."""
+    if percent > 90:  # noqa: PLR2004
+        return "red"
+    if percent > 70:  # noqa: PLR2004
+        return "yellow"
+    return "green"
+
+
+def _status_style(status: str) -> str:
+    """Rich style for container status."""
+    s = status.lower()
+    if s == "running":
+        return "green"
+    if s == "exited":
+        return "red"
+    if s == "paused":
+        return "yellow"
+    return "dim"
+
+
+def _build_containers_table(
+    containers: list[ContainerStats],
+    host_filter: str | None = None,
+) -> Table:
+    """Build Rich table for container stats."""
+    table = Table(title="Containers", show_header=True, header_style="bold cyan")
+    table.add_column("Stack", style="cyan")
+    table.add_column("Service", style="dim")
+    table.add_column("Host", style="magenta")
+    table.add_column("Image")
+    table.add_column("Status")
+    table.add_column("Uptime", justify="right")
+    table.add_column("CPU%", justify="right")
+    table.add_column("Memory", justify="right")
+    table.add_column("Net I/O", justify="right")
+
+    if host_filter:
+        containers = [c for c in containers if c.host == host_filter]
+
+    # Sort by stack, then service
+    containers = sorted(containers, key=lambda c: (c.stack.lower(), c.service.lower()))
+
+    for c in containers:
+        table.add_row(
+            c.stack or c.name,
+            c.service or c.name,
+            c.host,
+            c.image,
+            f"[{_status_style(c.status)}]{c.status}[/]",
+            c.uptime or "[dim]-[/]",
+            f"[{_cpu_style(c.cpu_percent)}]{c.cpu_percent:.1f}%[/]",
+            f"[{_mem_style(c.memory_percent)}]{_format_bytes(c.memory_usage)}[/]",
+            _format_network(c.network_rx, c.network_tx),
+        )
+
+    return table
+
+
 # --- Command functions ---
 
 
@@ -175,14 +256,41 @@ def stats(
         bool,
         typer.Option("--live", "-l", help="Query Docker for live container stats"),
     ] = False,
+    containers: Annotated[
+        bool,
+        typer.Option(
+            "--containers", "-C", help="Show per-container resource stats (requires Glances)"
+        ),
+    ] = False,
+    host: HostOption = None,
     config: ConfigOption = None,
 ) -> None:
     """Show overview statistics for hosts and stacks.
 
-    Without --live: Shows config/state info (hosts, stacks, pending migrations).
+    Without flags: Shows config/state info (hosts, stacks, pending migrations).
     With --live: Also queries Docker on each host for container counts.
+    With --containers: Shows per-container resource stats (requires Glances).
     """
     cfg = load_config_or_exit(config)
+
+    # Handle --containers mode
+    if containers:
+        if not cfg.glances_stack:
+            print_error("Glances not configured")
+            console.print("[dim]Add 'glances_stack: glances' to compose-farm.yaml[/]")
+            raise typer.Exit(1)
+
+        from compose_farm.glances import fetch_all_container_stats  # noqa: PLC0415
+
+        container_list = run_async(fetch_all_container_stats(cfg))
+
+        if not container_list:
+            print_warning("No containers found")
+            raise typer.Exit(0)
+
+        console.print(_build_containers_table(container_list, host_filter=host))
+        return
+
     state = load_state(cfg)
     pending = get_stacks_needing_migration(cfg)
 
