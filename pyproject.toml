@@ -125,6 +125,10 @@ strict = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
+module = "compose_farm._version"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "asyncssh.*"
 ignore_missing_imports = true
 
@@ -174,7 +178,11 @@ python-version = "3.11"
 exclude = [
     "hatch_build.py",  # Build-time only, hatchling not in dev deps
     "docs/demos/**",   # Demo scripts with local conftest imports
+    "src/compose_farm/_version.py",  # Generated at build time
 ]
+
+[tool.ty.rules]
+unresolved-import = "ignore"  # _version.py is generated at build time
 
 [dependency-groups]
 dev = [
