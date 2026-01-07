@@ -575,14 +575,20 @@ function playFabIntro() {
         }
         htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
     };
+    // Check if theme is valid (exists in THEMES array)
+    const isValidTheme = (theme) => theme && THEMES.includes(theme);
+
+    // Get validated theme, falling back to 'dark' if invalid
+    const getValidTheme = (theme) => isValidTheme(theme) ? theme : 'dark';
+
     // Apply theme and save to localStorage
     const setTheme = (theme) => () => {
         document.documentElement.setAttribute('data-theme', theme);
         localStorage.setItem(THEME_KEY, theme);
     };
-    // Preview theme without saving (for hover)
+    // Preview theme without saving (for hover). Guards against undefined/invalid themes.
     const previewTheme = (theme) => {
-        document.documentElement.setAttribute('data-theme', theme);
+        if (theme) document.documentElement.setAttribute('data-theme', theme);
     };
     // Restore original theme (when closing without selection)
     const restoreTheme = () => {
@@ -732,8 +738,8 @@ function playFabIntro() {
     }
 
     function open(initialFilter = '') {
-        // Store original theme for preview/restore
-        originalTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        // Store original theme for preview/restore (validated to prevent issues with invalid themes)
+        originalTheme = getValidTheme(document.documentElement.getAttribute('data-theme'));
         buildCommands();
         selected = 0;
         input.value = initialFilter;
