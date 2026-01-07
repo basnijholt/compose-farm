@@ -370,7 +370,7 @@ class TestConfigInitEnv:
         assert "Aborted" in result.stdout
         assert env_file.read_text() == "KEEP_THIS=true"
 
-    def test_init_env_defaults_to_config_dir(
+    def test_init_env_defaults_to_current_dir(
         self,
         runner: CliRunner,
         tmp_path: Path,
@@ -378,12 +378,20 @@ class TestConfigInitEnv:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("CF_CONFIG", raising=False)
-        config_file = tmp_path / "compose-farm.yaml"
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        config_file = config_dir / "compose-farm.yaml"
         config_file.write_text(yaml.dump(valid_config_data))
+
+        # Create a separate working directory
+        work_dir = tmp_path / "workdir"
+        work_dir.mkdir()
+        monkeypatch.chdir(work_dir)
 
         result = runner.invoke(app, ["config", "init-env", "-p", str(config_file)])
 
         assert result.exit_code == 0
-        # Should create .env in same directory as config
-        env_file = tmp_path / ".env"
+        # Should create .env in current directory, not config directory
+        env_file = work_dir / ".env"
         assert env_file.exists()
+        assert not (config_dir / ".env").exists()

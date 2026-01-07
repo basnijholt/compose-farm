@@ -342,7 +342,7 @@ def config_init_env(
     output: Annotated[
         Path | None,
         typer.Option(
-            "--output", "-o", help="Output .env file path. Defaults to .env in config directory."
+            "--output", "-o", help="Output .env file path. Defaults to .env in current directory."
         ),
     ] = None,
     force: _ForceOption = False,
@@ -357,14 +357,14 @@ def config_init_env(
 
     Example::
 
-        cf config init-env           # Create .env next to config
-        cf config init-env -o .env   # Create .env in current directory
+        cf config init-env                     # Create .env in current directory
+        cf config init-env -o /path/to/.env    # Create .env at specific path
 
     """
     config_file, cfg = _load_config_with_path(path)
 
-    # Determine output path
-    env_path = output.expanduser().resolve() if output else config_file.parent / ".env"
+    # Determine output path (default: current directory)
+    env_path = output.expanduser().resolve() if output else Path.cwd() / ".env"
 
     if env_path.exists() and not force:
         console.print(f"[yellow].env file already exists:[/] {env_path}")

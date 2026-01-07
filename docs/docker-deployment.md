@@ -17,7 +17,7 @@ curl -O https://raw.githubusercontent.com/basnijholt/compose-farm/main/docker-co
 **2. Generate `.env` file:**
 
 ```bash
-cf config init-env -o .env
+cf config init-env
 ```
 
 This auto-detects settings from your `compose-farm.yaml`:
