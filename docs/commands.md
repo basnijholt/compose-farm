@@ -23,6 +23,7 @@ Commands are either **Docker Compose wrappers** (`up`, `down`, `stop`, `restart`
 | **Monitoring** | `ps` | Show stack status |
 | | `logs` | Show stack logs |
 | | `stats` | Show overview statistics |
+| | `list` | List stacks and hosts |
 | **Configuration** | `check` | Validate config and mounts |
 | | `refresh` | Sync state from reality |
 | | `init-network` | Create Docker network |
@@ -45,10 +46,11 @@ Short aliases for frequently used commands:
 | Alias | Command | Alias | Command |
 |-------|---------|-------|---------|
 | `cf a` | `apply` | `cf s` | `stats` |
-| `cf l` | `logs` | `cf c` | `compose` |
+| `cf l` | `logs` | `cf ls` | `list` |
 | `cf r` | `restart` | `cf rf` | `refresh` |
 | `cf u` | `update` | `cf ck` | `check` |
 | `cf p` | `pull` | `cf tf` | `traefik-file` |
+| `cf c` | `compose` | | |
 
 ---
 
@@ -462,6 +464,40 @@ cf stats
 
 # Include live container counts
 cf stats --live
+```
+
+---
+
+### cf list
+
+List all stacks and their assigned hosts.
+
+```bash
+cf list [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--host, -H TEXT` | Filter to stacks on this host |
+| `--simple, -s` | Plain output for scripting (one stack per line) |
+| `--config, -c PATH` | Path to config file |
+
+**Examples:**
+
+```bash
+# List all stacks
+cf list
+
+# Filter by host
+cf list --host nas
+
+# Plain output for scripting
+cf list --simple
+
+# Combine: list stack names on a specific host
+cf list --host nuc --simple
 ```
 
 ---
