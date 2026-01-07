@@ -1179,13 +1179,17 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Show overview statistics for hosts and stacks.
 
- Without --live: Shows config/state info (hosts, stacks, pending migrations).
+ Without flags: Shows config/state info (hosts, stacks, pending migrations).
  With --live: Also queries Docker on each host for container counts.
+ With --containers: Shows per-container resource stats (requires Glances).
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --live    -l            Query Docker for live container stats                │
-│ --config  -c      PATH  Path to config file                                  │
-│ --help    -h            Show this message and exit.                          │
+│ --live        -l            Query Docker for live container stats            │
+│ --containers  -C            Show per-container resource stats (requires      │
+│                             Glances)                                         │
+│ --host        -H      TEXT  Filter to stacks on this host                    │
+│ --config      -c      PATH  Path to config file                              │
+│ --help        -h            Show this message and exit.                      │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
 ```

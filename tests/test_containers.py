@@ -7,10 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from compose_farm.config import Config, Host
-from compose_farm.glances import ContainerStats
+from compose_farm.glances import ContainerStats, format_bytes
 from compose_farm.web.app import create_app
 from compose_farm.web.routes.containers import (
-    _format_bytes,
     _infer_stack_service,
     _parse_image,
     _parse_uptime_seconds,
@@ -23,25 +22,25 @@ GB = MB * 1024
 
 
 class TestFormatBytes:
-    """Tests for _format_bytes function (uses humanize library)."""
+    """Tests for format_bytes function (uses humanize library)."""
 
     def test_bytes(self) -> None:
-        assert _format_bytes(500) == "500 Bytes"
-        assert _format_bytes(0) == "0 Bytes"
+        assert format_bytes(500) == "500 Bytes"
+        assert format_bytes(0) == "0 Bytes"
 
     def test_kilobytes(self) -> None:
-        assert _format_bytes(KB) == "1.0 KiB"
-        assert _format_bytes(KB * 5) == "5.0 KiB"
-        assert _format_bytes(KB + 512) == "1.5 KiB"
+        assert format_bytes(KB) == "1.0 KiB"
+        assert format_bytes(KB * 5) == "5.0 KiB"
+        assert format_bytes(KB + 512) == "1.5 KiB"
 
     def test_megabytes(self) -> None:
-        assert _format_bytes(MB) == "1.0 MiB"
-        assert _format_bytes(MB * 100) == "100.0 MiB"
-        assert _format_bytes(MB * 512) == "512.0 MiB"
+        assert format_bytes(MB) == "1.0 MiB"
+        assert format_bytes(MB * 100) == "100.0 MiB"
+        assert format_bytes(MB * 512) == "512.0 MiB"
 
     def test_gigabytes(self) -> None:
-        assert _format_bytes(GB) == "1.0 GiB"
-        assert _format_bytes(GB * 2) == "2.0 GiB"
+        assert format_bytes(GB) == "1.0 GiB"
+        assert format_bytes(GB * 2) == "2.0 GiB"
 
 
 class TestParseImage:
