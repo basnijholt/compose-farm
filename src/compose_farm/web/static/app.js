@@ -551,7 +551,6 @@ function playFabIntro() {
     let commands = [];
     let filtered = [];
     let selected = 0;
-    let originalTheme = null; // Store theme when palette opens for preview/restore
 
     const post = (url) => () => htmx.ajax('POST', url, {swap: 'none'});
     const nav = (url, afterNav) => () => {
@@ -575,11 +574,8 @@ function playFabIntro() {
         }
         htmx.ajax('POST', `/api/${endpoint}`, {swap: 'none'});
     };
-    // Check if theme is valid (exists in THEMES array)
-    const isValidTheme = (theme) => theme && THEMES.includes(theme);
-
-    // Get validated theme, falling back to 'dark' if invalid
-    const getValidTheme = (theme) => isValidTheme(theme) ? theme : 'dark';
+    // Get saved theme from localStorage (source of truth)
+    const getSavedTheme = () => localStorage.getItem(THEME_KEY) || 'dark';
 
     // Apply theme and save to localStorage
     const setTheme = (theme) => () => {
@@ -590,11 +586,9 @@ function playFabIntro() {
     const previewTheme = (theme) => {
         if (theme) document.documentElement.setAttribute('data-theme', theme);
     };
-    // Restore original theme (when closing without selection)
-    // Falls back to localStorage if originalTheme is somehow lost
+    // Restore theme from localStorage (source of truth)
     const restoreTheme = () => {
-        const theme = originalTheme || localStorage.getItem(THEME_KEY) || 'dark';
-        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-theme', getSavedTheme());
     };
     // Generate color swatch HTML for a theme
     const themeSwatch = (theme) => `<span class="flex gap-0.5" data-theme="${theme}"><span class="w-2 h-4 rounded-l bg-primary"></span><span class="w-2 h-4 bg-secondary"></span><span class="w-2 h-4 bg-accent"></span><span class="w-2 h-4 rounded-r bg-neutral"></span></span>`;
@@ -727,26 +721,24 @@ function playFabIntro() {
         // Scroll selected item into view
         const sel = list.querySelector(`[data-idx="${selected}"]`);
         if (sel) sel.scrollIntoView({ block: 'nearest' });
-        // Preview theme if selected item is a theme command
+        // Preview theme if selected item is a theme command, otherwise restore saved
         const selectedCmd = filtered[selected];
         if (selectedCmd?.themeId) {
             previewTheme(selectedCmd.themeId);
-        } else if (originalTheme) {
-            // Restore original when navigating away from theme commands
-            previewTheme(originalTheme);
+        } else {
+            restoreTheme();
         }
     }
 
     function open(initialFilter = '') {
-        // Store original theme for preview/restore (validated to prevent issues with invalid themes)
-        originalTheme = getValidTheme(document.documentElement.getAttribute('data-theme'));
         buildCommands();
         selected = 0;
         input.value = initialFilter;
         filter();
         // If opening theme picker, select current theme
         if (initialFilter.startsWith('theme:')) {
-            const currentIdx = filtered.findIndex(c => c.themeId === originalTheme);
+            const savedTheme = getSavedTheme();
+            const currentIdx = filtered.findIndex(c => c.themeId === savedTheme);
             if (currentIdx >= 0) selected = currentIdx;
         }
         render();
@@ -757,10 +749,6 @@ function playFabIntro() {
     function exec() {
         const cmd = filtered[selected];
         if (cmd) {
-            if (cmd.themeId) {
-                // Theme command commits the previewed choice.
-                originalTheme = null;
-            }
             dialog.close();
             cmd.action();
         }
@@ -800,20 +788,14 @@ function playFabIntro() {
         if (a) previewTheme(a.dataset.themeId);
     });
 
-    // Mouse leaving list restores to selected item's theme (or original)
+    // Mouse leaving list restores to selected item's theme (or saved)
     list.addEventListener('mouseleave', () => {
         const cmd = filtered[selected];
-        previewTheme(cmd?.themeId || originalTheme);
+        previewTheme(cmd?.themeId || getSavedTheme());
     });
 
-    // Restore theme when dialog closes without selection (Escape, backdrop click)
-    dialog.addEventListener('close', () => {
-        // Always restore unless a theme was explicitly selected (originalTheme nulled in exec())
-        if (originalTheme !== null) {
-            restoreTheme();
-        }
-        originalTheme = null;
-    });
+    // Restore theme from localStorage when dialog closes
+    dialog.addEventListener('close', restoreTheme);
 
     // FAB click to open
     if (fab) fab.addEventListener('click', () => open());
