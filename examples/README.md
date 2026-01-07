@@ -7,6 +7,7 @@ Real-world examples demonstrating compose-farm patterns for multi-host Docker de
 | Stack | Type | Demonstrates |
 |---------|------|--------------|
 | [traefik](traefik/) | Infrastructure | Reverse proxy, Let's Encrypt, file-provider |
+| [coredns](coredns/) | Infrastructure | Wildcard DNS for `*.local` domains |
 | [mealie](mealie/) | Single container | Traefik labels, resource limits, environment vars |
 | [uptime-kuma](uptime-kuma/) | Single container | Docker socket, user mapping, custom DNS |
 | [paperless-ngx](paperless-ngx/) | Multi-container | Redis + PostgreSQL + App stack |
@@ -53,7 +54,8 @@ labels:
   - traefik.http.routers.myapp-local.entrypoints=web
 ```
 
-> **Note:** `.local` domains require local DNS (e.g., Pi-hole, Technitium) to resolve to your Traefik host.
+> **Note:** `.local` domains require local DNS to resolve to your Traefik host.
+> The [coredns](coredns/) example provides this - edit `Corefile` to set your Traefik IP.
 
 ### Environment Variables
 
@@ -88,22 +90,6 @@ stacks:
   autokuma: all  # Runs on every configured host
 ```
 
-### Multi-Container Stacks
-
-Database-backed apps with multiple services:
-
-```yaml
-services:
-  redis:
-    image: redis:7
-  db:
-    image: postgres:16
-  app:
-    depends_on:
-      - redis
-      - db
-```
-
 ### AutoKuma Labels (Optional)
 
 The autokuma example demonstrates compose-farm's **multi-host feature** - running the same stack on all hosts using the `all` keyword. AutoKuma itself is not part of compose-farm; it's just a good example because it needs to run on every host to monitor local Docker containers.
@@ -124,8 +110,8 @@ cd examples
 # 1. Create the shared network on all hosts
 compose-farm init-network
 
-# 2. Start Traefik first (the reverse proxy)
-compose-farm up traefik
+# 2. Start infrastructure (reverse proxy + DNS)
+compose-farm up traefik coredns
 
 # 3. Start other stacks
 compose-farm up mealie uptime-kuma
