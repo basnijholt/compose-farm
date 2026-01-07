@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Ultra-minimal barn silhouette -->
+
+  <!-- Barn shape - single path -->
+  <path d="M35 170
+           L35 85
+           L100 40
+           L165 85
+           L165 170
+           Z"
+        fill="#2496ED"/>
+
+  <!-- Container door accent - simple rectangle grid -->
+  <g fill="#fff" opacity="0.95">
+    <rect x="55" y="100" width="35" height="12" rx="2"/>
+    <rect x="55" y="118" width="35" height="12" rx="2"/>
+    <rect x="55" y="136" width="35" height="12" rx="2"/>
+    <rect x="55" y="154" width="35" height="14" rx="2"/>
+
+    <rect x="110" y="100" width="35" height="12" rx="2"/>
+    <rect x="110" y="118" width="35" height="12" rx="2"/>
+    <rect x="110" y="136" width="35" height="12" rx="2"/>
+    <rect x="110" y="154" width="35" height="14" rx="2"/>
+  </g>
+</svg>

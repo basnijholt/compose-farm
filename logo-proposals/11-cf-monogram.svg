@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- CF Monogram with container lines -->
+
+  <!-- C shape -->
+  <path d="M45 100
+           C45 55, 85 35, 115 45
+           L108 62
+           C88 55, 62 70, 62 100
+           C62 130, 88 145, 108 138
+           L115 155
+           C85 165, 45 145, 45 100"
+        fill="#2496ED"/>
+
+  <!-- F shape integrated with container lines -->
+  <rect x="110" y="45" width="50" height="14" rx="2" fill="#2496ED"/>
+  <rect x="110" y="45" width="14" height="110" rx="2" fill="#2496ED"/>
+  <rect x="110" y="90" width="40" height="12" rx="2" fill="#2496ED"/>
+
+  <!-- Container ridge accents on F -->
+  <rect x="128" y="63" width="32" height="3" fill="#4CAF50"/>
+  <rect x="128" y="73" width="32" height="3" fill="#4CAF50"/>
+  <rect x="128" y="108" width="22" height="3" fill="#4CAF50"/>
+  <rect x="128" y="118" width="22" height="3" fill="#4CAF50"/>
+</svg>
