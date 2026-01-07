@@ -68,16 +68,35 @@ jobs:
           echo "✗ Timeout waiting for PyPI"
           exit 1
 
+      - name: Check if latest release
+        id: latest
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          # Get latest release tag from GitHub (strip 'v' prefix)
+          LATEST=$(gh release view --json tagName -q '.tagName' | sed 's/^v//')
+          echo "Building version: $VERSION"
+          echo "Latest release: $LATEST"
+          if [ "$VERSION" = "$LATEST" ]; then
+            echo "is_latest=true" >> $GITHUB_OUTPUT
+            echo "✓ This is the latest release, will tag as :latest"
+          else
+            echo "is_latest=false" >> $GITHUB_OUTPUT
+            echo "⚠ This is NOT the latest release, skipping :latest tag"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Only tag as 'latest' if this is the latest release (prevents re-runs of old releases from overwriting)
           tags: |
             type=semver,pattern={{version}},value=v${{ steps.version.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=v${{ steps.version.outputs.version }}
             type=semver,pattern={{major}},value=v${{ steps.version.outputs.version }}
-            type=raw,value=latest
+            type=raw,value=latest,enable=${{ steps.latest.outputs.is_latest }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
