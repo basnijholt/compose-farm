@@ -102,6 +102,17 @@ Browser tests are marked with `@pytest.mark.browser`. They use Playwright to tes
 - **NEVER merge anything into main.** Always commit directly or use fast-forward/rebase.
 - Never force push.
 
+## SSH Agent in Remote Sessions
+
+When pushing to GitHub via SSH fails with "Permission denied (publickey)", fix the SSH agent socket:
+
+```bash
+# Find and set the correct SSH agent socket
+SSH_AUTH_SOCK=$(ls -t ~/.ssh/agent/s.*.sshd.* 2>/dev/null | head -1) git push origin branch-name
+```
+
+This is needed because the SSH agent socket path changes between sessions.
+
 ## Pull Requests
 
 - Never include unchecked checklists (e.g., `- [ ] ...`) in PR descriptions. Either omit the checklist or use checked items.
