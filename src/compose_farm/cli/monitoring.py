@@ -90,19 +90,46 @@ def _build_host_table(
     return table
 
 
+def _state_includes_host(host_value: str | list[str], host_name: str) -> bool:
+    """Check whether a state entry includes the given host."""
+    if isinstance(host_value, list):
+        return host_name in host_value
+    return host_value == host_name
+
+
 def _build_summary_table(
-    cfg: Config, state: dict[str, str | list[str]], pending: list[str]
+    cfg: Config,
+    state: dict[str, str | list[str]],
+    pending: list[str],
+    *,
+    host_filter: str | None = None,
 ) -> Table:
     """Build the summary table."""
     on_disk = cfg.discover_compose_dirs()
+    if host_filter:
+        stacks_configured = [stack for stack in cfg.stacks if host_filter in cfg.get_hosts(stack)]
+        stacks_configured_set = set(stacks_configured)
+        state = {
+            stack: hosts
+            for stack, hosts in state.items()
+            if _state_includes_host(hosts, host_filter)
+        }
+        on_disk = {stack for stack in on_disk if stack in stacks_configured_set}
+        total_hosts = 1
+        stacks_configured_count = len(stacks_configured)
+        stacks_tracked_count = len(state)
+    else:
+        total_hosts = len(cfg.hosts)
+        stacks_configured_count = len(cfg.stacks)
+        stacks_tracked_count = len(state)
 
     table = Table(title="Summary", show_header=False)
     table.add_column("Label", style="dim")
     table.add_column("Value", style="bold")
 
-    table.add_row("Total hosts", str(len(cfg.hosts)))
-    table.add_row("Stacks (configured)", str(len(cfg.stacks)))
-    table.add_row("Stacks (tracked)", str(len(state)))
+    table.add_row("Total hosts", str(total_hosts))
+    table.add_row("Stacks (configured)", str(stacks_configured_count))
+    table.add_row("Stacks (tracked)", str(stacks_tracked_count))
     table.add_row("Compose files on disk", str(len(on_disk)))
 
     if pending:
@@ -271,6 +298,13 @@ def stats(
     """
     cfg = load_config_or_exit(config)
 
+    host_filter = None
+    if host:
+        from compose_farm.cli.common import validate_hosts  # noqa: PLC0415
+
+        validate_hosts(cfg, host)
+        host_filter = host
+
     # Handle --containers mode
     if containers:
         if not cfg.glances_stack:
@@ -280,37 +314,31 @@ def stats(
 
         from compose_farm.glances import fetch_all_container_stats  # noqa: PLC0415
 
-        container_list = run_async(fetch_all_container_stats(cfg))
+        host_list = [host_filter] if host_filter else None
+        container_list = run_async(fetch_all_container_stats(cfg, hosts=host_list))
 
         if not container_list:
             print_warning("No containers found")
             raise typer.Exit(0)
 
-        console.print(_build_containers_table(container_list, host_filter=host))
+        console.print(_build_containers_table(container_list, host_filter=host_filter))
         return
 
     # Validate and filter by host if specified
-    if host:
-        from compose_farm.cli.common import validate_hosts  # noqa: PLC0415
-
-        validate_hosts(cfg, host)
-        all_hosts = [host]
+    if host_filter:
+        all_hosts = [host_filter]
+        selected_hosts = {host_filter: cfg.hosts[host_filter]}
     else:
         all_hosts = list(cfg.hosts.keys())
+        selected_hosts = cfg.hosts
 
     state = load_state(cfg)
     pending = get_stacks_needing_migration(cfg)
     # Filter pending migrations to selected host(s)
-    if host:
-        pending = [
-            s for s in pending if cfg.stacks.get(s) == host or host in str(cfg.stacks.get(s, ""))
-        ]
-    stacks_by_host = group_stacks_by_host(cfg.stacks, cfg.hosts, all_hosts)
-    running_by_host = group_stacks_by_host(state, cfg.hosts, all_hosts)
-    # Filter to selected hosts only
-    if host:
-        stacks_by_host = {h: stacks_by_host[h] for h in all_hosts if h in stacks_by_host}
-        running_by_host = {h: running_by_host[h] for h in all_hosts if h in running_by_host}
+    if host_filter:
+        pending = [stack for stack in pending if host_filter in cfg.get_hosts(stack)]
+    stacks_by_host = group_stacks_by_host(cfg.stacks, selected_hosts, all_hosts)
+    running_by_host = group_stacks_by_host(state, selected_hosts, all_hosts)
 
     container_counts: dict[str, int] = {}
     if live:
@@ -322,7 +350,7 @@ def stats(
     console.print(host_table)
 
     console.print()
-    console.print(_build_summary_table(cfg, state, pending))
+    console.print(_build_summary_table(cfg, state, pending, host_filter=host_filter))
 
 
 @app.command("list", rich_help_panel="Monitoring")

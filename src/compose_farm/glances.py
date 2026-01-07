@@ -251,11 +251,13 @@ async def fetch_container_stats(
 async def fetch_all_container_stats(
     config: Config,
     port: int = DEFAULT_GLANCES_PORT,
+    hosts: list[str] | None = None,
 ) -> list[ContainerStats]:
     """Fetch container stats from all hosts in parallel, enriched with compose labels."""
     from .executor import get_container_compose_labels  # noqa: PLC0415
 
     glances_container = config.glances_stack
+    host_names = hosts if hosts is not None else list(config.hosts.keys())
 
     async def fetch_host_data(
         host_name: str,
@@ -276,8 +278,9 @@ async def fetch_all_container_stats(
         return containers
 
     tasks = [
-        fetch_host_data(name, _get_glances_address(name, host, glances_container))
-        for name, host in config.hosts.items()
+        fetch_host_data(name, _get_glances_address(name, config.hosts[name], glances_container))
+        for name in host_names
+        if name in config.hosts
     ]
     results = await asyncio.gather(*tasks)
     # Flatten list of lists
