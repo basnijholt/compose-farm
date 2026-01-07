@@ -9,7 +9,7 @@ Real-world examples demonstrating compose-farm patterns for multi-host Docker de
 | [traefik](traefik/) | Infrastructure | Reverse proxy, Let's Encrypt, file-provider |
 | [mealie](mealie/) | Single container | Traefik labels, resource limits, environment vars |
 | [uptime-kuma](uptime-kuma/) | Single container | Docker socket, user mapping, custom DNS |
-| [paperless-ngx](paperless-ngx/) | Multi-container | Redis + App stack (SQLite) |
+| [paperless-ngx](paperless-ngx/) | Multi-container | Redis + PostgreSQL + App stack |
 | [autokuma](autokuma/) | Multi-host | Demonstrates `all` keyword (runs on every host) |
 
 ## Key Patterns
@@ -96,14 +96,13 @@ Database-backed apps with multiple services:
 services:
   redis:
     image: redis:7
+  db:
+    image: postgres:16
   app:
     depends_on:
       - redis
+      - db
 ```
-
-> **NFS + PostgreSQL Warning:** PostgreSQL should NOT run on NFS storage due to
-> fsync and file locking issues. Use SQLite (safe for single-writer on NFS) or
-> keep PostgreSQL data on local volumes (non-migratable).
 
 ### AutoKuma Labels (Optional)
 
