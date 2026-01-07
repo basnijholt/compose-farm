@@ -591,10 +591,10 @@ function playFabIntro() {
         if (theme) document.documentElement.setAttribute('data-theme', theme);
     };
     // Restore original theme (when closing without selection)
+    // Falls back to localStorage if originalTheme is somehow lost
     const restoreTheme = () => {
-        if (originalTheme) {
-            document.documentElement.setAttribute('data-theme', originalTheme);
-        }
+        const theme = originalTheme || localStorage.getItem(THEME_KEY) || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
     };
     // Generate color swatch HTML for a theme
     const themeSwatch = (theme) => `<span class="flex gap-0.5" data-theme="${theme}"><span class="w-2 h-4 rounded-l bg-primary"></span><span class="w-2 h-4 bg-secondary"></span><span class="w-2 h-4 bg-accent"></span><span class="w-2 h-4 rounded-r bg-neutral"></span></span>`;
@@ -808,10 +808,11 @@ function playFabIntro() {
 
     // Restore theme when dialog closes without selection (Escape, backdrop click)
     dialog.addEventListener('close', () => {
-        if (originalTheme) {
+        // Always restore unless a theme was explicitly selected (originalTheme nulled in exec())
+        if (originalTheme !== null) {
             restoreTheme();
-            originalTheme = null;
         }
+        originalTheme = null;
     });
 
     // FAB click to open
