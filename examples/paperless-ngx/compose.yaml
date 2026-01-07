@@ -1,44 +1,57 @@
 # Paperless-ngx - Document management system
 #
 # Demonstrates:
-# - HTTPS route: paperless.${DOMAIN} (e.g., paperless.example.com) with Let's Encrypt
-# - HTTP route: paperless.local for LAN access without TLS
-# - Multi-container stack (Redis + App with SQLite)
-#
-# NOTE: This example uses SQLite (the default) instead of PostgreSQL.
-# PostgreSQL should NOT be used with NFS storage due to fsync/locking issues.
-# If you need PostgreSQL, use local volumes for the database.
+# - HTTPS route: paperless.${DOMAIN} with Let's Encrypt
+# - HTTP route: paperless.local for LAN access
+# - Multi-container stack (Redis + PostgreSQL + App)
+# - Separate env_file for app-specific settings
 name: paperless-ngx
 services:
-  redis:
-    image: redis:8
+  broker:
+    image: redis:7
     container_name: paperless-redis
     restart: unless-stopped
     networks:
       - mynetwork
     volumes:
-      - /mnt/data/paperless/redis:/data
+      - /mnt/data/paperless/redisdata:/data
+
+  db:
+    image: postgres:16
+    container_name: paperless-db
+    restart: unless-stopped
+    networks:
+      - mynetwork
+    volumes:
+      - /mnt/data/paperless/pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
   paperless:
     image: ghcr.io/paperless-ngx/paperless-ngx:latest
     container_name: paperless
     restart: unless-stopped
     depends_on:
-      - redis
+      - db
+      - broker
     networks:
       - mynetwork
     ports:
       - "8000:8000"
     volumes:
-      # SQLite database stored here (safe on NFS for single-writer)
       - /mnt/data/paperless/data:/usr/src/paperless/data
       - /mnt/data/paperless/media:/usr/src/paperless/media
       - /mnt/data/paperless/export:/usr/src/paperless/export
       - /mnt/data/paperless/consume:/usr/src/paperless/consume
     environment:
-      PAPERLESS_REDIS: redis://redis:6379
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBHOST: db
       PAPERLESS_URL: https://paperless.${DOMAIN}
       PAPERLESS_SECRET_KEY: ${PAPERLESS_SECRET_KEY}
+      PAPERLESS_TIME_ZONE: America/Los_Angeles
+      PAPERLESS_OCR_LANGUAGE: eng
       USERMAP_UID: 1000
       USERMAP_GID: 1000
     labels:
