@@ -513,6 +513,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │                service.                                                      │
 │ ps             Show status of stacks.                                        │
 │ stats          Show overview statistics for hosts and stacks.                │
+│ list           List all stacks and their assigned hosts.                     │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Server ─────────────────────────────────────────────────────────────────────╮
 │ web            Start the web UI server.                                      │
@@ -1213,7 +1214,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  List all stacks and their assigned hosts.
 
 ╭─ Options ────────────────────────────────────────────────────────────────────╮
-│ --host    -H      TEXT  Only stacks assigned to this host                    │
+│ --host    -H      TEXT  Filter to stacks on this host                        │
 │ --simple  -s            Plain output (one stack per line, for scripting)     │
 │ --config  -c      PATH  Path to config file                                  │
 │ --help    -h            Show this message and exit.                          │
