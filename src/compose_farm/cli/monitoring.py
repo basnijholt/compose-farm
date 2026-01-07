@@ -223,12 +223,18 @@ def list_(
         for stack, _ in sorted(stacks):
             console.print(stack)
     else:
+        # Assign colors to hosts for visual grouping
+        host_colors = ["magenta", "cyan", "green", "yellow", "blue", "red"]
+        unique_hosts = sorted({str(h) for _, h in stacks})
+        host_color_map = {h: host_colors[i % len(host_colors)] for i, h in enumerate(unique_hosts)}
+
         table = Table(title="Stacks", show_header=True, header_style="bold cyan")
-        table.add_column("Stack", style="magenta")
+        table.add_column("Stack")
         table.add_column("Host")
 
         for stack, host_val in sorted(stacks):
-            table.add_row(stack, str(host_val))
+            color = host_color_map.get(str(host_val), "white")
+            table.add_row(f"[{color}]{stack}[/]", f"[{color}]{host_val}[/]")
 
         console.print(table)
 
