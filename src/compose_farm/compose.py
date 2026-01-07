@@ -280,8 +280,11 @@ def parse_external_networks(config: Config, stack: str) -> list[str]:
         return []
 
     external_networks: list[str] = []
-    for name, definition in networks.items():
+    for key, definition in networks.items():
         if isinstance(definition, dict) and definition.get("external") is True:
+            # Networks may have a "name" field, which may differ from the key.
+            # Use it if present, else fall back to the key.
+            name = str(definition.get("name", key))
             external_networks.append(name)
 
     return external_networks

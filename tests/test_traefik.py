@@ -338,6 +338,26 @@ def test_parse_external_networks_missing_compose(tmp_path: Path) -> None:
     assert networks == []
 
 
+def test_parse_external_networks_with_name_field(tmp_path: Path) -> None:
+    """Network with 'name' field uses actual name, not key."""
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"host1": Host(address="192.168.1.10")},
+        stacks={"app": "host1"},
+    )
+    compose_path = tmp_path / "app" / "compose.yaml"
+    _write_compose(
+        compose_path,
+        {
+            "services": {"app": {"image": "nginx"}},
+            "networks": {"default": {"name": "compose-net", "external": True}},
+        },
+    )
+
+    networks = parse_external_networks(cfg, "app")
+    assert networks == ["compose-net"]
+
+
 class TestExtractWebsiteUrls:
     """Test extract_website_urls function."""
 
