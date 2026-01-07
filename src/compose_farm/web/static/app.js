@@ -808,15 +808,10 @@ function playFabIntro() {
 // THEME PERSISTENCE
 // ============================================================================
 
-// Valid themes list (must match THEMES in command palette)
-const VALID_THEMES = ['light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate', 'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween', 'garden', 'forest', 'aqua', 'lofi', 'pastel', 'fantasy', 'wireframe', 'black', 'luxury', 'dracula', 'cmyk', 'autumn', 'business', 'acid', 'lemonade', 'night', 'coffee', 'winter', 'dim', 'nord', 'sunset', 'caramellatte', 'abyss', 'silk'];
-
 // Restore saved theme on load (also handled in inline script to prevent flash)
 (function() {
     const saved = localStorage.getItem('cf_theme');
-    if (saved && VALID_THEMES.includes(saved)) {
-        document.documentElement.setAttribute('data-theme', saved);
-    }
+    if (saved) document.documentElement.setAttribute('data-theme', saved);
 })();
 
 // ============================================================================

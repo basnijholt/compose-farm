@@ -20,9 +20,8 @@
     <!-- Apply saved theme before render to prevent flash -->
     <script>
         (function() {
-            const VALID_THEMES = ['light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corporate', 'synthwave', 'retro', 'cyberpunk', 'valentine', 'halloween', 'garden', 'forest', 'aqua', 'lofi', 'pastel', 'fantasy', 'wireframe', 'black', 'luxury', 'dracula', 'cmyk', 'autumn', 'business', 'acid', 'lemonade', 'night', 'coffee', 'winter', 'dim', 'nord', 'sunset', 'caramellatte', 'abyss', 'silk'];
             const t = localStorage.getItem('cf_theme');
-            if (t && VALID_THEMES.includes(t)) document.documentElement.setAttribute('data-theme', t);
+            if (t) document.documentElement.setAttribute('data-theme', t);
         })();
     </script>
 </head>
