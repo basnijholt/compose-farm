@@ -27,6 +27,7 @@ hosts:
 stacks:
   # Infrastructure (runs on primary where Traefik is)
   traefik: primary
+  coredns: primary  # DNS for *.local resolution
 
   # Multi-host stacks (runs on ALL hosts)
   # AutoKuma monitors Docker containers on each host

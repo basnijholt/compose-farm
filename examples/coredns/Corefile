@@ -1,0 +1,22 @@
+# CoreDNS configuration for .local domain resolution
+#
+# Resolves *.local to the Traefik host IP (where your reverse proxy runs).
+# All other queries are forwarded to upstream DNS.
+
+# Handle .local domains - resolve everything to Traefik's host
+local {
+    template IN A {
+        answer "{{ .Name }} 60 IN A 192.168.1.10"
+    }
+    template IN AAAA {
+        # Return empty for AAAA to avoid delays on IPv4-only networks
+        rcode NOERROR
+    }
+}
+
+# Forward everything else to upstream DNS
+. {
+    forward . 1.1.1.1 8.8.8.8
+    cache 300
+    errors
+}

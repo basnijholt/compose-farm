@@ -3,6 +3,7 @@ deployed:
   - primary
   - secondary
   - local
+  coredns: primary
   mealie: secondary
   paperless-ngx: primary
   traefik: primary
