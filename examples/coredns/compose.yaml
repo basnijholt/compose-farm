@@ -1,0 +1,27 @@
+# CoreDNS - DNS server for .local domain resolution
+#
+# Demonstrates:
+# - Wildcard DNS for *.local domains
+# - Config file mounting from stack directory
+# - UDP/TCP port exposure
+#
+# This enables all the .local routes in the examples to work.
+# Point your devices/router DNS to this server's IP.
+name: coredns
+services:
+  coredns:
+    image: coredns/coredns:latest
+    container_name: coredns
+    restart: unless-stopped
+    networks:
+      - mynetwork
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    volumes:
+      - ./Corefile:/root/Corefile:ro
+    command: -conf /root/Corefile
+
+networks:
+  mynetwork:
+    external: true
