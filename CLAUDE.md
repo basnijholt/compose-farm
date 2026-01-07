@@ -17,7 +17,7 @@ src/compose_farm/
 │   ├── config.py      # Config subcommand (init, show, path, validate, edit, symlink)
 │   ├── lifecycle.py   # up, down, stop, pull, restart, update, apply, compose commands
 │   ├── management.py  # refresh, check, init-network, traefik-file commands
-│   ├── monitoring.py  # logs, ps, stats commands
+│   ├── monitoring.py  # logs, ps, stats, list commands
 │   ├── ssh.py         # SSH key management (setup, status, keygen)
 │   └── web.py         # Web UI server command
 ├── compose.py         # Compose file parsing (.env, ports, volumes, networks)
@@ -157,6 +157,7 @@ CLI available as `cf` or `compose-farm`.
 | `logs`  | Show stack logs |
 | `ps`    | Show status of all stacks |
 | `stats` | Show overview (hosts, stacks, pending migrations; `--live` for container counts) |
+| `list`  | List stacks and hosts (`--simple` for scripting, `--host` to filter) |
 | `refresh` | Update state from reality: discover running stacks, capture image digests |
 | `check` | Validate config, traefik labels, mounts, networks; show host compatibility |
 | `init-network` | Create Docker network on hosts with consistent subnet/gateway |
