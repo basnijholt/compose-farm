@@ -21,6 +21,7 @@ from compose_farm.cli.common import (
     report_results,
     run_async,
     run_parallel_with_progress,
+    validate_hosts,
 )
 from compose_farm.console import console, print_error, print_warning
 from compose_farm.executor import run_command, run_on_stacks
@@ -300,8 +301,6 @@ def stats(
 
     host_filter = None
     if host:
-        from compose_farm.cli.common import validate_hosts  # noqa: PLC0415
-
         validate_hosts(cfg, host)
         host_filter = host
 
