@@ -819,20 +819,6 @@ const VALID_THEMES = ['light', 'dark', 'cupcake', 'bumblebee', 'emerald', 'corpo
     }
 })();
 
-// Debug helper: Enable theme change monitoring by running in console:
-// window.debugThemeChanges = true
-window.debugThemeChanges = false;
-new MutationObserver((mutations) => {
-    if (!window.debugThemeChanges) return;
-    for (const m of mutations) {
-        if (m.attributeName === 'data-theme') {
-            const newTheme = document.documentElement.getAttribute('data-theme');
-            console.log('[theme-debug] Changed to:', newTheme);
-            console.trace();
-        }
-    }
-}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-
 // ============================================================================
 // INITIALIZATION
 // ============================================================================
