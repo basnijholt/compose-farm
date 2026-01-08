@@ -244,7 +244,7 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
     import time  # noqa: PLC0415
 
     from compose_farm.executor import get_container_compose_labels  # noqa: PLC0415
-    from compose_farm.glances import fetch_container_stats  # noqa: PLC0415
+    from compose_farm.glances import _get_glances_address, fetch_container_stats  # noqa: PLC0415
 
     logger = logging.getLogger(__name__)
     config = get_config()
@@ -253,9 +253,10 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
         return HTMLResponse("")
 
     host = config.hosts[host_name]
+    glances_address = _get_glances_address(host_name, host, config.glances_stack)
 
     t0 = time.monotonic()
-    containers, error = await fetch_container_stats(host_name, host.address)
+    containers, error = await fetch_container_stats(host_name, glances_address)
     t1 = time.monotonic()
     fetch_ms = (t1 - t0) * 1000
 
