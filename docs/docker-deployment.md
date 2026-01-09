@@ -59,17 +59,19 @@ $EDITOR .env
 | `DOMAIN` | Extracted from traefik labels in your stacks |
 | `CF_COMPOSE_DIR` | From `compose_dir` in your config |
 | `CF_UID/GID/HOME/USER` | From current user (for NFS compatibility) |
-| `CF_LOCAL_HOST` | By matching local IPs to configured hosts |
 
 If auto-detection fails for any value, edit the `.env` file manually.
 
 ### Glances Monitoring
 
-To show host CPU/memory stats in the dashboard, deploy [Glances](https://nicolargo.github.io/glances/) on your hosts. If `CF_LOCAL_HOST` wasn't detected correctly, set it to your local hostname:
+To show host CPU/memory stats in the dashboard, deploy [Glances](https://nicolargo.github.io/glances/) on your hosts. Set the local host in your config:
 
-```bash
-CF_LOCAL_HOST=nas  # Replace with your local host name
+```yaml
+# compose-farm.yaml
+local_host: nas  # Replace with your local host name
 ```
+
+Or use environment variable `CF_LOCAL_HOST` (takes precedence over config).
 
 See [Host Resource Monitoring](https://github.com/basnijholt/compose-farm#host-resource-monitoring-glances) in the README.
 
@@ -87,7 +89,14 @@ docker compose run --rm cf ssh setup
 
 ### Glances shows error for local host
 
-Add your local hostname to `.env`:
+Add your local hostname to your config:
+
+```yaml
+# compose-farm.yaml
+local_host: nas
+```
+
+Or set via environment variable:
 
 ```bash
 echo "CF_LOCAL_HOST=nas" >> .env
@@ -104,13 +113,16 @@ Add the non-root variables above and restart.
 
 For advanced users, here's the complete reference:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DOMAIN` | Domain for Traefik labels | *(required)* |
-| `CF_COMPOSE_DIR` | Compose files directory | `/opt/stacks` |
-| `CF_UID` / `CF_GID` | User/group ID | `0` (root) |
-| `CF_HOME` | Home directory | `/root` |
-| `CF_USER` | Username for SSH | `root` |
-| `CF_LOCAL_HOST` | Local hostname for Glances | *(auto-detect)* |
-| `CF_SSH_DIR` | SSH keys directory | `~/.ssh/compose-farm` |
-| `CF_XDG_CONFIG` | Config/backup directory | `~/.config/compose-farm` |
+| Variable | Description | Default | Config option |
+|----------|-------------|---------|---------------|
+| `DOMAIN` | Domain for Traefik labels | *(required)* | — |
+| `CF_COMPOSE_DIR` | Compose files directory | `/opt/stacks` | `compose_dir` |
+| `CF_UID` / `CF_GID` | User/group ID | `0` (root) | — |
+| `CF_HOME` | Home directory | `/root` | — |
+| `CF_USER` | Username for SSH | `root` | — |
+| `CF_LOCAL_HOST` | Local hostname for Glances | *(none)* | `local_host` |
+| `CF_WEB_STACK` | Web UI stack name | *(none)* | `web_stack` |
+| `CF_SSH_DIR` | SSH keys directory | `~/.ssh/compose-farm` | — |
+| `CF_XDG_CONFIG` | Config/backup directory | `~/.config/compose-farm` | — |
+
+Environment variables take precedence over config file settings.

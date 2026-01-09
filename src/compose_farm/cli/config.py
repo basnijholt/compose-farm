@@ -350,10 +350,11 @@ def config_init_env(
     """Generate a .env file for Docker deployment.
 
     Reads the compose-farm.yaml config and auto-detects settings:
+
     - CF_COMPOSE_DIR from compose_dir
-    - CF_LOCAL_HOST by detecting which config host matches local IPs
     - CF_UID/GID/HOME/USER from current user
     - DOMAIN from traefik labels in stacks (if found)
+    - CF_LOCAL_HOST (commented out, can be set in config as local_host instead)
 
     Example::
 
@@ -398,8 +399,8 @@ def config_init_env(
         f"CF_HOME={home}",
         f"CF_USER={user}",
         "",
-        "# Local hostname for Glances integration",
-        f"CF_LOCAL_HOST={local_host or '# auto-detect failed - set manually'}",
+        "# Optional: Local hostname for Glances (can also set local_host in config)",
+        f"# CF_LOCAL_HOST={local_host or 'your-host-name'}",
         "",
     ]
 
@@ -411,7 +412,12 @@ def config_init_env(
     console.print(f"  DOMAIN: {domain or '[yellow]example.com[/] (edit this)'}")
     console.print(f"  CF_COMPOSE_DIR: {compose_dir}")
     console.print(f"  CF_UID/GID: {uid}:{gid}")
-    console.print(f"  CF_LOCAL_HOST: {local_host or '[yellow]not detected[/] (set manually)'}")
+    console.print()
+    if local_host:
+        console.print(f"[dim]Detected local host:[/dim] {local_host}")
+        console.print(
+            "[dim]Set 'local_host' in compose-farm.yaml or uncomment CF_LOCAL_HOST in .env[/dim]"
+        )
     console.print()
     console.print("[dim]Review and edit as needed:[/dim]")
     console.print(f"  [cyan]$EDITOR {env_path}[/cyan]")
