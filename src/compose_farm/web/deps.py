@@ -6,6 +6,7 @@ between app.py and route modules.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -15,7 +16,7 @@ from pydantic import ValidationError
 from compose_farm.executor import is_local
 
 if TYPE_CHECKING:
-    from compose_farm.config import Config
+    from compose_farm.config import Config, Host
 
 # Paths
 WEB_DIR = Path(__file__).parent
@@ -52,8 +53,40 @@ def extract_config_error(exc: Exception) -> str:
     return str(exc)
 
 
+def _get_explicit_local_host(config: Config) -> str | None:
+    """Get explicit local host from env var or config (env takes precedence)."""
+    return os.environ.get("CF_LOCAL_HOST") or config.local_host
+
+
+def is_local_host(host_name: str, host: Host, config: Config) -> bool:
+    """Check if a host should be treated as local.
+
+    When running in a Docker container, is_local() may not work correctly because
+    the container has different network IPs. This function first checks if the
+    host matches CF_LOCAL_HOST or config.local_host, then falls back to is_local().
+
+    This affects:
+    - Container exec (local docker exec vs SSH)
+    - File read/write (local filesystem vs SSH)
+    - Shell sessions (local shell vs SSH)
+    """
+    explicit_local = _get_explicit_local_host(config)
+    if explicit_local and host_name == explicit_local:
+        return True
+    return is_local(host)
+
+
 def get_local_host(config: Config) -> str | None:
-    """Find the local host name from config, if any."""
+    """Find the local host name from config, if any.
+
+    First checks CF_LOCAL_HOST env var and config.local_host,
+    then falls back to is_local() detection.
+    """
+    # Explicit setting takes precedence
+    explicit = _get_explicit_local_host(config)
+    if explicit and explicit in config.hosts:
+        return explicit
+    # Fall back to auto-detection
     for name, host in config.hosts.items():
         if is_local(host):
             return name

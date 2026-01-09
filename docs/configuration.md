@@ -133,7 +133,13 @@ The Glances stack should run on all hosts and expose port 61208. See the README 
 
 ### local_host
 
-Name of the local host for web UI Glances connectivity. When running the web UI in a Docker container, it may not be able to reach the local host's Glances API via its LAN IP due to network isolation.
+Name of the local host for the web UI. When running the web UI in a Docker container, the container has a different network namespace and can't auto-detect which host it's running on.
+
+Setting this affects:
+
+- **Glances connectivity**: uses container name instead of LAN IP
+- **Container exec/shell**: runs locally instead of via SSH
+- **File editing**: uses local filesystem instead of SSH
 
 ```yaml
 local_host: nas

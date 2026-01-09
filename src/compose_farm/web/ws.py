@@ -18,8 +18,8 @@ from typing import TYPE_CHECKING, Any
 import asyncssh
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from compose_farm.executor import is_local, ssh_connect_kwargs
-from compose_farm.web.deps import get_config
+from compose_farm.executor import ssh_connect_kwargs
+from compose_farm.web.deps import get_config, is_local_host
 from compose_farm.web.streaming import CRLF, DIM, GREEN, RED, RESET, tasks
 
 logger = logging.getLogger(__name__)
@@ -188,7 +188,7 @@ async def _run_exec_session(
         await websocket.send_text(f"{RED}Host '{host_name}' not found{RESET}{CRLF}")
         return
 
-    if is_local(host):
+    if is_local_host(host_name, host, config):
         # Local: use argv list (no shell interpretation)
         argv = ["docker", "exec", "-it", container, "/bin/sh", "-c", SHELL_FALLBACK]
         await _run_local_exec(websocket, argv)
@@ -239,7 +239,7 @@ async def _run_shell_session(
     # Start interactive shell in home directory
     shell_cmd = "cd ~ && exec bash -i || exec sh -i"
 
-    if is_local(host):
+    if is_local_host(host_name, host, config):
         # Local: use argv list with shell -c to interpret the command
         argv = ["/bin/sh", "-c", shell_cmd]
         await _run_local_exec(websocket, argv)

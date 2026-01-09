@@ -101,10 +101,14 @@ stacks:
 # ------------------------------------------------------------------------------
 # local_host: (optional) Name of the local host for web UI
 # ------------------------------------------------------------------------------
-# When running the web UI in a Docker container, it may not be able to reach
-# the local host's Glances API via its LAN IP due to network isolation.
-# Set this to the name of the host where the web UI runs, and compose-farm
-# will use the glances_stack container name instead of the IP address.
+# When running the web UI in a Docker container, the container has a different
+# network namespace and can't auto-detect which host it's running on. This affects:
+#
+# - Glances connectivity (uses container name instead of LAN IP)
+# - Container exec/shell (runs locally instead of via SSH)
+# - File editing (uses local filesystem instead of SSH)
+#
+# Set this to the name of the host where the web UI container runs.
 #
 # Can be overridden by CF_LOCAL_HOST environment variable.
 #
