@@ -9,14 +9,10 @@ from typing import TYPE_CHECKING, Any
 
 from compose_farm.executor import build_ssh_command
 from compose_farm.ssh_keys import get_ssh_auth_sock
+from compose_farm.web.deps import get_web_stack
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
-
-
-def _get_web_stack(config: Config) -> str:
-    """Get web stack name from environment or config (env takes precedence)."""
-    return os.environ.get("CF_WEB_STACK") or config.web_stack or ""
 
 
 # ANSI escape codes for terminal output
@@ -104,7 +100,7 @@ def _is_self_update(config: Config, stack: str, command: str) -> bool:
     Self-updates need special handling because running 'down' on the container
     we're running in would kill the process before 'up' can execute.
     """
-    web_stack = _get_web_stack(config)
+    web_stack = get_web_stack(config)
     if not web_stack or stack != web_stack:
         return False
     # Commands that involve 'down' need SSH: update, down
@@ -118,7 +114,7 @@ async def _run_cli_via_ssh(
 ) -> None:
     """Run a cf CLI command via SSH for self-updates (survives container restart)."""
     try:
-        web_stack = _get_web_stack(config)
+        web_stack = get_web_stack(config)
         host = config.get_host(web_stack)
         cf_cmd = f"cf {' '.join(args)} --config={config.config_path}"
         # Include task_id to prevent collision with concurrent updates

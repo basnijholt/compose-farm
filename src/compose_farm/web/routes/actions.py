@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -12,14 +11,8 @@ from fastapi import APIRouter, HTTPException
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
-from compose_farm.web.deps import get_config
+from compose_farm.web.deps import get_config, get_web_stack
 from compose_farm.web.streaming import run_cli_streaming, run_compose_streaming, tasks
-
-
-def _get_web_stack(config: Any) -> str:
-    """Get web stack name from environment or config (env takes precedence)."""
-    return os.environ.get("CF_WEB_STACK") or config.web_stack or ""
-
 
 router = APIRouter(tags=["actions"])
 
@@ -110,7 +103,7 @@ async def update_all() -> dict[str, Any]:
     """
     config = get_config()
     # Get all stacks except the web stack to avoid self-shutdown
-    web_stack = _get_web_stack(config)
+    web_stack = get_web_stack(config)
     stacks = [s for s in config.stacks if s != web_stack]
     if not stacks:
         return {"task_id": "", "command": "update (no stacks)", "skipped": True}

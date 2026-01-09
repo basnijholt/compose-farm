@@ -101,6 +101,137 @@ class TestGetStackComposePath:
         assert "not found" in exc_info.value.detail
 
 
+class TestIsLocalHost:
+    """Tests for is_local_host helper."""
+
+    def test_returns_true_when_config_local_host_matches(self) -> None:
+        """is_local_host returns True when host matches config.local_host."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import is_local_host
+
+        config = Config(
+            hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
+            stacks={"test": "nas"},
+            local_host="nas",
+        )
+        host = config.hosts["nas"]
+        assert is_local_host("nas", host, config) is True
+
+    def test_returns_false_when_config_local_host_differs(self) -> None:
+        """is_local_host returns False when host does not match config.local_host."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import is_local_host
+
+        config = Config(
+            hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
+            stacks={"test": "nas"},
+            local_host="nas",
+        )
+        host = config.hosts["nuc"]
+        # nuc is not local, and not matching local_host
+        assert is_local_host("nuc", host, config) is False
+
+    def test_env_var_takes_precedence(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """CF_LOCAL_HOST env var takes precedence over config.local_host."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import is_local_host
+
+        monkeypatch.setenv("CF_LOCAL_HOST", "nuc")
+        # Use addresses that won't match local machine to avoid is_local() fallback
+        config = Config(
+            hosts={"nas": Host(address="10.99.99.1"), "nuc": Host(address="10.99.99.2")},
+            stacks={"test": "nas"},
+            local_host="nas",  # config says nas, but env says nuc
+        )
+        # nuc should be local because env var says so
+        assert is_local_host("nuc", config.hosts["nuc"], config) is True
+        # nas should not be local because env var overrides config
+        assert is_local_host("nas", config.hosts["nas"], config) is False
+
+
+class TestGetWebStack:
+    """Tests for get_web_stack helper."""
+
+    def test_returns_config_value(self) -> None:
+        """get_web_stack returns config.web_stack when env var not set."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import get_web_stack
+
+        config = Config(
+            hosts={"nas": Host(address="192.168.1.6")},
+            stacks={"compose-farm": "nas"},
+            web_stack="compose-farm",
+        )
+        assert get_web_stack(config) == "compose-farm"
+
+    def test_returns_empty_string_when_not_set(self) -> None:
+        """get_web_stack returns empty string when not configured."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import get_web_stack
+
+        config = Config(
+            hosts={"nas": Host(address="192.168.1.6")},
+            stacks={"test": "nas"},
+        )
+        assert get_web_stack(config) == ""
+
+    def test_env_var_takes_precedence(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """CF_WEB_STACK env var takes precedence over config.web_stack."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import get_web_stack
+
+        monkeypatch.setenv("CF_WEB_STACK", "web-from-env")
+        config = Config(
+            hosts={"nas": Host(address="192.168.1.6")},
+            stacks={"compose-farm": "nas"},
+            web_stack="compose-farm",
+        )
+        assert get_web_stack(config) == "web-from-env"
+
+
+class TestGetLocalHost:
+    """Tests for get_local_host helper."""
+
+    def test_returns_config_local_host(self) -> None:
+        """get_local_host returns config.local_host when set and valid."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import get_local_host
+
+        config = Config(
+            hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
+            stacks={"test": "nas"},
+            local_host="nas",
+        )
+        assert get_local_host(config) == "nas"
+
+    def test_ignores_invalid_local_host(self) -> None:
+        """get_local_host ignores local_host if it's not in hosts."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import get_local_host
+
+        # Use address that won't match local machine to avoid is_local() fallback
+        config = Config(
+            hosts={"nas": Host(address="10.99.99.1")},
+            stacks={"test": "nas"},
+            local_host="nonexistent",
+        )
+        # Should fall back to auto-detection (which won't match anything here)
+        assert get_local_host(config) is None
+
+    def test_env_var_takes_precedence(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """CF_LOCAL_HOST env var takes precedence over config.local_host."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import get_local_host
+
+        monkeypatch.setenv("CF_LOCAL_HOST", "nuc")
+        config = Config(
+            hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
+            stacks={"test": "nas"},
+            local_host="nas",
+        )
+        assert get_local_host(config) == "nuc"
+
+
 class TestRenderContainers:
     """Tests for container template rendering."""
 

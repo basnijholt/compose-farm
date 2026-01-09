@@ -58,6 +58,11 @@ def _get_explicit_local_host(config: Config) -> str | None:
     return os.environ.get("CF_LOCAL_HOST") or config.local_host
 
 
+def get_web_stack(config: Config) -> str:
+    """Get web stack name from env var or config (env takes precedence)."""
+    return os.environ.get("CF_WEB_STACK") or config.web_stack or ""
+
+
 def is_local_host(host_name: str, host: Host, config: Config) -> bool:
     """Check if a host should be treated as local.
 
