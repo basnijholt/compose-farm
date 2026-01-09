@@ -106,6 +106,8 @@ stacks:
 # Set this to the name of the host where the web UI runs, and compose-farm
 # will use the glances_stack container name instead of the IP address.
 #
+# Can be overridden by CF_LOCAL_HOST environment variable.
+#
 # local_host: server1
 
 # ------------------------------------------------------------------------------
@@ -116,5 +118,7 @@ stacks:
 #   container restart
 # - Exclusion from bulk operations: "Update All" skips the web stack to prevent
 #   the UI from shutting down mid-operation
+#
+# Can be overridden by CF_WEB_STACK environment variable.
 #
 # web_stack: compose-farm

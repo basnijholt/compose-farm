@@ -15,8 +15,8 @@ if TYPE_CHECKING:
 
 
 def _get_web_stack(config: Config) -> str:
-    """Get web stack name from config or environment (for backwards compatibility)."""
-    return config.web_stack or os.environ.get("CF_WEB_STACK", "")
+    """Get web stack name from environment or config (env takes precedence)."""
+    return os.environ.get("CF_WEB_STACK") or config.web_stack or ""
 
 
 # ANSI escape codes for terminal output

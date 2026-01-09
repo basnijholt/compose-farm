@@ -17,8 +17,8 @@ from compose_farm.web.streaming import run_cli_streaming, run_compose_streaming,
 
 
 def _get_web_stack(config: Any) -> str:
-    """Get web stack name from config or environment (for backwards compatibility)."""
-    return config.web_stack or os.environ.get("CF_WEB_STACK", "")
+    """Get web stack name from environment or config (env takes precedence)."""
+    return os.environ.get("CF_WEB_STACK") or config.web_stack or ""
 
 
 router = APIRouter(tags=["actions"])
