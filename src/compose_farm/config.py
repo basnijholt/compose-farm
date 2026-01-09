@@ -34,6 +34,8 @@ class Config(BaseModel, extra="forbid"):
     glances_stack: str | None = (
         None  # Stack name for Glances (enables host resource stats in web UI)
     )
+    local_host: str | None = None  # Name of the local host (for web UI Glances connectivity)
+    web_stack: str | None = None  # Name of the web UI stack (for self-update detection)
     config_path: Path = Path()  # Set by load_config()
 
     def get_state_path(self) -> Path:

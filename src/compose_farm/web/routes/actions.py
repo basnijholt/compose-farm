@@ -15,8 +15,11 @@ if TYPE_CHECKING:
 from compose_farm.web.deps import get_config
 from compose_farm.web.streaming import run_cli_streaming, run_compose_streaming, tasks
 
-# Environment variable to identify the web stack (for exclusion from bulk updates)
-CF_WEB_STACK = os.environ.get("CF_WEB_STACK", "")
+
+def _get_web_stack(config: Any) -> str:
+    """Get web stack name from config or environment (for backwards compatibility)."""
+    return config.web_stack or os.environ.get("CF_WEB_STACK", "")
+
 
 router = APIRouter(tags=["actions"])
 
@@ -107,7 +110,8 @@ async def update_all() -> dict[str, Any]:
     """
     config = get_config()
     # Get all stacks except the web stack to avoid self-shutdown
-    stacks = [s for s in config.stacks if s != CF_WEB_STACK]
+    web_stack = _get_web_stack(config)
+    stacks = [s for s in config.stacks if s != web_stack]
     if not stacks:
         return {"task_id": "", "command": "update (no stacks)", "skipped": True}
     task_id = _start_task(lambda tid: run_cli_streaming(config, ["update", *stacks], tid))
