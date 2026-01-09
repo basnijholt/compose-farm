@@ -45,13 +45,14 @@ services:
     environment:
       - SSH_AUTH_SOCK=/ssh-agent
       - CF_CONFIG=${CF_COMPOSE_DIR:-/opt/stacks}/compose-farm.yaml
+      # Used to detect self-updates and run via SSH to survive container restart
+      - CF_WEB_STACK=compose-farm
+      # Local host for Glances (use container name instead of IP to avoid Docker network issues)
+      - CF_LOCAL_HOST=${CF_LOCAL_HOST:-}
       # HOME must match the user running the container for SSH to find keys
       - HOME=${CF_HOME:-/root}
       # USER is required for SSH when running as non-root (UID not in /etc/passwd)
       - USER=${CF_USER:-root}
-      # Optional overrides (can also be set in compose-farm.yaml as web_stack/local_host):
-      # - CF_WEB_STACK=compose-farm
-      # - CF_LOCAL_HOST=your-host-name
     labels:
       - traefik.enable=true
       - traefik.http.routers.compose-farm.rule=Host(`compose-farm.${DOMAIN}`)

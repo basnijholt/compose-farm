@@ -71,6 +71,9 @@ To show host CPU/memory stats in the dashboard, deploy [Glances](https://nicolar
 local_host: nas  # Replace with your local host name
 ```
 
+This is host-specific. Set it only on the host where the web UI runs. If you run
+the web UI elsewhere, override with `CF_LOCAL_HOST` or use a different config file.
+
 Or use environment variable `CF_LOCAL_HOST` (takes precedence over config).
 
 See [Host Resource Monitoring](https://github.com/basnijholt/compose-farm#host-resource-monitoring-glances) in the README.

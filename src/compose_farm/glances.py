@@ -28,19 +28,18 @@ def _get_glances_address(
     host: Host,
     glances_container: str | None,
     local_host: str | None = None,
-    web_stack: str | None = None,
 ) -> str:
     """Get the address to use for Glances API requests.
 
-    When running in a Docker container (web_stack or CF_WEB_STACK set), the local
-    host's Glances may not be reachable via its LAN IP due to Docker network isolation.
-    In this case, we use the Glances container name for the local host.
+    When running in a Docker container (CF_WEB_STACK set), the local host's Glances
+    may not be reachable via its LAN IP due to Docker network isolation. In this
+    case, we use the Glances container name for the local host.
 
     Set CF_LOCAL_HOST env var or local_host in config to specify which host is local.
     Environment variables take precedence over config values.
     """
-    # Check for web stack from environment or config (env takes precedence)
-    in_container = os.environ.get("CF_WEB_STACK") is not None or web_stack is not None
+    # CF_WEB_STACK indicates we're running in the web UI container.
+    in_container = os.environ.get("CF_WEB_STACK") is not None
     if not in_container or not glances_container:
         return host.address
 
@@ -159,9 +158,7 @@ async def fetch_all_host_stats(
     tasks = [
         fetch_host_stats(
             name,
-            _get_glances_address(
-                name, host, glances_container, config.local_host, config.web_stack
-            ),
+            _get_glances_address(name, host, glances_container, config.local_host),
             port,
         )
         for name, host in config.hosts.items()
@@ -295,7 +292,6 @@ async def fetch_all_container_stats(
                 config.hosts[name],
                 glances_container,
                 config.local_host,
-                config.web_stack,
             ),
         )
         for name in host_names

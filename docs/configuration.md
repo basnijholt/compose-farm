@@ -141,6 +141,9 @@ Setting this affects:
 - **Container exec/shell**: runs locally instead of via SSH
 - **File editing**: uses local filesystem instead of SSH
 
+This is host-specific. Set it only on the host where the web UI runs. If you run
+the web UI elsewhere, override with `CF_LOCAL_HOST` or use a different config file.
+
 ```yaml
 local_host: nas
 ```
