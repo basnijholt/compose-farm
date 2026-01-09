@@ -104,26 +104,34 @@ class TestGetStackComposePath:
 class TestIsLocalHost:
     """Tests for is_local_host helper."""
 
-    def test_returns_true_when_config_local_host_matches(self) -> None:
+    def test_returns_true_when_config_local_host_matches(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """is_local_host returns True when host matches config.local_host."""
         from compose_farm.config import Config, Host
         from compose_farm.web.deps import is_local_host
 
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        monkeypatch.delenv("CF_LOCAL_HOST", raising=False)
         config = Config(
-            hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
+            hosts={"nas": Host(address="10.99.99.1"), "nuc": Host(address="10.99.99.2")},
             stacks={"test": "nas"},
             local_host="nas",
         )
         host = config.hosts["nas"]
         assert is_local_host("nas", host, config) is True
 
-    def test_returns_false_when_config_local_host_differs(self) -> None:
+    def test_returns_false_when_config_local_host_differs(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """is_local_host returns False when host does not match config.local_host."""
         from compose_farm.config import Config, Host
         from compose_farm.web.deps import is_local_host
 
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        monkeypatch.delenv("CF_LOCAL_HOST", raising=False)
         config = Config(
-            hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
+            hosts={"nas": Host(address="10.99.99.1"), "nuc": Host(address="10.99.99.2")},
             stacks={"test": "nas"},
             local_host="nas",
         )
@@ -192,23 +200,27 @@ class TestGetWebStack:
 class TestGetLocalHost:
     """Tests for get_local_host helper."""
 
-    def test_returns_config_local_host(self) -> None:
+    def test_returns_config_local_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """get_local_host returns config.local_host when set and valid."""
         from compose_farm.config import Config, Host
         from compose_farm.web.deps import get_local_host
 
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        monkeypatch.delenv("CF_LOCAL_HOST", raising=False)
         config = Config(
-            hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
+            hosts={"nas": Host(address="10.99.99.1"), "nuc": Host(address="10.99.99.2")},
             stacks={"test": "nas"},
             local_host="nas",
         )
         assert get_local_host(config) == "nas"
 
-    def test_ignores_invalid_local_host(self) -> None:
+    def test_ignores_invalid_local_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """get_local_host ignores local_host if it's not in hosts."""
         from compose_farm.config import Config, Host
         from compose_farm.web.deps import get_local_host
 
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        monkeypatch.delenv("CF_LOCAL_HOST", raising=False)
         # Use address that won't match local machine to avoid is_local() fallback
         config = Config(
             hosts={"nas": Host(address="10.99.99.1")},
@@ -225,11 +237,27 @@ class TestGetLocalHost:
 
         monkeypatch.setenv("CF_LOCAL_HOST", "nuc")
         config = Config(
-            hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
+            hosts={"nas": Host(address="10.99.99.1"), "nuc": Host(address="10.99.99.2")},
             stacks={"test": "nas"},
             local_host="nas",
         )
         assert get_local_host(config) == "nuc"
+
+    def test_config_local_host_ignored_outside_container(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_local_host ignores config.local_host when not in web container."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import get_local_host
+
+        monkeypatch.delenv("CF_WEB_STACK", raising=False)
+        monkeypatch.delenv("CF_LOCAL_HOST", raising=False)
+        config = Config(
+            hosts={"nas": Host(address="10.99.99.1")},
+            stacks={"test": "nas"},
+            local_host="nas",
+        )
+        assert get_local_host(config) is None
 
 
 class TestRenderContainers:

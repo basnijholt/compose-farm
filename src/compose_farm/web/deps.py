@@ -54,8 +54,15 @@ def extract_config_error(exc: Exception) -> str:
 
 
 def _get_explicit_local_host(config: Config) -> str | None:
-    """Get explicit local host from env var or config (env takes precedence)."""
-    return os.environ.get("CF_LOCAL_HOST") or config.local_host
+    """Get explicit local host from env var or config (env takes precedence).
+
+    Config local_host is only honored when CF_WEB_STACK is set.
+    """
+    if env_local := os.environ.get("CF_LOCAL_HOST"):
+        return env_local
+    if os.environ.get("CF_WEB_STACK") is not None:
+        return config.local_host
+    return None
 
 
 def get_web_stack(config: Config) -> str:
@@ -68,7 +75,8 @@ def is_local_host(host_name: str, host: Host, config: Config) -> bool:
 
     When running in a Docker container, is_local() may not work correctly because
     the container has different network IPs. This function first checks if the
-    host matches CF_LOCAL_HOST or config.local_host, then falls back to is_local().
+    host matches CF_LOCAL_HOST or config.local_host (container only), then falls
+    back to is_local().
 
     This affects:
     - Container exec (local docker exec vs SSH)
@@ -84,7 +92,7 @@ def is_local_host(host_name: str, host: Host, config: Config) -> bool:
 def get_local_host(config: Config) -> str | None:
     """Find the local host name from config, if any.
 
-    First checks CF_LOCAL_HOST env var and config.local_host,
+    First checks CF_LOCAL_HOST env var and config.local_host (container only),
     then falls back to is_local() detection.
     """
     # Explicit setting takes precedence

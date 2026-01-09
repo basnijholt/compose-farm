@@ -109,8 +109,10 @@ stacks:
 # - File editing (uses local filesystem instead of SSH)
 #
 # Set this to the name of the host where the web UI container runs.
-# This is host-specific: if you run the web UI elsewhere, override with
-# CF_LOCAL_HOST or use a different config file.
+# This is host-specific and only honored when CF_WEB_STACK is set.
+# Outside the container, Compose Farm auto-detects the local host.
+# If you run the web UI elsewhere, override with CF_LOCAL_HOST or use a different
+# config file.
 #
 # Can be overridden by CF_LOCAL_HOST environment variable.
 #
