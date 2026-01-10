@@ -357,7 +357,7 @@ async def run_compose(
     _print_compose_command(host_name, stack, compose_cmd)
 
     # Use cd to let docker compose find the compose file on the remote host
-    command = f"cd {stack_dir} && docker compose {compose_cmd}"
+    command = f'cd "{stack_dir}" && docker compose {compose_cmd}'
     return await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
 
 
@@ -381,7 +381,7 @@ async def run_compose_on_host(
     _print_compose_command(host_name, stack, compose_cmd)
 
     # Use cd to let docker compose find the compose file on the remote host
-    command = f"cd {stack_dir} && docker compose {compose_cmd}"
+    command = f'cd "{stack_dir}" && docker compose {compose_cmd}'
     return await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
 
 
@@ -438,7 +438,7 @@ async def _run_sequential_stack_commands_multi_host(
 
     for cmd in commands:
         # Use cd to let docker compose find the compose file on the remote host
-        command = f"cd {stack_dir} && docker compose {cmd}"
+        command = f'cd "{stack_dir}" && docker compose {cmd}'
         tasks = []
         for host_name in host_names:
             _print_compose_command(host_name, stack, cmd)
@@ -522,7 +522,7 @@ async def check_stack_running(
 
     # Use ps --status running to check for running containers
     # Use cd to let docker compose find the compose file on the remote host
-    command = f"cd {stack_dir} && docker compose ps --status running -q"
+    command = f'cd "{stack_dir}" && docker compose ps --status running -q'
     result = await run_command(host, command, stack, stream=False)
 
     # If command succeeded and has output, containers are running
