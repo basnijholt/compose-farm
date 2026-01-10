@@ -25,8 +25,6 @@ def format_bytes(bytes_val: int) -> str:
 
 def _get_local_host_from_web_stack(config: Config) -> str | None:
     """Resolve the local host from the web stack configuration (container only)."""
-    if env_local := os.environ.get("CF_LOCAL_HOST"):
-        return env_local
     if os.environ.get("CF_WEB_STACK") is None:
         return None
     web_stack = os.environ.get("CF_WEB_STACK") or config.web_stack
@@ -49,17 +47,13 @@ def _get_glances_address(
     When running in a Docker container (CF_WEB_STACK set), the local host's Glances
     may not be reachable via its LAN IP due to Docker network isolation. In this
     case, we use the Glances container name for the local host.
-
-    Set CF_LOCAL_HOST env var to override which host is local.
     """
     # CF_WEB_STACK indicates we're running in the web UI container.
     in_container = os.environ.get("CF_WEB_STACK") is not None
     if not in_container or not glances_container:
         return host.address
 
-    # local_host from environment takes precedence, then inferred local_host
-    explicit_local = os.environ.get("CF_LOCAL_HOST") or local_host
-    if explicit_local and host_name == explicit_local:
+    if local_host and host_name == local_host:
         return glances_container
 
     # Fall back to is_local detection (may not work in container)

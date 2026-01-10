@@ -10,7 +10,6 @@ from typer.testing import CliRunner
 from compose_farm.cli import app
 from compose_farm.cli.config import (
     _detect_domain,
-    _detect_local_host,
     _generate_template,
     _get_config_file,
     _get_editor,
@@ -231,35 +230,6 @@ class TestConfigValidate:
         # Error goes to stderr
         output = result.stdout + (result.stderr or "")
         assert "Config file not found" in output or "not found" in output.lower()
-
-
-class TestDetectLocalHost:
-    """Tests for _detect_local_host function."""
-
-    def test_detects_localhost(self) -> None:
-        cfg = Config(
-            compose_dir=Path("/opt/compose"),
-            hosts={
-                "local": Host(address="localhost"),
-                "remote": Host(address="192.168.1.100"),
-            },
-            stacks={"test": "local"},
-        )
-        result = _detect_local_host(cfg)
-        assert result == "local"
-
-    def test_returns_none_for_remote_only(self) -> None:
-        cfg = Config(
-            compose_dir=Path("/opt/compose"),
-            hosts={
-                "remote1": Host(address="192.168.1.100"),
-                "remote2": Host(address="192.168.1.200"),
-            },
-            stacks={"test": "remote1"},
-        )
-        result = _detect_local_host(cfg)
-        # Remote IPs won't match local machine
-        assert result is None or result in cfg.hosts
 
 
 class TestDetectDomain:

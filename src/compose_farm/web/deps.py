@@ -53,10 +53,8 @@ def extract_config_error(exc: Exception) -> str:
     return str(exc)
 
 
-def _get_explicit_local_host(config: Config) -> str | None:
-    """Get explicit local host from env var or web stack (env takes precedence)."""
-    if env_local := os.environ.get("CF_LOCAL_HOST"):
-        return env_local
+def _get_local_host_from_web_stack(config: Config) -> str | None:
+    """Resolve the local host from the web stack configuration (container only)."""
     if os.environ.get("CF_WEB_STACK") is None:
         return None
     web_stack = get_web_stack(config)
@@ -78,16 +76,15 @@ def is_local_host(host_name: str, host: Host, config: Config) -> bool:
 
     When running in a Docker container, is_local() may not work correctly because
     the container has different network IPs. This function first checks if the
-    host matches CF_LOCAL_HOST or the web stack host (container only), then falls
-    back to is_local().
+    host matches the web stack host (container only), then falls back to is_local().
 
     This affects:
     - Container exec (local docker exec vs SSH)
     - File read/write (local filesystem vs SSH)
     - Shell sessions (local shell vs SSH)
     """
-    explicit_local = _get_explicit_local_host(config)
-    if explicit_local and host_name == explicit_local:
+    local_host = _get_local_host_from_web_stack(config)
+    if local_host and host_name == local_host:
         return True
     return is_local(host)
 
@@ -95,13 +92,13 @@ def is_local_host(host_name: str, host: Host, config: Config) -> bool:
 def get_local_host(config: Config) -> str | None:
     """Find the local host name from config, if any.
 
-    First checks CF_LOCAL_HOST env var and the web stack host (container only),
-    then falls back to is_local() detection.
+    First checks the web stack host (container only), then falls back to is_local()
+    detection.
     """
-    # Explicit setting takes precedence
-    explicit = _get_explicit_local_host(config)
-    if explicit and explicit in config.hosts:
-        return explicit
+    # Web stack host takes precedence in container mode
+    local_host = _get_local_host_from_web_stack(config)
+    if local_host and local_host in config.hosts:
+        return local_host
     # Fall back to auto-detection
     for name, host in config.hosts.items():
         if is_local(host):

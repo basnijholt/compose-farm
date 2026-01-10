@@ -326,16 +326,6 @@ def _detect_domain(cfg: Config) -> str | None:
     return None
 
 
-def _detect_local_host(cfg: Config) -> str | None:
-    """Find which config host matches local machine's IPs."""
-    from compose_farm.executor import is_local  # noqa: PLC0415
-
-    for name, host in cfg.hosts.items():
-        if is_local(host):
-            return name
-    return None
-
-
 @config_app.command("init-env")
 def config_init_env(
     path: _PathOption = None,
@@ -354,7 +344,6 @@ def config_init_env(
     - CF_COMPOSE_DIR from compose_dir
     - CF_UID/GID/HOME/USER from current user
     - DOMAIN from traefik labels in stacks (if found)
-    - CF_LOCAL_HOST by detecting which config host matches local IPs (optional override)
 
     Example::
 
@@ -379,7 +368,6 @@ def config_init_env(
     home = os.environ.get("HOME", "/root")
     user = os.environ.get("USER", "root")
     compose_dir = str(cfg.compose_dir)
-    local_host = _detect_local_host(cfg)
     domain = _detect_domain(cfg)
 
     # Generate .env content
@@ -399,9 +387,6 @@ def config_init_env(
         f"CF_HOME={home}",
         f"CF_USER={user}",
         "",
-        "# Local hostname for Glances (optional override; inferred from web_stack in container)",
-        f"CF_LOCAL_HOST={local_host or '# auto-detect failed - set manually'}",
-        "",
     ]
 
     env_path.write_text("\n".join(lines), encoding="utf-8")
@@ -412,7 +397,6 @@ def config_init_env(
     console.print(f"  DOMAIN: {domain or '[yellow]example.com[/] (edit this)'}")
     console.print(f"  CF_COMPOSE_DIR: {compose_dir}")
     console.print(f"  CF_UID/GID: {uid}:{gid}")
-    console.print(f"  CF_LOCAL_HOST: {local_host or '[yellow]not detected[/] (set manually)'}")
     console.print()
     console.print("[dim]Review and edit as needed:[/dim]")
     console.print(f"  [cyan]$EDITOR {env_path}[/cyan]")
