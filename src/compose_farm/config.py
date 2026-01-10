@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import getpass
+import os
 from pathlib import Path
 from typing import Any
 
@@ -116,6 +117,31 @@ class Config(BaseModel, extra="forbid"):
             if subdir.is_dir() and any((subdir / f).exists() for f in COMPOSE_FILENAMES):
                 found.add(subdir.name)
         return found
+
+    def get_web_stack(self) -> str:
+        """Get web stack name from env var or config (env takes precedence)."""
+        return os.environ.get("CF_WEB_STACK") or self.web_stack or ""
+
+    def get_local_host_from_web_stack(self) -> str | None:
+        """Resolve the local host from the web stack configuration (container only).
+
+        When running in the web UI container (CF_WEB_STACK is set), this returns
+        the host that the web stack runs on. This is used for:
+        - Glances connectivity (use container name instead of IP)
+        - Container exec (local docker exec vs SSH)
+        - File read/write (local filesystem vs SSH)
+
+        Returns None if not in container mode or web stack is not configured.
+        """
+        if os.environ.get("CF_WEB_STACK") is None:
+            return None
+        web_stack = self.get_web_stack()
+        if not web_stack or web_stack not in self.stacks:
+            return None
+        host_names = self.get_hosts(web_stack)
+        if len(host_names) != 1:
+            return None
+        return host_names[0]
 
 
 def _parse_hosts(raw_hosts: dict[str, Any]) -> dict[str, Host]:

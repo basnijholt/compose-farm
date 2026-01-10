@@ -23,19 +23,6 @@ def format_bytes(bytes_val: int) -> str:
     return humanize.naturalsize(bytes_val, binary=True, format="%.1f")
 
 
-def _get_local_host_from_web_stack(config: Config) -> str | None:
-    """Resolve the local host from the web stack configuration (container only)."""
-    if os.environ.get("CF_WEB_STACK") is None:
-        return None
-    web_stack = os.environ.get("CF_WEB_STACK") or config.web_stack
-    if not web_stack or web_stack not in config.stacks:
-        return None
-    host_names = config.get_hosts(web_stack)
-    if len(host_names) != 1:
-        return None
-    return host_names[0]
-
-
 def _get_glances_address(
     host_name: str,
     host: Host,
@@ -163,7 +150,7 @@ async def fetch_all_host_stats(
 ) -> dict[str, HostStats]:
     """Fetch stats from all hosts in parallel."""
     glances_container = config.glances_stack
-    local_host = _get_local_host_from_web_stack(config)
+    local_host = config.get_local_host_from_web_stack()
     tasks = [
         fetch_host_stats(
             name,
@@ -274,7 +261,7 @@ async def fetch_all_container_stats(
 
     glances_container = config.glances_stack
     host_names = hosts if hosts is not None else list(config.hosts.keys())
-    local_host = _get_local_host_from_web_stack(config)
+    local_host = config.get_local_host_from_web_stack()
 
     async def fetch_host_data(
         host_name: str,

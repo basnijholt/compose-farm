@@ -6,7 +6,6 @@ between app.py and route modules.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -53,22 +52,9 @@ def extract_config_error(exc: Exception) -> str:
     return str(exc)
 
 
-def _get_local_host_from_web_stack(config: Config) -> str | None:
-    """Resolve the local host from the web stack configuration (container only)."""
-    if os.environ.get("CF_WEB_STACK") is None:
-        return None
-    web_stack = get_web_stack(config)
-    if not web_stack or web_stack not in config.stacks:
-        return None
-    host_names = config.get_hosts(web_stack)
-    if len(host_names) != 1:
-        return None
-    return host_names[0]
-
-
 def get_web_stack(config: Config) -> str:
     """Get web stack name from env var or config (env takes precedence)."""
-    return os.environ.get("CF_WEB_STACK") or config.web_stack or ""
+    return config.get_web_stack()
 
 
 def is_local_host(host_name: str, host: Host, config: Config) -> bool:
@@ -83,7 +69,7 @@ def is_local_host(host_name: str, host: Host, config: Config) -> bool:
     - File read/write (local filesystem vs SSH)
     - Shell sessions (local shell vs SSH)
     """
-    local_host = _get_local_host_from_web_stack(config)
+    local_host = config.get_local_host_from_web_stack()
     if local_host and host_name == local_host:
         return True
     return is_local(host)
@@ -96,7 +82,7 @@ def get_local_host(config: Config) -> str | None:
     detection.
     """
     # Web stack host takes precedence in container mode
-    local_host = _get_local_host_from_web_stack(config)
+    local_host = config.get_local_host_from_web_stack()
     if local_host and local_host in config.hosts:
         return local_host
     # Fall back to auto-detection
