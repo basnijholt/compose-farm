@@ -97,9 +97,17 @@ class Config(BaseModel, extra="forbid"):
         host_names = self.get_hosts(stack)
         return self.hosts[host_names[0]]
 
+    def get_stack_dir(self, stack: str) -> Path:
+        """Get stack directory path."""
+        return self.compose_dir / stack
+
     def get_compose_path(self, stack: str) -> Path:
-        """Get compose file path for a stack (tries compose.yaml first)."""
-        stack_dir = self.compose_dir / stack
+        """Get compose file path for a stack (tries compose.yaml first).
+
+        Note: This checks local filesystem. For remote execution, use
+        get_stack_dir() and let docker compose find the file.
+        """
+        stack_dir = self.get_stack_dir(stack)
         for filename in COMPOSE_FILENAMES:
             candidate = stack_dir / filename
             if candidate.exists():

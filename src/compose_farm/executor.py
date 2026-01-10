@@ -58,22 +58,12 @@ _compose_labels_cache = TTLCache(ttl_seconds=30.0)
 
 def _print_compose_command(
     host_name: str,
-    compose_dir: str,
-    compose_path: str,
+    stack: str,
     compose_cmd: str,
 ) -> None:
-    """Print the docker compose command being executed.
-
-    Shows the host and a simplified command with relative path from compose_dir.
-    """
-    # Show relative path from compose_dir for cleaner output
-    if compose_path.startswith(compose_dir):
-        rel_path = compose_path[len(compose_dir) :].lstrip("/")
-    else:
-        rel_path = compose_path
-
+    """Print the docker compose command being executed."""
     console.print(
-        f"[dim][magenta]{host_name}[/magenta]: docker compose -f {rel_path} {compose_cmd}[/dim]"
+        f"[dim][magenta]{host_name}[/magenta]: ({stack}) docker compose {compose_cmd}[/dim]"
     )
 
 
@@ -362,11 +352,12 @@ async def run_compose(
     """Run a docker compose command for a stack."""
     host_name = config.get_hosts(stack)[0]
     host = config.hosts[host_name]
-    compose_path = config.get_compose_path(stack)
+    stack_dir = config.get_stack_dir(stack)
 
-    _print_compose_command(host_name, str(config.compose_dir), str(compose_path), compose_cmd)
+    _print_compose_command(host_name, stack, compose_cmd)
 
-    command = f"docker compose -f {compose_path} {compose_cmd}"
+    # Use cd to let docker compose find the compose file on the remote host
+    command = f'cd "{stack_dir}" && docker compose {compose_cmd}'
     return await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
 
 
@@ -385,11 +376,12 @@ async def run_compose_on_host(
     Used for migration - running 'down' on the old host before 'up' on new host.
     """
     host = config.hosts[host_name]
-    compose_path = config.get_compose_path(stack)
+    stack_dir = config.get_stack_dir(stack)
 
-    _print_compose_command(host_name, str(config.compose_dir), str(compose_path), compose_cmd)
+    _print_compose_command(host_name, stack, compose_cmd)
 
-    command = f"docker compose -f {compose_path} {compose_cmd}"
+    # Use cd to let docker compose find the compose file on the remote host
+    command = f'cd "{stack_dir}" && docker compose {compose_cmd}'
     return await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
 
 
@@ -441,14 +433,15 @@ async def _run_sequential_stack_commands_multi_host(
     For multi-host stacks, prefix defaults to stack@host format.
     """
     host_names = config.get_hosts(stack)
-    compose_path = config.get_compose_path(stack)
+    stack_dir = config.get_stack_dir(stack)
     final_results: list[CommandResult] = []
 
     for cmd in commands:
-        command = f"docker compose -f {compose_path} {cmd}"
+        # Use cd to let docker compose find the compose file on the remote host
+        command = f'cd "{stack_dir}" && docker compose {cmd}'
         tasks = []
         for host_name in host_names:
-            _print_compose_command(host_name, str(config.compose_dir), str(compose_path), cmd)
+            _print_compose_command(host_name, stack, cmd)
             host = config.hosts[host_name]
             # For multi-host stacks, always use stack@host prefix to distinguish output
             label = f"{stack}@{host_name}" if len(host_names) > 1 else stack
@@ -525,10 +518,11 @@ async def check_stack_running(
 ) -> bool:
     """Check if a stack has running containers on a specific host."""
     host = config.hosts[host_name]
-    compose_path = config.get_compose_path(stack)
+    stack_dir = config.get_stack_dir(stack)
 
     # Use ps --status running to check for running containers
-    command = f"docker compose -f {compose_path} ps --status running -q"
+    # Use cd to let docker compose find the compose file on the remote host
+    command = f'cd "{stack_dir}" && docker compose ps --status running -q'
     result = await run_command(host, command, stack, stream=False)
 
     # If command succeeded and has output, containers are running

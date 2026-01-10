@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -11,10 +12,12 @@ from compose_farm.executor import (
     _run_local_command,
     check_networks_exist,
     check_paths_exist,
+    check_stack_running,
     get_running_stacks_on_host,
     is_local,
     run_command,
     run_compose,
+    run_compose_on_host,
     run_on_stacks,
 )
 
@@ -105,6 +108,108 @@ class TestRunCompose:
         result = await run_compose(config, "test-service", "config", stream=False)
         # Command may fail due to no docker, but structure is correct
         assert result.stack == "test-service"
+
+    async def test_run_compose_uses_cd_pattern(self, tmp_path: Path) -> None:
+        """Verify run_compose uses 'cd <dir> && docker compose' pattern."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"remote": Host(address="192.168.1.100")},
+            stacks={"mystack": "remote"},
+        )
+
+        mock_result = CommandResult(stack="mystack", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = mock_result
+            await run_compose(config, "mystack", "up -d", stream=False)
+
+            # Verify the command uses cd pattern with quoted path
+            mock_run.assert_called_once()
+            call_args = mock_run.call_args
+            command = call_args[0][1]  # Second positional arg is command
+            assert command == f'cd "{tmp_path}/mystack" && docker compose up -d'
+
+    async def test_run_compose_works_without_local_compose_file(self, tmp_path: Path) -> None:
+        """Verify compose works even when compose file doesn't exist locally.
+
+        This is the bug from issue #162 - when running cf from a machine without
+        NFS mounts, the compose file doesn't exist locally but should still work
+        on the remote host.
+        """
+        config = Config(
+            compose_dir=tmp_path,  # No compose files exist here
+            hosts={"remote": Host(address="192.168.1.100")},
+            stacks={"mystack": "remote"},
+        )
+
+        # Verify no compose file exists locally
+        assert not (tmp_path / "mystack" / "compose.yaml").exists()
+        assert not (tmp_path / "mystack" / "compose.yml").exists()
+
+        mock_result = CommandResult(stack="mystack", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = mock_result
+            result = await run_compose(config, "mystack", "ps", stream=False)
+
+            # Should succeed - docker compose on remote will find the file
+            assert result.success
+            # Command should use cd pattern, not -f with a specific file
+            command = mock_run.call_args[0][1]
+            assert "cd " in command
+            assert " && docker compose " in command
+            assert "-f " not in command  # Should NOT use -f flag
+
+    async def test_run_compose_on_host_uses_cd_pattern(self, tmp_path: Path) -> None:
+        """Verify run_compose_on_host uses 'cd <dir> && docker compose' pattern."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"host1": Host(address="192.168.1.1")},
+            stacks={"mystack": "host1"},
+        )
+
+        mock_result = CommandResult(stack="mystack", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = mock_result
+            await run_compose_on_host(config, "mystack", "host1", "down", stream=False)
+
+            command = mock_run.call_args[0][1]
+            assert command == f'cd "{tmp_path}/mystack" && docker compose down'
+
+    async def test_check_stack_running_uses_cd_pattern(self, tmp_path: Path) -> None:
+        """Verify check_stack_running uses 'cd <dir> && docker compose' pattern."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"host1": Host(address="192.168.1.1")},
+            stacks={"mystack": "host1"},
+        )
+
+        mock_result = CommandResult(stack="mystack", exit_code=0, success=True, stdout="abc123\n")
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = mock_result
+            result = await check_stack_running(config, "mystack", "host1")
+
+            assert result is True
+            command = mock_run.call_args[0][1]
+            assert command == f'cd "{tmp_path}/mystack" && docker compose ps --status running -q'
+
+    async def test_run_compose_quotes_paths_with_spaces(self, tmp_path: Path) -> None:
+        """Verify paths with spaces are properly quoted."""
+        compose_dir = tmp_path / "my compose dir"
+        compose_dir.mkdir()
+
+        config = Config(
+            compose_dir=compose_dir,
+            hosts={"remote": Host(address="192.168.1.100")},
+            stacks={"my-stack": "remote"},
+        )
+
+        mock_result = CommandResult(stack="my-stack", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = mock_result
+            await run_compose(config, "my-stack", "up -d", stream=False)
+
+            command = mock_run.call_args[0][1]
+            # Path should be quoted to handle spaces
+            assert f'cd "{compose_dir}/my-stack"' in command
 
 
 class TestRunOnStacks:
