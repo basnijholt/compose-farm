@@ -78,6 +78,76 @@ class TestConfig:
         # Defaults to compose.yaml when no file exists
         assert path == Path("/opt/compose/plex/compose.yaml")
 
+    def test_get_web_stack_returns_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_web_stack returns CF_WEB_STACK env var."""
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas": Host(address="192.168.1.6")},
+            stacks={"compose-farm": "nas"},
+        )
+        assert config.get_web_stack() == "compose-farm"
+
+    def test_get_web_stack_returns_empty_when_not_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_web_stack returns empty string when env var not set."""
+        monkeypatch.delenv("CF_WEB_STACK", raising=False)
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas": Host(address="192.168.1.6")},
+            stacks={"compose-farm": "nas"},
+        )
+        assert config.get_web_stack() == ""
+
+    def test_get_local_host_from_web_stack_returns_host(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_local_host_from_web_stack returns the web stack host in container."""
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
+            stacks={"compose-farm": "nas"},
+        )
+        assert config.get_local_host_from_web_stack() == "nas"
+
+    def test_get_local_host_from_web_stack_returns_none_outside_container(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_local_host_from_web_stack returns None when not in container."""
+        monkeypatch.delenv("CF_WEB_STACK", raising=False)
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas": Host(address="192.168.1.6")},
+            stacks={"compose-farm": "nas"},
+        )
+        assert config.get_local_host_from_web_stack() is None
+
+    def test_get_local_host_from_web_stack_returns_none_for_unknown_stack(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_local_host_from_web_stack returns None if web stack not in stacks."""
+        monkeypatch.setenv("CF_WEB_STACK", "unknown-stack")
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas": Host(address="192.168.1.6")},
+            stacks={"plex": "nas"},
+        )
+        assert config.get_local_host_from_web_stack() is None
+
+    def test_get_local_host_from_web_stack_returns_none_for_multi_host(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_local_host_from_web_stack returns None if web stack runs on multiple hosts."""
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
+            stacks={"compose-farm": ["nas", "nuc"]},
+        )
+        assert config.get_local_host_from_web_stack() is None
+
 
 class TestLoadConfig:
     """Tests for load_config function."""

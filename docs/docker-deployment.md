@@ -24,7 +24,6 @@ This auto-detects settings from your `compose-farm.yaml`:
 - `DOMAIN` from existing traefik labels
 - `CF_COMPOSE_DIR` from config
 - `CF_UID/GID/HOME/USER` from current user
-- `CF_LOCAL_HOST` by matching local IPs to config hosts
 
 Review the output and edit if needed.
 
@@ -59,17 +58,12 @@ $EDITOR .env
 | `DOMAIN` | Extracted from traefik labels in your stacks |
 | `CF_COMPOSE_DIR` | From `compose_dir` in your config |
 | `CF_UID/GID/HOME/USER` | From current user (for NFS compatibility) |
-| `CF_LOCAL_HOST` | By matching local IPs to configured hosts |
 
 If auto-detection fails for any value, edit the `.env` file manually.
 
 ### Glances Monitoring
 
-To show host CPU/memory stats in the dashboard, deploy [Glances](https://nicolargo.github.io/glances/) on your hosts. If `CF_LOCAL_HOST` wasn't detected correctly, set it to your local hostname:
-
-```bash
-CF_LOCAL_HOST=nas  # Replace with your local host name
-```
+To show host CPU/memory stats in the dashboard, deploy [Glances](https://nicolargo.github.io/glances/) on your hosts. When running the web UI container, Compose Farm infers the local host from `CF_WEB_STACK` and uses the Glances container name for that host.
 
 See [Host Resource Monitoring](https://github.com/basnijholt/compose-farm#host-resource-monitoring-glances) in the README.
 
@@ -83,15 +77,6 @@ Regenerate keys:
 
 ```bash
 docker compose run --rm cf ssh setup
-```
-
-### Glances shows error for local host
-
-Add your local hostname to `.env`:
-
-```bash
-echo "CF_LOCAL_HOST=nas" >> .env
-docker compose restart web
 ```
 
 ### Files created as root
@@ -111,6 +96,6 @@ For advanced users, here's the complete reference:
 | `CF_UID` / `CF_GID` | User/group ID | `0` (root) |
 | `CF_HOME` | Home directory | `/root` |
 | `CF_USER` | Username for SSH | `root` |
-| `CF_LOCAL_HOST` | Local hostname for Glances | *(auto-detect)* |
+| `CF_WEB_STACK` | Web UI stack name (enables self-update, local host inference) | *(none)* |
 | `CF_SSH_DIR` | SSH keys directory | `~/.ssh/compose-farm` |
 | `CF_XDG_CONFIG` | Config/backup directory | `~/.config/compose-farm` |

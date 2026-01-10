@@ -101,6 +101,83 @@ class TestGetStackComposePath:
         assert "not found" in exc_info.value.detail
 
 
+class TestIsLocalHost:
+    """Tests for is_local_host helper."""
+
+    def test_returns_true_when_web_stack_host_matches(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """is_local_host returns True when host matches web stack host."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import is_local_host
+
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        config = Config(
+            hosts={"nas": Host(address="10.99.99.1"), "nuc": Host(address="10.99.99.2")},
+            stacks={"compose-farm": "nas"},
+        )
+        host = config.hosts["nas"]
+        assert is_local_host("nas", host, config) is True
+
+    def test_returns_false_when_web_stack_host_differs(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """is_local_host returns False when host does not match web stack host."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import is_local_host
+
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        config = Config(
+            hosts={"nas": Host(address="10.99.99.1"), "nuc": Host(address="10.99.99.2")},
+            stacks={"compose-farm": "nas"},
+        )
+        host = config.hosts["nuc"]
+        # nuc is not local, and not matching the web stack host
+        assert is_local_host("nuc", host, config) is False
+
+
+class TestGetLocalHost:
+    """Tests for get_local_host helper."""
+
+    def test_returns_web_stack_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_local_host returns the web stack host when in container."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import get_local_host
+
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        config = Config(
+            hosts={"nas": Host(address="10.99.99.1"), "nuc": Host(address="10.99.99.2")},
+            stacks={"compose-farm": "nas"},
+        )
+        assert get_local_host(config) == "nas"
+
+    def test_ignores_unknown_web_stack(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_local_host ignores web stack if it's not in stacks."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import get_local_host
+
+        monkeypatch.setenv("CF_WEB_STACK", "unknown-stack")
+        # Use address that won't match local machine to avoid is_local() fallback
+        config = Config(
+            hosts={"nas": Host(address="10.99.99.1")},
+            stacks={"test": "nas"},
+        )
+        # Should fall back to auto-detection (which won't match anything here)
+        assert get_local_host(config) is None
+
+    def test_returns_none_outside_container(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_local_host returns None when CF_WEB_STACK not set."""
+        from compose_farm.config import Config, Host
+        from compose_farm.web.deps import get_local_host
+
+        monkeypatch.delenv("CF_WEB_STACK", raising=False)
+        config = Config(
+            hosts={"nas": Host(address="10.99.99.1")},
+            stacks={"compose-farm": "nas"},
+        )
+        assert get_local_host(config) is None
+
+
 class TestRenderContainers:
     """Tests for container template rendering."""
 

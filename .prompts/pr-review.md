@@ -6,6 +6,7 @@ Review the pull request for:
 - **Organization**: Is everything in the right place?
 - **Consistency**: Is it in the same style as other parts of the codebase?
 - **Simplicity**: Is it not over-engineered? Remember KISS and YAGNI. No dead code paths and NO defensive programming.
+- **No pointless wrappers**: Identify functions/methods that just call another function and return its result. Callers should call the underlying function directly instead of going through unnecessary indirection.
 - **User experience**: Does it provide a good user experience?
 - **PR**: Is the PR description and title clear and informative?
 - **Tests**: Are there tests, and do they cover the changes adequately? Are they testing something meaningful or are they just trivial?

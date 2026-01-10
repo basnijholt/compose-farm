@@ -13,8 +13,6 @@ from compose_farm.ssh_keys import get_ssh_auth_sock
 if TYPE_CHECKING:
     from compose_farm.config import Config
 
-# Environment variable to identify the web stack (for self-update detection)
-CF_WEB_STACK = os.environ.get("CF_WEB_STACK", "")
 
 # ANSI escape codes for terminal output
 RED = "\x1b[31m"
@@ -95,13 +93,14 @@ async def run_cli_streaming(
         tasks[task_id]["completed_at"] = time.time()
 
 
-def _is_self_update(stack: str, command: str) -> bool:
+def _is_self_update(config: Config, stack: str, command: str) -> bool:
     """Check if this is a self-update (updating the web stack itself).
 
     Self-updates need special handling because running 'down' on the container
     we're running in would kill the process before 'up' can execute.
     """
-    if not CF_WEB_STACK or stack != CF_WEB_STACK:
+    web_stack = config.get_web_stack()
+    if not web_stack or stack != web_stack:
         return False
     # Commands that involve 'down' need SSH: update, down
     return command in ("update", "down")
@@ -114,7 +113,8 @@ async def _run_cli_via_ssh(
 ) -> None:
     """Run a cf CLI command via SSH for self-updates (survives container restart)."""
     try:
-        host = config.get_host(CF_WEB_STACK)
+        web_stack = config.get_web_stack()
+        host = config.get_host(web_stack)
         cf_cmd = f"cf {' '.join(args)} --config={config.config_path}"
         # Include task_id to prevent collision with concurrent updates
         log_file = f"/tmp/cf-self-update-{task_id}.log"  # noqa: S108
@@ -170,7 +170,7 @@ async def run_compose_streaming(
     cli_args = [cli_cmd, stack, *extra_args]
 
     # Use SSH for self-updates to survive container restart
-    if _is_self_update(stack, cli_cmd):
+    if _is_self_update(config, stack, cli_cmd):
         await _run_cli_via_ssh(config, cli_args, task_id)
     else:
         await run_cli_streaming(config, cli_args, task_id)

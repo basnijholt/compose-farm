@@ -20,11 +20,11 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import HTMLResponse
 
 from compose_farm.compose import extract_services, get_container_name, load_compose_data_for_stack
-from compose_farm.executor import is_local, run_compose_on_host, ssh_connect_kwargs
+from compose_farm.executor import run_compose_on_host, ssh_connect_kwargs
 from compose_farm.glances import fetch_all_host_stats
 from compose_farm.paths import backup_dir, find_config_path
 from compose_farm.state import load_state
-from compose_farm.web.deps import get_config, get_templates
+from compose_farm.web.deps import get_config, get_templates, is_local_host
 
 logger = logging.getLogger(__name__)
 
@@ -344,10 +344,11 @@ async def read_console_file(
     path: Annotated[str, Query(description="File path")],
 ) -> dict[str, Any]:
     """Read a file from a host for the console editor."""
+    config = get_config()
     host_config = _get_console_host(host, path)
 
     try:
-        if is_local(host_config):
+        if is_local_host(host, host_config, config):
             content = await _read_file_local(path)
         else:
             content = await _read_file_remote(host_config, path)
@@ -368,10 +369,11 @@ async def write_console_file(
     content: Annotated[str, Body(media_type="text/plain")],
 ) -> dict[str, Any]:
     """Write a file to a host from the console editor."""
+    config = get_config()
     host_config = _get_console_host(host, path)
 
     try:
-        if is_local(host_config):
+        if is_local_host(host, host_config, config):
             saved = await _write_file_local(path, content)
             msg = f"Saved: {path}" if saved else "No changes to save"
         else:

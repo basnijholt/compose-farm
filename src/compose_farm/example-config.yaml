@@ -87,3 +87,13 @@ stacks:
 # skipped (they're handled by Traefik's Docker provider directly).
 #
 # traefik_stack: traefik
+
+# ------------------------------------------------------------------------------
+# glances_stack: (optional) Stack/container name for Glances
+# ------------------------------------------------------------------------------
+# When set, enables host resource monitoring via the Glances API. Used by:
+# - CLI: `cf stats --containers` shows container stats from all hosts
+# - Web UI: displays host resource graphs and container metrics
+# This should be the container name that runs Glances on the same Docker network.
+#
+# glances_stack: glances

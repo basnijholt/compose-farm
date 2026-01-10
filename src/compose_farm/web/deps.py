@@ -15,7 +15,7 @@ from pydantic import ValidationError
 from compose_farm.executor import is_local
 
 if TYPE_CHECKING:
-    from compose_farm.config import Config
+    from compose_farm.config import Config, Host
 
 # Paths
 WEB_DIR = Path(__file__).parent
@@ -52,8 +52,35 @@ def extract_config_error(exc: Exception) -> str:
     return str(exc)
 
 
+def is_local_host(host_name: str, host: Host, config: Config) -> bool:
+    """Check if a host should be treated as local.
+
+    When running in a Docker container, is_local() may not work correctly because
+    the container has different network IPs. This function first checks if the
+    host matches the web stack host (container only), then falls back to is_local().
+
+    This affects:
+    - Container exec (local docker exec vs SSH)
+    - File read/write (local filesystem vs SSH)
+    - Shell sessions (local shell vs SSH)
+    """
+    local_host = config.get_local_host_from_web_stack()
+    if local_host and host_name == local_host:
+        return True
+    return is_local(host)
+
+
 def get_local_host(config: Config) -> str | None:
-    """Find the local host name from config, if any."""
+    """Find the local host name from config, if any.
+
+    First checks the web stack host (container only), then falls back to is_local()
+    detection.
+    """
+    # Web stack host takes precedence in container mode
+    local_host = config.get_local_host_from_web_stack()
+    if local_host and local_host in config.hosts:
+        return local_host
+    # Fall back to auto-detection
     for name, host in config.hosts.items():
         if is_local(host):
             return name
