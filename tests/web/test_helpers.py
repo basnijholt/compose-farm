@@ -136,34 +136,6 @@ class TestIsLocalHost:
         assert is_local_host("nuc", host, config) is False
 
 
-class TestGetWebStack:
-    """Tests for get_web_stack helper."""
-
-    def test_returns_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """get_web_stack returns CF_WEB_STACK env var."""
-        from compose_farm.config import Config, Host
-        from compose_farm.web.deps import get_web_stack
-
-        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
-        config = Config(
-            hosts={"nas": Host(address="192.168.1.6")},
-            stacks={"compose-farm": "nas"},
-        )
-        assert get_web_stack(config) == "compose-farm"
-
-    def test_returns_empty_string_when_not_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """get_web_stack returns empty string when env var not set."""
-        from compose_farm.config import Config, Host
-        from compose_farm.web.deps import get_web_stack
-
-        monkeypatch.delenv("CF_WEB_STACK", raising=False)
-        config = Config(
-            hosts={"nas": Host(address="192.168.1.6")},
-            stacks={"test": "nas"},
-        )
-        assert get_web_stack(config) == ""
-
-
 class TestGetLocalHost:
     """Tests for get_local_host helper."""
 

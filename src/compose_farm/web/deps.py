@@ -52,11 +52,6 @@ def extract_config_error(exc: Exception) -> str:
     return str(exc)
 
 
-def get_web_stack(config: Config) -> str:
-    """Get web stack name from env var or config (env takes precedence)."""
-    return config.get_web_stack()
-
-
 def is_local_host(host_name: str, host: Host, config: Config) -> bool:
     """Check if a host should be treated as local.
 

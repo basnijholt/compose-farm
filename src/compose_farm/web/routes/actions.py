@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
-from compose_farm.web.deps import get_config, get_web_stack
+from compose_farm.web.deps import get_config
 from compose_farm.web.streaming import run_cli_streaming, run_compose_streaming, tasks
 
 router = APIRouter(tags=["actions"])
@@ -103,7 +103,7 @@ async def update_all() -> dict[str, Any]:
     """
     config = get_config()
     # Get all stacks except the web stack to avoid self-shutdown
-    web_stack = get_web_stack(config)
+    web_stack = config.get_web_stack()
     stacks = [s for s in config.stacks if s != web_stack]
     if not stacks:
         return {"task_id": "", "command": "update (no stacks)", "skipped": True}
