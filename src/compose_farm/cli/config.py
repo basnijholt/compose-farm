@@ -354,7 +354,7 @@ def config_init_env(
     - CF_COMPOSE_DIR from compose_dir
     - CF_UID/GID/HOME/USER from current user
     - DOMAIN from traefik labels in stacks (if found)
-    - CF_LOCAL_HOST by detecting which config host matches local IPs
+    - CF_LOCAL_HOST by detecting which config host matches local IPs (optional override)
 
     Example::
 
@@ -399,7 +399,7 @@ def config_init_env(
         f"CF_HOME={home}",
         f"CF_USER={user}",
         "",
-        "# Local hostname for Glances (or set 'local_host' in compose-farm.yaml)",
+        "# Local hostname for Glances (optional override; inferred from web_stack in container)",
         f"CF_LOCAL_HOST={local_host or '# auto-detect failed - set manually'}",
         "",
     ]

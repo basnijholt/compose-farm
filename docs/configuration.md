@@ -131,39 +131,23 @@ glances_stack: glances
 
 The Glances stack should run on all hosts and expose port 61208. See the README for full setup instructions.
 
-### local_host
-
-Name of the local host for the web UI. When running the web UI in a Docker container, the container has a different network namespace and can't auto-detect which host it's running on.
-
-Setting this affects:
-
-- **Glances connectivity**: uses container name instead of LAN IP
-- **Container exec/shell**: runs locally instead of via SSH
-- **File editing**: uses local filesystem instead of SSH
-
-This is host-specific and only honored when the web UI is running in a container
-(detected via `CF_WEB_STACK`). Outside the container, Compose Farm auto-detects
-the local host. If you run the web UI elsewhere, override with `CF_LOCAL_HOST`
-or use a different config file.
-
-```yaml
-local_host: nas
-```
-
-Can be overridden by `CF_LOCAL_HOST` environment variable.
-
 ### web_stack
 
 Name of the web UI stack. When set, enables:
 
 - **Self-update detection**: updates to the web stack run via SSH to survive container restart
 - **Exclusion from bulk operations**: "Update All" skips the web stack to prevent shutdown
+ - **Local host inference**: the web UI treats this stack's host as local when running in a container
 
 ```yaml
 web_stack: compose-farm
 ```
 
 Can be overridden by `CF_WEB_STACK` environment variable.
+
+When running in the web UI container (`CF_WEB_STACK` set), Compose Farm uses the
+web stack's host as the local host for Glances connectivity, exec, and file
+editing. Use `CF_LOCAL_HOST` only to override this inference when needed.
 
 ## Hosts Configuration
 
@@ -309,7 +293,7 @@ These environment variables configure Compose Farm itself:
 |----------|-------------|-------------------|
 | `CF_CONFIG` | Path to config file | *(none - used to find config)* |
 | `CF_WEB_STACK` | Web UI stack name | `web_stack` |
-| `CF_LOCAL_HOST` | Local host for Glances | `local_host` |
+| `CF_LOCAL_HOST` | Override local host for the web UI (container only) | — |
 
 Environment variables **take precedence** over config file settings, allowing per-deployment overrides.
 

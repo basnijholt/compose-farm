@@ -99,26 +99,6 @@ stacks:
 # glances_stack: glances
 
 # ------------------------------------------------------------------------------
-# local_host: (optional) Name of the local host for web UI
-# ------------------------------------------------------------------------------
-# When running the web UI in a Docker container, the container has a different
-# network namespace and can't auto-detect which host it's running on. This affects:
-#
-# - Glances connectivity (uses container name instead of LAN IP)
-# - Container exec/shell (runs locally instead of via SSH)
-# - File editing (uses local filesystem instead of SSH)
-#
-# Set this to the name of the host where the web UI container runs.
-# This is host-specific and only honored when CF_WEB_STACK is set.
-# Outside the container, Compose Farm auto-detects the local host.
-# If you run the web UI elsewhere, override with CF_LOCAL_HOST or use a different
-# config file.
-#
-# Can be overridden by CF_LOCAL_HOST environment variable.
-#
-# local_host: server1
-
-# ------------------------------------------------------------------------------
 # web_stack: (optional) Name of the web UI stack
 # ------------------------------------------------------------------------------
 # When set, the web UI knows which stack it's running in. This enables:
@@ -126,6 +106,7 @@ stacks:
 #   container restart
 # - Exclusion from bulk operations: "Update All" skips the web stack to prevent
 #   the UI from shutting down mid-operation
+# - Local host inference (when running in the web UI container)
 #
 # Can be overridden by CF_WEB_STACK environment variable.
 #

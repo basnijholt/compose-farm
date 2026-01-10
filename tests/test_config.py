@@ -78,16 +78,6 @@ class TestConfig:
         # Defaults to compose.yaml when no file exists
         assert path == Path("/opt/compose/plex/compose.yaml")
 
-    def test_config_with_local_host_option(self) -> None:
-        """Test that local_host config option is parsed correctly."""
-        config = Config(
-            compose_dir=Path("/opt/compose"),
-            hosts={"nas": Host(address="192.168.1.6")},
-            stacks={"web": "nas"},
-            local_host="nas",
-        )
-        assert config.local_host == "nas"
-
     def test_config_with_web_stack_option(self) -> None:
         """Test that web_stack config option is parsed correctly."""
         config = Config(
@@ -99,13 +89,12 @@ class TestConfig:
         assert config.web_stack == "compose-farm"
 
     def test_config_options_default_to_none(self) -> None:
-        """Test that local_host and web_stack default to None."""
+        """Test that web_stack defaults to None."""
         config = Config(
             compose_dir=Path("/opt/compose"),
             hosts={"nas": Host(address="192.168.1.6")},
             stacks={"test": "nas"},
         )
-        assert config.local_host is None
         assert config.web_stack is None
 
 
@@ -175,18 +164,16 @@ class TestLoadConfig:
         config = load_config(config_file)
         assert config.hosts["local"].address == "localhost"
 
-    def test_load_config_with_local_host_and_web_stack(self, tmp_path: Path) -> None:
-        """Test loading config with local_host and web_stack options from YAML."""
+    def test_load_config_with_web_stack(self, tmp_path: Path) -> None:
+        """Test loading config with web_stack option from YAML."""
         config_data = {
             "compose_dir": "/opt/compose",
             "hosts": {"nas": "192.168.1.6"},
             "stacks": {"compose-farm": "nas", "plex": "nas"},
-            "local_host": "nas",
             "web_stack": "compose-farm",
         }
         config_file = tmp_path / "config.yaml"
         config_file.write_text(yaml.dump(config_data))
 
         config = load_config(config_file)
-        assert config.local_host == "nas"
         assert config.web_stack == "compose-farm"

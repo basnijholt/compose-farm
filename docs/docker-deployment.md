@@ -24,7 +24,7 @@ This auto-detects settings from your `compose-farm.yaml`:
 - `DOMAIN` from existing traefik labels
 - `CF_COMPOSE_DIR` from config
 - `CF_UID/GID/HOME/USER` from current user
-- `CF_LOCAL_HOST` by matching local IPs to config hosts
+- `CF_LOCAL_HOST` by matching local IPs to config hosts (optional override)
 
 Review the output and edit if needed.
 
@@ -59,24 +59,15 @@ $EDITOR .env
 | `DOMAIN` | Extracted from traefik labels in your stacks |
 | `CF_COMPOSE_DIR` | From `compose_dir` in your config |
 | `CF_UID/GID/HOME/USER` | From current user (for NFS compatibility) |
+| `CF_LOCAL_HOST` | Matches local IPs to config hosts (optional override) |
 
 If auto-detection fails for any value, edit the `.env` file manually.
 
 ### Glances Monitoring
 
-To show host CPU/memory stats in the dashboard, deploy [Glances](https://nicolargo.github.io/glances/) on your hosts. Set the local host in your config:
+To show host CPU/memory stats in the dashboard, deploy [Glances](https://nicolargo.github.io/glances/) on your hosts. When running the web UI container, Compose Farm infers the local host from the web stack (`CF_WEB_STACK`/`web_stack`) and uses the Glances container name for that host.
 
-```yaml
-# compose-farm.yaml
-local_host: nas  # Replace with your local host name
-```
-
-This is host-specific and only honored when the web UI is running in a container
-(detected via `CF_WEB_STACK`). Outside the container, Compose Farm auto-detects
-the local host. If you run the web UI elsewhere, override with `CF_LOCAL_HOST`
-or use a different config file.
-
-Or use environment variable `CF_LOCAL_HOST` (takes precedence over config).
+If inference fails or you need to override it, set `CF_LOCAL_HOST` in your `.env`.
 
 See [Host Resource Monitoring](https://github.com/basnijholt/compose-farm#host-resource-monitoring-glances) in the README.
 
@@ -94,14 +85,7 @@ docker compose run --rm cf ssh setup
 
 ### Glances shows error for local host
 
-Add your local hostname to your config:
-
-```yaml
-# compose-farm.yaml
-local_host: nas
-```
-
-Or set via environment variable:
+Ensure `CF_WEB_STACK` points to the correct web stack, then override if needed:
 
 ```bash
 echo "CF_LOCAL_HOST=nas" >> .env
@@ -125,7 +109,7 @@ For advanced users, here's the complete reference:
 | `CF_UID` / `CF_GID` | User/group ID | `0` (root) | — |
 | `CF_HOME` | Home directory | `/root` | — |
 | `CF_USER` | Username for SSH | `root` | — |
-| `CF_LOCAL_HOST` | Local hostname for Glances | *(none)* | `local_host` |
+| `CF_LOCAL_HOST` | Override local hostname for Glances (web container) | *(none)* | — |
 | `CF_WEB_STACK` | Web UI stack name | *(none)* | `web_stack` |
 | `CF_SSH_DIR` | SSH keys directory | `~/.ssh/compose-farm` | — |
 | `CF_XDG_CONFIG` | Config/backup directory | `~/.config/compose-farm` | — |

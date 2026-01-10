@@ -23,6 +23,21 @@ def format_bytes(bytes_val: int) -> str:
     return humanize.naturalsize(bytes_val, binary=True, format="%.1f")
 
 
+def _get_local_host_from_web_stack(config: Config) -> str | None:
+    """Resolve the local host from the web stack configuration (container only)."""
+    if env_local := os.environ.get("CF_LOCAL_HOST"):
+        return env_local
+    if os.environ.get("CF_WEB_STACK") is None:
+        return None
+    web_stack = os.environ.get("CF_WEB_STACK") or config.web_stack
+    if not web_stack or web_stack not in config.stacks:
+        return None
+    host_names = config.get_hosts(web_stack)
+    if len(host_names) != 1:
+        return None
+    return host_names[0]
+
+
 def _get_glances_address(
     host_name: str,
     host: Host,
@@ -35,15 +50,14 @@ def _get_glances_address(
     may not be reachable via its LAN IP due to Docker network isolation. In this
     case, we use the Glances container name for the local host.
 
-    Set CF_LOCAL_HOST env var or local_host in config to specify which host is local.
-    Environment variables take precedence over config values.
+    Set CF_LOCAL_HOST env var to override which host is local.
     """
     # CF_WEB_STACK indicates we're running in the web UI container.
     in_container = os.environ.get("CF_WEB_STACK") is not None
     if not in_container or not glances_container:
         return host.address
 
-    # local_host from environment takes precedence, then config
+    # local_host from environment takes precedence, then inferred local_host
     explicit_local = os.environ.get("CF_LOCAL_HOST") or local_host
     if explicit_local and host_name == explicit_local:
         return glances_container
@@ -155,10 +169,11 @@ async def fetch_all_host_stats(
 ) -> dict[str, HostStats]:
     """Fetch stats from all hosts in parallel."""
     glances_container = config.glances_stack
+    local_host = _get_local_host_from_web_stack(config)
     tasks = [
         fetch_host_stats(
             name,
-            _get_glances_address(name, host, glances_container, config.local_host),
+            _get_glances_address(name, host, glances_container, local_host),
             port,
         )
         for name, host in config.hosts.items()
@@ -265,6 +280,7 @@ async def fetch_all_container_stats(
 
     glances_container = config.glances_stack
     host_names = hosts if hosts is not None else list(config.hosts.keys())
+    local_host = _get_local_host_from_web_stack(config)
 
     async def fetch_host_data(
         host_name: str,
@@ -291,7 +307,7 @@ async def fetch_all_container_stats(
                 name,
                 config.hosts[name],
                 glances_container,
-                config.local_host,
+                local_host,
             ),
         )
         for name in host_names
