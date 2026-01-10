@@ -63,7 +63,7 @@ If auto-detection fails for any value, edit the `.env` file manually.
 
 ### Glances Monitoring
 
-To show host CPU/memory stats in the dashboard, deploy [Glances](https://nicolargo.github.io/glances/) on your hosts. When running the web UI container, Compose Farm infers the local host from the web stack (`CF_WEB_STACK`/`web_stack`) and uses the Glances container name for that host.
+To show host CPU/memory stats in the dashboard, deploy [Glances](https://nicolargo.github.io/glances/) on your hosts. When running the web UI container, Compose Farm infers the local host from `CF_WEB_STACK` and uses the Glances container name for that host.
 
 See [Host Resource Monitoring](https://github.com/basnijholt/compose-farm#host-resource-monitoring-glances) in the README.
 
@@ -89,15 +89,13 @@ Add the non-root variables above and restart.
 
 For advanced users, here's the complete reference:
 
-| Variable | Description | Default | Config option |
-|----------|-------------|---------|---------------|
-| `DOMAIN` | Domain for Traefik labels | *(required)* | — |
-| `CF_COMPOSE_DIR` | Compose files directory | `/opt/stacks` | `compose_dir` |
-| `CF_UID` / `CF_GID` | User/group ID | `0` (root) | — |
-| `CF_HOME` | Home directory | `/root` | — |
-| `CF_USER` | Username for SSH | `root` | — |
-| `CF_WEB_STACK` | Web UI stack name | *(none)* | `web_stack` |
-| `CF_SSH_DIR` | SSH keys directory | `~/.ssh/compose-farm` | — |
-| `CF_XDG_CONFIG` | Config/backup directory | `~/.config/compose-farm` | — |
-
-Environment variables take precedence over config file settings.
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DOMAIN` | Domain for Traefik labels | *(required)* |
+| `CF_COMPOSE_DIR` | Compose files directory | `/opt/stacks` |
+| `CF_UID` / `CF_GID` | User/group ID | `0` (root) |
+| `CF_HOME` | Home directory | `/root` |
+| `CF_USER` | Username for SSH | `root` |
+| `CF_WEB_STACK` | Web UI stack name (enables self-update, local host inference) | *(none)* |
+| `CF_SSH_DIR` | SSH keys directory | `~/.ssh/compose-farm` |
+| `CF_XDG_CONFIG` | Config/backup directory | `~/.config/compose-farm` |

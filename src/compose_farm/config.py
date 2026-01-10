@@ -35,7 +35,6 @@ class Config(BaseModel, extra="forbid"):
     glances_stack: str | None = (
         None  # Stack name for Glances (enables host resource stats in web UI)
     )
-    web_stack: str | None = None  # Name of the web UI stack (for self-update detection)
     config_path: Path = Path()  # Set by load_config()
 
     def get_state_path(self) -> Path:
@@ -119,8 +118,8 @@ class Config(BaseModel, extra="forbid"):
         return found
 
     def get_web_stack(self) -> str:
-        """Get web stack name from env var or config (env takes precedence)."""
-        return os.environ.get("CF_WEB_STACK") or self.web_stack or ""
+        """Get web stack name from CF_WEB_STACK environment variable."""
+        return os.environ.get("CF_WEB_STACK", "")
 
     def get_local_host_from_web_stack(self) -> str | None:
         """Resolve the local host from the web stack configuration (container only).

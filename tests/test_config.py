@@ -78,46 +78,27 @@ class TestConfig:
         # Defaults to compose.yaml when no file exists
         assert path == Path("/opt/compose/plex/compose.yaml")
 
-    def test_config_with_web_stack_option(self) -> None:
-        """Test that web_stack config option is parsed correctly."""
+    def test_get_web_stack_returns_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_web_stack returns CF_WEB_STACK env var."""
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
         config = Config(
             compose_dir=Path("/opt/compose"),
             hosts={"nas": Host(address="192.168.1.6")},
             stacks={"compose-farm": "nas"},
-            web_stack="compose-farm",
         )
-        assert config.web_stack == "compose-farm"
+        assert config.get_web_stack() == "compose-farm"
 
-    def test_config_options_default_to_none(self) -> None:
-        """Test that web_stack defaults to None."""
-        config = Config(
-            compose_dir=Path("/opt/compose"),
-            hosts={"nas": Host(address="192.168.1.6")},
-            stacks={"test": "nas"},
-        )
-        assert config.web_stack is None
-
-    def test_get_web_stack_returns_config_value(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """get_web_stack returns config.web_stack when env var not set."""
+    def test_get_web_stack_returns_empty_when_not_set(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """get_web_stack returns empty string when env var not set."""
         monkeypatch.delenv("CF_WEB_STACK", raising=False)
         config = Config(
             compose_dir=Path("/opt/compose"),
             hosts={"nas": Host(address="192.168.1.6")},
             stacks={"compose-farm": "nas"},
-            web_stack="compose-farm",
         )
-        assert config.get_web_stack() == "compose-farm"
-
-    def test_get_web_stack_env_var_takes_precedence(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """CF_WEB_STACK env var takes precedence over config.web_stack."""
-        monkeypatch.setenv("CF_WEB_STACK", "web-from-env")
-        config = Config(
-            compose_dir=Path("/opt/compose"),
-            hosts={"nas": Host(address="192.168.1.6")},
-            stacks={"compose-farm": "nas"},
-            web_stack="compose-farm",
-        )
-        assert config.get_web_stack() == "web-from-env"
+        assert config.get_web_stack() == ""
 
     def test_get_local_host_from_web_stack_returns_host(
         self, monkeypatch: pytest.MonkeyPatch
@@ -128,7 +109,6 @@ class TestConfig:
             compose_dir=Path("/opt/compose"),
             hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
             stacks={"compose-farm": "nas"},
-            web_stack="compose-farm",
         )
         assert config.get_local_host_from_web_stack() == "nas"
 
@@ -141,7 +121,6 @@ class TestConfig:
             compose_dir=Path("/opt/compose"),
             hosts={"nas": Host(address="192.168.1.6")},
             stacks={"compose-farm": "nas"},
-            web_stack="compose-farm",
         )
         assert config.get_local_host_from_web_stack() is None
 
@@ -166,7 +145,6 @@ class TestConfig:
             compose_dir=Path("/opt/compose"),
             hosts={"nas": Host(address="192.168.1.6"), "nuc": Host(address="192.168.1.2")},
             stacks={"compose-farm": ["nas", "nuc"]},
-            web_stack="compose-farm",
         )
         assert config.get_local_host_from_web_stack() is None
 
@@ -236,17 +214,3 @@ class TestLoadConfig:
 
         config = load_config(config_file)
         assert config.hosts["local"].address == "localhost"
-
-    def test_load_config_with_web_stack(self, tmp_path: Path) -> None:
-        """Test loading config with web_stack option from YAML."""
-        config_data = {
-            "compose_dir": "/opt/compose",
-            "hosts": {"nas": "192.168.1.6"},
-            "stacks": {"compose-farm": "nas", "plex": "nas"},
-            "web_stack": "compose-farm",
-        }
-        config_file = tmp_path / "config.yaml"
-        config_file.write_text(yaml.dump(config_data))
-
-        config = load_config(config_file)
-        assert config.web_stack == "compose-farm"

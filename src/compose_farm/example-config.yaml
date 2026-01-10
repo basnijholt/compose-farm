@@ -97,17 +97,3 @@ stacks:
 # This should be the container name that runs Glances on the same Docker network.
 #
 # glances_stack: glances
-
-# ------------------------------------------------------------------------------
-# web_stack: (optional) Name of the web UI stack
-# ------------------------------------------------------------------------------
-# When set, the web UI knows which stack it's running in. This enables:
-# - Self-update detection: updates to the web stack run via SSH to survive
-#   container restart
-# - Exclusion from bulk operations: "Update All" skips the web stack to prevent
-#   the UI from shutting down mid-operation
-# - Local host inference (when running in the web UI container)
-#
-# Can be overridden by CF_WEB_STACK environment variable.
-#
-# web_stack: compose-farm

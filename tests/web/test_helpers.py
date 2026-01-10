@@ -115,7 +115,6 @@ class TestIsLocalHost:
         config = Config(
             hosts={"nas": Host(address="10.99.99.1"), "nuc": Host(address="10.99.99.2")},
             stacks={"compose-farm": "nas"},
-            web_stack="compose-farm",
         )
         host = config.hosts["nas"]
         assert is_local_host("nas", host, config) is True
@@ -131,7 +130,6 @@ class TestIsLocalHost:
         config = Config(
             hosts={"nas": Host(address="10.99.99.1"), "nuc": Host(address="10.99.99.2")},
             stacks={"compose-farm": "nas"},
-            web_stack="compose-farm",
         )
         host = config.hosts["nuc"]
         # nuc is not local, and not matching the web stack host
@@ -141,41 +139,29 @@ class TestIsLocalHost:
 class TestGetWebStack:
     """Tests for get_web_stack helper."""
 
-    def test_returns_config_value(self) -> None:
-        """get_web_stack returns config.web_stack when env var not set."""
+    def test_returns_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_web_stack returns CF_WEB_STACK env var."""
         from compose_farm.config import Config, Host
         from compose_farm.web.deps import get_web_stack
 
+        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
         config = Config(
             hosts={"nas": Host(address="192.168.1.6")},
             stacks={"compose-farm": "nas"},
-            web_stack="compose-farm",
         )
         assert get_web_stack(config) == "compose-farm"
 
-    def test_returns_empty_string_when_not_set(self) -> None:
-        """get_web_stack returns empty string when not configured."""
+    def test_returns_empty_string_when_not_set(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_web_stack returns empty string when env var not set."""
         from compose_farm.config import Config, Host
         from compose_farm.web.deps import get_web_stack
 
+        monkeypatch.delenv("CF_WEB_STACK", raising=False)
         config = Config(
             hosts={"nas": Host(address="192.168.1.6")},
             stacks={"test": "nas"},
         )
         assert get_web_stack(config) == ""
-
-    def test_env_var_takes_precedence(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """CF_WEB_STACK env var takes precedence over config.web_stack."""
-        from compose_farm.config import Config, Host
-        from compose_farm.web.deps import get_web_stack
-
-        monkeypatch.setenv("CF_WEB_STACK", "web-from-env")
-        config = Config(
-            hosts={"nas": Host(address="192.168.1.6")},
-            stacks={"compose-farm": "nas"},
-            web_stack="compose-farm",
-        )
-        assert get_web_stack(config) == "web-from-env"
 
 
 class TestGetLocalHost:
@@ -190,7 +176,6 @@ class TestGetLocalHost:
         config = Config(
             hosts={"nas": Host(address="10.99.99.1"), "nuc": Host(address="10.99.99.2")},
             stacks={"compose-farm": "nas"},
-            web_stack="compose-farm",
         )
         assert get_local_host(config) == "nas"
 
@@ -199,20 +184,17 @@ class TestGetLocalHost:
         from compose_farm.config import Config, Host
         from compose_farm.web.deps import get_local_host
 
-        monkeypatch.setenv("CF_WEB_STACK", "compose-farm")
+        monkeypatch.setenv("CF_WEB_STACK", "unknown-stack")
         # Use address that won't match local machine to avoid is_local() fallback
         config = Config(
             hosts={"nas": Host(address="10.99.99.1")},
             stacks={"test": "nas"},
-            web_stack="compose-farm",
         )
         # Should fall back to auto-detection (which won't match anything here)
         assert get_local_host(config) is None
 
-    def test_config_local_host_ignored_outside_container(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """get_local_host ignores web stack when not in web container."""
+    def test_returns_none_outside_container(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_local_host returns None when CF_WEB_STACK not set."""
         from compose_farm.config import Config, Host
         from compose_farm.web.deps import get_local_host
 
@@ -220,7 +202,6 @@ class TestGetLocalHost:
         config = Config(
             hosts={"nas": Host(address="10.99.99.1")},
             stacks={"compose-farm": "nas"},
-            web_stack="compose-farm",
         )
         assert get_local_host(config) is None
 

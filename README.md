@@ -1429,7 +1429,7 @@ glances_stack: glances  # Enables resource stats in web UI
 
 3. Deploy: `cf up glances`
 
-4. **(Docker web UI only)** The web UI container infers the local host from the web stack (`CF_WEB_STACK`/`web_stack`) and reaches Glances via the container name to avoid Docker network isolation issues.
+4. **(Docker web UI only)** The web UI container infers the local host from `CF_WEB_STACK` and reaches Glances via the container name to avoid Docker network isolation issues.
 
 The web UI dashboard will now show a "Host Resources" section with live stats from all hosts. Hosts where Glances is unreachable show an error indicator.
 
