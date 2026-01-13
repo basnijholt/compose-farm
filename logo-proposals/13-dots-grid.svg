@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Container grid made of dots - represents distributed containers -->
+
+  <g fill="#2496ED">
+    <!-- Row 1 -->
+    <circle cx="60" cy="50" r="12"/>
+    <circle cx="100" cy="50" r="12"/>
+    <circle cx="140" cy="50" r="12"/>
+
+    <!-- Row 2 -->
+    <circle cx="60" cy="90" r="12"/>
+    <circle cx="100" cy="90" r="12"/>
+    <circle cx="140" cy="90" r="12"/>
+
+    <!-- Row 3 -->
+    <circle cx="60" cy="130" r="12"/>
+    <circle cx="100" cy="130" r="12" fill="#4CAF50"/>
+    <circle cx="140" cy="130" r="12"/>
+  </g>
+
+  <!-- Connection lines -->
+  <g stroke="#2496ED" stroke-width="2" opacity="0.4">
+    <line x1="60" y1="62" x2="60" y2="78"/>
+    <line x1="100" y1="62" x2="100" y2="78"/>
+    <line x1="140" y1="62" x2="140" y2="78"/>
+    <line x1="60" y1="102" x2="60" y2="118"/>
+    <line x1="100" y1="102" x2="100" y2="118"/>
+    <line x1="140" y1="102" x2="140" y2="118"/>
+    <line x1="72" y1="50" x2="88" y2="50"/>
+    <line x1="112" y1="50" x2="128" y2="50"/>
+    <line x1="72" y1="90" x2="88" y2="90"/>
+    <line x1="112" y1="90" x2="128" y2="90"/>
+    <line x1="72" y1="130" x2="88" y2="130"/>
+    <line x1="112" y1="130" x2="128" y2="130"/>
+  </g>
+
+  <!-- Sprout from green center -->
+  <path d="M100 118 L100 155" stroke="#4CAF50" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="92" cy="158" r="6" fill="#4CAF50"/>
+  <circle cx="108" cy="158" r="6" fill="#4CAF50"/>
+  <circle cx="100" cy="165" r="5" fill="#66BB6A"/>
+</svg>
