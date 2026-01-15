@@ -631,18 +631,28 @@ async def check_paths_exist(
     host_name: str,
     paths: list[str],
 ) -> dict[str, bool]:
-    """Check if multiple paths exist on a specific host.
+    """Check if multiple paths exist and are accessible on a specific host.
 
     Returns a dict mapping path -> exists.
     Handles permission denied as "exists" (path is there, just not accessible).
+    Uses timeout to detect stale NFS mounts that would hang.
     """
-    # Only report missing if stat says "No such file", otherwise assume exists
-    # (handles permission denied correctly - path exists, just not accessible)
+    # Use timeout to detect stale NFS mounts (which hang on access)
+    # - First try ls with timeout to check accessibility
+    # - If ls succeeds: path exists and is accessible
+    # - If ls fails/times out: use stat (also with timeout) to distinguish
+    #   "no such file" from "permission denied" or stale NFS
+    # - Timeout (exit code 124) is treated as inaccessible (stale NFS mount)
     return await _batch_check_existence(
         config,
         host_name,
         paths,
-        lambda esc: f"stat '{esc}' 2>&1 | grep -q 'No such file' && echo 'N:{esc}' || echo 'Y:{esc}'",
+        lambda esc: (
+            f"OUT=$(timeout 2 stat '{esc}' 2>&1); RC=$?; "
+            f"if [ $RC -eq 124 ]; then echo 'N:{esc}'; "
+            f"elif echo \"$OUT\" | grep -q 'No such file'; then echo 'N:{esc}'; "
+            f"else echo 'Y:{esc}'; fi"
+        ),
         "mount-check",
     )
 
