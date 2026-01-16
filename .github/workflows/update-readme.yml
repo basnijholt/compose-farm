@@ -26,7 +26,9 @@ jobs:
         env:
           TERM: dumb
           NO_COLOR: 1
-          TERMINAL_WIDTH: 90
+          COLUMNS: 90  # POSIX terminal width for Rich
+          TERMINAL_WIDTH: 90  # Typer MAX_WIDTH for help panels
+          _TYPER_FORCE_DISABLE_TERMINAL: 1  # Prevent Typer forcing terminal mode in CI
         run: |
           uvx --with . markdown-code-runner README.md
           sed -i 's/[[:space:]]*$//' README.md
