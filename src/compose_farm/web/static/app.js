@@ -494,7 +494,9 @@ function refreshDashboard() {
  * Filter sidebar stacks by name and host
  */
 function sidebarFilter() {
-    const q = (document.getElementById('sidebar-filter')?.value || '').toLowerCase();
+    const input = document.getElementById('sidebar-filter');
+    const clearBtn = document.getElementById('sidebar-filter-clear');
+    const q = (input?.value || '').toLowerCase();
     const h = document.getElementById('sidebar-host-select')?.value || '';
     let n = 0;
     document.querySelectorAll('#sidebar-stacks li').forEach(li => {
@@ -503,8 +505,25 @@ function sidebarFilter() {
         if (show) n++;
     });
     document.getElementById('sidebar-count').textContent = '(' + n + ')';
+    // Show/hide clear button based on input value
+    if (clearBtn) {
+        clearBtn.classList.toggle('hidden', !q);
+    }
 }
 window.sidebarFilter = sidebarFilter;
+
+/**
+ * Clear sidebar filter input and refresh list
+ */
+function clearSidebarFilter() {
+    const input = document.getElementById('sidebar-filter');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    sidebarFilter();
+}
+window.clearSidebarFilter = clearSidebarFilter;
 
 // Play intro animation on command palette button
 function playFabIntro() {
