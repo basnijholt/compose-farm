@@ -253,7 +253,8 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
         return HTMLResponse("")
 
     host = config.hosts[host_name]
-    glances_address = _get_glances_address(host_name, host, config.glances_stack)
+    local_host = config.get_local_host_from_web_stack()
+    glances_address = _get_glances_address(host_name, host, config.glances_stack, local_host)
 
     t0 = time.monotonic()
     containers, error = await fetch_container_stats(host_name, glances_address)
