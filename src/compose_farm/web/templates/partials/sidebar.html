@@ -13,7 +13,7 @@
     <h4 class="text-xs uppercase tracking-wide text-base-content/60 px-3 py-1">Stacks <span class="opacity-50" id="sidebar-count">({{ stacks | length }})</span></h4>
     <div class="px-2 mb-2 flex flex-col gap-1">
         <label class="input input-xs flex items-center gap-2 bg-base-200">
-            {{ search(14) }}<input type="text" id="sidebar-filter" placeholder="Filter..." onkeyup="sidebarFilter()" /><button type="button" id="sidebar-filter-clear" class="hidden opacity-50 hover:opacity-100 cursor-pointer" onclick="clearSidebarFilter()">{{ x(12) }}</button>
+            {{ search(14) }}<input type="text" id="sidebar-filter" placeholder="Filter..." oninput="sidebarFilter()" /><button type="button" id="sidebar-filter-clear" class="hidden opacity-50 hover:opacity-100 cursor-pointer" onclick="clearSidebarFilter()">{{ x(12) }}</button>
         </label>
         <select id="sidebar-host-select" class="select select-xs bg-base-200 w-full" onchange="sidebarFilter()">
             <option value="">All hosts</option>
