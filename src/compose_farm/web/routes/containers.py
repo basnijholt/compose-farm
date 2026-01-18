@@ -268,7 +268,8 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
             error,
         )
         return HTMLResponse(
-            f'<tr class="text-error"><td colspan="12" class="text-center py-2">Error: {error}</td></tr>'
+            f'<tr id="error-{host_name}" class="text-error" data-host="{host_name}">'
+            f'<td colspan="12" class="text-center py-2">{host_name}: {error}</td></tr>'
         )
 
     if not containers:
