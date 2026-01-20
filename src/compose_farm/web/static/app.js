@@ -194,6 +194,7 @@ function initTerminal(elementId, taskId) {
         term.write(event.data);
         if (event.data.includes('[Done]') || event.data.includes('[Failed]')) {
             localStorage.removeItem(taskKey);
+            refreshDashboard();
         }
     };
     ws.onclose = () => setTerminalLoading(false);
