@@ -14,6 +14,9 @@ const ANSI = {
     CRLF: '\r\n'
 };
 
+// Detect mobile/touch device
+const IS_TOUCH_DEVICE = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
 // Terminal color theme (dark mode matching PicoCSS)
 const TERMINAL_THEME = {
     background: '#1a1a2e',
@@ -136,12 +139,19 @@ function whenXtermReady(callback, maxAttempts = 20) {
 function createTerminal(container, extraOptions = {}, onResize = null) {
     container.innerHTML = '';
 
+    // Mobile-optimized terminal options
+    const mobileOptions = IS_TOUCH_DEVICE ? {
+        smoothScrollDuration: 125,  // Smoother scroll animation on touch
+        scrollSensitivity: 3,       // Increased sensitivity for touch scrolling
+    } : {};
+
     const term = new Terminal({
         convertEol: true,
         theme: TERMINAL_THEME,
         fontSize: 13,
         fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
         scrollback: 5000,
+        ...mobileOptions,
         ...extraOptions
     });
 
