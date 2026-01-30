@@ -67,6 +67,16 @@ class TestSaveState:
         assert "plex: nas01" in content
         assert "jellyfin: nas02" in content
 
+    def test_save_state_sorts_host_lists(self, config: Config) -> None:
+        """Saves state with sorted host lists for consistent output."""
+        # Pass hosts in unsorted order
+        save_state(config, {"glances": ["pc", "nas", "hp", "anton"]})
+
+        state_file = config.get_state_path()
+        content = state_file.read_text()
+        # Hosts should be sorted alphabetically
+        assert "- anton\n  - hp\n  - nas\n  - pc" in content
+
 
 class TestGetStackHost:
     """Tests for get_stack_host function."""

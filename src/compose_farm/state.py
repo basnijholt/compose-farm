@@ -64,8 +64,11 @@ def load_state(config: Config) -> dict[str, str | list[str]]:
 
 
 def _sorted_dict(d: dict[str, str | list[str]]) -> dict[str, str | list[str]]:
-    """Return a dictionary sorted by keys."""
-    return dict(sorted(d.items(), key=lambda item: item[0]))
+    """Return a dictionary sorted by keys, with list values also sorted."""
+    return {
+        k: sorted(v) if isinstance(v, list) else v
+        for k, v in sorted(d.items(), key=lambda item: item[0])
+    }
 
 
 def save_state(config: Config, deployed: dict[str, str | list[str]]) -> None:
