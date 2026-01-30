@@ -486,32 +486,32 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ --help                -h        Show this message and exit.                            │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Configuration ────────────────────────────────────────────────────────────────────────╮
-│ traefik-file   Generate a Traefik file-provider fragment from compose Traefik labels.  │
-│ refresh        Update local state from running stacks.                                 │
-│ check          Validate configuration, traefik labels, mounts, and networks.           │
-│ init-network   Create Docker network on hosts with consistent settings.                │
-│ config         Manage compose-farm configuration files.                                │
-│ ssh            Manage SSH keys for passwordless authentication.                        │
+│ traefik-file  Generate a Traefik file-provider fragment from compose Traefik labels.   │
+│ refresh       Update local state from running stacks.                                  │
+│ check         Validate configuration, traefik labels, mounts, and networks.            │
+│ init-network  Create Docker network on hosts with consistent settings.                 │
+│ config        Manage compose-farm configuration files.                                 │
+│ ssh           Manage SSH keys for passwordless authentication.                         │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Lifecycle ────────────────────────────────────────────────────────────────────────────╮
-│ up             Start stacks (docker compose up -d). Auto-migrates if host changed.     │
-│ down           Stop stacks (docker compose down).                                      │
-│ stop           Stop services without removing containers (docker compose stop).        │
-│ pull           Pull latest images (docker compose pull).                               │
-│ restart        Restart running containers (docker compose restart).                    │
-│ update         Update stacks (pull + build + up). Shorthand for 'up --pull --build'.   │
-│ apply          Make reality match config (start, migrate, stop strays/orphans as       │
-│                needed).                                                                │
-│ compose        Run any docker compose command on a stack.                              │
+│ up            Start stacks (docker compose up -d). Auto-migrates if host changed.      │
+│ down          Stop stacks (docker compose down).                                       │
+│ stop          Stop services without removing containers (docker compose stop).         │
+│ pull          Pull latest images (docker compose pull).                                │
+│ restart       Restart running containers (docker compose restart).                     │
+│ update        Update stacks (pull + build + up). Shorthand for 'up --pull --build'.    │
+│ apply         Make reality match config (start, migrate, stop strays/orphans as        │
+│               needed).                                                                 │
+│ compose       Run any docker compose command on a stack.                               │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Monitoring ───────────────────────────────────────────────────────────────────────────╮
-│ logs           Show stack logs. With --service, shows logs for just that service.      │
-│ ps             Show status of stacks.                                                  │
-│ stats          Show overview statistics for hosts and stacks.                          │
-│ list           List all stacks and their assigned hosts.                               │
+│ logs          Show stack logs. With --service, shows logs for just that service.       │
+│ ps            Show status of stacks.                                                   │
+│ stats         Show overview statistics for hosts and stacks.                           │
+│ list          List all stacks and their assigned hosts.                                │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Server ───────────────────────────────────────────────────────────────────────────────╮
-│ web            Start the web UI server.                                                │
+│ web           Start the web UI server.                                                 │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -1017,13 +1017,13 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ --help  -h        Show this message and exit.                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ─────────────────────────────────────────────────────────────────────────────╮
-│ init       Create a new config file with documented example.                           │
-│ edit       Open the config file in your default editor.                                │
-│ show       Display the config file location and contents.                              │
-│ path       Print the config file path (useful for scripting).                          │
-│ validate   Validate the config file syntax and schema.                                 │
-│ symlink    Create a symlink from the default config location to a config file.         │
-│ init-env   Generate a .env file for Docker deployment.                                 │
+│ init      Create a new config file with documented example.                            │
+│ edit      Open the config file in your default editor.                                 │
+│ show      Display the config file location and contents.                               │
+│ path      Print the config file path (useful for scripting).                           │
+│ validate  Validate the config file syntax and schema.                                  │
+│ symlink   Create a symlink from the default config location to a config file.          │
+│ init-env  Generate a .env file for Docker deployment.                                  │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -1056,9 +1056,9 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 │ --help  -h        Show this message and exit.                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ─────────────────────────────────────────────────────────────────────────────╮
-│ keygen   Generate SSH key (does not distribute to hosts).                              │
-│ setup    Generate SSH key and distribute to all configured hosts.                      │
-│ status   Show SSH key status and host connectivity.                                    │
+│ keygen  Generate SSH key (does not distribute to hosts).                               │
+│ setup   Generate SSH key and distribute to all configured hosts.                       │
+│ status  Show SSH key status and host connectivity.                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
