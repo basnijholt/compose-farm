@@ -29,6 +29,28 @@ def _make_config(tmp_path: Path) -> Config:
     )
 
 
+def _make_multi_host_config(tmp_path: Path) -> Config:
+    """Create a config with a multi-host stack for testing."""
+    compose_dir = tmp_path / "compose"
+    compose_dir.mkdir()
+    for svc in ("single-host", "multi-host"):
+        svc_dir = compose_dir / svc
+        svc_dir.mkdir()
+        (svc_dir / "docker-compose.yml").write_text("services: {}\n")
+
+    return Config(
+        compose_dir=compose_dir,
+        hosts={
+            "host1": Host(address="192.168.1.1"),
+            "host2": Host(address="192.168.1.2"),
+        },
+        stacks={
+            "single-host": "host1",
+            "multi-host": ["host1", "host2"],
+        },
+    )
+
+
 def _make_result(stack: str) -> CommandResult:
     """Create a successful command result."""
     return CommandResult(stack=stack, exit_code=0, success=True, stdout="", stderr="")
@@ -205,3 +227,26 @@ class TestLogsHostFilter:
             )
 
         assert exc_info.value.exit_code == 1
+
+    def test_logs_host_filter_passes_filter_host_to_run_on_stacks(self, tmp_path: Path) -> None:
+        """--host should pass filter_host to run_on_stacks for multi-host stacks."""
+        cfg = _make_multi_host_config(tmp_path)
+        mock_run_async, _ = _mock_run_async_factory(["multi-host@host1"])
+
+        with (
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
+            patch("compose_farm.cli.monitoring.run_on_stacks") as mock_run,
+        ):
+            logs(
+                stacks=None,
+                all_stacks=False,
+                host="host1",
+                follow=False,
+                tail=None,
+                config=None,
+            )
+
+            mock_run.assert_called_once()
+            call_kwargs = mock_run.call_args.kwargs
+            assert call_kwargs.get("filter_host") == "host1"
