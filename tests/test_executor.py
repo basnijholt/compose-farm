@@ -229,6 +229,52 @@ class TestRunOnStacks:
         assert results[0].stack == "svc1"
         assert results[1].stack == "svc2"
 
+    async def test_run_on_stacks_filter_host_limits_multi_host(self) -> None:
+        """filter_host should only run on that host for multi-host stacks."""
+        config = Config(
+            compose_dir=Path("/tmp"),
+            hosts={
+                "host1": Host(address="192.168.1.1"),
+                "host2": Host(address="192.168.1.2"),
+                "host3": Host(address="192.168.1.3"),
+            },
+            stacks={"multi-svc": ["host1", "host2", "host3"]},  # multi-host stack
+        )
+
+        mock_result = CommandResult(stack="multi-svc@host1", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = mock_result
+            results = await run_on_stacks(
+                config, ["multi-svc"], "down", stream=False, filter_host="host1"
+            )
+
+            # Should only call run_command once (for host1), not 3 times
+            assert mock_run.call_count == 1
+            # Result should be for the filtered host
+            assert len(results) == 1
+            assert results[0].stack == "multi-svc@host1"
+
+    async def test_run_on_stacks_no_filter_runs_all_hosts(self) -> None:
+        """Without filter_host, multi-host stacks run on all configured hosts."""
+        config = Config(
+            compose_dir=Path("/tmp"),
+            hosts={
+                "host1": Host(address="192.168.1.1"),
+                "host2": Host(address="192.168.1.2"),
+            },
+            stacks={"multi-svc": ["host1", "host2"]},  # multi-host stack
+        )
+
+        mock_result = CommandResult(stack="multi-svc", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = mock_result
+            results = await run_on_stacks(config, ["multi-svc"], "down", stream=False)
+
+            # Should call run_command twice (once per host)
+            assert mock_run.call_count == 2
+            # Results should be for both hosts
+            assert len(results) == 2
+
 
 @linux_only
 class TestCheckPathsExist:

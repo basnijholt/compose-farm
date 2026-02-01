@@ -73,6 +73,18 @@ def up(
                 cfg, stack_list, build_up_cmd(pull=pull, build=build, service=service), raw=True
             )
         )
+    elif host:
+        # For host-filtered up, use run_on_stacks to only affect that host
+        # (skips migration logic, which is intended when explicitly specifying a host)
+        results = run_async(
+            run_on_stacks(
+                cfg,
+                stack_list,
+                build_up_cmd(pull=pull, build=build),
+                raw=True,
+                filter_host=host,
+            )
+        )
     else:
         results = run_async(up_stacks(cfg, stack_list, raw=True, pull=pull, build=build))
     maybe_regenerate_traefik(cfg, results)
@@ -116,7 +128,7 @@ def down(
 
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
     raw = len(stack_list) == 1
-    results = run_async(run_on_stacks(cfg, stack_list, "down", raw=raw))
+    results = run_async(run_on_stacks(cfg, stack_list, "down", raw=raw, filter_host=host))
 
     # Remove from state on success
     # For multi-host stacks, result.stack is "stack@host", extract base name

@@ -392,13 +392,17 @@ async def run_on_stacks(
     *,
     stream: bool = True,
     raw: bool = False,
+    filter_host: str | None = None,
 ) -> list[CommandResult]:
     """Run a docker compose command on multiple stacks in parallel.
 
-    For multi-host stacks, runs on all configured hosts.
-    Note: raw=True only makes sense for single-stack operations.
+    For multi-host stacks, runs on all configured hosts unless filter_host is set,
+    in which case only the filtered host is affected. raw=True only makes sense
+    for single-stack operations.
     """
-    return await run_sequential_on_stacks(config, stacks, [compose_cmd], stream=stream, raw=raw)
+    return await run_sequential_on_stacks(
+        config, stacks, [compose_cmd], stream=stream, raw=raw, filter_host=filter_host
+    )
 
 
 async def _run_sequential_stack_commands(
@@ -416,6 +420,33 @@ async def _run_sequential_stack_commands(
         if not result.success:
             return result
     return CommandResult(stack=stack, exit_code=0, success=True)
+
+
+async def _run_sequential_stack_commands_on_host(
+    config: Config,
+    stack: str,
+    host_name: str,
+    commands: list[str],
+    *,
+    stream: bool = True,
+    raw: bool = False,
+    prefix: str | None = None,
+) -> CommandResult:
+    """Run multiple compose commands sequentially for a stack on a specific host.
+
+    Used when --host filter is applied to a multi-host stack.
+    """
+    stack_dir = config.get_stack_dir(stack)
+    host = config.hosts[host_name]
+    label = f"{stack}@{host_name}"
+
+    for cmd in commands:
+        _print_compose_command(host_name, stack, cmd)
+        command = f'cd "{stack_dir}" && docker compose {cmd}'
+        result = await run_command(host, command, label, stream=stream, raw=raw, prefix=prefix)
+        if not result.success:
+            return result
+    return CommandResult(stack=label, exit_code=0, success=True)
 
 
 async def _run_sequential_stack_commands_multi_host(
@@ -469,11 +500,13 @@ async def run_sequential_on_stacks(
     *,
     stream: bool = True,
     raw: bool = False,
+    filter_host: str | None = None,
 ) -> list[CommandResult]:
     """Run sequential commands on multiple stacks in parallel.
 
-    For multi-host stacks, runs on all configured hosts.
-    Note: raw=True only makes sense for single-stack operations.
+    For multi-host stacks, runs on all configured hosts unless filter_host is set,
+    in which case only the filtered host is affected. raw=True only makes sense
+    for single-stack operations.
     """
     # Skip prefix for single-stack operations (command line already shows context)
     prefix: str | None = "" if len(stacks) == 1 else None
@@ -483,10 +516,18 @@ async def run_sequential_on_stacks(
     single_host_tasks = []
 
     for stack in stacks:
-        if config.is_multi_host(stack):
+        if config.is_multi_host(stack) and filter_host is None:
+            # Multi-host stack without filter: run on all hosts
             multi_host_tasks.append(
                 _run_sequential_stack_commands_multi_host(
                     config, stack, commands, stream=stream, raw=raw, prefix=prefix
+                )
+            )
+        elif config.is_multi_host(stack) and filter_host is not None:
+            # Multi-host stack with filter: run only on filtered host
+            single_host_tasks.append(
+                _run_sequential_stack_commands_on_host(
+                    config, stack, filter_host, commands, stream=stream, raw=raw, prefix=prefix
                 )
             )
         else:
