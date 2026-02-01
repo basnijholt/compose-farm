@@ -132,11 +132,16 @@ def down(
 
     # Remove from state on success
     # For multi-host stacks, result.stack is "stack@host", extract base name
+    # Skip state removal for host-filtered multi-host stacks (only one instance was stopped)
     removed_stacks: set[str] = set()
     for result in results:
         if result.success:
             base_stack = result.stack.split("@")[0]
             if base_stack not in removed_stacks:
+                # Don't remove multi-host stacks from state when host-filtered
+                # because only one instance was stopped, the stack is still running elsewhere
+                if host and cfg.is_multi_host(base_stack):
+                    continue
                 remove_stack(cfg, base_stack)
                 removed_stacks.add(base_stack)
 

@@ -500,3 +500,69 @@ class TestHostFilterMultiHost:
             mock_run.assert_called_once()
             call_kwargs = mock_run.call_args.kwargs
             assert call_kwargs.get("filter_host") == "host1"
+
+    def test_down_host_filter_skips_state_removal_for_multi_host(self, tmp_path: Path) -> None:
+        """--host filter should NOT remove multi-host stacks from state.
+
+        When stopping only one instance of a multi-host stack, the stack is still
+        running on other hosts, so it shouldn't be removed from state.
+        """
+        cfg = self._make_multi_host_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_stacks") as mock_get_stacks,
+            patch("compose_farm.cli.lifecycle.run_on_stacks"),
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                return_value=[_make_result("multi-host@host1")],
+            ),
+            patch("compose_farm.cli.lifecycle.remove_stack") as mock_remove,
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            mock_get_stacks.return_value = (["multi-host"], cfg)
+
+            down(
+                stacks=None,
+                all_stacks=False,
+                orphaned=False,
+                host="host1",
+                config=None,
+            )
+
+            # remove_stack should NOT be called for multi-host stacks with host filter
+            mock_remove.assert_not_called()
+
+    def test_down_without_host_filter_removes_from_state(self, tmp_path: Path) -> None:
+        """Without --host filter, multi-host stacks SHOULD be removed from state."""
+        cfg = self._make_multi_host_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_stacks") as mock_get_stacks,
+            patch("compose_farm.cli.lifecycle.run_on_stacks"),
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                return_value=[
+                    _make_result("multi-host@host1"),
+                    _make_result("multi-host@host2"),
+                    _make_result("multi-host@host3"),
+                ],
+            ),
+            patch("compose_farm.cli.lifecycle.remove_stack") as mock_remove,
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            mock_get_stacks.return_value = (["multi-host"], cfg)
+
+            down(
+                stacks=None,
+                all_stacks=False,
+                orphaned=False,
+                host=None,  # No host filter
+                config=None,
+            )
+
+            # remove_stack SHOULD be called when stopping all instances
+            mock_remove.assert_called_once_with(cfg, "multi-host")
