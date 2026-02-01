@@ -6,6 +6,7 @@ import pytest
 
 from compose_farm.config import Config, Host
 from compose_farm.state import (
+    add_stack_host,
     get_orphaned_stacks,
     get_stack_host,
     get_stacks_not_in_state,
@@ -142,6 +143,110 @@ class TestRemoveStack:
 
         result = load_state(config)
         assert result["plex"] == "nas01"
+
+    def test_remove_host_from_list(self, config: Config) -> None:
+        """Removes one host from a multi-host stack's list."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  glances:\n    - nas\n    - nuc\n    - hp\n")
+
+        remove_stack(config, "glances", "nas")
+
+        result = load_state(config)
+        assert set(result["glances"]) == {"nuc", "hp"}
+
+    def test_remove_last_host_removes_stack(self, config: Config) -> None:
+        """Removing the last host removes the stack entirely."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  glances:\n    - nas\n")
+
+        remove_stack(config, "glances", "nas")
+
+        result = load_state(config)
+        assert "glances" not in result
+
+    def test_remove_host_from_single_host_stack(self, config: Config) -> None:
+        """Removing host from single-host stack removes it if host matches."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  plex: nas\n")
+
+        remove_stack(config, "plex", "nas")
+
+        result = load_state(config)
+        assert "plex" not in result
+
+    def test_remove_wrong_host_from_single_host_stack(self, config: Config) -> None:
+        """Removing wrong host from single-host stack does nothing."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  plex: nas\n")
+
+        remove_stack(config, "plex", "nuc")
+
+        result = load_state(config)
+        assert result["plex"] == "nas"
+
+    def test_remove_host_from_nonexistent_stack(self, config: Config) -> None:
+        """Removing host from nonexistent stack doesn't error."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  plex: nas\n")
+
+        remove_stack(config, "unknown", "nas")  # Should not raise
+
+        result = load_state(config)
+        assert result["plex"] == "nas"
+
+
+class TestAddStackHost:
+    """Tests for add_stack_host function."""
+
+    def test_add_host_to_new_stack(self, config: Config) -> None:
+        """Adding host to new stack creates single-host entry."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed: {}\n")
+
+        add_stack_host(config, "plex", "nas")
+
+        result = load_state(config)
+        assert result["plex"] == "nas"
+
+    def test_add_host_to_list(self, config: Config) -> None:
+        """Adding host to existing list appends it."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  glances:\n    - nas\n    - nuc\n")
+
+        add_stack_host(config, "glances", "hp")
+
+        result = load_state(config)
+        assert set(result["glances"]) == {"nas", "nuc", "hp"}
+
+    def test_add_duplicate_host_to_list(self, config: Config) -> None:
+        """Adding duplicate host to list does nothing."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  glances:\n    - nas\n    - nuc\n")
+
+        add_stack_host(config, "glances", "nas")
+
+        result = load_state(config)
+        assert set(result["glances"]) == {"nas", "nuc"}
+
+    def test_add_second_host_converts_to_list(self, config: Config) -> None:
+        """Adding second host to single-host stack converts to list."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  plex: nas\n")
+
+        add_stack_host(config, "plex", "nuc")
+
+        result = load_state(config)
+        assert set(result["plex"]) == {"nas", "nuc"}
+
+    def test_add_same_host_to_single_host_stack(self, config: Config) -> None:
+        """Adding same host to single-host stack does nothing."""
+        state_file = config.get_state_path()
+        state_file.write_text("deployed:\n  plex: nas\n")
+
+        add_stack_host(config, "plex", "nas")
+
+        result = load_state(config)
+        assert result["plex"] == "nas"
 
 
 class TestGetOrphanedStacks:

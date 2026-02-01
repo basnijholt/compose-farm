@@ -37,6 +37,7 @@ from compose_farm.operations import (
     up_stacks,
 )
 from compose_farm.state import (
+    add_stack_host,
     get_orphaned_stacks,
     get_stack_host,
     get_stacks_needing_migration,
@@ -73,6 +74,23 @@ def up(
                 cfg, stack_list, build_up_cmd(pull=pull, build=build, service=service), raw=True
             )
         )
+    elif host:
+        # For host-filtered up, use run_on_stacks to only affect that host
+        # (skips migration logic, which is intended when explicitly specifying a host)
+        results = run_async(
+            run_on_stacks(
+                cfg,
+                stack_list,
+                build_up_cmd(pull=pull, build=build),
+                raw=True,
+                filter_host=host,
+            )
+        )
+        # Update state for successful host-filtered operations
+        for result in results:
+            if result.success:
+                base_stack = result.stack.split("@")[0]
+                add_stack_host(cfg, base_stack, host)
     else:
         results = run_async(up_stacks(cfg, stack_list, raw=True, pull=pull, build=build))
     maybe_regenerate_traefik(cfg, results)
@@ -116,17 +134,20 @@ def down(
 
     stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
     raw = len(stack_list) == 1
-    results = run_async(run_on_stacks(cfg, stack_list, "down", raw=raw))
+    results = run_async(run_on_stacks(cfg, stack_list, "down", raw=raw, filter_host=host))
 
-    # Remove from state on success
+    # Update state on success
     # For multi-host stacks, result.stack is "stack@host", extract base name
-    removed_stacks: set[str] = set()
+    updated_stacks: set[str] = set()
     for result in results:
         if result.success:
             base_stack = result.stack.split("@")[0]
-            if base_stack not in removed_stacks:
-                remove_stack(cfg, base_stack)
-                removed_stacks.add(base_stack)
+            if base_stack not in updated_stacks:
+                # When host is specified for multi-host stack, removes just that host
+                # Otherwise removes entire stack from state
+                filter_host = host if host and cfg.is_multi_host(base_stack) else None
+                remove_stack(cfg, base_stack, filter_host)
+                updated_stacks.add(base_stack)
 
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
