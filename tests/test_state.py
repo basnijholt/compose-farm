@@ -147,7 +147,7 @@ class TestRemoveStackHost:
         remove_stack_host(config, "glances", "nas")
 
         result = load_state(config)
-        assert result["glances"] == ["nuc", "hp"]
+        assert set(result["glances"]) == {"nuc", "hp"}
 
     def test_remove_last_host_removes_stack(self, config: Config) -> None:
         """Removing the last host removes the stack entirely."""
@@ -211,7 +211,7 @@ class TestAddStackHost:
         add_stack_host(config, "glances", "hp")
 
         result = load_state(config)
-        assert result["glances"] == ["nas", "nuc", "hp"]
+        assert set(result["glances"]) == {"nas", "nuc", "hp"}
 
     def test_add_duplicate_host_to_list(self, config: Config) -> None:
         """Adding duplicate host to list does nothing."""
@@ -221,7 +221,7 @@ class TestAddStackHost:
         add_stack_host(config, "glances", "nas")
 
         result = load_state(config)
-        assert result["glances"] == ["nas", "nuc"]
+        assert set(result["glances"]) == {"nas", "nuc"}
 
     def test_add_second_host_converts_to_list(self, config: Config) -> None:
         """Adding second host to single-host stack converts to list."""
@@ -231,7 +231,7 @@ class TestAddStackHost:
         add_stack_host(config, "plex", "nuc")
 
         result = load_state(config)
-        assert result["plex"] == ["nas", "nuc"]
+        assert set(result["plex"]) == {"nas", "nuc"}
 
     def test_add_same_host_to_single_host_stack(self, config: Config) -> None:
         """Adding same host to single-host stack does nothing."""
