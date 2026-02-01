@@ -501,11 +501,11 @@ class TestHostFilterMultiHost:
             call_kwargs = mock_run.call_args.kwargs
             assert call_kwargs.get("filter_host") == "host1"
 
-    def test_down_host_filter_skips_state_removal_for_multi_host(self, tmp_path: Path) -> None:
-        """--host filter should NOT remove multi-host stacks from state.
+    def test_down_host_filter_removes_host_from_state(self, tmp_path: Path) -> None:
+        """--host filter should remove just that host from multi-host stack's state.
 
-        When stopping only one instance of a multi-host stack, the stack is still
-        running on other hosts, so it shouldn't be removed from state.
+        When stopping only one instance of a multi-host stack, we should update
+        state to remove just that host, not the entire stack.
         """
         cfg = self._make_multi_host_config(tmp_path)
 
@@ -518,6 +518,7 @@ class TestHostFilterMultiHost:
                 return_value=[_make_result("multi-host@host1")],
             ),
             patch("compose_farm.cli.lifecycle.remove_stack") as mock_remove,
+            patch("compose_farm.cli.lifecycle.remove_stack_host") as mock_remove_host,
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
@@ -531,8 +532,10 @@ class TestHostFilterMultiHost:
                 config=None,
             )
 
-            # remove_stack should NOT be called for multi-host stacks with host filter
+            # remove_stack should NOT be called
             mock_remove.assert_not_called()
+            # remove_stack_host SHOULD be called with the specific host
+            mock_remove_host.assert_called_once_with(cfg, "multi-host", "host1")
 
     def test_down_without_host_filter_removes_from_state(self, tmp_path: Path) -> None:
         """Without --host filter, multi-host stacks SHOULD be removed from state."""

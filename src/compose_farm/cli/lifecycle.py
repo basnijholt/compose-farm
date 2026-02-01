@@ -37,11 +37,13 @@ from compose_farm.operations import (
     up_stacks,
 )
 from compose_farm.state import (
+    add_stack_host,
     get_orphaned_stacks,
     get_stack_host,
     get_stacks_needing_migration,
     get_stacks_not_in_state,
     remove_stack,
+    remove_stack_host,
 )
 
 
@@ -85,6 +87,11 @@ def up(
                 filter_host=host,
             )
         )
+        # Update state for successful host-filtered operations
+        for result in results:
+            if result.success:
+                base_stack = result.stack.split("@")[0]
+                add_stack_host(cfg, base_stack, host)
     else:
         results = run_async(up_stacks(cfg, stack_list, raw=True, pull=pull, build=build))
     maybe_regenerate_traefik(cfg, results)
@@ -130,20 +137,20 @@ def down(
     raw = len(stack_list) == 1
     results = run_async(run_on_stacks(cfg, stack_list, "down", raw=raw, filter_host=host))
 
-    # Remove from state on success
+    # Update state on success
     # For multi-host stacks, result.stack is "stack@host", extract base name
-    # Skip state removal for host-filtered multi-host stacks (only one instance was stopped)
-    removed_stacks: set[str] = set()
+    updated_stacks: set[str] = set()
     for result in results:
         if result.success:
             base_stack = result.stack.split("@")[0]
-            if base_stack not in removed_stacks:
-                # Don't remove multi-host stacks from state when host-filtered
-                # because only one instance was stopped, the stack is still running elsewhere
+            if base_stack not in updated_stacks:
                 if host and cfg.is_multi_host(base_stack):
-                    continue
-                remove_stack(cfg, base_stack)
-                removed_stacks.add(base_stack)
+                    # Remove just this host from multi-host stack's state
+                    remove_stack_host(cfg, base_stack, host)
+                else:
+                    # Remove entire stack from state
+                    remove_stack(cfg, base_stack)
+                updated_stacks.add(base_stack)
 
     maybe_regenerate_traefik(cfg, results)
     report_results(results)

@@ -115,6 +115,45 @@ def remove_stack(config: Config, stack: str) -> None:
         state.pop(stack, None)
 
 
+def remove_stack_host(config: Config, stack: str, host: str) -> None:
+    """Remove a single host from a stack's state.
+
+    For multi-host stacks, removes the host from the list.
+    If the list becomes empty, removes the stack entirely.
+    For single-host stacks, removes the stack if host matches.
+    """
+    with _modify_state(config) as state:
+        if stack not in state:
+            return
+        current = state[stack]
+        if isinstance(current, list):
+            new_hosts = [h for h in current if h != host]
+            if new_hosts:
+                state[stack] = new_hosts
+            else:
+                del state[stack]
+        elif current == host:
+            del state[stack]
+
+
+def add_stack_host(config: Config, stack: str, host: str) -> None:
+    """Add a single host to a stack's state.
+
+    For multi-host stacks, adds the host to the list if not present.
+    For single-host stacks or new entries, sets the host directly.
+    """
+    with _modify_state(config) as state:
+        current = state.get(stack)
+        if current is None:
+            state[stack] = host
+        elif isinstance(current, list):
+            if host not in current:
+                state[stack] = [*current, host]
+        elif current != host:
+            # Convert single host to list
+            state[stack] = [current, host]
+
+
 def get_stacks_needing_migration(config: Config) -> list[str]:
     """Get stacks where current host differs from configured host.
 
