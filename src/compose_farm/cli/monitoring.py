@@ -235,20 +235,22 @@ def logs(
     config: ConfigOption = None,
 ) -> None:
     """Show stack logs. With --service, shows logs for just that service."""
-    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
-    if service and len(stack_list) != 1:
+    selection = get_stacks(stacks or [], all_stacks, config, host=host)
+    if service and len(selection.stacks) != 1:
         print_error("--service requires exactly one stack")
         raise typer.Exit(1)
 
     # Default to fewer lines when showing multiple stacks
-    many_stacks = all_stacks or host is not None or len(stack_list) > 1
+    many_stacks = all_stacks or selection.host_filter is not None or len(selection.stacks) > 1
     effective_tail = tail if tail is not None else (20 if many_stacks else 100)
     cmd = f"logs --tail {effective_tail}"
     if follow:
         cmd += " -f"
     if service:
         cmd += f" {service}"
-    results = run_async(run_on_stacks(cfg, stack_list, cmd, filter_host=host))
+    results = run_async(
+        run_on_stacks(selection.config, selection.stacks, cmd, filter_host=selection.host_filter)
+    )
     report_results(results)
 
 
@@ -267,12 +269,14 @@ def ps(
     With --host: shows stacks on that host.
     With --service: filters to a specific service within the stack.
     """
-    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host, default_all=True)
-    if service and len(stack_list) != 1:
+    selection = get_stacks(stacks or [], all_stacks, config, host=host, default_all=True)
+    if service and len(selection.stacks) != 1:
         print_error("--service requires exactly one stack")
         raise typer.Exit(1)
     cmd = f"ps {service}" if service else "ps"
-    results = run_async(run_on_stacks(cfg, stack_list, cmd, filter_host=host))
+    results = run_async(
+        run_on_stacks(selection.config, selection.stacks, cmd, filter_host=selection.host_filter)
+    )
     report_results(results)
 
 

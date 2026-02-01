@@ -453,9 +453,9 @@ def traefik_file(
         render_traefik_config,
     )
 
-    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
+    selection = get_stacks(stacks or [], all_stacks, config)
     try:
-        dynamic, warnings = generate_traefik_config(cfg, stack_list)
+        dynamic, warnings = generate_traefik_config(selection.config, selection.stacks)
     except (FileNotFoundError, ValueError) as exc:
         print_error(str(exc))
         raise typer.Exit(1) from exc
@@ -495,22 +495,22 @@ def refresh(
 
     Use 'cf apply' to make reality match your config (stop orphans, migrate).
     """
-    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, default_all=True)
+    selection = get_stacks(stacks or [], all_stacks, config, default_all=True)
 
     # Partial refresh merges with existing state; full refresh replaces it
     # Partial = specific stacks provided (not --all, not default)
     partial_refresh = bool(stacks) and not all_stacks
 
-    current_state = load_state(cfg)
+    current_state = load_state(selection.config)
 
-    discovered, strays, duplicates = _discover_stacks_full(cfg, stack_list)
+    discovered, strays, duplicates = _discover_stacks_full(selection.config, selection.stacks)
 
     # Calculate changes (only for the stacks we're refreshing)
     added = [s for s in discovered if s not in current_state]
     # Only mark as "removed" if we're doing a full refresh
     if partial_refresh:
         # In partial refresh, a stack not running is just "not found"
-        removed = [s for s in stack_list if s in current_state and s not in discovered]
+        removed = [s for s in selection.stacks if s in current_state and s not in discovered]
     else:
         removed = [s for s in current_state if s not in discovered]
     changed = [
@@ -526,8 +526,8 @@ def refresh(
     else:
         print_success("State is already in sync.")
 
-    _report_stray_stacks(strays, cfg)
-    _report_duplicate_stacks(duplicates, cfg)
+    _report_stray_stacks(strays, selection.config)
+    _report_duplicate_stacks(duplicates, selection.config)
 
     if dry_run:
         console.print(f"\n{MSG_DRY_RUN}")
@@ -538,13 +538,13 @@ def refresh(
         new_state = (
             _merge_state(current_state, discovered, removed) if partial_refresh else discovered
         )
-        save_state(cfg, new_state)
+        save_state(selection.config, new_state)
         print_success(f"State updated: {len(new_state)} stacks tracked.")
 
     # Capture image digests for running stacks (1 SSH call per host)
     if discovered:
         try:
-            path = _snapshot_stacks(cfg, discovered, log_path)
+            path = _snapshot_stacks(selection.config, discovered, log_path)
             print_success(f"Digests written to {path}")
         except RuntimeError as exc:
             print_warning(str(exc))

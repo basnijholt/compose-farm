@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 import typer
 
+from compose_farm.cli.common import StackSelection
 from compose_farm.cli.lifecycle import apply, down
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
@@ -486,7 +487,7 @@ class TestHostFilterMultiHost:
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            mock_get_stacks.return_value = (["multi-host"], cfg)
+            mock_get_stacks.return_value = StackSelection(["multi-host"], cfg, host_filter="host1")
 
             down(
                 stacks=None,
@@ -521,7 +522,7 @@ class TestHostFilterMultiHost:
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            mock_get_stacks.return_value = (["multi-host"], cfg)
+            mock_get_stacks.return_value = StackSelection(["multi-host"], cfg, host_filter="host1")
 
             down(
                 stacks=None,
@@ -554,7 +555,7 @@ class TestHostFilterMultiHost:
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
-            mock_get_stacks.return_value = (["multi-host"], cfg)
+            mock_get_stacks.return_value = StackSelection(["multi-host"], cfg, host_filter=None)
 
             down(
                 stacks=None,
