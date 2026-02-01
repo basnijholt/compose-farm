@@ -43,7 +43,6 @@ from compose_farm.state import (
     get_stacks_needing_migration,
     get_stacks_not_in_state,
     remove_stack,
-    remove_stack_host,
 )
 
 
@@ -144,12 +143,10 @@ def down(
         if result.success:
             base_stack = result.stack.split("@")[0]
             if base_stack not in updated_stacks:
-                if host and cfg.is_multi_host(base_stack):
-                    # Remove just this host from multi-host stack's state
-                    remove_stack_host(cfg, base_stack, host)
-                else:
-                    # Remove entire stack from state
-                    remove_stack(cfg, base_stack)
+                # When host is specified for multi-host stack, removes just that host
+                # Otherwise removes entire stack from state
+                filter_host = host if host and cfg.is_multi_host(base_stack) else None
+                remove_stack(cfg, base_stack, filter_host)
                 updated_stacks.add(base_stack)
 
     maybe_regenerate_traefik(cfg, results)

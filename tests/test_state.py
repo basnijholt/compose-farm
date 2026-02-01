@@ -12,7 +12,6 @@ from compose_farm.state import (
     get_stacks_not_in_state,
     load_state,
     remove_stack,
-    remove_stack_host,
     save_state,
     set_stack_host,
 )
@@ -135,16 +134,12 @@ class TestRemoveStack:
         result = load_state(config)
         assert result["plex"] == "nas01"
 
-
-class TestRemoveStackHost:
-    """Tests for remove_stack_host function."""
-
     def test_remove_host_from_list(self, config: Config) -> None:
         """Removes one host from a multi-host stack's list."""
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  glances:\n    - nas\n    - nuc\n    - hp\n")
 
-        remove_stack_host(config, "glances", "nas")
+        remove_stack(config, "glances", "nas")
 
         result = load_state(config)
         assert set(result["glances"]) == {"nuc", "hp"}
@@ -154,7 +149,7 @@ class TestRemoveStackHost:
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  glances:\n    - nas\n")
 
-        remove_stack_host(config, "glances", "nas")
+        remove_stack(config, "glances", "nas")
 
         result = load_state(config)
         assert "glances" not in result
@@ -164,7 +159,7 @@ class TestRemoveStackHost:
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas\n")
 
-        remove_stack_host(config, "plex", "nas")
+        remove_stack(config, "plex", "nas")
 
         result = load_state(config)
         assert "plex" not in result
@@ -174,7 +169,7 @@ class TestRemoveStackHost:
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas\n")
 
-        remove_stack_host(config, "plex", "nuc")
+        remove_stack(config, "plex", "nuc")
 
         result = load_state(config)
         assert result["plex"] == "nas"
@@ -184,7 +179,7 @@ class TestRemoveStackHost:
         state_file = config.get_state_path()
         state_file.write_text("deployed:\n  plex: nas\n")
 
-        remove_stack_host(config, "unknown", "nas")  # Should not raise
+        remove_stack(config, "unknown", "nas")  # Should not raise
 
         result = load_state(config)
         assert result["plex"] == "nas"

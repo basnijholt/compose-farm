@@ -518,7 +518,6 @@ class TestHostFilterMultiHost:
                 return_value=[_make_result("multi-host@host1")],
             ),
             patch("compose_farm.cli.lifecycle.remove_stack") as mock_remove,
-            patch("compose_farm.cli.lifecycle.remove_stack_host") as mock_remove_host,
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
@@ -532,10 +531,8 @@ class TestHostFilterMultiHost:
                 config=None,
             )
 
-            # remove_stack should NOT be called
-            mock_remove.assert_not_called()
-            # remove_stack_host SHOULD be called with the specific host
-            mock_remove_host.assert_called_once_with(cfg, "multi-host", "host1")
+            # remove_stack should be called with the host parameter
+            mock_remove.assert_called_once_with(cfg, "multi-host", "host1")
 
     def test_down_without_host_filter_removes_from_state(self, tmp_path: Path) -> None:
         """Without --host filter, multi-host stacks SHOULD be removed from state."""
@@ -567,5 +564,5 @@ class TestHostFilterMultiHost:
                 config=None,
             )
 
-            # remove_stack SHOULD be called when stopping all instances
-            mock_remove.assert_called_once_with(cfg, "multi-host")
+            # remove_stack SHOULD be called with host=None when stopping all instances
+            mock_remove.assert_called_once_with(cfg, "multi-host", None)

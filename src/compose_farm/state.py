@@ -109,21 +109,18 @@ def set_multi_host_stack(config: Config, stack: str, hosts: list[str]) -> None:
         state[stack] = hosts
 
 
-def remove_stack(config: Config, stack: str) -> None:
-    """Remove a stack from the state (after down)."""
-    with _modify_state(config) as state:
-        state.pop(stack, None)
+def remove_stack(config: Config, stack: str, host: str | None = None) -> None:
+    """Remove a stack from the state (after down).
 
-
-def remove_stack_host(config: Config, stack: str, host: str) -> None:
-    """Remove a single host from a stack's state.
-
-    For multi-host stacks, removes the host from the list.
+    If host is provided, only removes that host from a multi-host stack.
     If the list becomes empty, removes the stack entirely.
-    For single-host stacks, removes the stack if host matches.
+    For single-host stacks with host specified, removes only if host matches.
     """
     with _modify_state(config) as state:
         if stack not in state:
+            return
+        if host is None:
+            state.pop(stack, None)
             return
         current = state[stack]
         if isinstance(current, list):
