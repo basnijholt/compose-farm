@@ -248,7 +248,7 @@ def logs(
         cmd += " -f"
     if service:
         cmd += f" {service}"
-    results = run_async(run_on_stacks(cfg, stack_list, cmd))
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, filter_host=host))
     report_results(results)
 
 
@@ -272,7 +272,7 @@ def ps(
         print_error("--service requires exactly one stack")
         raise typer.Exit(1)
     cmd = f"ps {service}" if service else "ps"
-    results = run_async(run_on_stacks(cfg, stack_list, cmd))
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, filter_host=host))
     report_results(results)
 
 
