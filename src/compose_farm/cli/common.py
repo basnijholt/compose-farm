@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, TypeVar
 
@@ -37,28 +36,6 @@ if TYPE_CHECKING:
 
 _T = TypeVar("_T")
 _R = TypeVar("_R")
-
-
-@dataclass
-class StackSelection:
-    """Result of stack selection with context for execution.
-
-    Bundles together the selected stacks, config, and any filters applied.
-    This context flows through to execution and state management.
-    """
-
-    stacks: list[str]
-    config: Config
-    host_filter: str | None = None
-
-    def is_instance_level(self, stack: str) -> bool:
-        """Check if this is an instance-level operation for a stack.
-
-        Instance-level means we're operating on just one host of a multi-host
-        stack (via --host filter). This affects state management - we shouldn't
-        remove multi-host stacks from state when only one instance was affected.
-        """
-        return self.host_filter is not None and self.config.is_multi_host(stack)
 
 
 # --- Shared CLI Options ---
@@ -177,7 +154,7 @@ def get_stacks(
     *,
     host: str | None = None,
     default_all: bool = False,
-) -> StackSelection:
+) -> tuple[list[str], Config]:
     """Resolve stack list and load config.
 
     Handles three mutually exclusive selection methods:
@@ -194,9 +171,6 @@ def get_stacks(
 
     Supports "." as shorthand for the current directory name.
 
-    Returns:
-        StackSelection with stacks, config, and host_filter context.
-
     """
     validate_stack_selection(stacks, all_stacks, host)
     config = load_config_or_exit(config_path)
@@ -207,14 +181,14 @@ def get_stacks(
         if not stack_list:
             print_warning(f"No stacks configured for host [magenta]{host}[/]")
             raise typer.Exit(0)
-        return StackSelection(stack_list, config, host_filter=host)
+        return stack_list, config
 
     if all_stacks:
-        return StackSelection(list(config.stacks.keys()), config)
+        return list(config.stacks.keys()), config
 
     if not stacks:
         if default_all:
-            return StackSelection(list(config.stacks.keys()), config)
+            return list(config.stacks.keys()), config
         print_error("Specify stacks or use [bold]--all[/] / [bold]--host[/]")
         raise typer.Exit(1)
 
@@ -226,7 +200,7 @@ def get_stacks(
         config, resolved, hint="Add the stack to compose-farm.yaml or use [bold]--all[/]"
     )
 
-    return StackSelection(resolved, config)
+    return resolved, config
 
 
 def run_async(coro: Coroutine[None, None, _T]) -> _T:

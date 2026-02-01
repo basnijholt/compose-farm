@@ -8,7 +8,6 @@ import pytest
 from compose_farm import executor as executor_module
 from compose_farm import state as state_module
 from compose_farm.cli import management as cli_management_module
-from compose_farm.cli.common import StackSelection
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult, check_stack_running
 
@@ -205,7 +204,7 @@ class TestRefreshCommand:
         with (
             patch(
                 "compose_farm.cli.management.get_stacks",
-                return_value=StackSelection(["plex"], mock_config),
+                return_value=(["plex"], mock_config),
             ),
             patch(
                 "compose_farm.cli.management.load_state",
@@ -241,7 +240,7 @@ class TestRefreshCommand:
         with (
             patch(
                 "compose_farm.cli.management.get_stacks",
-                return_value=StackSelection(["plex", "jellyfin", "grafana"], mock_config),
+                return_value=(["plex", "jellyfin", "grafana"], mock_config),
             ),
             patch(
                 "compose_farm.cli.management.load_state",
@@ -279,7 +278,7 @@ class TestRefreshCommand:
         with (
             patch(
                 "compose_farm.cli.management.get_stacks",
-                return_value=StackSelection(["plex", "jellyfin", "grafana"], mock_config),
+                return_value=(["plex", "jellyfin", "grafana"], mock_config),
             ),
             patch(
                 "compose_farm.cli.management.load_state",
@@ -313,7 +312,7 @@ class TestRefreshCommand:
         with (
             patch(
                 "compose_farm.cli.management.get_stacks",
-                return_value=StackSelection(["plex", "jellyfin"], mock_config),
+                return_value=(["plex", "jellyfin"], mock_config),
             ),
             patch(
                 "compose_farm.cli.management.load_state",
@@ -348,7 +347,7 @@ class TestRefreshCommand:
         with (
             patch(
                 "compose_farm.cli.management.get_stacks",
-                return_value=StackSelection(["plex"], mock_config),
+                return_value=(["plex"], mock_config),
             ),
             patch(
                 "compose_farm.cli.management.load_state",

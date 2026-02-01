@@ -62,37 +62,32 @@ def up(
     config: ConfigOption = None,
 ) -> None:
     """Start stacks (docker compose up -d). Auto-migrates if host changed."""
-    selection = get_stacks(stacks or [], all_stacks, config, host=host)
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
     if service:
-        if len(selection.stacks) != 1:
+        if len(stack_list) != 1:
             print_error("--service requires exactly one stack")
             raise typer.Exit(1)
         # For service-level up, use run_on_stacks directly (no migration logic)
         results = run_async(
             run_on_stacks(
-                selection.config,
-                selection.stacks,
-                build_up_cmd(pull=pull, build=build, service=service),
-                raw=True,
+                cfg, stack_list, build_up_cmd(pull=pull, build=build, service=service), raw=True
             )
         )
-    elif selection.host_filter:
+    elif host:
         # For host-filtered up, use run_on_stacks to only affect that host
         # (skips migration logic, which is intended when explicitly specifying a host)
         results = run_async(
             run_on_stacks(
-                selection.config,
-                selection.stacks,
+                cfg,
+                stack_list,
                 build_up_cmd(pull=pull, build=build),
                 raw=True,
-                filter_host=selection.host_filter,
+                filter_host=host,
             )
         )
     else:
-        results = run_async(
-            up_stacks(selection.config, selection.stacks, raw=True, pull=pull, build=build)
-        )
-    maybe_regenerate_traefik(selection.config, results)
+        results = run_async(up_stacks(cfg, stack_list, raw=True, pull=pull, build=build))
+    maybe_regenerate_traefik(cfg, results)
     report_results(results)
 
 
@@ -131,33 +126,26 @@ def down(
         report_results(results)
         return
 
-    selection = get_stacks(stacks or [], all_stacks, config, host=host)
-    raw = len(selection.stacks) == 1
-    results = run_async(
-        run_on_stacks(
-            selection.config,
-            selection.stacks,
-            "down",
-            raw=raw,
-            filter_host=selection.host_filter,
-        )
-    )
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
+    raw = len(stack_list) == 1
+    results = run_async(run_on_stacks(cfg, stack_list, "down", raw=raw, filter_host=host))
 
     # Remove from state on success
     # For multi-host stacks, result.stack is "stack@host", extract base name
+    # Skip state removal for host-filtered multi-host stacks (only one instance was stopped)
     removed_stacks: set[str] = set()
     for result in results:
         if result.success:
             base_stack = result.stack.split("@")[0]
             if base_stack not in removed_stacks:
-                # Skip state removal for instance-level operations (host-filtered multi-host)
+                # Don't remove multi-host stacks from state when host-filtered
                 # because only one instance was stopped, the stack is still running elsewhere
-                if selection.is_instance_level(base_stack):
+                if host and cfg.is_multi_host(base_stack):
                     continue
-                remove_stack(selection.config, base_stack)
+                remove_stack(cfg, base_stack)
                 removed_stacks.add(base_stack)
 
-    maybe_regenerate_traefik(selection.config, results)
+    maybe_regenerate_traefik(cfg, results)
     report_results(results)
 
 
@@ -169,13 +157,13 @@ def stop(
     config: ConfigOption = None,
 ) -> None:
     """Stop services without removing containers (docker compose stop)."""
-    selection = get_stacks(stacks or [], all_stacks, config)
-    if service and len(selection.stacks) != 1:
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
+    if service and len(stack_list) != 1:
         print_error("--service requires exactly one stack")
         raise typer.Exit(1)
     cmd = f"stop {service}" if service else "stop"
-    raw = len(selection.stacks) == 1
-    results = run_async(run_on_stacks(selection.config, selection.stacks, cmd, raw=raw))
+    raw = len(stack_list) == 1
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
     report_results(results)
 
 
@@ -187,13 +175,13 @@ def pull(
     config: ConfigOption = None,
 ) -> None:
     """Pull latest images (docker compose pull)."""
-    selection = get_stacks(stacks or [], all_stacks, config)
-    if service and len(selection.stacks) != 1:
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
+    if service and len(stack_list) != 1:
         print_error("--service requires exactly one stack")
         raise typer.Exit(1)
     cmd = f"pull --ignore-buildable {service}" if service else "pull --ignore-buildable"
-    raw = len(selection.stacks) == 1
-    results = run_async(run_on_stacks(selection.config, selection.stacks, cmd, raw=raw))
+    raw = len(stack_list) == 1
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
     report_results(results)
 
 
@@ -205,16 +193,16 @@ def restart(
     config: ConfigOption = None,
 ) -> None:
     """Restart running containers (docker compose restart)."""
-    selection = get_stacks(stacks or [], all_stacks, config)
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
     if service:
-        if len(selection.stacks) != 1:
+        if len(stack_list) != 1:
             print_error("--service requires exactly one stack")
             raise typer.Exit(1)
         cmd = f"restart {service}"
     else:
         cmd = "restart"
-    raw = len(selection.stacks) == 1
-    results = run_async(run_on_stacks(selection.config, selection.stacks, cmd, raw=raw))
+    raw = len(stack_list) == 1
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
     report_results(results)
 
 
