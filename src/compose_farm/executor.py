@@ -191,6 +191,7 @@ def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
         # If dedicated key exists, force use of it and ignore agent
         # This avoids issues with stale/broken forwarded agents in Docker
         kwargs["client_keys"] = [str(key_path)]
+        kwargs["agent_path"] = None  # Prevent asyncssh from using SSH_AUTH_SOCK
     elif agent_path:
         # Fallback to agent if no dedicated key
         kwargs["agent_path"] = agent_path

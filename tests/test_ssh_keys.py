@@ -217,6 +217,7 @@ class TestSshConnectKwargs:
             result = ssh_connect_kwargs(host)
 
             assert result["client_keys"] == [str(key_path)]
+            assert result["agent_path"] is None
 
     def test_includes_both_agent_and_key(self, tmp_path: Path) -> None:
         """Prioritize client_keys over agent_path when both available."""
@@ -229,8 +230,8 @@ class TestSshConnectKwargs:
         ):
             result = ssh_connect_kwargs(host)
 
-            # Agent should be ignored in favor of the dedicated key
-            assert "agent_path" not in result
+            # Agent must be explicitly disabled so asyncssh doesn't use SSH_AUTH_SOCK
+            assert result["agent_path"] is None
             assert result["client_keys"] == [str(key_path)]
 
     def test_custom_port(self) -> None:
