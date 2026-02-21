@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Hexagon grid: containers as honeycomb/farm cells -->
+  <defs>
+    <linearGradient id="hex1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2496ED"/>
+      <stop offset="100%" style="stop-color:#1976D2"/>
+    </linearGradient>
+    <linearGradient id="hex2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4CAF50"/>
+      <stop offset="100%" style="stop-color:#388E3C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Hexagon cluster -->
+  <g transform="translate(100, 100)">
+    <!-- Center hex -->
+    <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="url(#hex1)"/>
+
+    <!-- Top hex -->
+    <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="url(#hex1)" transform="translate(0, -52)" opacity="0.8"/>
+
+    <!-- Top-right hex -->
+    <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="url(#hex1)" transform="translate(45, -26)" opacity="0.6"/>
+
+    <!-- Bottom-right hex -->
+    <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="url(#hex1)" transform="translate(45, 26)" opacity="0.7"/>
+
+    <!-- Bottom hex - green accent -->
+    <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="url(#hex2)" transform="translate(0, 52)"/>
+
+    <!-- Bottom-left hex -->
+    <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="url(#hex1)" transform="translate(-45, 26)" opacity="0.7"/>
+
+    <!-- Top-left hex -->
+    <polygon points="0,-30 26,-15 26,15 0,30 -26,15 -26,-15" fill="url(#hex1)" transform="translate(-45, -26)" opacity="0.6"/>
+  </g>
+</svg>
