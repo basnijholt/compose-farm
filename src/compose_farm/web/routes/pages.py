@@ -44,6 +44,7 @@ async def console(request: Request) -> HTMLResponse:
     config_path = str(config.config_path) if config.config_path else ""
 
     return templates.TemplateResponse(
+        request,
         "console.html",
         {
             "request": request,
@@ -71,6 +72,7 @@ async def index(request: Request) -> HTMLResponse:
         config_content = config_path.read_text() if config_path else ""
 
         return templates.TemplateResponse(
+            request,
             "index.html",
             {
                 "request": request,
@@ -112,6 +114,7 @@ async def index(request: Request) -> HTMLResponse:
     state_content = yaml.dump({"deployed": deployed}, default_flow_style=False, sort_keys=False)
 
     return templates.TemplateResponse(
+        request,
         "index.html",
         {
             "request": request,
@@ -185,6 +188,7 @@ async def stack_detail(request: Request, name: str) -> HTMLResponse:
     website_urls = extract_website_urls(config, name)
 
     return templates.TemplateResponse(
+        request,
         "stack.html",
         {
             "request": request,
@@ -217,6 +221,7 @@ async def sidebar_partial(request: Request) -> HTMLResponse:
     }
 
     return templates.TemplateResponse(
+        request,
         "partials/sidebar.html",
         {
             "request": request,
@@ -239,7 +244,7 @@ async def config_error_partial(request: Request) -> HTMLResponse:
     except (ValidationError, FileNotFoundError) as e:
         error = extract_config_error(e)
         return templates.TemplateResponse(
-            "partials/config_error.html", {"request": request, "config_error": error}
+            request, "partials/config_error.html", {"request": request, "config_error": error}
         )
 
 
@@ -255,6 +260,7 @@ async def stats_partial(request: Request) -> HTMLResponse:
     stopped_count = len(config.stacks) - running_count
 
     return templates.TemplateResponse(
+        request,
         "partials/stats.html",
         {
             "request": request,
@@ -277,6 +283,7 @@ async def pending_partial(request: Request, expanded: bool = True) -> HTMLRespon
     not_started = get_stacks_not_in_state(config)
 
     return templates.TemplateResponse(
+        request,
         "partials/pending.html",
         {
             "request": request,
@@ -298,6 +305,7 @@ async def stacks_by_host_partial(request: Request, expanded: bool = True) -> HTM
     stacks_by_host = group_running_stacks_by_host(deployed, config.hosts)
 
     return templates.TemplateResponse(
+        request,
         "partials/stacks_by_host.html",
         {
             "request": request,

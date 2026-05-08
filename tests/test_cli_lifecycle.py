@@ -1,6 +1,8 @@
 """Tests for CLI lifecycle commands (apply, down --orphaned)."""
 
+from collections.abc import Callable, Coroutine
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -44,6 +46,18 @@ def _make_result(stack: str, success: bool = True) -> CommandResult:
         stdout="",
         stderr="",
     )
+
+
+def _run_async_returns(
+    results: list[CommandResult],
+) -> Callable[[Coroutine[Any, Any, Any]], list[CommandResult]]:
+    """Create a run_async stub that closes the intercepted coroutine."""
+
+    def mock_run_async(coro: Coroutine[Any, Any, Any]) -> list[CommandResult]:
+        coro.close()
+        return results
+
+    return mock_run_async
 
 
 class TestApplyCommand:
@@ -117,7 +131,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                return_value=mock_results,
+                side_effect=_run_async_returns(mock_results),
             ),
             patch("compose_farm.cli.lifecycle.up_stacks") as mock_up,
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
@@ -145,7 +159,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                return_value=mock_results,
+                side_effect=_run_async_returns(mock_results),
             ),
             patch("compose_farm.cli.lifecycle.stop_orphaned_stacks") as mock_stop,
             patch("compose_farm.cli.lifecycle.report_results"),
@@ -176,7 +190,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                return_value=mock_results,
+                side_effect=_run_async_returns(mock_results),
             ),
             patch("compose_farm.cli.lifecycle.up_stacks") as mock_up,
             patch("compose_farm.cli.lifecycle.stop_orphaned_stacks") as mock_stop,
@@ -230,7 +244,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                return_value=mock_results,
+                side_effect=_run_async_returns(mock_results),
             ),
             patch("compose_farm.cli.lifecycle.up_stacks") as mock_up,
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
@@ -278,7 +292,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                return_value=mock_results,
+                side_effect=_run_async_returns(mock_results),
             ),
             patch("compose_farm.cli.lifecycle.up_stacks") as mock_up,
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
@@ -332,7 +346,7 @@ class TestApplyCommand:
             patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                return_value=mock_results,
+                side_effect=_run_async_returns(mock_results),
             ),
             patch("compose_farm.cli.lifecycle.up_stacks") as mock_up,
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
@@ -384,7 +398,7 @@ class TestDownOrphaned:
             ),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                return_value=mock_results,
+                side_effect=_run_async_returns(mock_results),
             ),
             patch("compose_farm.cli.lifecycle.stop_orphaned_stacks") as mock_stop,
             patch("compose_farm.cli.lifecycle.report_results"),
@@ -480,7 +494,7 @@ class TestHostFilterMultiHost:
             patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                return_value=[_make_result("multi-host@host1")],
+                side_effect=_run_async_returns([_make_result("multi-host@host1")]),
             ),
             patch("compose_farm.cli.lifecycle.remove_stack"),
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
@@ -515,7 +529,7 @@ class TestHostFilterMultiHost:
             patch("compose_farm.cli.lifecycle.run_on_stacks"),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                return_value=[_make_result("multi-host@host1")],
+                side_effect=_run_async_returns([_make_result("multi-host@host1")]),
             ),
             patch("compose_farm.cli.lifecycle.remove_stack") as mock_remove,
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
@@ -544,11 +558,13 @@ class TestHostFilterMultiHost:
             patch("compose_farm.cli.lifecycle.run_on_stacks"),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                return_value=[
-                    _make_result("multi-host@host1"),
-                    _make_result("multi-host@host2"),
-                    _make_result("multi-host@host3"),
-                ],
+                side_effect=_run_async_returns(
+                    [
+                        _make_result("multi-host@host1"),
+                        _make_result("multi-host@host2"),
+                        _make_result("multi-host@host3"),
+                    ]
+                ),
             ),
             patch("compose_farm.cli.lifecycle.remove_stack") as mock_remove,
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),

@@ -68,7 +68,8 @@ class ImageRef:
         """Parse image string into components."""
         match = IMAGE_PATTERN.match(image)
         if not match:
-            return cls("docker.io", "library", image.split(":")[0].split("@")[0], "latest")
+            name = image.split(":", maxsplit=1)[0].split("@", maxsplit=1)[0]
+            return cls("docker.io", "library", name, "latest")
 
         groups = match.groupdict()
         registry = groups.get("registry") or "docker.io"

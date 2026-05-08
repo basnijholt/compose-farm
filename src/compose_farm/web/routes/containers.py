@@ -76,6 +76,7 @@ async def containers_page(request: Request) -> HTMLResponse:
     glances_enabled = config.glances_stack is not None
 
     return templates.TemplateResponse(
+        request,
         "containers.html",
         {
             "request": request,
@@ -131,8 +132,9 @@ def _image_web_url(image: str) -> str | None:
 def _render_row(c: ContainerStats, idx: int | str) -> str:
     """Render a single container as an HTML table row."""
     image_name, tag = _parse_image(c.image)
-    stack = c.stack if c.stack else _infer_stack_service(c.name)[0]
-    service = c.service if c.service else _infer_stack_service(c.name)[1]
+    inferred_stack, inferred_service = _infer_stack_service(c.name)
+    stack = c.stack or inferred_stack
+    service = c.service or inferred_service
 
     cpu = c.cpu_percent
     mem = c.memory_percent

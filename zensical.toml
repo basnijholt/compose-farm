@@ -77,7 +77,7 @@ code = "JetBrains Mono"
 
 [project.theme.icon]
 logo = "lucide/server"
-repo = "lucide/github"
+repo = "fontawesome/brands/github"
 
 [project.extra]
 generator = false

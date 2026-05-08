@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from compose_farm.executor import CommandResult
 
 _T = TypeVar("_T")
-_R = TypeVar("_R")
+_R = TypeVar("_R", bound=tuple[object, ...])
 
 
 # --- Shared CLI Options ---
@@ -126,7 +126,7 @@ def run_parallel_with_progress(
             for coro in asyncio.as_completed(tasks):
                 result = await coro
                 results.append(result)
-                progress.update(task_id, advance=1, description=f"[cyan]{result[0]}[/]")  # type: ignore[index]
+                progress.update(task_id, advance=1, description=f"[cyan]{result[0]}[/]")
             return results
 
     return asyncio.run(gather())

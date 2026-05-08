@@ -62,7 +62,8 @@ def _mock_run_async_factory(
     """Create a mock run_async that returns results for given stacks."""
     results = [_make_result(s) for s in stacks]
 
-    def mock_run_async(_coro: Coroutine[Any, Any, Any]) -> list[CommandResult]:
+    def mock_run_async(coro: Coroutine[Any, Any, Any]) -> list[CommandResult]:
+        coro.close()
         return results
 
     return mock_run_async, results
