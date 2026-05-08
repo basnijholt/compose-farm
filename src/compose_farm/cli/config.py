@@ -3,10 +3,6 @@
 from __future__ import annotations
 
 import os
-import shlex
-import shutil
-import subprocess
-from importlib import resources
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -43,6 +39,9 @@ _RawOption = Annotated[
 
 def _get_editor() -> str:
     """Get the user's preferred editor ($EDITOR > $VISUAL > platform default)."""
+    # Lazy import: editor discovery is not needed while building `cf --help`.
+    import shutil  # noqa: PLC0415
+
     if editor := os.environ.get("EDITOR") or os.environ.get("VISUAL"):
         return editor
     return next((e for e in ("nano", "vim", "vi") if shutil.which(e)), "vi")
@@ -50,6 +49,9 @@ def _get_editor() -> str:
 
 def _generate_template() -> str:
     """Generate a config template with documented schema."""
+    # Lazy import: package resource lookup is only needed when generating a config template.
+    from importlib import resources  # noqa: PLC0415
+
     try:
         template_file = resources.files("compose_farm") / "example-config.yaml"
         return template_file.read_text(encoding="utf-8")
@@ -149,6 +151,10 @@ def config_edit(
 
     editor = _get_editor()
     console.print(f"[dim]Opening {config_file} with {editor}...[/dim]")
+
+    # Lazy imports: process execution helpers are only needed by `cf config edit`.
+    import shlex  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
 
     try:
         editor_cmd = shlex.split(editor)

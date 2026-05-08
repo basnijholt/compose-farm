@@ -8,15 +8,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, TypeVar
 
 import typer
-from rich.progress import (
-    BarColumn,
-    MofNCompleteColumn,
-    Progress,
-    SpinnerColumn,
-    TaskID,
-    TextColumn,
-    TimeElapsedColumn,
-)
 
 from compose_farm.console import (
     MSG_HOST_NOT_FOUND,
@@ -30,6 +21,8 @@ from compose_farm.console import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Generator
+
+    from rich.progress import Progress, TaskID
 
     from compose_farm.config import Config
     from compose_farm.executor import CommandResult
@@ -85,6 +78,16 @@ def progress_bar(
     Yields (progress, task_id). Use progress.update(task_id, advance=1, description=...)
     to advance.
     """
+    # Lazy import: Rich progress pulls in heavy rendering modules and slows `cf --help`.
+    from rich.progress import (  # noqa: PLC0415
+        BarColumn,
+        MofNCompleteColumn,
+        Progress,
+        SpinnerColumn,
+        TextColumn,
+        TimeElapsedColumn,
+    )
+
     with Progress(
         SpinnerColumn(),
         TextColumn(f"[bold blue]{label}[/]"),

@@ -10,8 +10,6 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
-from rich.markup import escape
-
 from .console import console, err_console
 from .ssh_keys import get_key_path, get_ssh_auth_sock, get_ssh_env
 
@@ -79,6 +77,9 @@ async def _stream_output_lines(
     If prefix is empty, output is printed without a prefix.
     """
     out = err_console if is_stderr else console
+    # Lazy import: Rich markup escaping is only needed when streaming command output.
+    from rich.markup import escape  # noqa: PLC0415
+
     async for line in reader:
         text = line.decode() if isinstance(line, bytes) else line
         if text.strip():

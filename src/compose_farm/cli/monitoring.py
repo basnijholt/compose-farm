@@ -6,7 +6,6 @@ import contextlib
 from typing import TYPE_CHECKING, Annotated
 
 import typer
-from rich.table import Table
 
 from compose_farm.cli.app import app
 from compose_farm.cli.common import (
@@ -29,6 +28,8 @@ from compose_farm.state import get_stacks_needing_migration, group_stacks_by_hos
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from rich.table import Table
 
     from compose_farm.config import Config
     from compose_farm.glances import ContainerStats
@@ -64,6 +65,9 @@ def _build_host_table(
     show_containers: bool,
 ) -> Table:
     """Build the hosts table."""
+    # Lazy import: Rich table rendering is not needed while building `cf --help`.
+    from rich.table import Table  # noqa: PLC0415
+
     table = Table(title="Hosts", show_header=True, header_style="bold cyan")
     table.add_column("Host", style="magenta")
     table.add_column("Address")
@@ -106,6 +110,9 @@ def _build_summary_table(
     host_filter: str | None = None,
 ) -> Table:
     """Build the summary table."""
+    # Lazy import: Rich table rendering is not needed while building `cf --help`.
+    from rich.table import Table  # noqa: PLC0415
+
     on_disk = cfg.discover_compose_dirs()
     if host_filter:
         stacks_configured = [stack for stack in cfg.stacks if host_filter in cfg.get_hosts(stack)]
@@ -183,6 +190,9 @@ def _build_containers_table(
     host_filter: str | None = None,
 ) -> Table:
     """Build Rich table for container stats."""
+    # Lazy import: Rich table rendering is not needed while building `cf --help`.
+    from rich.table import Table  # noqa: PLC0415
+
     from compose_farm.glances import format_bytes  # noqa: PLC0415
 
     table = Table(title="Containers", show_header=True, header_style="bold cyan")
@@ -372,6 +382,9 @@ def list_(
         for stack, _ in sorted(stacks):
             console.print(stack)
     else:
+        # Lazy import: Rich table rendering is not needed while building `cf --help`.
+        from rich.table import Table  # noqa: PLC0415
+
         # Assign colors to hosts for visual grouping
         host_colors = ["magenta", "cyan", "green", "yellow", "blue", "red"]
         unique_hosts = sorted({str(h) for _, h in stacks})

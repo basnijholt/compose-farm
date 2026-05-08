@@ -5,8 +5,6 @@ from __future__ import annotations
 import contextlib
 from typing import TYPE_CHECKING, Any
 
-import yaml
-
 if TYPE_CHECKING:
     from collections.abc import Generator, Mapping
 
@@ -52,6 +50,9 @@ def load_state(config: Config) -> dict[str, str | list[str]]:
     Returns a dict mapping stack names to host name(s).
     Multi-host stacks store a list of hosts.
     """
+    # Lazy import: PyYAML is only needed when state files are read or written.
+    import yaml  # noqa: PLC0415
+
     state_path = config.get_state_path()
     if not state_path.exists():
         return {}
@@ -73,6 +74,9 @@ def _sorted_dict(d: dict[str, str | list[str]]) -> dict[str, str | list[str]]:
 
 def save_state(config: Config, deployed: dict[str, str | list[str]]) -> None:
     """Save the deployment state."""
+    # Lazy import: PyYAML is only needed when state files are read or written.
+    import yaml  # noqa: PLC0415
+
     state_path = config.get_state_path()
     with state_path.open("w") as f:
         yaml.safe_dump({"deployed": _sorted_dict(deployed)}, f, sort_keys=False)
