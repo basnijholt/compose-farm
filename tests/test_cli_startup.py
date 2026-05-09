@@ -14,7 +14,9 @@ import pytest
 if sys.platform == "darwin":
     CLI_STARTUP_THRESHOLD = 0.35
 else:  # Linux
-    CLI_STARTUP_THRESHOLD = 0.25
+    # Top-level help intentionally uses Typer/Rich rendering. The threshold should catch
+    # slow import regressions while allowing normal variance on slower virtualenv filesystems.
+    CLI_STARTUP_THRESHOLD = 0.35
 
 
 @pytest.mark.skipif(

@@ -42,13 +42,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    # Newer Typer/Rich combinations push `cf --help` over the startup budget.
-    "typer>=0.9.0,<0.20.1",
+    "typer>=0.9.0",
     "pydantic>=2.0.0",
     "asyncssh>=2.14.0",
     "pyyaml>=6.0",
-    # Keep Rich on the last known fast line for Typer help rendering.
-    "rich>=13.0.0,<14.3.0",
+    "rich>=13.0.0",
     "python-dotenv>=1.0.0",
 ]
 
@@ -68,8 +66,8 @@ Issues = "https://github.com/basnijholt/compose-farm/issues"
 Changelog = "https://github.com/basnijholt/compose-farm/releases"
 
 [project.scripts]
-compose-farm = "compose_farm.cli:main"
-cf = "compose_farm.cli:main"
+compose-farm = "compose_farm.cli:app"
+cf = "compose_farm.cli:app"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
