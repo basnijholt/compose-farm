@@ -12,9 +12,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import yaml
-from dotenv import dotenv_values
-
 if TYPE_CHECKING:
     from .config import Config
 
@@ -41,6 +38,9 @@ def _load_env(compose_path: Path) -> dict[str, str]:
     Reads from .env file in the same directory as compose file,
     then overlays current environment variables.
     """
+    # Lazy import: dotenv parsing is only needed when reading compose files, not for CLI help.
+    from dotenv import dotenv_values  # noqa: PLC0415
+
     env_path = compose_path.parent / ".env"
     env: dict[str, str] = {k: v for k, v in dotenv_values(env_path).items() if v is not None}
     env.update({k: v for k, v in os.environ.items() if isinstance(v, str)})
@@ -49,6 +49,9 @@ def _load_env(compose_path: Path) -> dict[str, str]:
 
 def parse_compose_data(content: str) -> dict[str, Any]:
     """Parse compose YAML content into a dict."""
+    # Lazy import: PyYAML is relatively expensive and not needed during command registration.
+    import yaml  # noqa: PLC0415
+
     compose_data = yaml.safe_load(content) or {}
     return compose_data if isinstance(compose_data, dict) else {}
 

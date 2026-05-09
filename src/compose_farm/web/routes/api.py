@@ -285,8 +285,7 @@ async def save_config(
 
 async def _read_file_local(path: str) -> str:
     """Read a file from the local filesystem."""
-    expanded = Path(path).expanduser()
-    return await asyncio.to_thread(expanded.read_text, encoding="utf-8")
+    return await asyncio.to_thread(_read_text_expanded, path)
 
 
 async def _write_file_local(path: str, content: str) -> bool:
@@ -294,8 +293,17 @@ async def _write_file_local(path: str, content: str) -> bool:
 
     Returns True if file was saved, False if content was unchanged.
     """
-    expanded = Path(path).expanduser()
-    return await asyncio.to_thread(_save_with_backup, expanded, content)
+    return await asyncio.to_thread(_save_expanded, path, content)
+
+
+def _read_text_expanded(path: str) -> str:
+    """Expand and read a local text file."""
+    return Path(path).expanduser().read_text(encoding="utf-8")
+
+
+def _save_expanded(path: str, content: str) -> bool:
+    """Expand and save a local text file with backup handling."""
+    return _save_with_backup(Path(path).expanduser(), content)
 
 
 async def _read_file_remote(host: Any, path: str) -> str:

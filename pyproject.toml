@@ -98,6 +98,8 @@ ignore = [
     "ANN002",  # allow args without type comments in some call sites
     "ANN003",  # allow kwargs without type comments in some call sites
     "ANN401",  # allow `Any` for external library hooks
+    "D203",    # incompatible with D211
+    "D213",    # incompatible with D212
     "D401",    # short docstrings are acceptable
     "D402",    # allow "Return" in first line
     "PLW0603", # global statements not used here

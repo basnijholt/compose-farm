@@ -25,7 +25,7 @@ class TestExtractConfigError:
             Config(
                 hosts={"server": Host(address="192.168.1.1")},
                 stacks={"app": "server"},
-                unknown_field="bad",  # type: ignore[call-arg]
+                unknown_field="bad",  # type: ignore[call-arg]  # ty: ignore[unknown-argument]
             )
 
         msg = extract_config_error(exc_info.value)
@@ -38,7 +38,7 @@ class TestExtractConfigError:
 
         # Trigger a validation error with a nested extra field
         with pytest.raises(ValidationError) as exc_info:
-            Host(address="192.168.1.1", bad_key="value")  # type: ignore[call-arg]
+            Host(address="192.168.1.1", bad_key="value")  # type: ignore[call-arg]  # ty: ignore[unknown-argument]
 
         msg = extract_config_error(exc_info.value)
         assert "bad_key" in msg

@@ -199,16 +199,18 @@ def server_url(
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
 
-    # Wait for startup with proper error handling
+    # Wait for startup with proper error handling. This can be slow after
+    # a highly parallel non-browser test phase has just saturated the machine.
     url = f"http://127.0.0.1:{port}"
     server_ready = False
-    for _ in range(100):  # 2 seconds max
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
         try:
             urllib.request.urlopen(url, timeout=0.1)  # noqa: S310
             server_ready = True
             break
         except Exception:
-            time.sleep(0.02)  # 20ms between checks
+            time.sleep(0.02)
 
     if not server_ready:
         msg = f"Test server failed to start on {url}"

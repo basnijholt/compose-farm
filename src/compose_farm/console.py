@@ -1,9 +1,38 @@
 """Shared console instances for consistent output styling."""
 
-from rich.console import Console
+from __future__ import annotations
 
-console = Console(highlight=False)
-err_console = Console(stderr=True, highlight=False)
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from rich.console import Console
+
+
+class _LazyConsole:
+    """Create a Rich console only when command output actually needs one."""
+
+    def __init__(self, *, stderr: bool = False) -> None:
+        self._stderr = stderr
+        self._console: Console | None = None
+
+    def _get(self) -> Console:
+        if self._console is None:
+            # Lazy import: Rich console setup is not needed while building `cf --help`.
+            from rich.console import Console  # noqa: PLC0415
+
+            self._console = Console(stderr=self._stderr, highlight=False)
+        return self._console
+
+    def print(self, *args: Any, **kwargs: Any) -> None:
+        """Proxy print calls to the underlying Rich console."""
+        self._get().print(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._get(), name)
+
+
+console: Any = _LazyConsole()
+err_console: Any = _LazyConsole(stderr=True)
 
 
 # --- Message Constants ---
