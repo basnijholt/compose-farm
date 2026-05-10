@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Barn with Container Doors -->
+  <defs>
+    <linearGradient id="barnRed" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#D94B4B"/>
+      <stop offset="100%" style="stop-color:#B33A3A"/>
+    </linearGradient>
+    <linearGradient id="roofRed" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#C44040"/>
+      <stop offset="100%" style="stop-color:#9E2E2E"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Barn body -->
+  <rect x="40" y="90" width="120" height="80" fill="url(#barnRed)" rx="2"/>
+
+  <!-- Barn roof -->
+  <polygon points="30,90 100,40 170,90" fill="url(#roofRed)"/>
+
+  <!-- Roof cupola -->
+  <rect x="90" y="35" width="20" height="15" fill="#8B4513"/>
+  <polygon points="85,35 100,20 115,35" fill="#A0522D"/>
+
+  <!-- Container doors (left) -->
+  <rect x="48" y="105" width="45" height="58" fill="#2496ED" rx="2"/>
+  <rect x="50" y="107" width="41" height="12" fill="#1A7AC7" rx="1"/>
+  <rect x="50" y="121" width="41" height="12" fill="#1A7AC7" rx="1"/>
+  <rect x="50" y="135" width="41" height="12" fill="#1A7AC7" rx="1"/>
+  <rect x="50" y="149" width="41" height="12" fill="#1A7AC7" rx="1"/>
+
+  <!-- Container doors (right) -->
+  <rect x="107" y="105" width="45" height="58" fill="#2496ED" rx="2"/>
+  <rect x="109" y="107" width="41" height="12" fill="#1A7AC7" rx="1"/>
+  <rect x="109" y="121" width="41" height="12" fill="#1A7AC7" rx="1"/>
+  <rect x="109" y="135" width="41" height="12" fill="#1A7AC7" rx="1"/>
+  <rect x="109" y="149" width="41" height="12" fill="#1A7AC7" rx="1"/>
+
+  <!-- Door handles -->
+  <circle cx="90" cy="134" r="3" fill="#F0F0F0"/>
+  <circle cx="110" cy="134" r="3" fill="#F0F0F0"/>
+
+  <!-- Ground -->
+  <ellipse cx="100" cy="175" rx="70" ry="8" fill="#5D8A3E" opacity="0.6"/>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Single bold mark: container + leaf combined -->
+
+  <!-- Main container shape -->
+  <rect x="40" y="60" width="120" height="100" rx="10" fill="#2496ED"/>
+
+  <!-- Leaf growing from top-right corner -->
+  <path d="M140 60
+           Q170 30, 160 55
+           Q175 25, 145 50
+           Q165 15, 130 50
+           L140 60"
+        fill="#4CAF50"/>
+
+  <!-- Minimal internal lines -->
+  <line x1="55" y1="95" x2="145" y2="95" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
+  <line x1="55" y1="125" x2="145" y2="125" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
+</svg>

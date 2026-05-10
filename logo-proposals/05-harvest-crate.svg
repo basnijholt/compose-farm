@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Harvest Crate / Container Hybrid -->
+  <defs>
+    <linearGradient id="wood" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#DEB887"/>
+      <stop offset="100%" style="stop-color:#B8860B"/>
+    </linearGradient>
+    <linearGradient id="blueAccent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#2496ED"/>
+      <stop offset="100%" style="stop-color:#1976D2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Crate back panel (3D effect) -->
+  <polygon points="45,60 155,60 175,45 65,45" fill="#A0522D"/>
+  <polygon points="155,60 155,150 175,135 175,45" fill="#8B4513"/>
+
+  <!-- Main crate body -->
+  <rect x="45" y="60" width="110" height="90" fill="url(#wood)" rx="3"/>
+
+  <!-- Horizontal slats -->
+  <rect x="45" y="60" width="110" height="18" fill="#C9A86C" rx="2"/>
+  <rect x="45" y="82" width="110" height="18" fill="#C9A86C" rx="2"/>
+  <rect x="45" y="104" width="110" height="18" fill="#C9A86C" rx="2"/>
+  <rect x="45" y="126" width="110" height="18" fill="#C9A86C" rx="2"/>
+
+  <!-- Slat gaps (darker lines) -->
+  <line x1="45" y1="78" x2="155" y2="78" stroke="#8B7355" stroke-width="2"/>
+  <line x1="45" y1="100" x2="155" y2="100" stroke="#8B7355" stroke-width="2"/>
+  <line x1="45" y1="122" x2="155" y2="122" stroke="#8B7355" stroke-width="2"/>
+  <line x1="45" y1="144" x2="155" y2="144" stroke="#8B7355" stroke-width="2"/>
+
+  <!-- Blue container-style corner brackets -->
+  <path d="M45 60 L45 90 L55 90 L55 70 L75 70 L75 60 Z" fill="url(#blueAccent)"/>
+  <path d="M155 60 L155 90 L145 90 L145 70 L125 70 L125 60 Z" fill="url(#blueAccent)"/>
+  <path d="M45 150 L45 120 L55 120 L55 140 L75 140 L75 150 Z" fill="url(#blueAccent)"/>
+  <path d="M155 150 L155 120 L145 120 L145 140 L125 140 L125 150 Z" fill="url(#blueAccent)"/>
+
+  <!-- Docker/container symbol in center -->
+  <g transform="translate(100, 105)">
+    <rect x="-25" y="-15" width="50" height="30" fill="#2496ED" rx="3" opacity="0.9"/>
+    <!-- Container boxes inside -->
+    <rect x="-22" y="-12" width="12" height="8" fill="#fff" rx="1"/>
+    <rect x="-7" y="-12" width="12" height="8" fill="#fff" rx="1"/>
+    <rect x="8" y="-12" width="12" height="8" fill="#fff" rx="1"/>
+    <rect x="-22" y="0" width="12" height="8" fill="#fff" rx="1"/>
+    <rect x="-7" y="0" width="12" height="8" fill="#fff" rx="1"/>
+    <rect x="8" y="0" width="12" height="8" fill="#fff" rx="1"/>
+  </g>
+
+  <!-- Rope handles -->
+  <ellipse cx="35" cy="100" rx="8" ry="15" fill="none" stroke="#8B7355" stroke-width="4"/>
+  <ellipse cx="165" cy="100" rx="8" ry="15" fill="none" stroke="#8B7355" stroke-width="4"/>
+
+  <!-- Ground shadow -->
+  <ellipse cx="100" cy="160" rx="60" ry="8" fill="#333" opacity="0.2"/>
+</svg>

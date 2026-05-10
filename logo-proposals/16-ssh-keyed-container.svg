@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <title>Compose Farm - SSH keyed access</title>
+  <defs>
+    <linearGradient id="cfBlue16" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2496ED"/>
+      <stop offset="100%" stop-color="#1565C0"/>
+    </linearGradient>
+    <linearGradient id="cfGreen16" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#66BB6A"/>
+      <stop offset="100%" stop-color="#2E7D32"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Container -->
+  <g>
+    <rect x="70" y="70" width="115" height="90" rx="10" fill="url(#cfBlue16)"/>
+    <rect x="70" y="70" width="14" height="90" rx="6" fill="#0D47A1" opacity="0.9"/>
+    <rect x="171" y="70" width="14" height="90" rx="6" fill="#0D47A1" opacity="0.9"/>
+    <g fill="#1A7AC7" opacity="0.9">
+      <rect x="88" y="86" width="78" height="12" rx="4"/>
+      <rect x="88" y="104" width="78" height="12" rx="4"/>
+      <rect x="88" y="122" width="78" height="12" rx="4"/>
+      <rect x="88" y="140" width="78" height="12" rx="4"/>
+    </g>
+  </g>
+
+  <!-- SSH key -->
+  <g>
+    <circle cx="38" cy="118" r="18" fill="url(#cfGreen16)"/>
+    <circle cx="38" cy="118" r="7" fill="#E8F5E9" opacity="0.95"/>
+    <rect x="54" y="110" width="92" height="16" rx="8" fill="url(#cfGreen16)"/>
+    <rect x="112" y="126" width="12" height="16" rx="3" fill="#2E7D32"/>
+    <rect x="130" y="126" width="12" height="24" rx="3" fill="#2E7D32"/>
+  </g>
+
+  <!-- Key insertion hint -->
+  <path d="M62 118 L78 118" stroke="#E8F5E9" stroke-width="4" stroke-linecap="round" opacity="0.8"/>
+</svg>
