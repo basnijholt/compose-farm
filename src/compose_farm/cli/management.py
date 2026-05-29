@@ -55,6 +55,7 @@ from compose_farm.operations import (
     check_host_compatibility,
     check_stack_requirements,
 )
+from compose_farm.plugins import HookExecutionError, HookManager, list_available_plugins
 from compose_farm.state import get_orphaned_stacks, load_state, save_state
 
 # --- Sync helpers ---
@@ -620,6 +621,49 @@ def check(
         raise typer.Exit(1)
 
 
+@app.command(rich_help_panel="Configuration")
+def plugins(
+    config: ConfigOption = None,
+) -> None:
+    """List and validate lifecycle hook plugins."""
+    cfg = load_config_or_exit(config)
+
+    available = list_available_plugins()
+    if available:
+        console.print(f"[green]Available plugins[/] ({len(available)}):")
+        for name in available:
+            console.print(f"  [cyan]{name}[/]")
+    else:
+        console.print("[yellow]No discoverable plugins found.[/]")
+
+    if not cfg.plugins:
+        console.print("\n[dim]No plugins enabled in config.[/]")
+        return
+
+    console.print(f"\n[blue]Configured plugins[/] ({len(cfg.plugins)}):")
+    for name in cfg.plugins:
+        console.print(f"  [cyan]{name}[/]")
+
+    try:
+        manager = HookManager.from_config(cfg)
+    except HookExecutionError as exc:
+        print_error(str(exc))
+        raise typer.Exit(1) from exc
+
+    hooks = manager.hook_registrations()
+    if not hooks:
+        print_warning("Configured plugins loaded, but no hooks are registered")
+        return
+
+    console.print(f"\n[green]Registered hooks[/] ({len(hooks)}):")
+    for hook in hooks:
+        console.print(
+            "  "
+            f"[cyan]{hook.plugin}[/]:[magenta]{hook.hook}[/] "
+            f"[dim]event={hook.event.value} policy={hook.policy.value}[/]"
+        )
+
+
 @app.command("init-network", rich_help_panel="Configuration")
 def init_network(
     hosts: Annotated[
@@ -693,3 +737,4 @@ def init_network(
 app.command("rf", hidden=True)(refresh)  # cf rf = cf refresh
 app.command("ck", hidden=True)(check)  # cf ck = cf check
 app.command("tf", hidden=True)(traefik_file)  # cf tf = cf traefik-file
+app.command("pl", hidden=True)(plugins)  # cf pl = cf plugins

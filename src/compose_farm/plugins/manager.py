@@ -6,15 +6,17 @@ import inspect
 from collections import defaultdict
 from dataclasses import dataclass, replace
 from importlib.metadata import entry_points
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from compose_farm.console import print_warning
 
 from .types import HookContext, HookEvent, HookPolicy, HookRegistration, HookResult
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
     from importlib.metadata import EntryPoint
+
+    import typer
 
     from compose_farm.config import Config
 
@@ -120,6 +122,113 @@ class HookManager:
                 )
 
         return results
+
+    @property
+    def plugin_names(self) -> tuple[str, ...]:
+        """Loaded plugin names in dispatch order."""
+        return tuple(plugin.name for plugin in self._plugins)
+
+    def hook_registrations(self) -> tuple[HookRegistration, ...]:
+        """All registered hooks across plugins."""
+        hooks: list[HookRegistration] = []
+        for plugin in self._plugins:
+            hooks.extend(plugin.hooks)
+        return tuple(hooks)
+
+
+def list_available_plugins() -> list[str]:
+    """List plugin names discoverable from entry points."""
+    eps = entry_points(group=ENTRYPOINT_GROUP)
+    return sorted(ep.name for ep in eps)
+
+
+class PluginCLIRegistrar:
+    """Safe command registrar exposed to plugins for CLI extension.
+
+    Prevents plugins from overriding existing top-level command/group names.
+    """
+
+    def __init__(self, app: typer.Typer, plugin_name: str, reserved_names: set[str]) -> None:
+        """Create a plugin command registrar for one plugin."""
+        self._app = app
+        self._plugin_name = plugin_name
+        self._reserved_names = reserved_names
+
+    def command(self, name: str, **kwargs: Any) -> Callable[[Any], Any]:
+        """Register a top-level command owned by a plugin."""
+        self._assert_name_available(name)
+
+        def decorator(func: Any) -> Any:
+            command_decorator = self._app.command(name=name, **kwargs)
+            wrapped = command_decorator(func)
+            self._reserved_names.add(name)
+            return wrapped
+
+        return decorator
+
+    def add_typer(self, sub_app: typer.Typer, *, name: str, **kwargs: Any) -> None:
+        """Register a top-level subcommand group owned by a plugin."""
+        self._assert_name_available(name)
+        self._app.add_typer(sub_app, name=name, **kwargs)
+        self._reserved_names.add(name)
+
+    def _assert_name_available(self, name: str) -> None:
+        if name in self._reserved_names:
+            msg = (
+                f"Plugin {self._plugin_name!r} cannot register CLI name {name!r}: "
+                "name already exists"
+            )
+            raise HookExecutionError(msg)
+
+
+def register_cli_commands(app: typer.Typer) -> tuple[str, ...]:
+    """Allow plugins to register additional CLI commands/groups.
+
+    Plugins can expose a callable `register_cli_commands(registrar)` method.
+    Registration order follows plugin entry-point name order for deterministic behavior.
+    """
+    reserved_names = _collect_registered_cli_names(app)
+    loaded_plugins: list[str] = []
+
+    eps = sorted(entry_points(group=ENTRYPOINT_GROUP), key=lambda ep: ep.name)
+    for ep in eps:
+        loaded = ep.load()
+        plugin_obj = loaded() if callable(loaded) else loaded
+        register_commands = getattr(plugin_obj, "register_cli_commands", None)
+        if register_commands is None:
+            continue
+        if not callable(register_commands):
+            msg = f"Plugin {ep.name!r} has non-callable register_cli_commands"
+            raise HookExecutionError(msg)
+
+        registrar = PluginCLIRegistrar(app=app, plugin_name=ep.name, reserved_names=reserved_names)
+        register_commands(registrar)
+        loaded_plugins.append(ep.name)
+
+    return tuple(loaded_plugins)
+
+
+def _collect_registered_cli_names(app: typer.Typer) -> set[str]:
+    """Collect existing top-level command/group names from a Typer app."""
+    names: set[str] = set()
+
+    for command_info in getattr(app, "registered_commands", []):
+        explicit = getattr(command_info, "name", None)
+        if isinstance(explicit, str) and explicit:
+            names.add(explicit)
+            continue
+
+        callback = getattr(command_info, "callback", None)
+        callback_name = getattr(callback, "__name__", None)
+        if isinstance(callback_name, str) and callback_name:
+            names.add(callback_name.replace("_", "-"))
+
+    for group_info in getattr(app, "registered_groups", []):
+        group_name = getattr(group_info, "name", None)
+        if isinstance(group_name, str) and group_name:
+            names.add(group_name)
+
+    return names
 
 
 def _discover_plugins(*, enabled: list[str]) -> list[HookPlugin]:

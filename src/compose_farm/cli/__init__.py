@@ -14,6 +14,11 @@ from compose_farm.cli import (
 
 # Import the shared app instance
 from compose_farm.cli.app import app
+from compose_farm.plugins import register_cli_commands
+
+# Allow plugins to extend the CLI with additional top-level commands.
+# Names are collision-checked by the plugin registrar.
+register_cli_commands(app)
 
 __all__ = ["app"]
 

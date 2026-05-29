@@ -1,6 +1,12 @@
-"""Lifecycle hook plugin framework for compose-farm."""
+"""Lifecycle hook and CLI plugin framework for compose-farm."""
 
-from .manager import HookExecutionError, HookManager
+from .manager import (
+    HookExecutionError,
+    HookManager,
+    PluginCLIRegistrar,
+    list_available_plugins,
+    register_cli_commands,
+)
 from .types import HookContext, HookEvent, HookPolicy, HookRegistration, HookResult
 
 __all__ = [
@@ -11,4 +17,7 @@ __all__ = [
     "HookPolicy",
     "HookRegistration",
     "HookResult",
+    "PluginCLIRegistrar",
+    "list_available_plugins",
+    "register_cli_commands",
 ]
