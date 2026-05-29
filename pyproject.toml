@@ -71,6 +71,7 @@ cf = "compose_farm.cli:app"
 
 [project.entry-points."compose_farm.plugins"]
 command-hooks = "compose_farm.plugins.builtin.command_hooks:CommandHooksPlugin"
+sync = "compose_farm.plugins.builtin.sync:SyncPlugin"
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

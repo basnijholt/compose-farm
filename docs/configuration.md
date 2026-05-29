@@ -165,6 +165,23 @@ plugin_config:
 
 Policy overrides in `plugin_config.<plugin>.policies` map hook names to `blocking` or `warn`.
 
+#### sync plugin (core)
+
+Syncs local stack directories into each host's `compose_dir/<stack>` path.
+
+```yaml
+plugins:
+  - sync
+
+plugin_config:
+  sync:
+    source_dir: ./stacks
+    events: [pre_up, pre_apply]
+    rsync_flags: ["-az"]
+    excludes: [".git", "*.tmp"]
+    delete: true
+```
+
 ## Hosts Configuration
 
 ### Basic Host

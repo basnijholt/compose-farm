@@ -132,6 +132,8 @@ cf plugins
 
 # Validate plugins against a specific config file
 cf plugins --config ~/.config/compose-farm/compose-farm.yaml
+
+# Typical output should include core plugins (for example: sync, command-hooks)
 ```
 
 ---

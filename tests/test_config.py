@@ -214,6 +214,30 @@ class TestConfig:
         # Defaults to compose.yaml when no file exists
         assert path == Path("/opt/compose/plex/compose.yaml")
 
+    def test_get_compose_path_prefers_sync_source_when_enabled(self, tmp_path: Path) -> None:
+        """When sync is enabled, compose path is resolved from sync source_dir first."""
+        source_stack_dir = tmp_path / "stacks" / "plex"
+        source_stack_dir.mkdir(parents=True)
+        (source_stack_dir / "compose.yaml").write_text("services: {}\n")
+
+        compose_runtime_stack_dir = tmp_path / "runtime" / "plex"
+        compose_runtime_stack_dir.mkdir(parents=True)
+        (compose_runtime_stack_dir / "compose.yaml").write_text("services: {runtime: {}}\n")
+
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text("")
+
+        config = Config(
+            compose_dir=tmp_path / "runtime",
+            hosts={"nas01": Host(address="192.168.1.10")},
+            stacks={"plex": "nas01"},
+            plugins=["sync"],
+            plugin_config={"sync": {"source_dir": "./stacks"}},
+            config_path=config_file,
+        )
+
+        assert config.get_compose_path("plex") == source_stack_dir / "compose.yaml"
+
     def test_get_web_stack_returns_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """get_web_stack returns CF_WEB_STACK env var."""
         monkeypatch.setenv("CF_WEB_STACK", "compose-farm")

@@ -242,13 +242,28 @@ class Config(BaseModel, extra="forbid"):
         Note: This checks local filesystem. For remote execution, use
         get_stack_dir() and let docker compose find the file.
         """
+        search_dirs: list[Path] = []
+
+        if self.is_plugin_enabled("sync"):
+            sync_cfg = self.get_plugin_config("sync")
+            source_dir_raw = sync_cfg.get("source_dir")
+            if isinstance(source_dir_raw, str) and source_dir_raw:
+                source_root = Path(source_dir_raw).expanduser()
+                if not source_root.is_absolute() and self.config_path:
+                    source_root = (self.config_path.parent / source_root).resolve()
+                search_dirs.append(source_root / stack)
+
         stack_dir = self.get_stack_dir(stack)
-        for filename in COMPOSE_FILENAMES:
-            candidate = stack_dir / filename
-            if candidate.exists():
-                return candidate
+        search_dirs.append(stack_dir)
+
+        for base_dir in search_dirs:
+            for filename in COMPOSE_FILENAMES:
+                candidate = base_dir / filename
+                if candidate.exists():
+                    return candidate
+
         # Default to compose.yaml if none exist (will error later)
-        return stack_dir / "compose.yaml"
+        return search_dirs[0] / "compose.yaml"
 
     def discover_compose_dirs(self) -> set[str]:
         """Find all directories in compose_dir that contain a compose file."""
