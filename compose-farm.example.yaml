@@ -7,6 +7,21 @@ compose_dir: /opt/compose
 traefik_file: /opt/traefik/dynamic.d/compose-farm.yml
 traefik_stack: traefik  # Skip stacks on same host (docker provider handles them)
 
+# Optional: Enable lifecycle hook plugins (discovered via Python entry points)
+# plugins:
+#   - command-hooks
+
+# Optional: Per-plugin configuration
+# plugin_config:
+#   command-hooks:
+#     hooks:
+#       pre_apply:
+#         - "echo Preparing apply"
+#       pre_migrate:
+#         - "./scripts/migrate-data.sh {stack} {source_host} {target_host}"
+#     policies:
+#       run-commands: warn
+
 hosts:
   # Full form with all options
   server-1:
