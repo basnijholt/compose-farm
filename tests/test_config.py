@@ -1,9 +1,11 @@
 """Tests for config module."""
 
 from pathlib import Path
+from typing import Literal
 
 import pytest
 import yaml
+from pydantic import BaseModel
 
 from compose_farm.config import Config, Host, load_config
 
@@ -41,6 +43,140 @@ class TestConfig:
         assert config.compose_dir == Path("/opt/compose")
         assert "nas01" in config.hosts
         assert config.stacks["plex"] == "nas01"
+
+    def test_plugin_defaults(self) -> None:
+        """Plugin fields default to empty collections."""
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas01": Host(address="192.168.1.10")},
+            stacks={"plex": "nas01"},
+        )
+        assert config.plugins == []
+        assert config.plugin_config == {}
+
+    def test_get_plugin_config(self) -> None:
+        """Plugin-specific config can be retrieved safely."""
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas01": Host(address="192.168.1.10")},
+            stacks={"plex": "nas01"},
+            plugins=["lab"],
+            plugin_config={"lab": {"mode": "fast"}},
+        )
+        assert config.get_plugin_config("lab") == {"mode": "fast"}
+        assert config.get_plugin_config("missing") == {}
+
+    def test_plugin_config_sync_validates_with_model(self) -> None:
+        """Known built-in plugin config is validated and normalized."""
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas01": Host(address="192.168.1.10")},
+            stacks={"plex": "nas01"},
+            plugins=["sync"],
+            plugin_config={
+                "sync": {
+                    "source_dir": "./stacks",
+                    "events": ["pre_apply", "pre_up"],
+                    "policies": {"sync-tree": "warn"},
+                }
+            },
+        )
+        assert config.get_plugin_config("sync")["source_dir"] == "./stacks"
+        assert config.get_plugin_config("sync")["events"] == ["pre_apply", "pre_up"]
+        assert config.get_plugin_config("sync")["policies"] == {"sync-tree": "warn"}
+
+    def test_plugin_config_sync_rejects_invalid_event(self) -> None:
+        """Known built-in plugin config rejects invalid event names."""
+        with pytest.raises(ValueError, match=r"Invalid plugin_config\.sync"):
+            Config(
+                compose_dir=Path("/opt/compose"),
+                hosts={"nas01": Host(address="192.168.1.10")},
+                stacks={"plex": "nas01"},
+                plugins=["sync"],
+                plugin_config={"sync": {"events": ["not-an-event"]}},
+            )
+
+    def test_plugin_config_command_hooks_rejects_unknown_fields(self) -> None:
+        """Known built-in plugin config enforces schema strictly."""
+        with pytest.raises(ValueError, match=r"Invalid plugin_config\.command-hooks"):
+            Config(
+                compose_dir=Path("/opt/compose"),
+                hosts={"nas01": Host(address="192.168.1.10")},
+                stacks={"plex": "nas01"},
+                plugins=["command-hooks"],
+                plugin_config={"command-hooks": {"unknown": True}},
+            )
+
+    def test_plugin_config_uses_out_of_tree_plugin_model(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Out-of-tree plugins can register a Pydantic config model via entry points."""
+
+        class ExternalPluginConfig(BaseModel, extra="forbid"):
+            mode: Literal["fast", "safe"]
+
+        class FakeEntryPoint:
+            name = "external-plugin"
+
+            def load(self) -> type[ExternalPluginConfig]:
+                return ExternalPluginConfig
+
+        monkeypatch.setattr(
+            "compose_farm.config.entry_points",
+            lambda *, group: [FakeEntryPoint()]
+            if group == "compose_farm.plugin_config_models"
+            else [],
+        )
+
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas01": Host(address="192.168.1.10")},
+            stacks={"plex": "nas01"},
+            plugins=["external-plugin"],
+            plugin_config={"external-plugin": {"mode": "fast"}},
+        )
+        assert config.get_plugin_config("external-plugin") == {"mode": "fast"}
+
+    def test_plugin_config_rejects_invalid_out_of_tree_plugin_config(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Out-of-tree plugin schema validation errors are surfaced clearly."""
+
+        class ExternalPluginConfig(BaseModel, extra="forbid"):
+            mode: Literal["fast", "safe"]
+
+        class FakeEntryPoint:
+            name = "external-plugin"
+
+            def load(self) -> type[ExternalPluginConfig]:
+                return ExternalPluginConfig
+
+        monkeypatch.setattr(
+            "compose_farm.config.entry_points",
+            lambda *, group: [FakeEntryPoint()]
+            if group == "compose_farm.plugin_config_models"
+            else [],
+        )
+
+        with pytest.raises(ValueError, match=r"Invalid plugin_config\.external-plugin"):
+            Config(
+                compose_dir=Path("/opt/compose"),
+                hosts={"nas01": Host(address="192.168.1.10")},
+                stacks={"plex": "nas01"},
+                plugins=["external-plugin"],
+                plugin_config={"external-plugin": {"mode": "invalid"}},
+            )
+
+    def test_is_plugin_enabled(self) -> None:
+        """Plugin activation can be checked uniformly."""
+        config = Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas01": Host(address="192.168.1.10")},
+            stacks={"plex": "nas01"},
+            plugins=["sync", "lab"],
+        )
+        assert config.is_plugin_enabled("sync") is True
+        assert config.is_plugin_enabled("missing") is False
 
     def test_config_invalid_stack_host(self) -> None:
         with pytest.raises(ValueError, match="unknown host"):
