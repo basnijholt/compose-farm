@@ -28,6 +28,7 @@ Commands are either **Docker Compose wrappers** (`up`, `down`, `stop`, `restart`
 | | `refresh` | Sync state from reality |
 | | `init-network` | Create Docker network |
 | | `traefik-file` | Generate Traefik config |
+| | `plugins` | List and validate lifecycle hook plugins |
 | | `config` | Manage config files |
 | | `ssh` | Manage SSH keys |
 | **Server** | `web` | Start web UI |
@@ -50,6 +51,7 @@ Short aliases for frequently used commands:
 | `cf r` | `restart` | `cf rf` | `refresh` |
 | `cf u` | `update` | `cf ck` | `check` |
 | `cf p` | `pull` | `cf tf` | `traefik-file` |
+| `cf pl` | `plugins` | | |
 | `cf c` | `compose` | | |
 
 ---
@@ -102,6 +104,34 @@ cf apply --no-strays
 
 # Also run up on all stacks (applies compose/env changes, triggers migrations)
 cf apply --full
+```
+
+---
+
+## Configuration Commands
+
+### cf plugins
+
+Inspect plugin discovery and registered lifecycle hooks.
+
+```bash
+cf plugins [OPTIONS]
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `--config, -c PATH` | Path to config file |
+
+**Examples:**
+
+```bash
+# Show discoverable plugins and configured hooks
+cf plugins
+
+# Validate plugins against a specific config file
+cf plugins --config ~/.config/compose-farm/compose-farm.yaml
 ```
 
 ---

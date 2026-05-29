@@ -131,6 +131,40 @@ glances_stack: glances
 
 The Glances stack should run on all hosts and expose port 61208. See the README for full setup instructions.
 
+### plugins
+
+Enable lifecycle hook plugins by name (resolved through Python entry points under `compose_farm.plugins`).
+
+```yaml
+plugins:
+  - command-hooks
+```
+
+### plugin_config
+
+Per-plugin configuration map. Keys are plugin names, values are plugin-specific settings.
+
+```yaml
+plugin_config:
+  command-hooks:
+    hooks:
+      pre_apply:
+        - "echo preparing apply"
+      pre_migrate:
+        - "./scripts/migrate-data.sh {stack} {source_host} {target_host}"
+    policies:
+      run-commands: warn
+```
+
+`command-hooks` supports command templates with placeholders:
+- `{event}`
+- `{stack}`
+- `{source_host}`
+- `{target_host}`
+- `{dry_run}`
+
+Policy overrides in `plugin_config.<plugin>.policies` map hook names to `blocking` or `warn`.
+
 ## Hosts Configuration
 
 ### Basic Host

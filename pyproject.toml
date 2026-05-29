@@ -69,6 +69,9 @@ Changelog = "https://github.com/basnijholt/compose-farm/releases"
 compose-farm = "compose_farm.cli:app"
 cf = "compose_farm.cli:app"
 
+[project.entry-points."compose_farm.plugins"]
+command-hooks = "compose_farm.plugins.builtin.command_hooks:CommandHooksPlugin"
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
