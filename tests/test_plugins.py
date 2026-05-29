@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
+
 import pytest
 
 from compose_farm.config import Config, Host
@@ -15,6 +17,7 @@ from compose_farm.plugins import (
     HookRegistration,
     HookResult,
 )
+from compose_farm.plugins.manager import HookPlugin
 
 
 @pytest.fixture
@@ -116,3 +119,80 @@ async def test_async_hook_handler_supported(cfg: Config) -> None:
     )
     assert len(results) == 1
     assert results[0].success is True
+
+
+def test_from_config_applies_policy_override(tmp_path: Path) -> None:
+    """Config policy override updates hook policy."""
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"host1": Host(address="localhost")},
+        stacks={"svc": "host1"},
+        plugins=["lab"],
+        plugin_config={"lab": {"policies": {"sync": "warn"}}},
+    )
+
+    def handler(_context: HookContext) -> HookResult:
+        return HookResult(
+            plugin="lab",
+            hook="sync",
+            event=HookEvent.PRE_MIGRATE,
+            success=True,
+        )
+
+    plugin = HookPlugin(
+        name="lab",
+        hooks=(
+            HookRegistration(
+                plugin="lab",
+                hook="sync",
+                event=HookEvent.PRE_MIGRATE,
+                handler=handler,
+                policy=HookPolicy.BLOCKING,
+            ),
+        ),
+    )
+
+    with patch("compose_farm.plugins.manager._discover_plugins", return_value=[plugin]):
+        manager = HookManager.from_config(cfg)
+
+    hooks = manager.hook_registrations()
+    assert len(hooks) == 1
+    assert hooks[0].policy == HookPolicy.WARN
+
+
+def test_from_config_rejects_invalid_policy_override(tmp_path: Path) -> None:
+    """Invalid policy override raises HookExecutionError."""
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"host1": Host(address="localhost")},
+        stacks={"svc": "host1"},
+        plugins=["lab"],
+        plugin_config={"lab": {"policies": {"sync": "not-a-policy"}}},
+    )
+
+    def handler(_context: HookContext) -> HookResult:
+        return HookResult(
+            plugin="lab",
+            hook="sync",
+            event=HookEvent.PRE_MIGRATE,
+            success=True,
+        )
+
+    plugin = HookPlugin(
+        name="lab",
+        hooks=(
+            HookRegistration(
+                plugin="lab",
+                hook="sync",
+                event=HookEvent.PRE_MIGRATE,
+                handler=handler,
+                policy=HookPolicy.BLOCKING,
+            ),
+        ),
+    )
+
+    with (
+        patch("compose_farm.plugins.manager._discover_plugins", return_value=[plugin]),
+        pytest.raises(HookExecutionError),
+    ):
+        HookManager.from_config(cfg)

@@ -65,6 +65,7 @@ class HookManager:
             return cls.empty()
 
         discovered = _discover_plugins(enabled=cfg.plugins)
+        discovered = _apply_policy_overrides(discovered, cfg)
         return cls(plugins=discovered)
 
     async def dispatch(self, context: HookContext) -> list[HookResult]:
