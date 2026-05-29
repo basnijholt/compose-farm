@@ -11,6 +11,7 @@ import typer
 from compose_farm.cli.lifecycle import apply, down, pull, restart, stop, up, update
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
+from compose_farm.plugins import HookExecutionError
 
 
 def _make_config(tmp_path: Path, stacks: dict[str, str | list[str]] | None = None) -> Config:
@@ -70,6 +71,64 @@ def _run_async_returns(
 
 class TestApplyCommand:
     """Tests for the apply command."""
+
+    def test_apply_dispatches_pre_and_post_hooks(self, tmp_path: Path) -> None:
+        """Apply dispatches pre/post hooks in no-op flow."""
+        cfg = _make_config(tmp_path)
+        events: list[str] = []
+
+        async def mock_dispatch_apply_hook(
+            cfg: Config,
+            event: object,
+            *,
+            dry_run: bool,
+            metadata: dict[str, str] | None = None,
+        ) -> None:
+            _ = (cfg, dry_run, metadata)
+            events.append(str(event))
+
+        with (
+            patch(
+                "compose_farm.cli.lifecycle._dispatch_apply_hook",
+                side_effect=mock_dispatch_apply_hook,
+            ),
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_stacks", return_value={}),
+            patch("compose_farm.cli.lifecycle.get_stacks_needing_migration", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={}),
+        ):
+            apply(dry_run=False, no_orphans=False, no_strays=False, full=False, config=None)
+
+        assert events == ["pre_apply", "post_apply"]
+
+    def test_apply_exits_on_pre_hook_failure(self, tmp_path: Path) -> None:
+        """Blocking pre-apply hook failure aborts apply."""
+        cfg = _make_config(tmp_path)
+
+        async def mock_dispatch_apply_hook(
+            cfg: Config,
+            event: object,
+            *,
+            dry_run: bool,
+            metadata: dict[str, str] | None = None,
+        ) -> None:
+            _ = (cfg, dry_run, metadata)
+            if str(event) == "pre_apply":
+                message = "boom"
+                raise HookExecutionError(message)
+
+        with (
+            patch(
+                "compose_farm.cli.lifecycle._dispatch_apply_hook",
+                side_effect=mock_dispatch_apply_hook,
+            ),
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            pytest.raises(typer.Exit) as exc,
+        ):
+            apply(dry_run=False, no_orphans=False, no_strays=False, full=False, config=None)
+
+        assert exc.value.exit_code == 1
 
     def test_apply_nothing_to_do(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         """When no migrations, orphans, or missing stacks, prints success message."""

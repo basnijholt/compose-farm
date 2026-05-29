@@ -36,6 +36,7 @@ from compose_farm.operations import (
     stop_stray_stacks,
     up_stacks,
 )
+from compose_farm.plugins import HookContext, HookEvent, HookExecutionError, HookManager
 from compose_farm.state import (
     add_stack_host,
     get_orphaned_stacks,
@@ -49,6 +50,28 @@ from compose_farm.state import (
 def _single_target_raw_output(cfg: Config, stack_list: list[str]) -> bool:
     """Return whether compose can safely own the terminal for this operation."""
     return len(stack_list) == 1 and not cfg.is_multi_host(stack_list[0])
+
+
+async def _dispatch_apply_hook(
+    cfg: Config,
+    event: HookEvent,
+    *,
+    dry_run: bool,
+    metadata: dict[str, str] | None = None,
+) -> None:
+    """Dispatch apply-level hooks when plugins are enabled."""
+    if not cfg.plugins:
+        return
+
+    manager = HookManager.from_config(cfg)
+    context = HookContext(
+        event=event,
+        stack="*",
+        config=cfg,
+        dry_run=dry_run,
+        metadata=metadata or {},
+    )
+    await manager.dispatch(context)
 
 
 @app.command(rich_help_panel="Lifecycle")
@@ -296,6 +319,12 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
     Use --full to also run 'up' on all stacks (picks up compose/env changes).
     """
     cfg = load_config_or_exit(config)
+    try:
+        run_async(_dispatch_apply_hook(cfg, HookEvent.PRE_APPLY, dry_run=dry_run))
+    except HookExecutionError as exc:
+        print_error(f"Apply pre-hook failed: {exc}")
+        raise typer.Exit(1) from exc
+
     orphaned = get_orphaned_stacks(cfg)
     migrations = get_stacks_needing_migration(cfg)
     missing = get_stacks_not_in_state(cfg)
@@ -323,6 +352,18 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
         and not has_refresh
     ):
         print_success("Nothing to apply - reality matches config")
+        try:
+            run_async(
+                _dispatch_apply_hook(
+                    cfg,
+                    HookEvent.POST_APPLY,
+                    dry_run=dry_run,
+                    metadata={"status": "no_changes"},
+                )
+            )
+        except HookExecutionError as exc:
+            print_error(f"Apply post-hook failed: {exc}")
+            raise typer.Exit(1) from exc
         return
 
     # Report what will be done
@@ -355,6 +396,18 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
 
     if dry_run:
         console.print(f"\n{MSG_DRY_RUN}")
+        try:
+            run_async(
+                _dispatch_apply_hook(
+                    cfg,
+                    HookEvent.POST_APPLY,
+                    dry_run=dry_run,
+                    metadata={"status": "dry_run"},
+                )
+            )
+        except HookExecutionError as exc:
+            print_error(f"Apply post-hook failed: {exc}")
+            raise typer.Exit(1) from exc
         return
 
     # Execute changes
@@ -393,6 +446,18 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
         maybe_regenerate_traefik(cfg, refresh_results)
 
     report_results(all_results)
+    try:
+        run_async(
+            _dispatch_apply_hook(
+                cfg,
+                HookEvent.POST_APPLY,
+                dry_run=dry_run,
+                metadata={"status": "completed"},
+            )
+        )
+    except HookExecutionError as exc:
+        print_error(f"Apply post-hook failed: {exc}")
+        raise typer.Exit(1) from exc
 
 
 @app.command(

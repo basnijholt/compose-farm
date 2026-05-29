@@ -123,9 +123,9 @@ class TestConfig:
 
         monkeypatch.setattr(
             "compose_farm.config.entry_points",
-            lambda *, group: [FakeEntryPoint()]
-            if group == "compose_farm.plugin_config_models"
-            else [],
+            lambda *, group: (
+                [FakeEntryPoint()] if group == "compose_farm.plugin_config_models" else []
+            ),
         )
 
         config = Config(
@@ -153,9 +153,9 @@ class TestConfig:
 
         monkeypatch.setattr(
             "compose_farm.config.entry_points",
-            lambda *, group: [FakeEntryPoint()]
-            if group == "compose_farm.plugin_config_models"
-            else [],
+            lambda *, group: (
+                [FakeEntryPoint()] if group == "compose_farm.plugin_config_models" else []
+            ),
         )
 
         with pytest.raises(ValueError, match=r"Invalid plugin_config\.external-plugin"):

@@ -14,6 +14,14 @@ if TYPE_CHECKING:
 class HookEvent(StrEnum):
     """Supported lifecycle hook events."""
 
+    PRE_APPLY = "pre_apply"
+    POST_APPLY = "post_apply"
+    PRE_UP = "pre_up"
+    POST_UP = "post_up"
+    UP_FAILED = "up_failed"
+    PRE_DOWN = "pre_down"
+    POST_DOWN = "post_down"
+    DOWN_FAILED = "down_failed"
     PRE_MIGRATE = "pre_migrate"
     PRE_STOP_SOURCE = "pre_stop_source"
     POST_STOP_SOURCE = "post_stop_source"

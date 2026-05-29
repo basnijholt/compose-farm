@@ -4,12 +4,7 @@ from __future__ import annotations
 
 import inspect
 from collections import defaultdict
-<<<<<<< HEAD
-from collections.abc import Iterable
-from dataclasses import dataclass
-=======
 from dataclasses import dataclass, replace
->>>>>>> 9362a54 (fixup! feat(plugins): add lifecycle hook framework and config plumbing)
 from importlib.metadata import entry_points
 from typing import TYPE_CHECKING
 
@@ -154,8 +149,6 @@ def _load_plugin(ep: EntryPoint) -> HookPlugin:
 
     hooks = tuple(register_hooks())
     return HookPlugin(name=ep.name, hooks=hooks)
-<<<<<<< HEAD
-=======
 
 
 def _apply_policy_overrides(plugins: list[HookPlugin], cfg: Config) -> list[HookPlugin]:
@@ -214,4 +207,3 @@ def _coerce_hook_result(
 def _raise_hook_error(message: str) -> None:
     """Raise a normalized hook execution error."""
     raise HookExecutionError(message)
->>>>>>> 9362a54 (fixup! feat(plugins): add lifecycle hook framework and config plumbing)
