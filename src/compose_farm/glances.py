@@ -20,7 +20,8 @@ def format_bytes(bytes_val: int) -> str:
     """Format bytes to human readable string (e.g., 1.5 GiB)."""
     import humanize  # noqa: PLC0415
 
-    return humanize.naturalsize(bytes_val, binary=True, format="%.1f")
+    formatted = humanize.naturalsize(bytes_val, binary=True, format="%.1f")
+    return str(formatted)
 
 
 def _get_glances_address(
