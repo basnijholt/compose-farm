@@ -54,6 +54,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.compose-farm.rule=Host(`compose-farm.${DOMAIN}`)
+      - traefik.http.routers.compose-farm.middlewares=local-ips-only@file
       - traefik.http.routers.compose-farm.entrypoints=websecure
       - traefik.http.routers.compose-farm-local.rule=Host(`compose-farm.local`)
       - traefik.http.routers.compose-farm-local.entrypoints=web
