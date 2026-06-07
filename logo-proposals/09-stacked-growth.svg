@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Stacked containers with upward growth arrow -->
+
+  <!-- Bottom container -->
+  <rect x="50" y="130" width="100" height="35" rx="4" fill="#2496ED"/>
+
+  <!-- Middle container -->
+  <rect x="60" y="90" width="80" height="35" rx="4" fill="#42A5F5"/>
+
+  <!-- Top container -->
+  <rect x="70" y="50" width="60" height="35" rx="4" fill="#64B5F6"/>
+
+  <!-- Growth arrow emerging from top -->
+  <path d="M100 50 L100 25" stroke="#4CAF50" stroke-width="6" stroke-linecap="round"/>
+  <polygon points="100,15 90,28 110,28" fill="#4CAF50"/>
+</svg>
