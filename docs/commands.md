@@ -135,7 +135,7 @@ cf up plex grafana
 cf up --all
 
 # Start all stacks on a specific host
-cf up --all --host nuc
+cf up --host nuc
 
 # Start a specific service within a stack
 cf up immich --service database
@@ -182,7 +182,7 @@ cf down --all
 cf down --orphaned
 
 # Stop all stacks on a host
-cf down --all --host nuc
+cf down --host nuc
 ```
 
 ---
@@ -200,6 +200,7 @@ cf stop [OPTIONS] [STACKS]...
 | Option | Description |
 |--------|-------------|
 | `--all, -a` | Stop all stacks |
+| `--host, -H TEXT` | Filter to stacks on this host |
 | `--service, -s TEXT` | Target a specific service within the stack |
 | `--config, -c PATH` | Path to config file |
 
@@ -211,6 +212,9 @@ cf stop plex
 
 # Stop all stacks
 cf stop --all
+
+# Stop all stacks on a host
+cf stop --host pc
 
 # Stop a specific service within a stack
 cf stop immich --service database
@@ -231,6 +235,7 @@ cf restart [OPTIONS] [STACKS]...
 | Option | Description |
 |--------|-------------|
 | `--all, -a` | Restart all stacks |
+| `--host, -H TEXT` | Filter to stacks on this host |
 | `--service, -s TEXT` | Target a specific service within the stack |
 | `--config, -c PATH` | Path to config file |
 
@@ -239,6 +244,7 @@ cf restart [OPTIONS] [STACKS]...
 ```bash
 cf restart plex
 cf restart --all
+cf restart --host pc
 
 # Restart a specific service
 cf restart immich --service database
@@ -263,6 +269,7 @@ cf update [OPTIONS] [STACKS]...
 | Option | Description |
 |--------|-------------|
 | `--all, -a` | Update all stacks |
+| `--host, -H TEXT` | Filter to stacks on this host |
 | `--service, -s TEXT` | Target a specific service within the stack |
 | `--config, -c PATH` | Path to config file |
 
@@ -274,6 +281,9 @@ cf update plex
 
 # Update all stacks
 cf update --all
+
+# Update all stacks on a host
+cf update --host pc
 
 # Update a specific service
 cf update immich --service database
@@ -294,6 +304,7 @@ cf pull [OPTIONS] [STACKS]...
 | Option | Description |
 |--------|-------------|
 | `--all, -a` | Pull for all stacks |
+| `--host, -H TEXT` | Filter to stacks on this host |
 | `--service, -s TEXT` | Target a specific service within the stack |
 | `--config, -c PATH` | Path to config file |
 
@@ -302,6 +313,7 @@ cf pull [OPTIONS] [STACKS]...
 ```bash
 cf pull plex
 cf pull --all
+cf pull --host pc
 
 # Pull a specific service
 cf pull immich --service database

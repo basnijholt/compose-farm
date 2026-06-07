@@ -157,17 +157,18 @@ def down(
 def stop(
     stacks: StacksArg = None,
     all_stacks: AllOption = False,
+    host: HostOption = None,
     service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
     """Stop services without removing containers (docker compose stop)."""
-    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
     if service and len(stack_list) != 1:
         print_error("--service requires exactly one stack")
         raise typer.Exit(1)
     cmd = f"stop {service}" if service else "stop"
     raw = len(stack_list) == 1
-    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw, filter_host=host))
     report_results(results)
 
 
@@ -175,17 +176,18 @@ def stop(
 def pull(
     stacks: StacksArg = None,
     all_stacks: AllOption = False,
+    host: HostOption = None,
     service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
     """Pull latest images (docker compose pull)."""
-    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
     if service and len(stack_list) != 1:
         print_error("--service requires exactly one stack")
         raise typer.Exit(1)
     cmd = f"pull --ignore-buildable {service}" if service else "pull --ignore-buildable"
     raw = len(stack_list) == 1
-    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw, filter_host=host))
     report_results(results)
 
 
@@ -193,11 +195,12 @@ def pull(
 def restart(
     stacks: StacksArg = None,
     all_stacks: AllOption = False,
+    host: HostOption = None,
     service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
     """Restart running containers (docker compose restart)."""
-    stack_list, cfg = get_stacks(stacks or [], all_stacks, config)
+    stack_list, cfg = get_stacks(stacks or [], all_stacks, config, host=host)
     if service:
         if len(stack_list) != 1:
             print_error("--service requires exactly one stack")
@@ -206,7 +209,7 @@ def restart(
     else:
         cmd = "restart"
     raw = len(stack_list) == 1
-    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw))
+    results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw, filter_host=host))
     report_results(results)
 
 
@@ -214,11 +217,20 @@ def restart(
 def update(
     stacks: StacksArg = None,
     all_stacks: AllOption = False,
+    host: HostOption = None,
     service: ServiceOption = None,
     config: ConfigOption = None,
 ) -> None:
     """Update stacks (pull + build + up). Shorthand for 'up --pull --build'."""
-    up(stacks=stacks, all_stacks=all_stacks, service=service, pull=True, build=True, config=config)
+    up(
+        stacks=stacks,
+        all_stacks=all_stacks,
+        host=host,
+        service=service,
+        pull=True,
+        build=True,
+        config=config,
+    )
 
 
 def _discover_strays(cfg: Config) -> dict[str, list[str]]:
