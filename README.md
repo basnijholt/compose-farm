@@ -374,9 +374,9 @@ These wrap `docker compose` with multi-host superpowers:
 |---------|-------|------------------------|
 | `cf up` | `up -d` | `--all`, `--host`, parallel execution, auto-migration |
 | `cf down` | `down` | `--all`, `--host`, `--orphaned`, state tracking |
-| `cf stop` | `stop` | `--all`, `--service` |
-| `cf restart` | `restart` | `--all`, `--service` |
-| `cf pull` | `pull` | `--all`, `--service`, parallel execution |
+| `cf stop` | `stop` | `--all`, `--host`, `--service` |
+| `cf restart` | `restart` | `--all`, `--host`, `--service` |
+| `cf pull` | `pull` | `--all`, `--host`, `--service`, parallel execution |
 | `cf logs` | `logs` | `--all`, `--host`, multi-stack output |
 | `cf ps` | `ps` | `--all`, `--host`, unified cross-host view |
 | `cf compose` | any | passthrough for commands not listed above |
@@ -388,7 +388,7 @@ Multi-host orchestration that Docker Compose can't do:
 | Command | Description |
 |---------|-------------|
 | **`cf apply`** | **Reconcile: start missing, migrate moved, stop orphans** |
-| `cf update` | Shorthand for `up --pull --build` |
+| `cf update` | Shorthand for `up --pull --build`; supports `--host` |
 | `cf refresh` | Sync state from what's actually running |
 | `cf check` | Validate config, mounts, networks |
 | `cf init-network` | Create Docker network on all hosts |
@@ -427,12 +427,15 @@ cf down --orphaned     # stop stacks removed from config
 
 # Pull latest images
 cf pull --all
+cf pull --host pc
 
 # Restart running containers
 cf restart plex
+cf restart --host pc
 
 # Update (pull + build, only recreates containers if images changed)
 cf update --all
+cf update --host pc
 
 # Update state from reality (discovers running stacks + captures digests)
 cf refresh             # updates compose-farm-state.yaml and dockerfarm-log.toml
@@ -620,6 +623,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all      -a            Run on all stacks                                             │
+│ --host     -H      TEXT  Filter to stacks on this host                                 │
 │ --service  -s      TEXT  Target a specific service within the stack                    │
 │ --config   -c      PATH  Path to config file                                           │
 │ --help     -h            Show this message and exit.                                   │
@@ -655,6 +659,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all      -a            Run on all stacks                                             │
+│ --host     -H      TEXT  Filter to stacks on this host                                 │
 │ --service  -s      TEXT  Target a specific service within the stack                    │
 │ --config   -c      PATH  Path to config file                                           │
 │ --help     -h            Show this message and exit.                                   │
@@ -690,6 +695,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all      -a            Run on all stacks                                             │
+│ --host     -H      TEXT  Filter to stacks on this host                                 │
 │ --service  -s      TEXT  Target a specific service within the stack                    │
 │ --config   -c      PATH  Path to config file                                           │
 │ --help     -h            Show this message and exit.                                   │
@@ -725,6 +731,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all      -a            Run on all stacks                                             │
+│ --host     -H      TEXT  Filter to stacks on this host                                 │
 │ --service  -s      TEXT  Target a specific service within the stack                    │
 │ --config   -c      PATH  Path to config file                                           │
 │ --help     -h            Show this message and exit.                                   │

@@ -8,12 +8,12 @@ from unittest.mock import patch
 import pytest
 import typer
 
-from compose_farm.cli.lifecycle import apply, down
+from compose_farm.cli.lifecycle import apply, down, pull, restart, stop, update
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
 
 
-def _make_config(tmp_path: Path, stacks: dict[str, str] | None = None) -> Config:
+def _make_config(tmp_path: Path, stacks: dict[str, str | list[str]] | None = None) -> Config:
     """Create a minimal config for testing."""
     compose_dir = tmp_path / "compose"
     compose_dir.mkdir()
@@ -451,6 +451,71 @@ class TestDownOrphaned:
             )
 
         assert exc_info.value.exit_code == 1
+
+
+class TestLifecycleHostFilters:
+    """Tests for --host selection on simple lifecycle commands."""
+
+    @pytest.mark.parametrize(
+        ("command_fn", "compose_cmd"),
+        [
+            (stop, "stop"),
+            (pull, "pull --ignore-buildable"),
+            (restart, "restart"),
+        ],
+    )
+    def test_host_filter_selects_stacks_and_limits_multi_host(
+        self,
+        command_fn: Callable[..., None],
+        compose_cmd: str,
+        tmp_path: Path,
+    ) -> None:
+        """--host selects all stacks on that host and limits multi-host execution."""
+        cfg = _make_config(
+            tmp_path,
+            {
+                "svc1": "host1",
+                "svc2": "host2",
+                "multi": ["host1", "host2"],
+            },
+        )
+
+        with (
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                side_effect=_run_async_returns([_make_result("svc1"), _make_result("multi@host1")]),
+            ),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            command_fn(
+                stacks=None,
+                all_stacks=False,
+                host="host1",
+                service=None,
+                config=None,
+            )
+
+        mock_run.assert_called_once()
+        assert set(mock_run.call_args.args[1]) == {"svc1", "multi"}
+        assert mock_run.call_args.args[2] == compose_cmd
+        assert mock_run.call_args.kwargs.get("filter_host") == "host1"
+
+    def test_update_forwards_host_to_up(self) -> None:
+        """Update --host uses up --host with pull/build enabled."""
+        with patch("compose_farm.cli.lifecycle.up") as mock_up:
+            update(stacks=None, all_stacks=False, host="host1", service=None, config=None)
+
+        mock_up.assert_called_once_with(
+            stacks=None,
+            all_stacks=False,
+            host="host1",
+            service=None,
+            pull=True,
+            build=True,
+            config=None,
+        )
 
 
 class TestHostFilterMultiHost:
