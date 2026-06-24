@@ -2,10 +2,24 @@
 
 from __future__ import annotations
 
+from hashlib import blake2b
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from rich.console import Console
+
+_STACK_PREFIX_STYLES = (
+    "cyan",
+    "green",
+    "yellow",
+    "blue",
+    "magenta",
+    "bright_cyan",
+    "bright_green",
+    "bright_yellow",
+    "bright_blue",
+    "bright_magenta",
+)
 
 
 class _LazyConsole:
@@ -33,6 +47,19 @@ class _LazyConsole:
 
 console: Any = _LazyConsole()
 err_console: Any = _LazyConsole(stderr=True)
+
+
+def _stack_prefix_style(stack: str) -> str:
+    digest = blake2b(stack.encode("utf-8"), digest_size=1).digest()[0]
+    return _STACK_PREFIX_STYLES[digest % len(_STACK_PREFIX_STYLES)]
+
+
+def format_stack_prefix(stack: str) -> str:
+    """Format a bracketed stack prefix with a stable per-stack color."""
+    # Lazy import: Rich markup escaping is only needed when rendering stack prefixes.
+    from rich.markup import escape  # noqa: PLC0415
+
+    return f"[{_stack_prefix_style(stack)}]\\[{escape(stack)}][/]"
 
 
 # --- Message Constants ---

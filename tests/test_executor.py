@@ -1,7 +1,9 @@
 """Tests for executor module."""
 
 import sys
+from collections.abc import AsyncIterator
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -10,6 +12,7 @@ from compose_farm.config import Config, Host
 from compose_farm.executor import (
     CommandResult,
     _run_local_command,
+    _stream_output_lines,
     check_networks_exist,
     check_paths_exist,
     check_stack_running,
@@ -23,6 +26,46 @@ from compose_farm.executor import (
 
 # These tests run actual shell commands that only work on Linux
 linux_only = pytest.mark.skipif(sys.platform != "linux", reason="Linux-only shell commands")
+
+
+async def _async_lines(lines: list[str | bytes]) -> AsyncIterator[str | bytes]:
+    for line in lines:
+        yield line
+
+
+class _RecordingConsole:
+    def __init__(self) -> None:
+        self.calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def print(self, *args: Any, **kwargs: Any) -> None:
+        self.calls.append((args, kwargs))
+
+
+class TestStreamOutputLines:
+    """Tests for streaming command output formatting."""
+
+    def test_format_stack_prefix_uses_stable_distinct_colors(self) -> None:
+        from compose_farm.console import format_stack_prefix
+
+        assert format_stack_prefix("wakapi") == "[yellow]\\[wakapi][/]"
+        assert format_stack_prefix("ollama") == "[bright_green]\\[ollama][/]"
+        assert format_stack_prefix("openclaw") == "[bright_blue]\\[openclaw][/]"
+        assert format_stack_prefix("wakapi") == format_stack_prefix("wakapi")
+
+    async def test_stream_output_lines_uses_colored_prefix_and_escapes_output(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from compose_farm import executor
+        from compose_farm.console import format_stack_prefix
+
+        output = _RecordingConsole()
+        monkeypatch.setattr(executor, "console", output)
+
+        await _stream_output_lines(_async_lines(["Downloading [ok]\n"]), "wakapi")
+
+        assert output.calls == [
+            ((f"{format_stack_prefix('wakapi')} Downloading \\[ok]\n",), {"end": ""})
+        ]
 
 
 class TestIsLocal:
