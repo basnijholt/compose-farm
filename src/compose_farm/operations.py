@@ -10,7 +10,14 @@ import asyncio
 from typing import TYPE_CHECKING, NamedTuple
 
 from .compose import parse_devices, parse_external_networks, parse_host_volumes
-from .console import console, err_console, print_error, print_success, print_warning
+from .console import (
+    console,
+    err_console,
+    format_stack_prefix,
+    print_error,
+    print_success,
+    print_warning,
+)
 from .executor import (
     CommandResult,
     check_networks_exist,
@@ -174,7 +181,7 @@ def _report_preflight_failures(
     preflight: PreflightResult,
 ) -> None:
     """Report pre-flight check failures."""
-    print_error(f"[cyan]\\[{stack}][/] Cannot start on [magenta]{target_host}[/]:")
+    print_error(f"{format_stack_prefix(stack)} Cannot start on [magenta]{target_host}[/]:")
     for path in preflight.missing_paths:
         print_error(f"  missing path: {path}")
     for net in preflight.missing_networks:
@@ -416,7 +423,7 @@ async def up_stacks(
             multi_results = await asyncio.gather(
                 *[
                     _up_multi_host_stack(
-                        cfg, stack, f"[cyan]\\[{stack}][/]", raw=raw, pull=pull, build=build
+                        cfg, stack, format_stack_prefix(stack), raw=raw, pull=pull, build=build
                     )
                     for stack in multi_host
                 ]
@@ -428,7 +435,7 @@ async def up_stacks(
         if needs_migration:
             total = len(needs_migration)
             for idx, stack in enumerate(needs_migration, 1):
-                prefix = f"[dim][{idx}/{total}][/] [cyan]\\[{stack}][/]"
+                prefix = f"[dim][{idx}/{total}][/] {format_stack_prefix(stack)}"
                 results.append(
                     await _up_single_stack(cfg, stack, prefix, raw=raw, pull=pull, build=build)
                 )

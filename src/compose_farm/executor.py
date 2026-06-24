@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
-from .console import console, err_console
+from .console import console, err_console, format_stack_prefix
 from .ssh_keys import get_key_path, get_ssh_auth_sock, get_ssh_env
 
 if TYPE_CHECKING:
@@ -84,7 +84,7 @@ async def _stream_output_lines(
         text = line.decode() if isinstance(line, bytes) else line
         if text.strip():
             if prefix:
-                out.print(f"[cyan]\\[{prefix}][/] {escape(text)}", end="")
+                out.print(f"{format_stack_prefix(prefix)} {escape(text)}", end="")
             else:
                 out.print(escape(text), end="")
 
@@ -251,7 +251,7 @@ async def _run_local_command(
             stderr=stderr_data.decode() if stderr_data else "",
         )
     except OSError as e:
-        err_console.print(f"[cyan]\\[{stack}][/] [red]Local error:[/] {e}")
+        err_console.print(f"{format_stack_prefix(stack)} [red]Local error:[/] {e}")
         return CommandResult(stack=stack, exit_code=1, success=False)
 
 
@@ -308,7 +308,7 @@ async def _run_ssh_command(
                     stderr=stderr_data,
                 )
     except (OSError, asyncssh.Error) as e:
-        err_console.print(f"[cyan]\\[{stack}][/] [red]SSH error:[/] {e}")
+        err_console.print(f"{format_stack_prefix(stack)} [red]SSH error:[/] {e}")
         return CommandResult(stack=stack, exit_code=1, success=False)
 
 
