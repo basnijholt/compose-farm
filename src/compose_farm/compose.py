@@ -21,7 +21,7 @@ _PUBLISHED_TARGET_PARTS = 2
 _HOST_PUBLISHED_PARTS = 3
 _MIN_VOLUME_PARTS = 2
 
-_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-(.*?))?\}")
+_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::([-?])(.*?))?\}")
 
 
 @dataclass(frozen=True)
@@ -76,15 +76,18 @@ def extract_services(compose_data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _interpolate(value: str, env: dict[str, str]) -> str:
-    """Perform ${VAR} and ${VAR:-default} interpolation."""
+    """Perform basic Compose-style variable interpolation."""
 
     def replace(match: re.Match[str]) -> str:
         var = match.group(1)
-        default = match.group(2)
+        operator = match.group(2)
+        fallback = match.group(3)
         resolved = env.get(var)
         if resolved:
             return resolved
-        return default or ""
+        if operator == "-":
+            return fallback or ""
+        return ""
 
     return _VAR_PATTERN.sub(replace, value)
 

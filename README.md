@@ -545,7 +545,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Start stacks (docker compose up -d). Auto-migrates if host changed.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      [STACKS]...  Stacks to operate on                                        │
+│   [stacks]...      TEXT  Stacks to operate on                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all      -a            Run on all stacks                                             │
@@ -583,7 +583,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Stop stacks (docker compose down).
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      [STACKS]...  Stacks to operate on                                        │
+│   [stacks]...      TEXT  Stacks to operate on                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all       -a            Run on all stacks                                            │
@@ -619,7 +619,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Stop services without removing containers (docker compose stop).
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      [STACKS]...  Stacks to operate on                                        │
+│   [stacks]...      TEXT  Stacks to operate on                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all      -a            Run on all stacks                                             │
@@ -655,7 +655,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Pull latest images (docker compose pull).
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      [STACKS]...  Stacks to operate on                                        │
+│   [stacks]...      TEXT  Stacks to operate on                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all      -a            Run on all stacks                                             │
@@ -691,7 +691,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Restart running containers (docker compose restart).
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      [STACKS]...  Stacks to operate on                                        │
+│   [stacks]...      TEXT  Stacks to operate on                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all      -a            Run on all stacks                                             │
@@ -727,7 +727,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Update stacks (pull + build + up). Shorthand for 'up --pull --build'.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      [STACKS]...  Stacks to operate on                                        │
+│   [stacks]...      TEXT  Stacks to operate on                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all      -a            Run on all stacks                                             │
@@ -820,9 +820,9 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
    cf compose mystack config        - view parsed config
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│ *    stack        TEXT       Stack to operate on (use '.' for current dir) [required]  │
-│ *    command      TEXT       Docker compose command [required]                         │
-│      args         [ARGS]...  Additional arguments                                      │
+│ *    stack          TEXT  Stack to operate on (use '.' for current dir) [required]     │
+│ *    command        TEXT  Docker compose command [required]                            │
+│      [args]...      TEXT  Additional arguments                                         │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --host    -H      TEXT  Filter to stacks on this host                                  │
@@ -858,7 +858,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Generate a Traefik file-provider fragment from compose Traefik labels.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      [STACKS]...  Stacks to operate on                                        │
+│   [stacks]...      TEXT  Stacks to operate on                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all     -a            Run on all stacks                                              │
@@ -903,7 +903,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Use 'cf apply' to make reality match your config (stop orphans, migrate).
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      [STACKS]...  Stacks to operate on                                        │
+│   [stacks]...      TEXT  Stacks to operate on                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all       -a            Run on all stacks                                            │
@@ -945,7 +945,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Use --local to skip SSH-based checks for faster validation.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      [STACKS]...  Stacks to operate on                                        │
+│   [stacks]...      TEXT  Stacks to operate on                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --local                 Skip SSH-based checks (faster)                                 │
@@ -984,7 +984,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  consistent networking.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   hosts      [HOSTS]...  Hosts to create network on (default: all)                     │
+│   [hosts]...      TEXT  Hosts to create network on (default: all)                      │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --network  -n      TEXT  Network name [default: mynetwork]                             │
@@ -1096,7 +1096,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Show stack logs. With --service, shows logs for just that service.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      [STACKS]...  Stacks to operate on                                        │
+│   [stacks]...      TEXT  Stacks to operate on                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all      -a               Run on all stacks                                          │
@@ -1140,7 +1140,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  With --service: filters to a specific service within the stack.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      [STACKS]...  Stacks to operate on                                        │
+│   [stacks]...      TEXT  Stacks to operate on                                          │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --all      -a            Run on all stacks                                             │
