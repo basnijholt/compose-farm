@@ -52,6 +52,36 @@ def test_generate_traefik_config_with_published_port(tmp_path: Path) -> None:
     assert servers == [{"url": "http://192.168.1.10:32400"}]
 
 
+def test_generate_handles_required_ip_var_in_ports(tmp_path: Path) -> None:
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"nas01": Host(address="192.168.1.10")},
+        stacks={"vaultwarden": "nas01"},
+    )
+    compose_path = tmp_path / "vaultwarden" / "docker-compose.yml"
+    _write_compose(
+        compose_path,
+        {
+            "services": {
+                "vaultwarden": {
+                    "ports": ["${DATA_BIND_IP:?bind IP required}:11001:80"],
+                    "labels": [
+                        "traefik.enable=true",
+                        "traefik.http.routers.vaultwarden.rule=Host(`vault.lab.mydomain.org`)",
+                        "traefik.http.services.vaultwarden.loadbalancer.server.port=80",
+                    ],
+                }
+            }
+        },
+    )
+
+    dynamic, warnings = generate_traefik_config(cfg, ["vaultwarden"])
+
+    assert warnings == []
+    servers = dynamic["http"]["services"]["vaultwarden"]["loadbalancer"]["servers"]
+    assert servers == [{"url": "http://192.168.1.10:11001"}]
+
+
 def test_generate_traefik_config_without_published_port_warns(tmp_path: Path) -> None:
     cfg = Config(
         compose_dir=tmp_path,
