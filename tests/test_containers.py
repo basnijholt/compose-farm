@@ -8,11 +8,13 @@ from fastapi.testclient import TestClient
 
 from compose_farm.config import Config, Host
 from compose_farm.glances import ContainerStats, format_bytes
+from compose_farm.registry import ImageRef, TagCheckResult
 from compose_farm.web.app import create_app
 from compose_farm.web.routes.containers import (
     _infer_stack_service,
     _parse_image,
     _parse_uptime_seconds,
+    _render_update_badge,
 )
 
 # Byte size constants for tests
@@ -221,6 +223,7 @@ class TestContainersRowsAPI:
         assert "<tr " in response.text  # <tr id="..."> has attributes
         assert "nginx" in response.text
         assert "running" in response.text
+        assert 'class="update-cell whitespace-nowrap"' in response.text
 
     def test_rows_have_data_sort_attributes(self, client: TestClient) -> None:
         """Test rows have data-sort attributes for client-side sorting."""
@@ -266,3 +269,20 @@ class TestContainersRowsAPI:
             assert 'data-sort="web"' in response.text  # service
             assert 'data-sort="3600"' in response.text  # uptime (1 hour = 3600s)
             assert 'data-sort="10' in response.text  # cpu
+
+
+class TestUpdateBadge:
+    """Tests for container update badge rendering."""
+
+    def test_available_updates_badge_does_not_wrap(self) -> None:
+        html = _render_update_badge(
+            TagCheckResult(
+                image=ImageRef.parse("nginx:1.0.0"),
+                current_digest="",
+                available_updates=["1.0.1", "1.0.2"],
+            )
+        )
+
+        assert "2 new" in html
+        assert "tooltip whitespace-nowrap" in html
+        assert "badge badge-warning badge-xs cursor-help whitespace-nowrap" in html

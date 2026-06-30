@@ -114,7 +114,8 @@ def _render_update_cell(image: str, tag: str) -> str:
     cached_html = _update_check_cache.get(f"{image}:{tag}")
     inner = cached_html if cached_html is not None else _DASH_HTML
     return (
-        f"""<td class="update-cell" data-image="{encoded_image}" data-tag="{encoded_tag}">"""
+        f"""<td class="update-cell whitespace-nowrap" """
+        f"""data-image="{encoded_image}" data-tag="{encoded_tag}">"""
         f"{inner}</td>"
     )
 
@@ -312,8 +313,9 @@ def _render_update_badge(result: TagCheckResult) -> str:
         title = f"Newer: {', '.join(updates[:3])}" + ("..." if count > 3 else "")  # noqa: PLR2004
         tip = html.escape(title, quote=True)
         return (
-            f'<span class="tooltip" data-tip="{tip}">'
-            f'<span class="badge badge-warning badge-xs cursor-help">{count} new</span>'
+            f'<span class="tooltip whitespace-nowrap" data-tip="{tip}">'
+            f'<span class="badge badge-warning badge-xs cursor-help whitespace-nowrap">'
+            f"{count} new</span>"
             "</span>"
         )
     return '<span class="tooltip" data-tip="Up to date"><span class="text-success text-xs">✓</span></span>'
