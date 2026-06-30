@@ -51,9 +51,17 @@ def _make_multi_host_config(tmp_path: Path) -> Config:
     )
 
 
-def _make_result(stack: str) -> CommandResult:
+def _make_result(stack: str, *, host: str = "", label: str = "") -> CommandResult:
     """Create a successful command result."""
-    return CommandResult(stack=stack, exit_code=0, success=True, stdout="", stderr="")
+    return CommandResult(
+        stack=stack,
+        exit_code=0,
+        success=True,
+        stdout="",
+        stderr="",
+        host=host,
+        label=label,
+    )
 
 
 def _mock_run_async_factory(
@@ -232,11 +240,14 @@ class TestLogsHostFilter:
     def test_logs_host_filter_passes_filter_host_to_run_on_stacks(self, tmp_path: Path) -> None:
         """--host should pass filter_host to run_on_stacks for multi-host stacks."""
         cfg = _make_multi_host_config(tmp_path)
-        mock_run_async, _ = _mock_run_async_factory(["multi-host@host1"])
+        result = _make_result("multi-host", host="host1", label="multi-host@host1")
 
         with (
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
+            patch(
+                "compose_farm.cli.monitoring.run_async",
+                side_effect=lambda coro: (coro.close(), [result])[1],
+            ),
             patch("compose_farm.cli.monitoring.run_on_stacks") as mock_run,
         ):
             logs(

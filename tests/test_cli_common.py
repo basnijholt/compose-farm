@@ -32,3 +32,15 @@ def test_report_results_keeps_old_format_without_host(
     captured = capsys.readouterr()
     assert "clip-files-ui failed with exit code 1" in captured.err
     assert "on " not in captured.err
+
+
+def test_report_results_uses_display_label_without_host(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(typer.Exit):
+        report_results(
+            [CommandResult(stack="multi", exit_code=1, success=False, label="multi@host1")]
+        )
+
+    captured = capsys.readouterr()
+    assert "multi@host1 failed with exit code 1" in captured.err
