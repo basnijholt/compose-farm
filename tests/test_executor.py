@@ -237,6 +237,7 @@ class TestRunCompose:
 
             # Should succeed - docker compose on remote will find the file
             assert result.success
+            assert result.host == "remote"
             # Command should use cd pattern, not -f with a specific file
             command = mock_run.call_args[0][1]
             assert "cd " in command
@@ -254,10 +255,11 @@ class TestRunCompose:
         mock_result = CommandResult(stack="mystack", exit_code=0, success=True)
         with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = mock_result
-            await run_compose_on_host(config, "mystack", "host1", "down", stream=False)
+            result = await run_compose_on_host(config, "mystack", "host1", "down", stream=False)
 
             command = mock_run.call_args[0][1]
             assert command == f'cd "{tmp_path}/mystack" && docker compose down'
+            assert result.host == "host1"
 
     async def test_check_stack_running_uses_cd_pattern(self, tmp_path: Path) -> None:
         """Verify check_stack_running uses 'cd <dir> && docker compose' pattern."""
@@ -338,6 +340,7 @@ class TestRunOnStacks:
             # Result should be for the filtered host
             assert len(results) == 1
             assert results[0].stack == "multi-svc@host1"
+            assert results[0].host == "host1"
 
     async def test_run_on_stacks_no_filter_runs_all_hosts(self) -> None:
         """Without filter_host, multi-host stacks run on all configured hosts."""

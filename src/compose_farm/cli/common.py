@@ -220,12 +220,16 @@ def report_results(results: list[CommandResult]) -> None:
     succeeded = [r for r in results if r.success]
     failed = [r for r in results if not r.success]
 
+    def failure_message(result: CommandResult) -> str:
+        host = f" on [cyan]{result.host}[/]" if result.host else ""
+        return f"[cyan]{result.stack}[/] failed with exit code {result.exit_code}{host}"
+
     # Always print summary when there are multiple results
     if len(results) > 1:
         console.print()  # Blank line before summary
         if failed:
             for r in failed:
-                print_error(f"[cyan]{r.stack}[/] failed with exit code {r.exit_code}")
+                print_error(failure_message(r))
             console.print()
             console.print(
                 f"[green]✓[/] {len(succeeded)}/{len(results)} stacks succeeded, "
@@ -237,7 +241,7 @@ def report_results(results: list[CommandResult]) -> None:
     elif failed:
         # Single stack failed
         r = failed[0]
-        print_error(f"[cyan]{r.stack}[/] failed with exit code {r.exit_code}")
+        print_error(failure_message(r))
 
     if failed:
         raise typer.Exit(1)

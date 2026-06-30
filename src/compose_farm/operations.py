@@ -247,7 +247,11 @@ async def _up_multi_host_stack(
         preflight = await check_stack_requirements(cfg, stack, host_name)
         if not preflight.ok:
             _report_preflight_failures(stack, host_name, preflight)
-            results.append(CommandResult(stack=f"{stack}@{host_name}", exit_code=1, success=False))
+            results.append(
+                CommandResult(
+                    stack=f"{stack}@{host_name}", exit_code=1, success=False, host=host_name
+                )
+            )
             return results
 
     # Start on all hosts
@@ -259,6 +263,7 @@ async def _up_multi_host_stack(
         host = cfg.hosts[host_name]
         label = f"{stack}@{host_name}"
         result = await run_command(host, command, label, stream=not raw, raw=raw)
+        result.host = host_name
         if raw:
             print()  # Ensure newline after raw output
         results.append(result)
@@ -324,7 +329,7 @@ async def _up_single_stack(
     preflight = await check_stack_requirements(cfg, stack, target_host)
     if not preflight.ok:
         _report_preflight_failures(stack, target_host, preflight)
-        return CommandResult(stack=stack, exit_code=1, success=False)
+        return CommandResult(stack=stack, exit_code=1, success=False, host=target_host)
 
     # If stack is deployed elsewhere, migrate it
     did_migration = False
@@ -377,7 +382,7 @@ async def _up_stack_simple(
     preflight = await check_stack_requirements(cfg, stack, target_host)
     if not preflight.ok:
         _report_preflight_failures(stack, target_host, preflight)
-        return CommandResult(stack=stack, exit_code=1, success=False)
+        return CommandResult(stack=stack, exit_code=1, success=False, host=target_host)
 
     # Run with streaming for parallel output
     result = await run_compose(cfg, stack, build_up_cmd(pull=pull, build=build), raw=raw)
@@ -525,6 +530,7 @@ async def _stop_stacks_on_hosts(
                         exit_code=1,
                         success=False,
                         stderr="host no longer in config",
+                        host=host,
                     )
                 )
                 continue
@@ -547,6 +553,7 @@ async def _stop_stacks_on_hosts(
                     exit_code=1,
                     success=False,
                     stderr=str(e),
+                    host=host,
                 )
             )
 
