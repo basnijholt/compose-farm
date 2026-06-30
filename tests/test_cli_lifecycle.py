@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 import typer
 
-from compose_farm.cli.lifecycle import apply, down, pull, restart, stop, update
+from compose_farm.cli.lifecycle import apply, down, pull, restart, stop, up, update
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
 
@@ -501,6 +501,57 @@ class TestLifecycleHostFilters:
         assert set(mock_run.call_args.args[1]) == {"svc1", "multi"}
         assert mock_run.call_args.args[2] == compose_cmd
         assert mock_run.call_args.kwargs.get("filter_host") == "host1"
+
+    def test_up_host_filter_multiple_stacks_disables_raw_output(self, tmp_path: Path) -> None:
+        """BuildKit/progress output corrupts the terminal when raw output runs in parallel."""
+        cfg = _make_config(
+            tmp_path,
+            {
+                "svc1": "host1",
+                "svc2": "host2",
+                "multi": ["host1", "host2"],
+            },
+        )
+
+        with (
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                side_effect=_run_async_returns([_make_result("svc1"), _make_result("multi@host1")]),
+            ),
+            patch("compose_farm.cli.lifecycle.add_stack_host"),
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            up(stacks=None, all_stacks=False, host="host1", service=None, config=None)
+
+        mock_run.assert_called_once()
+        assert set(mock_run.call_args.args[1]) == {"svc1", "multi"}
+        assert mock_run.call_args.kwargs.get("filter_host") == "host1"
+        assert mock_run.call_args.kwargs.get("raw") is False
+
+    def test_up_host_filter_single_stack_keeps_raw_output(self, tmp_path: Path) -> None:
+        """Single-stack host-filtered up can keep TTY progress rendering."""
+        cfg = _make_config(tmp_path, {"svc1": "host1", "svc2": "host2"})
+
+        with (
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                side_effect=_run_async_returns([_make_result("svc1")]),
+            ),
+            patch("compose_farm.cli.lifecycle.add_stack_host"),
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            up(stacks=None, all_stacks=False, host="host2", service=None, config=None)
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args.args[1] == ["svc2"]
+        assert mock_run.call_args.kwargs.get("filter_host") == "host2"
+        assert mock_run.call_args.kwargs.get("raw") is True
 
     def test_update_forwards_host_to_up(self) -> None:
         """Update --host uses up --host with pull/build enabled."""
