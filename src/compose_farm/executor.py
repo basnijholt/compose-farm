@@ -227,6 +227,8 @@ async def _run_local_command(
     stream: bool = True,
     raw: bool = False,
     prefix: str = "",
+    host_name: str = "",
+    label: str = "",
 ) -> CommandResult:
     """Run a command locally with streaming output."""
     try:
@@ -242,6 +244,8 @@ async def _run_local_command(
                 stack=stack,
                 exit_code=proc.returncode or 0,
                 success=proc.returncode == 0,
+                host=host_name,
+                label=label,
             )
 
         proc = await asyncio.create_subprocess_shell(
@@ -269,11 +273,20 @@ async def _run_local_command(
             success=proc.returncode == 0,
             stdout=stdout_data.decode() if stdout_data else "",
             stderr=stderr_data.decode() if stderr_data else "",
+            host=host_name,
+            label=label,
         )
     except OSError as e:
         if stream:
             err_console.print(f"{format_stack_prefix(prefix or stack)} [red]Local error:[/] {e}")
-        return CommandResult(stack=stack, exit_code=1, success=False, stderr=str(e))
+        return CommandResult(
+            stack=stack,
+            exit_code=1,
+            success=False,
+            stderr=str(e),
+            host=host_name,
+            label=label,
+        )
 
 
 async def _run_ssh_command(
@@ -284,6 +297,8 @@ async def _run_ssh_command(
     stream: bool = True,
     raw: bool = False,
     prefix: str = "",
+    host_name: str = "",
+    label: str = "",
 ) -> CommandResult:
     """Run a command on a remote host via SSH with streaming output."""
     if raw:
@@ -300,6 +315,8 @@ async def _run_ssh_command(
             stack=stack,
             exit_code=result.returncode,
             success=result.returncode == 0,
+            host=host_name,
+            label=label,
         )
 
     import asyncssh  # noqa: PLC0415 - lazy import for faster CLI startup
@@ -327,11 +344,20 @@ async def _run_ssh_command(
                     success=proc.exit_status == 0,
                     stdout=stdout_data,
                     stderr=stderr_data,
+                    host=host_name,
+                    label=label,
                 )
     except (OSError, asyncssh.Error) as e:
         if stream:
             err_console.print(f"{format_stack_prefix(prefix or stack)} [red]SSH error:[/] {e}")
-        return CommandResult(stack=stack, exit_code=1, success=False, stderr=str(e))
+        return CommandResult(
+            stack=stack,
+            exit_code=1,
+            success=False,
+            stderr=str(e),
+            host=host_name,
+            label=label,
+        )
 
 
 async def run_command(
@@ -342,6 +368,8 @@ async def run_command(
     stream: bool = True,
     raw: bool = False,
     prefix: str | None = None,
+    host_name: str = "",
+    label: str = "",
 ) -> CommandResult:
     """Run a command on a host (locally or via SSH).
 
@@ -352,15 +380,30 @@ async def run_command(
         stream: Whether to stream output (default True)
         raw: Whether to use raw mode with TTY (default False)
         prefix: Output prefix. None=use stack name, ""=no prefix.
+        host_name: Host name to store in the result.
+        label: Display label to store in the result.
 
     """
     output_prefix = stack if prefix is None else prefix
     if is_local(host):
         return await _run_local_command(
-            command, stack, stream=stream, raw=raw, prefix=output_prefix
+            command,
+            stack,
+            stream=stream,
+            raw=raw,
+            prefix=output_prefix,
+            host_name=host_name,
+            label=label,
         )
     return await _run_ssh_command(
-        host, command, stack, stream=stream, raw=raw, prefix=output_prefix
+        host,
+        command,
+        stack,
+        stream=stream,
+        raw=raw,
+        prefix=output_prefix,
+        host_name=host_name,
+        label=label,
     )
 
 
@@ -382,10 +425,16 @@ async def run_compose(
 
     # Use cd to let docker compose find the compose file on the remote host
     command = f'cd "{stack_dir}" && docker compose {compose_cmd}'
-    result = await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
-    result.host = host_name
-    result.label = stack
-    return result
+    return await run_command(
+        host,
+        command,
+        stack,
+        stream=stream,
+        raw=raw,
+        prefix=prefix,
+        host_name=host_name,
+        label=stack,
+    )
 
 
 async def run_compose_on_host(
@@ -409,10 +458,16 @@ async def run_compose_on_host(
 
     # Use cd to let docker compose find the compose file on the remote host
     command = f'cd "{stack_dir}" && docker compose {compose_cmd}'
-    result = await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
-    result.host = host_name
-    result.label = f"{stack}@{host_name}"
-    return result
+    return await run_command(
+        host,
+        command,
+        stack,
+        stream=stream,
+        raw=raw,
+        prefix=prefix,
+        host_name=host_name,
+        label=f"{stack}@{host_name}",
+    )
 
 
 async def run_on_stacks(
@@ -449,7 +504,13 @@ async def _run_sequential_stack_commands(
         result = await run_compose(config, stack, cmd, stream=stream, raw=raw, prefix=prefix)
         if not result.success:
             return result
-    return CommandResult(stack=stack, exit_code=0, success=True, host=config.get_hosts(stack)[0])
+    return CommandResult(
+        stack=stack,
+        exit_code=0,
+        success=True,
+        host=config.get_hosts(stack)[0],
+        label=stack,
+    )
 
 
 async def _run_sequential_stack_commands_on_host(
@@ -473,9 +534,16 @@ async def _run_sequential_stack_commands_on_host(
     for cmd in commands:
         _print_compose_command(host_name, stack, cmd)
         command = f'cd "{stack_dir}" && docker compose {cmd}'
-        result = await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
-        result.host = host_name
-        result.label = label
+        result = await run_command(
+            host,
+            command,
+            stack,
+            stream=stream,
+            raw=raw,
+            prefix=prefix,
+            host_name=host_name,
+            label=label,
+        )
         if not result.success:
             return result
     return CommandResult(stack=stack, exit_code=0, success=True, host=host_name, label=label)
@@ -512,18 +580,19 @@ async def _run_sequential_stack_commands_multi_host(
             # (ignore empty prefix from single-stack batches - we still need to distinguish hosts)
             effective_prefix = label if len(host_names) > 1 else prefix
             tasks.append(
-                (
-                    host_name,
-                    run_command(
-                        host, command, stack, stream=stream, raw=raw, prefix=effective_prefix
-                    ),
+                run_command(
+                    host,
+                    command,
+                    stack,
+                    stream=stream,
+                    raw=raw,
+                    prefix=effective_prefix,
+                    host_name=host_name,
+                    label=label,
                 )
             )
 
-        results = await asyncio.gather(*(task for _, task in tasks))
-        for (host_name, _), result in zip(tasks, results, strict=True):
-            result.host = host_name
-            result.label = f"{stack}@{host_name}" if len(host_names) > 1 else stack
+        results = await asyncio.gather(*tasks)
         final_results = list(results)
 
         # Check if any failed

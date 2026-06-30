@@ -266,9 +266,16 @@ async def _up_multi_host_stack(
     for host_name in host_names:
         host = cfg.hosts[host_name]
         label = f"{stack}@{host_name}"
-        result = await run_command(host, command, stack, stream=not raw, raw=raw, prefix=label)
-        result.host = host_name
-        result.label = label
+        result = await run_command(
+            host,
+            command,
+            stack,
+            stream=not raw,
+            raw=raw,
+            prefix=label,
+            host_name=host_name,
+            label=label,
+        )
         if raw:
             print()  # Ensure newline after raw output
         results.append(result)

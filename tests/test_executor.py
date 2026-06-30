@@ -237,12 +237,13 @@ class TestRunCompose:
 
             # Should succeed - docker compose on remote will find the file
             assert result.success
-            assert result.host == "remote"
             # Command should use cd pattern, not -f with a specific file
             command = mock_run.call_args[0][1]
             assert "cd " in command
             assert " && docker compose " in command
             assert "-f " not in command  # Should NOT use -f flag
+            assert mock_run.call_args.kwargs["host_name"] == "remote"
+            assert mock_run.call_args.kwargs["label"] == "mystack"
 
     async def test_run_compose_on_host_uses_cd_pattern(self, tmp_path: Path) -> None:
         """Verify run_compose_on_host uses 'cd <dir> && docker compose' pattern."""
@@ -260,8 +261,8 @@ class TestRunCompose:
             command = mock_run.call_args[0][1]
             assert command == f'cd "{tmp_path}/mystack" && docker compose down'
             assert result.stack == "mystack"
-            assert result.host == "host1"
-            assert result.label == "mystack@host1"
+            assert mock_run.call_args.kwargs["host_name"] == "host1"
+            assert mock_run.call_args.kwargs["label"] == "mystack@host1"
 
     async def test_check_stack_running_uses_cd_pattern(self, tmp_path: Path) -> None:
         """Verify check_stack_running uses 'cd <dir> && docker compose' pattern."""
