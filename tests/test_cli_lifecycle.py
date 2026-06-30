@@ -571,6 +571,57 @@ class TestLifecycleHostFilters:
         assert mock_run.call_args.kwargs.get("filter_host") == "host2"
         assert mock_run.call_args.kwargs.get("raw") is True
 
+    def test_up_all_with_multi_host_stack_disables_raw_output(self, tmp_path: Path) -> None:
+        """A multi-host stack fans out to several compose processes, so raw TTY output is unsafe."""
+        cfg = _make_config(tmp_path, {"svc1": "host1", "glances": ["host1", "host2"]})
+
+        with (
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.up_stacks") as mock_up,
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                side_effect=_run_async_returns(
+                    [
+                        _make_result("svc1", host="host1"),
+                        _make_result("glances", host="host1", label="glances@host1"),
+                        _make_result("glances", host="host2", label="glances@host2"),
+                    ]
+                ),
+            ),
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            up(stacks=None, all_stacks=True, host=None, service=None, config=None)
+
+        mock_up.assert_called_once()
+        assert set(mock_up.call_args.args[1]) == {"svc1", "glances"}
+        assert mock_up.call_args.kwargs.get("raw") is False
+
+    def test_up_single_multi_host_stack_disables_raw_output(self, tmp_path: Path) -> None:
+        """One stack name can still mean multiple concurrent host commands."""
+        cfg = _make_config(tmp_path, {"glances": ["host1", "host2"]})
+
+        with (
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.up_stacks") as mock_up,
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                side_effect=_run_async_returns(
+                    [
+                        _make_result("glances", host="host1", label="glances@host1"),
+                        _make_result("glances", host="host2", label="glances@host2"),
+                    ]
+                ),
+            ),
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            up(stacks=["glances"], all_stacks=False, host=None, service=None, config=None)
+
+        mock_up.assert_called_once()
+        assert mock_up.call_args.args[1] == ["glances"]
+        assert mock_up.call_args.kwargs.get("raw") is False
+
     def test_update_forwards_host_to_up(self) -> None:
         """Update --host uses up --host with pull/build enabled."""
         with patch("compose_farm.cli.lifecycle.up") as mock_up:

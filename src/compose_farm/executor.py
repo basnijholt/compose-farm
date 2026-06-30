@@ -571,6 +571,7 @@ async def _run_sequential_stack_commands_multi_host(
         # Use cd to let docker compose find the compose file on the remote host
         command = f'cd "{stack_dir}" && docker compose {cmd}'
         tasks = []
+        use_raw = raw and len(host_names) == 1
         for host_name in host_names:
             _print_compose_command(host_name, stack, cmd)
             host = config.hosts[host_name]
@@ -584,8 +585,8 @@ async def _run_sequential_stack_commands_multi_host(
                     host,
                     command,
                     stack,
-                    stream=stream,
-                    raw=raw,
+                    stream=stream and not use_raw,
+                    raw=use_raw,
                     prefix=effective_prefix,
                     host_name=host_name,
                     label=label,

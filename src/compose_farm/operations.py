@@ -263,6 +263,7 @@ async def _up_multi_host_stack(
     console.print(f"{prefix} Starting on {hosts_str}...")
 
     succeeded_hosts: list[str] = []
+    use_raw = raw and len(host_names) == 1
     for host_name in host_names:
         host = cfg.hosts[host_name]
         label = f"{stack}@{host_name}"
@@ -270,13 +271,13 @@ async def _up_multi_host_stack(
             host,
             command,
             stack,
-            stream=not raw,
-            raw=raw,
+            stream=not use_raw,
+            raw=use_raw,
             prefix=label,
             host_name=host_name,
             label=label,
         )
-        if raw:
+        if use_raw:
             print()  # Ensure newline after raw output
         results.append(result)
         if result.success:
@@ -457,7 +458,12 @@ async def up_stacks(
             multi_results = await asyncio.gather(
                 *[
                     _up_multi_host_stack(
-                        cfg, stack, format_stack_prefix(stack), raw=raw, pull=pull, build=build
+                        cfg,
+                        stack,
+                        format_stack_prefix(stack),
+                        raw=False,
+                        pull=pull,
+                        build=build,
                     )
                     for stack in multi_host
                 ]
