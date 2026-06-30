@@ -368,6 +368,51 @@ class TestRunOnStacks:
             # Results should be for both hosts
             assert len(results) == 2
 
+    async def test_run_on_stacks_multi_host_disables_raw_output(self) -> None:
+        """Raw TTY output is unsafe when one stack fans out to multiple hosts."""
+        config = Config(
+            compose_dir=Path("/tmp"),
+            hosts={
+                "host1": Host(address="192.168.1.1"),
+                "host2": Host(address="192.168.1.2"),
+            },
+            stacks={"glances": ["host1", "host2"]},
+        )
+
+        mock_result = CommandResult(stack="glances", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = mock_result
+            await run_on_stacks(config, ["glances"], "up -d --pull always", raw=True)
+
+        assert mock_run.call_count == 2
+        assert all(call.kwargs["raw"] is False for call in mock_run.call_args_list)
+        assert all(call.kwargs["stream"] is True for call in mock_run.call_args_list)
+
+    async def test_run_on_stacks_multi_host_filter_keeps_raw_output(self) -> None:
+        """A host filter reduces a multi-host stack to one compose process."""
+        config = Config(
+            compose_dir=Path("/tmp"),
+            hosts={
+                "host1": Host(address="192.168.1.1"),
+                "host2": Host(address="192.168.1.2"),
+            },
+            stacks={"glances": ["host1", "host2"]},
+        )
+
+        mock_result = CommandResult(stack="glances", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = mock_result
+            await run_on_stacks(
+                config,
+                ["glances"],
+                "up -d --pull always",
+                raw=True,
+                filter_host="host1",
+            )
+
+        mock_run.assert_awaited_once()
+        assert mock_run.call_args.kwargs["raw"] is True
+
 
 @linux_only
 class TestCheckPathsExist:

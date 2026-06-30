@@ -46,6 +46,11 @@ from compose_farm.state import (
 )
 
 
+def _single_target_raw_output(cfg: Config, stack_list: list[str]) -> bool:
+    """Return whether compose can safely own the terminal for this operation."""
+    return len(stack_list) == 1 and not cfg.is_multi_host(stack_list[0])
+
+
 @app.command(rich_help_panel="Lifecycle")
 def up(
     stacks: StacksArg = None,
@@ -92,7 +97,15 @@ def up(
             if result.success:
                 add_stack_host(cfg, result.stack, result.host or host)
     else:
-        results = run_async(up_stacks(cfg, stack_list, raw=True, pull=pull, build=build))
+        results = run_async(
+            up_stacks(
+                cfg,
+                stack_list,
+                raw=_single_target_raw_output(cfg, stack_list),
+                pull=pull,
+                build=build,
+            )
+        )
     maybe_regenerate_traefik(cfg, results)
     report_results(results)
 

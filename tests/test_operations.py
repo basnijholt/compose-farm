@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -194,6 +194,43 @@ class TestPreflightRequirements:
         assert results[0].success is False
         assert results[0].stack == "test-service"
         assert results[0].host == "host2"
+
+    async def test_up_stacks_multi_host_forces_streamed_output(self, tmp_path: Path) -> None:
+        """Even raw=True must not allocate multiple compose TTY renderers."""
+        compose_dir = tmp_path / "compose"
+        (compose_dir / "glances").mkdir(parents=True)
+        (compose_dir / "glances" / "docker-compose.yml").write_text("services: {}\n")
+        cfg = Config(
+            compose_dir=compose_dir,
+            hosts={
+                "host1": Host(address="192.168.1.1"),
+                "host2": Host(address="192.168.1.2"),
+            },
+            stacks={"glances": ["host1", "host2"]},
+        )
+        preflight = PreflightResult([], [], [], [])
+
+        async def run_result(*args: object, **kwargs: object) -> CommandResult:
+            return CommandResult(
+                stack="glances",
+                exit_code=0,
+                success=True,
+                host=str(kwargs.get("host_name", "")),
+                label=str(kwargs.get("label", "")),
+            )
+
+        with (
+            patch("compose_farm.operations.check_stack_requirements", return_value=preflight),
+            patch("compose_farm.operations.run_command", new_callable=AsyncMock) as mock_run,
+            patch("compose_farm.operations.set_multi_host_stack"),
+        ):
+            mock_run.side_effect = run_result
+            results = await up_stacks(cfg, ["glances"], raw=True, pull=True, build=True)
+
+        assert len(results) == 2
+        assert all(result.success for result in results)
+        assert all(call.kwargs["raw"] is False for call in mock_run.call_args_list)
+        assert all(call.kwargs["stream"] is True for call in mock_run.call_args_list)
 
 
 class TestUpdateCommandSequence:
