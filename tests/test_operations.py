@@ -18,6 +18,7 @@ from compose_farm.operations import (
     build_discovery_results,
     build_up_cmd,
     check_stack_requirements,
+    up_stacks,
 )
 
 
@@ -173,6 +174,26 @@ class TestPreflightRequirements:
         assert "remote check failed" in captured.err
         assert "Permission denied" in captured.err
         assert "missing path" not in captured.err
+
+    async def test_up_stacks_preflight_failure_includes_host(
+        self,
+        basic_config: Config,
+    ) -> None:
+        """Synthetic preflight failures should still report the target host."""
+        preflight = PreflightResult(
+            missing_paths=["/mnt/data/test-service"],
+            missing_networks=[],
+            missing_devices=[],
+            check_errors=[],
+        )
+
+        with patch("compose_farm.operations.check_stack_requirements", return_value=preflight):
+            results = await up_stacks(basic_config, ["test-service"])
+
+        assert len(results) == 1
+        assert results[0].success is False
+        assert results[0].stack == "test-service"
+        assert results[0].host == "host2"
 
 
 class TestUpdateCommandSequence:

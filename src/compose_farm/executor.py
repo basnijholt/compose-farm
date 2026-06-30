@@ -157,6 +157,7 @@ class CommandResult:
     success: bool
     stdout: str = ""
     stderr: str = ""
+    host: str = ""
 
     # SSH returns 255 when connection is closed unexpectedly (e.g., Ctrl+C)
     _SSH_CONNECTION_CLOSED = 255
@@ -375,7 +376,9 @@ async def run_compose(
 
     # Use cd to let docker compose find the compose file on the remote host
     command = f'cd "{stack_dir}" && docker compose {compose_cmd}'
-    return await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
+    result = await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
+    result.host = host_name
+    return result
 
 
 async def run_compose_on_host(
@@ -399,7 +402,9 @@ async def run_compose_on_host(
 
     # Use cd to let docker compose find the compose file on the remote host
     command = f'cd "{stack_dir}" && docker compose {compose_cmd}'
-    return await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
+    result = await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
+    result.host = host_name
+    return result
 
 
 async def run_on_stacks(
@@ -436,7 +441,7 @@ async def _run_sequential_stack_commands(
         result = await run_compose(config, stack, cmd, stream=stream, raw=raw, prefix=prefix)
         if not result.success:
             return result
-    return CommandResult(stack=stack, exit_code=0, success=True)
+    return CommandResult(stack=stack, exit_code=0, success=True, host=config.get_hosts(stack)[0])
 
 
 async def _run_sequential_stack_commands_on_host(
@@ -461,9 +466,10 @@ async def _run_sequential_stack_commands_on_host(
         _print_compose_command(host_name, stack, cmd)
         command = f'cd "{stack_dir}" && docker compose {cmd}'
         result = await run_command(host, command, label, stream=stream, raw=raw, prefix=prefix)
+        result.host = host_name
         if not result.success:
             return result
-    return CommandResult(stack=label, exit_code=0, success=True)
+    return CommandResult(stack=label, exit_code=0, success=True, host=host_name)
 
 
 async def _run_sequential_stack_commands_multi_host(
@@ -497,10 +503,17 @@ async def _run_sequential_stack_commands_multi_host(
             # (ignore empty prefix from single-stack batches - we still need to distinguish hosts)
             effective_prefix = label if len(host_names) > 1 else prefix
             tasks.append(
-                run_command(host, command, label, stream=stream, raw=raw, prefix=effective_prefix)
+                (
+                    host_name,
+                    run_command(
+                        host, command, label, stream=stream, raw=raw, prefix=effective_prefix
+                    ),
+                )
             )
 
-        results = await asyncio.gather(*tasks)
+        results = await asyncio.gather(*(task for _, task in tasks))
+        for (host_name, _), result in zip(tasks, results, strict=True):
+            result.host = host_name
         final_results = list(results)
 
         # Check if any failed
