@@ -110,6 +110,63 @@ def test_generate_traefik_config_without_published_port_warns(tmp_path: Path) ->
     assert any("No published port found" in warning for warning in warnings)
 
 
+def test_check_all_suppresses_same_host_published_port_warning(tmp_path: Path) -> None:
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"nas01": Host(address="192.168.1.10")},
+        stacks={"traefik": "nas01", "app": "nas01"},
+        traefik_stack="traefik",
+    )
+    compose_path = tmp_path / "app" / "docker-compose.yml"
+    _write_compose(
+        compose_path,
+        {
+            "services": {
+                "app": {
+                    "ports": ["8080"],
+                    "labels": [
+                        "traefik.http.routers.app.rule=Host(`app.lab.mydomain.org`)",
+                        "traefik.http.services.app.loadbalancer.server.port=8080",
+                    ],
+                }
+            }
+        },
+    )
+
+    dynamic, warnings = generate_traefik_config(cfg, ["app"], check_all=True)
+
+    assert dynamic["http"]["routers"]["app"]["rule"] == "Host(`app.lab.mydomain.org`)"
+    assert warnings == []
+
+
+def test_check_all_warns_for_remote_stack_without_published_port(tmp_path: Path) -> None:
+    cfg = Config(
+        compose_dir=tmp_path,
+        hosts={"nas01": Host(address="192.168.1.10"), "hp": Host(address="192.168.1.20")},
+        stacks={"traefik": "nas01", "app": "hp"},
+        traefik_stack="traefik",
+    )
+    compose_path = tmp_path / "app" / "docker-compose.yml"
+    _write_compose(
+        compose_path,
+        {
+            "services": {
+                "app": {
+                    "ports": ["8080"],
+                    "labels": [
+                        "traefik.http.routers.app.rule=Host(`app.lab.mydomain.org`)",
+                        "traefik.http.services.app.loadbalancer.server.port=8080",
+                    ],
+                }
+            }
+        },
+    )
+
+    _, warnings = generate_traefik_config(cfg, ["app"], check_all=True)
+
+    assert any("No published port found" in warning for warning in warnings)
+
+
 def test_generate_interpolates_env_and_infers_router_service(tmp_path: Path) -> None:
     cfg = Config(
         compose_dir=tmp_path,

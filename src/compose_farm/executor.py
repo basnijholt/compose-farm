@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
 _DEFAULT_SSH_PORT = 22
+_REMOTE_CHECK_ATTEMPTS = 2
 
 
 class TTLCache:
@@ -263,8 +264,9 @@ async def _run_local_command(
             stderr=stderr_data.decode() if stderr_data else "",
         )
     except OSError as e:
-        err_console.print(f"{format_stack_prefix(stack)} [red]Local error:[/] {e}")
-        return CommandResult(stack=stack, exit_code=1, success=False)
+        if stream:
+            err_console.print(f"{format_stack_prefix(stack)} [red]Local error:[/] {e}")
+        return CommandResult(stack=stack, exit_code=1, success=False, stderr=str(e))
 
 
 async def _run_ssh_command(
@@ -320,7 +322,8 @@ async def _run_ssh_command(
                     stderr=stderr_data,
                 )
     except (OSError, asyncssh.Error) as e:
-        err_console.print(f"{format_stack_prefix(stack)} [red]SSH error:[/] {e}")
+        if stream:
+            err_console.print(f"{format_stack_prefix(stack)} [red]SSH error:[/] {e}")
         return CommandResult(stack=stack, exit_code=1, success=False, stderr=str(e))
 
 
@@ -668,9 +671,19 @@ async def _batch_check_existence(
         checks.append(cmd_template(escaped))
 
     command = "; ".join(checks)
-    result = await run_command(host, command, context, stream=False)
-    if not result.success:
-        detail = result.stderr or result.stdout or f"exit code {result.exit_code}"
+    result: CommandResult | None = None
+    for attempt in range(_REMOTE_CHECK_ATTEMPTS):
+        result = await run_command(host, command, context, stream=False)
+        if result.success:
+            break
+        if attempt < _REMOTE_CHECK_ATTEMPTS - 1:
+            await asyncio.sleep(0.2)
+
+    if result is None or not result.success:
+        if result is None:
+            detail = "no result"
+        else:
+            detail = result.stderr or result.stdout or f"exit code {result.exit_code}"
         raise RemoteCheckError(host_name, context, detail)
 
     exists: dict[str, bool] = dict.fromkeys(items, False)
