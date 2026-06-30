@@ -13,6 +13,7 @@ from .compose import parse_devices, parse_external_networks, parse_host_volumes
 from .console import console, err_console, print_error, print_success, print_warning
 from .executor import (
     CommandResult,
+    RemoteCheckError,
     check_networks_exist,
     check_paths_exist,
     check_stack_running,
@@ -42,11 +43,14 @@ class PreflightResult(NamedTuple):
     missing_paths: list[str]
     missing_networks: list[str]
     missing_devices: list[str]
+    check_errors: list[str]
 
     @property
     def ok(self) -> bool:
         """Return True if all checks passed."""
-        return not (self.missing_paths or self.missing_networks or self.missing_devices)
+        return not (
+            self.missing_paths or self.missing_networks or self.missing_devices or self.check_errors
+        )
 
 
 async def _run_compose_step(
@@ -118,26 +122,37 @@ async def check_stack_requirements(
 
     Verifies that all required paths (volumes), networks, and devices exist.
     """
+    check_errors: list[str] = []
+
     # Check mount paths
     paths = get_stack_paths(cfg, stack)
-    path_exists = await check_paths_exist(cfg, host_name, paths)
-    missing_paths = [p for p, found in path_exists.items() if not found]
+    try:
+        path_exists = await check_paths_exist(cfg, host_name, paths)
+        missing_paths = [p for p, found in path_exists.items() if not found]
+    except RemoteCheckError as e:
+        return PreflightResult([], [], [], [str(e)])
 
     # Check external networks
     networks = parse_external_networks(cfg, stack)
     missing_networks: list[str] = []
     if networks:
-        net_exists = await check_networks_exist(cfg, host_name, networks)
-        missing_networks = [n for n, found in net_exists.items() if not found]
+        try:
+            net_exists = await check_networks_exist(cfg, host_name, networks)
+            missing_networks = [n for n, found in net_exists.items() if not found]
+        except RemoteCheckError as e:
+            check_errors.append(str(e))
 
     # Check devices
     devices = parse_devices(cfg, stack)
     missing_devices: list[str] = []
     if devices:
-        dev_exists = await check_paths_exist(cfg, host_name, devices)
-        missing_devices = [d for d, found in dev_exists.items() if not found]
+        try:
+            dev_exists = await check_paths_exist(cfg, host_name, devices)
+            missing_devices = [d for d, found in dev_exists.items() if not found]
+        except RemoteCheckError as e:
+            check_errors.append(str(e))
 
-    return PreflightResult(missing_paths, missing_networks, missing_devices)
+    return PreflightResult(missing_paths, missing_networks, missing_devices, check_errors)
 
 
 async def _cleanup_and_rollback(
@@ -175,6 +190,8 @@ def _report_preflight_failures(
 ) -> None:
     """Report pre-flight check failures."""
     print_error(f"[cyan]\\[{stack}][/] Cannot start on [magenta]{target_host}[/]:")
+    for err in preflight.check_errors:
+        print_error(f"  remote check failed: {err}")
     for path in preflight.missing_paths:
         print_error(f"  missing path: {path}")
     for net in preflight.missing_networks:

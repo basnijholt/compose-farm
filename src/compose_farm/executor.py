@@ -116,6 +116,7 @@ def build_ssh_command(host: Host, command: str, *, tty: bool = False) -> list[st
     key_path = get_key_path()
     if key_path:
         ssh_args.extend(["-i", str(key_path)])
+        ssh_args.extend(["-o", "IdentitiesOnly=yes"])
 
     if host.port != _DEFAULT_SSH_PORT:
         ssh_args.extend(["-p", str(host.port)])
@@ -164,6 +165,17 @@ class CommandResult:
         """Check if command was killed by SIGINT (Ctrl+C)."""
         # Negative exit codes indicate signal termination; -2 = SIGINT
         return self.exit_code < 0 or self.exit_code == self._SSH_CONNECTION_CLOSED
+
+
+class RemoteCheckError(RuntimeError):
+    """Raised when a remote preflight check could not be executed."""
+
+    def __init__(self, host: str, context: str, detail: str) -> None:
+        """Initialize the error with host, check context, and failure detail."""
+        self.host = host
+        self.context = context
+        self.detail = detail.strip() or "unknown error"
+        super().__init__(f"{context} failed on {host}: {self.detail}")
 
 
 def is_local(host: Host) -> bool:
@@ -309,7 +321,7 @@ async def _run_ssh_command(
                 )
     except (OSError, asyncssh.Error) as e:
         err_console.print(f"[cyan]\\[{stack}][/] [red]SSH error:[/] {e}")
-        return CommandResult(stack=stack, exit_code=1, success=False)
+        return CommandResult(stack=stack, exit_code=1, success=False, stderr=str(e))
 
 
 async def run_command(
@@ -657,6 +669,9 @@ async def _batch_check_existence(
 
     command = "; ".join(checks)
     result = await run_command(host, command, context, stream=False)
+    if not result.success:
+        detail = result.stderr or result.stdout or f"exit code {result.exit_code}"
+        raise RemoteCheckError(host_name, context, detail)
 
     exists: dict[str, bool] = dict.fromkeys(items, False)
     for raw_line in result.stdout.splitlines():

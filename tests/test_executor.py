@@ -9,7 +9,9 @@ import pytest
 from compose_farm.config import Config, Host
 from compose_farm.executor import (
     CommandResult,
+    RemoteCheckError,
     _run_local_command,
+    build_ssh_command,
     check_networks_exist,
     check_paths_exist,
     check_stack_running,
@@ -84,6 +86,24 @@ class TestRunCommand:
         assert result.stack == "my-service"
         assert result.exit_code == 0
         assert result.success is True
+
+
+class TestBuildSshCommand:
+    """Tests for native SSH command construction."""
+
+    def test_uses_only_compose_farm_key_when_present(self, tmp_path: Path) -> None:
+        """Native ssh should match asyncssh by not falling back to agent keys."""
+        key_path = tmp_path / "id_ed25519"
+        host = Host(address="192.168.1.10", user="me")
+
+        with patch("compose_farm.executor.get_key_path", return_value=key_path):
+            args = build_ssh_command(host, "true")
+
+        assert args[0] == "ssh"
+        assert "-i" in args
+        assert str(key_path) in args
+        assert "-o" in args
+        assert "IdentitiesOnly=yes" in args
 
 
 class TestRunCompose:
@@ -339,6 +359,28 @@ class TestCheckPathsExist:
 
         result = await check_paths_exist(config, "local", [])
         assert result == {}
+
+    async def test_remote_command_failure_raises(self, tmp_path: Path) -> None:
+        """SSH/preflight failures should not look like every path is missing."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"remote": Host(address="192.168.1.10")},
+            stacks={},
+        )
+        failed = CommandResult(
+            stack="mount-check",
+            exit_code=1,
+            success=False,
+            stderr="Permission denied for user basnijholt",
+        )
+
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = failed
+            with pytest.raises(RemoteCheckError) as exc_info:
+                await check_paths_exist(config, "remote", ["/opt/stacks"])
+
+        assert "mount-check failed on remote" in str(exc_info.value)
+        assert "Permission denied" in str(exc_info.value)
 
 
 @linux_only
