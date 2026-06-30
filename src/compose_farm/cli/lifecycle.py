@@ -77,12 +77,13 @@ def up(
     elif host:
         # For host-filtered up, use run_on_stacks to only affect that host
         # (skips migration logic, which is intended when explicitly specifying a host)
+        raw = len(stack_list) == 1
         results = run_async(
             run_on_stacks(
                 cfg,
                 stack_list,
                 build_up_cmd(pull=pull, build=build),
-                raw=True,
+                raw=raw,
                 filter_host=host,
             )
         )
