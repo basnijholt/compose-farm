@@ -13,6 +13,7 @@ from compose_farm.executor import (
     CommandResult,
     RemoteCheckError,
     _run_local_command,
+    _run_ssh_command,
     _stream_output_lines,
     build_ssh_command,
     check_networks_exist,
@@ -129,6 +130,27 @@ class TestRunCommand:
         assert result.stack == "my-service"
         assert result.exit_code == 0
         assert result.success is True
+
+    async def test_non_streaming_ssh_error_is_returned_not_printed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Preflight checks run under progress bars and must not print mid-render."""
+        from compose_farm import executor
+
+        output = _RecordingConsole()
+        monkeypatch.setattr(executor, "err_console", output)
+
+        with patch("asyncssh.connect", side_effect=OSError("Connection lost")):
+            result = await _run_ssh_command(
+                Host(address="192.168.1.10"),
+                "true",
+                "mount-check",
+                stream=False,
+            )
+
+        assert result.success is False
+        assert result.stderr == "Connection lost"
+        assert output.calls == []
 
 
 class TestBuildSshCommand:
@@ -424,6 +446,33 @@ class TestCheckPathsExist:
 
         assert "mount-check failed on remote" in str(exc_info.value)
         assert "Permission denied" in str(exc_info.value)
+
+    async def test_remote_command_failure_retries_once(self, tmp_path: Path) -> None:
+        """Transient SSH failures should not fail the whole preflight immediately."""
+        config = Config(
+            compose_dir=tmp_path,
+            hosts={"remote": Host(address="192.168.1.10")},
+            stacks={},
+        )
+        failed = CommandResult(
+            stack="mount-check",
+            exit_code=1,
+            success=False,
+            stderr="Connection lost",
+        )
+        succeeded = CommandResult(
+            stack="mount-check",
+            exit_code=0,
+            success=True,
+            stdout="Y:/opt/stacks\n",
+        )
+
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.side_effect = [failed, succeeded]
+            result = await check_paths_exist(config, "remote", ["/opt/stacks"])
+
+        assert result == {"/opt/stacks": True}
+        assert mock_run.await_count == 2
 
 
 @linux_only

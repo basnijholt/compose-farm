@@ -35,6 +35,7 @@ class _TraefikServiceSource:
     compose_service: str
     host_address: str
     ports: list[PortMapping]
+    requires_published_port: bool = True
     container_port: int | None = None
     scheme: str | None = None
 
@@ -145,6 +146,8 @@ def _finalize_http_services(
     warnings: list[str],
 ) -> None:
     for traefik_service, source in sources.items():
+        if not source.requires_published_port:
+            continue
         published_port, warn = _resolve_published_port(source)
         if warn:
             warnings.append(warn)
@@ -229,6 +232,7 @@ def _process_service_label(
     compose_service: str,
     host_address: str,
     ports: list[PortMapping],
+    requires_published_port: bool,
     service_names: set[str],
     sources: dict[str, _TraefikServiceSource],
 ) -> None:
@@ -249,6 +253,7 @@ def _process_service_label(
             compose_service=compose_service,
             host_address=host_address,
             ports=ports,
+            requires_published_port=requires_published_port,
         )
         sources[traefik_service] = source
 
@@ -266,6 +271,7 @@ def _process_service_labels(
     definition: dict[str, Any],
     all_services: dict[str, Any],
     host_address: str,
+    requires_published_port: bool,
     env: dict[str, str],
     dynamic: dict[str, Any],
     sources: dict[str, _TraefikServiceSource],
@@ -303,6 +309,7 @@ def _process_service_labels(
             compose_service,
             host_address,
             ports,
+            requires_published_port,
             service_names,
             sources,
         )
@@ -333,12 +340,15 @@ def generate_traefik_config(
 
     # Determine Traefik's host from service assignment
     traefik_host = None
-    if config.traefik_stack and not check_all:
+    if config.traefik_stack:
         traefik_host = config.stacks.get(config.traefik_stack)
 
     for stack in stacks:
         raw_services, env, host_address = load_compose_services(config, stack)
         stack_host = config.stacks.get(stack)
+        requires_published_port = not (
+            host_address.lower() in LOCAL_ADDRESSES or (traefik_host and stack_host == traefik_host)
+        )
 
         # Skip stacks on Traefik's host - docker provider handles them directly
         # (unless check_all is True, for validation purposes)
@@ -357,6 +367,7 @@ def generate_traefik_config(
                 definition,
                 raw_services,
                 host_address,
+                requires_published_port,
                 env,
                 dynamic,
                 sources,
