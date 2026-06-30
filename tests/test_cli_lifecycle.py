@@ -3,7 +3,7 @@
 from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 import pytest
 import typer
@@ -37,7 +37,13 @@ def _make_config(tmp_path: Path, stacks: dict[str, str | list[str]] | None = Non
     )
 
 
-def _make_result(stack: str, success: bool = True) -> CommandResult:
+def _make_result(
+    stack: str,
+    success: bool = True,
+    *,
+    host: str = "",
+    label: str = "",
+) -> CommandResult:
     """Create a command result."""
     return CommandResult(
         stack=stack,
@@ -45,6 +51,8 @@ def _make_result(stack: str, success: bool = True) -> CommandResult:
         success=success,
         stdout="",
         stderr="",
+        host=host,
+        label=label,
     )
 
 
@@ -146,7 +154,7 @@ class TestApplyCommand:
     def test_apply_executes_orphan_cleanup(self, tmp_path: Path) -> None:
         """Apply stops orphaned stacks."""
         cfg = _make_config(tmp_path)
-        mock_results = [_make_result("old-svc@host1")]
+        mock_results = [_make_result("old-svc", host="host1", label="old-svc@host1")]
 
         with (
             patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
@@ -388,7 +396,7 @@ class TestDownOrphaned:
     def test_down_orphaned_stops_stacks(self, tmp_path: Path) -> None:
         """--orphaned stops orphaned stacks."""
         cfg = _make_config(tmp_path)
-        mock_results = [_make_result("old-svc@host1")]
+        mock_results = [_make_result("old-svc", host="host1", label="old-svc@host1")]
 
         with (
             patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
@@ -485,7 +493,12 @@ class TestLifecycleHostFilters:
             patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                side_effect=_run_async_returns([_make_result("svc1"), _make_result("multi@host1")]),
+                side_effect=_run_async_returns(
+                    [
+                        _make_result("svc1", host="host1"),
+                        _make_result("multi", host="host1", label="multi@host1"),
+                    ]
+                ),
             ),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
@@ -518,7 +531,12 @@ class TestLifecycleHostFilters:
             patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                side_effect=_run_async_returns([_make_result("svc1"), _make_result("multi@host1")]),
+                side_effect=_run_async_returns(
+                    [
+                        _make_result("svc1", host="host1"),
+                        _make_result("multi", host="host1", label="multi@host1"),
+                    ]
+                ),
             ),
             patch("compose_farm.cli.lifecycle.add_stack_host"),
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
@@ -610,7 +628,9 @@ class TestHostFilterMultiHost:
             patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                side_effect=_run_async_returns([_make_result("multi-host@host1")]),
+                side_effect=_run_async_returns(
+                    [_make_result("multi-host", host="host1", label="multi-host@host1")]
+                ),
             ),
             patch("compose_farm.cli.lifecycle.remove_stack"),
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
@@ -645,7 +665,9 @@ class TestHostFilterMultiHost:
             patch("compose_farm.cli.lifecycle.run_on_stacks"),
             patch(
                 "compose_farm.cli.lifecycle.run_async",
-                side_effect=_run_async_returns([_make_result("multi-host@host1")]),
+                side_effect=_run_async_returns(
+                    [_make_result("multi-host", host="host1", label="multi-host@host1")]
+                ),
             ),
             patch("compose_farm.cli.lifecycle.remove_stack") as mock_remove,
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
@@ -664,8 +686,10 @@ class TestHostFilterMultiHost:
             # remove_stack should be called with the host parameter
             mock_remove.assert_called_once_with(cfg, "multi-host", "host1")
 
-    def test_down_without_host_filter_removes_from_state(self, tmp_path: Path) -> None:
-        """Without --host filter, multi-host stacks SHOULD be removed from state."""
+    def test_down_without_host_filter_removes_successful_hosts_from_state(
+        self, tmp_path: Path
+    ) -> None:
+        """Without --host filter, multi-host stacks remove each successful host."""
         cfg = self._make_multi_host_config(tmp_path)
 
         with (
@@ -676,9 +700,9 @@ class TestHostFilterMultiHost:
                 "compose_farm.cli.lifecycle.run_async",
                 side_effect=_run_async_returns(
                     [
-                        _make_result("multi-host@host1"),
-                        _make_result("multi-host@host2"),
-                        _make_result("multi-host@host3"),
+                        _make_result("multi-host", host="host1", label="multi-host@host1"),
+                        _make_result("multi-host", host="host2", label="multi-host@host2"),
+                        _make_result("multi-host", host="host3", label="multi-host@host3"),
                     ]
                 ),
             ),
@@ -696,5 +720,10 @@ class TestHostFilterMultiHost:
                 config=None,
             )
 
-            # remove_stack SHOULD be called with host=None when stopping all instances
-            mock_remove.assert_called_once_with(cfg, "multi-host", None)
+            # remove_stack should be called once per successful host, preserving
+            # failed hosts in state if a multi-host down partially fails.
+            assert mock_remove.call_args_list == [
+                call(cfg, "multi-host", "host1"),
+                call(cfg, "multi-host", "host2"),
+                call(cfg, "multi-host", "host3"),
+            ]

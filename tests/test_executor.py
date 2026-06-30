@@ -259,7 +259,9 @@ class TestRunCompose:
 
             command = mock_run.call_args[0][1]
             assert command == f'cd "{tmp_path}/mystack" && docker compose down'
+            assert result.stack == "mystack"
             assert result.host == "host1"
+            assert result.label == "mystack@host1"
 
     async def test_check_stack_running_uses_cd_pattern(self, tmp_path: Path) -> None:
         """Verify check_stack_running uses 'cd <dir> && docker compose' pattern."""
@@ -328,7 +330,7 @@ class TestRunOnStacks:
             stacks={"multi-svc": ["host1", "host2", "host3"]},  # multi-host stack
         )
 
-        mock_result = CommandResult(stack="multi-svc@host1", exit_code=0, success=True)
+        mock_result = CommandResult(stack="multi-svc", exit_code=0, success=True)
         with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
             mock_run.return_value = mock_result
             results = await run_on_stacks(
@@ -337,10 +339,12 @@ class TestRunOnStacks:
 
             # Should only call run_command once (for host1), not 3 times
             assert mock_run.call_count == 1
+            assert mock_run.call_args.args[2] == "multi-svc"
             # Result should be for the filtered host
             assert len(results) == 1
-            assert results[0].stack == "multi-svc@host1"
+            assert results[0].stack == "multi-svc"
             assert results[0].host == "host1"
+            assert results[0].label == "multi-svc@host1"
 
     async def test_run_on_stacks_no_filter_runs_all_hosts(self) -> None:
         """Without filter_host, multi-host stacks run on all configured hosts."""

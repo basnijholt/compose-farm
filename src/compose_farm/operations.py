@@ -249,7 +249,11 @@ async def _up_multi_host_stack(
             _report_preflight_failures(stack, host_name, preflight)
             results.append(
                 CommandResult(
-                    stack=f"{stack}@{host_name}", exit_code=1, success=False, host=host_name
+                    stack=stack,
+                    exit_code=1,
+                    success=False,
+                    host=host_name,
+                    label=f"{stack}@{host_name}",
                 )
             )
             return results
@@ -262,8 +266,9 @@ async def _up_multi_host_stack(
     for host_name in host_names:
         host = cfg.hosts[host_name]
         label = f"{stack}@{host_name}"
-        result = await run_command(host, command, label, stream=not raw, raw=raw)
+        result = await run_command(host, command, stack, stream=not raw, raw=raw, prefix=label)
         result.host = host_name
+        result.label = label
         if raw:
             print()  # Ensure newline after raw output
         results.append(result)
@@ -526,11 +531,12 @@ async def _stop_stacks_on_hosts(
                 print_warning(f"{stack}@{host}: host no longer in config, skipping")
                 results.append(
                     CommandResult(
-                        stack=f"{stack}@{host}",
+                        stack=stack,
                         exit_code=1,
                         success=False,
                         stderr="host no longer in config",
                         host=host,
+                        label=f"{stack}@{host}",
                     )
                 )
                 continue
@@ -549,11 +555,12 @@ async def _stop_stacks_on_hosts(
             print_error(f"{stack}@{host}: {e}")
             results.append(
                 CommandResult(
-                    stack=f"{stack}@{host}",
+                    stack=stack,
                     exit_code=1,
                     success=False,
                     stderr=str(e),
                     host=host,
+                    label=f"{stack}@{host}",
                 )
             )
 
@@ -579,9 +586,12 @@ async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
     results = await _stop_stacks_on_hosts(cfg, normalized)
 
     # Remove from state only for stacks where ALL hosts succeeded
-    for stack in normalized:
-        all_succeeded = all(
-            r.success for r in results if r.stack.startswith(f"{stack}@") or r.stack == stack
+    for stack, hosts in normalized.items():
+        expected_hosts = set(hosts)
+        matching_results = [r for r in results if r.stack == stack and r.host in expected_hosts]
+        all_succeeded = (
+            all(r.success for r in matching_results)
+            and {r.host for r in matching_results} == expected_hosts
         )
         if all_succeeded:
             remove_stack(cfg, stack)
@@ -600,7 +610,7 @@ async def stop_stray_stacks(
         strays: Dict mapping stack name to list of stray hosts.
 
     Returns:
-        List of CommandResults for each stack@host stopped.
+        List of CommandResults for each stack/host stopped.
 
     """
     return await _stop_stacks_on_hosts(cfg, strays, label="stray")

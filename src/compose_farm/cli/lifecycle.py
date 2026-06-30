@@ -90,8 +90,7 @@ def up(
         # Update state for successful host-filtered operations
         for result in results:
             if result.success:
-                base_stack = result.stack.split("@")[0]
-                add_stack_host(cfg, base_stack, host)
+                add_stack_host(cfg, result.stack, result.host or host)
     else:
         results = run_async(up_stacks(cfg, stack_list, raw=True, pull=pull, build=build))
     maybe_regenerate_traefik(cfg, results)
@@ -138,17 +137,16 @@ def down(
     results = run_async(run_on_stacks(cfg, stack_list, "down", raw=raw, filter_host=host))
 
     # Update state on success
-    # For multi-host stacks, result.stack is "stack@host", extract base name
-    updated_stacks: set[str] = set()
+    updated_stacks: set[tuple[str, str | None]] = set()
     for result in results:
         if result.success:
-            base_stack = result.stack.split("@")[0]
-            if base_stack not in updated_stacks:
-                # When host is specified for multi-host stack, removes just that host
-                # Otherwise removes entire stack from state
-                filter_host = host if host and cfg.is_multi_host(base_stack) else None
-                remove_stack(cfg, base_stack, filter_host)
-                updated_stacks.add(base_stack)
+            # For multi-host stacks, remove only the host that actually succeeded.
+            # Single-host stacks can be removed as a whole.
+            filter_host = result.host if cfg.is_multi_host(result.stack) else None
+            key = (result.stack, filter_host)
+            if key not in updated_stacks:
+                remove_stack(cfg, result.stack, filter_host)
+                updated_stacks.add(key)
 
     maybe_regenerate_traefik(cfg, results)
     report_results(results)

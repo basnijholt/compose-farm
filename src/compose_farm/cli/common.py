@@ -222,7 +222,8 @@ def report_results(results: list[CommandResult]) -> None:
 
     def failure_message(result: CommandResult) -> str:
         host = f" on [cyan]{result.host}[/]" if result.host else ""
-        return f"[cyan]{result.stack}[/] failed with exit code {result.exit_code}{host}"
+        name = result.stack if result.host else result.display_label
+        return f"[cyan]{name}[/] failed with exit code {result.exit_code}{host}"
 
     # Always print summary when there are multiple results
     if len(results) > 1:

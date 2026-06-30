@@ -158,6 +158,7 @@ class CommandResult:
     stdout: str = ""
     stderr: str = ""
     host: str = ""
+    label: str = ""
 
     # SSH returns 255 when connection is closed unexpectedly (e.g., Ctrl+C)
     _SSH_CONNECTION_CLOSED = 255
@@ -167,6 +168,11 @@ class CommandResult:
         """Check if command was killed by SIGINT (Ctrl+C)."""
         # Negative exit codes indicate signal termination; -2 = SIGINT
         return self.exit_code < 0 or self.exit_code == self._SSH_CONNECTION_CLOSED
+
+    @property
+    def display_label(self) -> str:
+        """Return the label to use when this result needs display context."""
+        return self.label or self.stack
 
 
 class RemoteCheckError(RuntimeError):
@@ -266,7 +272,7 @@ async def _run_local_command(
         )
     except OSError as e:
         if stream:
-            err_console.print(f"{format_stack_prefix(stack)} [red]Local error:[/] {e}")
+            err_console.print(f"{format_stack_prefix(prefix or stack)} [red]Local error:[/] {e}")
         return CommandResult(stack=stack, exit_code=1, success=False, stderr=str(e))
 
 
@@ -324,7 +330,7 @@ async def _run_ssh_command(
                 )
     except (OSError, asyncssh.Error) as e:
         if stream:
-            err_console.print(f"{format_stack_prefix(stack)} [red]SSH error:[/] {e}")
+            err_console.print(f"{format_stack_prefix(prefix or stack)} [red]SSH error:[/] {e}")
         return CommandResult(stack=stack, exit_code=1, success=False, stderr=str(e))
 
 
@@ -378,6 +384,7 @@ async def run_compose(
     command = f'cd "{stack_dir}" && docker compose {compose_cmd}'
     result = await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
     result.host = host_name
+    result.label = stack
     return result
 
 
@@ -404,6 +411,7 @@ async def run_compose_on_host(
     command = f'cd "{stack_dir}" && docker compose {compose_cmd}'
     result = await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
     result.host = host_name
+    result.label = f"{stack}@{host_name}"
     return result
 
 
@@ -465,11 +473,12 @@ async def _run_sequential_stack_commands_on_host(
     for cmd in commands:
         _print_compose_command(host_name, stack, cmd)
         command = f'cd "{stack_dir}" && docker compose {cmd}'
-        result = await run_command(host, command, label, stream=stream, raw=raw, prefix=prefix)
+        result = await run_command(host, command, stack, stream=stream, raw=raw, prefix=prefix)
         result.host = host_name
+        result.label = label
         if not result.success:
             return result
-    return CommandResult(stack=label, exit_code=0, success=True, host=host_name)
+    return CommandResult(stack=stack, exit_code=0, success=True, host=host_name, label=label)
 
 
 async def _run_sequential_stack_commands_multi_host(
@@ -506,7 +515,7 @@ async def _run_sequential_stack_commands_multi_host(
                 (
                     host_name,
                     run_command(
-                        host, command, label, stream=stream, raw=raw, prefix=effective_prefix
+                        host, command, stack, stream=stream, raw=raw, prefix=effective_prefix
                     ),
                 )
             )
@@ -514,6 +523,7 @@ async def _run_sequential_stack_commands_multi_host(
         results = await asyncio.gather(*(task for _, task in tasks))
         for (host_name, _), result in zip(tasks, results, strict=True):
             result.host = host_name
+            result.label = f"{stack}@{host_name}" if len(host_names) > 1 else stack
         final_results = list(results)
 
         # Check if any failed
