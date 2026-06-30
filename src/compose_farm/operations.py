@@ -226,6 +226,11 @@ def build_up_cmd(
     return " ".join(parts)
 
 
+def _up_action_label(*, pull: bool = False, build: bool = False) -> str:
+    """Return the user-facing action label for an up operation."""
+    return "Updating" if pull or build else "Starting"
+
+
 async def _up_multi_host_stack(
     cfg: Config,
     stack: str,
@@ -260,7 +265,7 @@ async def _up_multi_host_stack(
 
     # Start on all hosts
     hosts_str = ", ".join(f"[magenta]{h}[/]" for h in host_names)
-    console.print(f"{prefix} Starting on {hosts_str}...")
+    console.print(f"{prefix} {_up_action_label(pull=pull, build=build)} on {hosts_str}...")
 
     succeeded_hosts: list[str] = []
     use_raw = raw and len(host_names) == 1
@@ -360,7 +365,9 @@ async def _up_single_stack(
             )
 
     # Start on target host
-    console.print(f"{prefix} Starting on [magenta]{target_host}[/]...")
+    console.print(
+        f"{prefix} {_up_action_label(pull=pull, build=build)} on [magenta]{target_host}[/]..."
+    )
     up_result = await _run_compose_step(cfg, stack, build_up_cmd(pull=pull, build=build), raw=raw)
 
     # Update state on success, or rollback on failure
