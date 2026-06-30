@@ -238,11 +238,16 @@ def _check_ssh_connectivity(cfg: Config) -> list[str]:
 def _check_stack_requirements(
     cfg: Config,
     stacks: list[str],
-) -> tuple[list[tuple[str, str, str]], list[tuple[str, str, str]], list[tuple[str, str, str]]]:
+) -> tuple[
+    list[tuple[str, str, str]],
+    list[tuple[str, str, str]],
+    list[tuple[str, str, str]],
+    list[tuple[str, str, str]],
+]:
     """Check mounts, networks, and devices for all stacks with a progress bar.
 
-    Returns (mount_errors, network_errors, device_errors) where each is a list of
-    (stack, host, missing_item) tuples.
+    Returns (mount_errors, network_errors, device_errors, preflight_errors) where
+    each is a list of (stack, host, item_or_error) tuples.
     """
 
     async def check_stack(
@@ -252,22 +257,23 @@ def _check_stack_requirements(
         list[tuple[str, str, str]],
         list[tuple[str, str, str]],
         list[tuple[str, str, str]],
+        list[tuple[str, str, str]],
     ]:
         """Check requirements for a single stack on all its hosts."""
         host_names = cfg.get_hosts(stack)
         mount_errors: list[tuple[str, str, str]] = []
         network_errors: list[tuple[str, str, str]] = []
         device_errors: list[tuple[str, str, str]] = []
+        preflight_errors: list[tuple[str, str, str]] = []
 
         for host_name in host_names:
-            missing_paths, missing_nets, missing_devs = await check_stack_requirements(
-                cfg, stack, host_name
-            )
-            mount_errors.extend((stack, host_name, p) for p in missing_paths)
-            network_errors.extend((stack, host_name, n) for n in missing_nets)
-            device_errors.extend((stack, host_name, d) for d in missing_devs)
+            preflight = await check_stack_requirements(cfg, stack, host_name)
+            mount_errors.extend((stack, host_name, p) for p in preflight.missing_paths)
+            network_errors.extend((stack, host_name, n) for n in preflight.missing_networks)
+            device_errors.extend((stack, host_name, d) for d in preflight.missing_devices)
+            preflight_errors.extend((stack, host_name, e) for e in preflight.check_errors)
 
-        return stack, mount_errors, network_errors, device_errors
+        return stack, mount_errors, network_errors, device_errors, preflight_errors
 
     results = run_parallel_with_progress(
         "Checking requirements",
@@ -278,12 +284,14 @@ def _check_stack_requirements(
     all_mount_errors: list[tuple[str, str, str]] = []
     all_network_errors: list[tuple[str, str, str]] = []
     all_device_errors: list[tuple[str, str, str]] = []
-    for _, mount_errs, net_errs, dev_errs in results:
+    all_preflight_errors: list[tuple[str, str, str]] = []
+    for _, mount_errs, net_errs, dev_errs, preflight_errs in results:
         all_mount_errors.extend(mount_errs)
         all_network_errors.extend(net_errs)
         all_device_errors.extend(dev_errs)
+        all_preflight_errors.extend(preflight_errs)
 
-    return all_mount_errors, all_network_errors, all_device_errors
+    return all_mount_errors, all_network_errors, all_device_errors, all_preflight_errors
 
 
 def _report_config_status(cfg: Config) -> bool:
@@ -357,6 +365,21 @@ def _report_requirement_errors(errors: list[tuple[str, str, str]], category: str
             console.print(f"    [red]✗[/] {item}")
 
 
+def _report_preflight_check_errors(errors: list[tuple[str, str, str]]) -> None:
+    """Report remote preflight failures grouped by stack."""
+    by_stack: dict[str, list[tuple[str, str]]] = {}
+    for stack, host, error in errors:
+        by_stack.setdefault(stack, []).append((host, error))
+
+    console.print(f"[red]Remote check failures[/] ({len(errors)}):")
+    for stack, items in sorted(by_stack.items()):
+        host = items[0][0]
+        failures = [failure for _, failure in items]
+        console.print(f"  [cyan]{stack}[/] on [magenta]{host}[/]:")
+        for failure in failures:
+            console.print(f"    [red]✗[/] {failure}")
+
+
 def _report_ssh_status(unreachable_hosts: list[str]) -> bool:
     """Report SSH connectivity status. Returns True if there are errors."""
     if unreachable_hosts:
@@ -403,8 +426,13 @@ def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bo
     console.print()  # Spacing before mounts/networks check
 
     # Check mounts, networks, and devices
-    mount_errors, network_errors, device_errors = _check_stack_requirements(cfg, svc_list)
+    mount_errors, network_errors, device_errors, preflight_errors = _check_stack_requirements(
+        cfg, svc_list
+    )
 
+    if preflight_errors:
+        _report_preflight_check_errors(preflight_errors)
+        has_errors = True
     if mount_errors:
         _report_requirement_errors(mount_errors, "mounts")
         has_errors = True
@@ -414,7 +442,7 @@ def _run_remote_checks(cfg: Config, svc_list: list[str], *, show_host_compat: bo
     if device_errors:
         _report_requirement_errors(device_errors, "devices")
         has_errors = True
-    if not mount_errors and not network_errors and not device_errors:
+    if not preflight_errors and not mount_errors and not network_errors and not device_errors:
         print_success("All mounts, networks, and devices exist")
 
     if show_host_compat:

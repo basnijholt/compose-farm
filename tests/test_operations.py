@@ -10,11 +10,14 @@ import pytest
 
 from compose_farm.cli import lifecycle
 from compose_farm.config import Config, Host
-from compose_farm.executor import CommandResult
+from compose_farm.executor import CommandResult, RemoteCheckError
 from compose_farm.operations import (
+    PreflightResult,
     _migrate_stack,
+    _report_preflight_failures,
     build_discovery_results,
     build_up_cmd,
+    check_stack_requirements,
 )
 
 
@@ -124,6 +127,52 @@ class TestBuildUpCmd:
         assert (
             build_up_cmd(pull=True, build=True, service="web") == "up -d --pull always --build web"
         )
+
+
+class TestPreflightRequirements:
+    """Tests for stack preflight checks."""
+
+    async def test_remote_check_error_is_not_reported_as_missing_paths(
+        self, basic_config: Config
+    ) -> None:
+        """A failed SSH check should be distinct from real missing paths."""
+        with patch(
+            "compose_farm.operations.check_paths_exist",
+            side_effect=RemoteCheckError(
+                "host2",
+                "mount-check",
+                "Permission denied for user basnijholt",
+            ),
+        ):
+            result = await check_stack_requirements(basic_config, "test-service", "host2")
+
+        assert result.ok is False
+        assert result.missing_paths == []
+        assert result.missing_networks == []
+        assert result.missing_devices == []
+        assert result.check_errors == [
+            "mount-check failed on host2: Permission denied for user basnijholt"
+        ]
+
+    def test_report_preflight_failures_includes_remote_check_error(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """User-facing preflight output should show the real remote-check cause."""
+        _report_preflight_failures(
+            "test-service",
+            "host2",
+            PreflightResult(
+                missing_paths=[],
+                missing_networks=[],
+                missing_devices=[],
+                check_errors=["mount-check failed on host2: Permission denied"],
+            ),
+        )
+
+        captured = capsys.readouterr()
+        assert "remote check failed" in captured.err
+        assert "Permission denied" in captured.err
+        assert "missing path" not in captured.err
 
 
 class TestUpdateCommandSequence:
