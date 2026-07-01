@@ -286,7 +286,7 @@ def maybe_regenerate_traefik(
 
         for warning in warnings:
             print_warning(warning)
-    except (FileNotFoundError, ValueError) as exc:
+    except (OSError, ValueError) as exc:
         print_warning(f"Failed to update traefik config: {exc}")
 
 
