@@ -2,12 +2,42 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import typer
 
 from compose_farm.cli.app import app
 from compose_farm.console import console
+
+if TYPE_CHECKING:
+    from rich.text import Text
+
+
+def _compose_farm_banner() -> Text:
+    """Build the colored web startup banner."""
+    from rich.text import Text  # noqa: PLC0415
+
+    banner = Text()
+    structure = "bright_cyan"
+    windows = "yellow"
+
+    banner.append("            .-^-.\n", style=structure)
+    banner.append("         .-'  _  '-.\n", style=structure)
+    banner.append("        /    |_|    \\\n", style=structure)
+    banner.append("       /-------------\\\n", style=structure)
+    banner.append("      /  ", style=structure)
+    banner.append("[]", style=windows)
+    banner.append("  ", style=structure)
+    banner.append("[]", style=windows)
+    banner.append("  ", style=structure)
+    banner.append("[]", style=windows)
+    banner.append("  \\\n", style=structure)
+    banner.append("     /_________________\\\n", style=structure)
+    banner.append("       || ", style=structure)
+    banner.append("COMPOSE FARM", style="bold green")
+    banner.append(" ||\n", style=structure)
+    banner.append("       ||______________||", style=structure)
+    return banner
 
 
 @app.command(rich_help_panel="Server")
@@ -35,6 +65,7 @@ def web(
         )
         raise typer.Exit(1) from None
 
+    console.print(_compose_farm_banner())
     console.print(f"[green]Starting Compose Farm Web UI[/] at http://{host}:{port}")
     console.print("[dim]Press Ctrl+C to stop[/]")
 
