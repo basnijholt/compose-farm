@@ -67,3 +67,26 @@ def test_maybe_regenerate_traefik_warns_on_permission_error(tmp_path: Path) -> N
         maybe_regenerate_traefik(cfg)
 
     mock_warning.assert_called_once_with("Failed to update traefik config: denied")
+
+
+def test_maybe_regenerate_traefik_propagates_input_permission_error(
+    tmp_path: Path,
+) -> None:
+    cfg = Config(
+        compose_dir=tmp_path / "compose",
+        hosts={"host1": Host(address="localhost")},
+        stacks={"traefik": "host1"},
+        traefik_file=tmp_path / "compose-farm.yml",
+    )
+
+    with (
+        patch(
+            "compose_farm.traefik.generate_traefik_config",
+            side_effect=PermissionError("compose denied"),
+        ),
+        patch("compose_farm.cli.common.print_warning") as mock_warning,
+        pytest.raises(PermissionError, match="compose denied"),
+    ):
+        maybe_regenerate_traefik(cfg)
+
+    mock_warning.assert_not_called()
