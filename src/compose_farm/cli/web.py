@@ -20,11 +20,14 @@ def _compose_farm_banner() -> Text:
     banner = Text()
     structure = "bright_cyan"
     windows = "yellow"
+    attic_window = "red"
 
     banner.append("           .-^-.\n", style=structure)
-    banner.append("        .-'  _  '-.\n", style=structure)
+    banner.append("        .-'  ", style=structure)
+    banner.append("_", style=attic_window)
+    banner.append("  '-.\n", style=structure)
     banner.append("       /    ", style=structure)
-    banner.append("|_|", style=windows)
+    banner.append("|_|", style=attic_window)
     banner.append("    \\\n", style=structure)
     banner.append("      /-------------\\\n", style=structure)
     banner.append("     /  ", style=structure)
