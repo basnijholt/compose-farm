@@ -21,6 +21,7 @@ def test_compose_farm_banner_is_aligned() -> None:
         "      /-------------\\\n"
         "     /   []  []  []  \\\n"
         "    /_________________\\\n"
+        "    |                 |\n"
         "    |  COMPOSE FARM   |\n"
         "    |_________________|"
     )
