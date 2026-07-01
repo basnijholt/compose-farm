@@ -30,18 +30,18 @@ def _compose_farm_banner() -> Text:
     banner.append("|_|", style=attic_window)
     banner.append("    \\\n", style=structure)
     banner.append("      /-------------\\\n", style=structure)
-    banner.append("     /  ", style=structure)
+    banner.append("     /   ", style=structure)
     banner.append("[]", style=windows)
     banner.append("  ", style=structure)
     banner.append("[]", style=windows)
     banner.append("  ", style=structure)
     banner.append("[]", style=windows)
     banner.append("   \\\n", style=structure)
-    banner.append("    /_________________\\\n", style=structure)
-    banner.append("    |  ", style=structure)
+    banner.append("    /__________________\\\n", style=structure)
+    banner.append("    |   ", style=structure)
     banner.append("COMPOSE FARM", style="bold green")
     banner.append("   |\n", style=structure)
-    banner.append("    |_________________|", style=structure)
+    banner.append("    |__________________|", style=structure)
     return banner
 
 
