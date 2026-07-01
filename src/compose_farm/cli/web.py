@@ -19,8 +19,8 @@ def _compose_farm_banner() -> Text:
 
     banner = Text()
     structure = "bright_cyan"
-    windows = "yellow"
-    attic_window = "red"
+    windows = "bright_yellow"
+    attic_window = "bright_red"
 
     banner.append("           .-^-.\n", style=structure)
     banner.append("        .-'  ", style=structure)
