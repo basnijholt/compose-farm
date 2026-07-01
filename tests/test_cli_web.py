@@ -15,14 +15,14 @@ from compose_farm.cli.web import _compose_farm_banner
 def test_compose_farm_banner_is_aligned() -> None:
     """Banner contains the expected aligned ASCII art."""
     assert _compose_farm_banner().plain == (
-        "            .-^-.\n"
-        "         .-'  _  '-.\n"
-        "        /    |_|    \\\n"
-        "       /-------------\\\n"
-        "      /  []  []  []  \\\n"
-        "     /_________________\\\n"
-        "       || COMPOSE FARM ||\n"
-        "       ||______________||"
+        "           .-^-.\n"
+        "        .-'  _  '-.\n"
+        "       /    |_|    \\\n"
+        "      /-------------\\\n"
+        "     /  []  []  []  \\\n"
+        "    /_________________\\\n"
+        "    |  COMPOSE FARM   |\n"
+        "    |_________________|"
     )
 
 
