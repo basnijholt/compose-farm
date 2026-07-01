@@ -15,6 +15,7 @@ from compose_farm.operations import (
     PreflightResult,
     _migrate_stack,
     _report_preflight_failures,
+    _up_action_label,
     build_discovery_results,
     build_up_cmd,
     check_stack_requirements,
@@ -128,6 +129,19 @@ class TestBuildUpCmd:
         assert (
             build_up_cmd(pull=True, build=True, service="web") == "up -d --pull always --build web"
         )
+
+
+class TestUpActionLabel:
+    """Tests for user-facing up action labels."""
+
+    def test_plain_up_starts(self) -> None:
+        """A plain up operation starts missing or stopped containers."""
+        assert _up_action_label() == "Starting"
+
+    @pytest.mark.parametrize(("pull", "build"), [(True, False), (False, True), (True, True)])
+    def test_pull_or_build_updates(self, pull: bool, build: bool) -> None:
+        """Update-style operations should not imply containers were restarted."""
+        assert _up_action_label(pull=pull, build=build) == "Updating"
 
 
 class TestPreflightRequirements:
