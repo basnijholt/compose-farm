@@ -31,7 +31,7 @@ def _compose_farm_banner() -> Text:
     banner.append("[]", style=windows)
     banner.append("  ", style=structure)
     banner.append("[]", style=windows)
-    banner.append("  \\\n", style=structure)
+    banner.append("   \\\n", style=structure)
     banner.append("    /_________________\\\n", style=structure)
     banner.append("    |  ", style=structure)
     banner.append("COMPOSE FARM", style="bold green")
