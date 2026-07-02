@@ -272,7 +272,11 @@ def maybe_regenerate_traefik(
     try:
         dynamic, warnings = generate_traefik_config(cfg, list(cfg.stacks.keys()))
         new_content = render_traefik_config(dynamic)
+    except (FileNotFoundError, ValueError) as exc:
+        print_warning(f"Failed to update traefik config: {exc}")
+        return
 
+    try:
         # Check if content changed
         old_content = ""
         if cfg.traefik_file.exists():
@@ -284,10 +288,12 @@ def maybe_regenerate_traefik(
             console.print()  # Ensure we're on a new line after streaming output
             print_success(f"Traefik config updated: {cfg.traefik_file}")
 
-        for warning in warnings:
-            print_warning(warning)
-    except (FileNotFoundError, ValueError) as exc:
+    except OSError as exc:
         print_warning(f"Failed to update traefik config: {exc}")
+        return
+
+    for warning in warnings:
+        print_warning(warning)
 
 
 def validate_stacks(cfg: Config, stacks: list[str], *, hint: str | None = None) -> None:
