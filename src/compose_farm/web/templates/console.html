@@ -21,7 +21,7 @@
 
     <!-- Terminal -->
     {% call collapse("Terminal", checked=True, icon=terminal(), subtitle="Full shell access to selected host") %}
-        <div id="console-terminal" class="w-full bg-base-300 rounded-lg overflow-hidden resize-y" style="height: 384px; min-height: 200px;"></div>
+        <div id="console-terminal" class="w-full bg-base-300 rounded-lg overflow-hidden resize-y" style="height: 384px; min-height: 200px; touch-action: pan-y;"></div>
     {% endcall %}
 
     <!-- Editor -->

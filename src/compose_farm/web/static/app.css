@@ -31,7 +31,29 @@
 .editor-wrapper.env-wrapper { height: 250px; }
 .editor-wrapper.viewer-wrapper { height: 300px; }
 
-/* Terminal - no custom CSS needed, using h-full class in HTML */
+/* Terminal - mobile touch scrolling improvements */
+.xterm-viewport {
+    /* Allow native scroll momentum on mobile */
+    -webkit-overflow-scrolling: touch;
+    /* Prevent pull-to-refresh from interfering */
+    overscroll-behavior: contain;
+}
+
+/* Mobile-specific terminal adjustments */
+@media (max-width: 1023px) {
+    #terminal-container,
+    #console-terminal,
+    #exec-terminal {
+        /* Use viewport height on mobile for better sizing */
+        min-height: 200px;
+        max-height: 50vh;
+    }
+
+    /* Ensure terminal content is scrollable within container */
+    .xterm-screen {
+        touch-action: pan-y;
+    }
+}
 
 /* Prevent save button resize when text changes */
 #save-btn, #save-config-btn {
