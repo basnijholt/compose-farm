@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Minimal Icon: Container with sprouting plant -->
+  <defs>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#2496ED"/>
+      <stop offset="100%" style="stop-color:#1565C0"/>
+    </linearGradient>
+    <linearGradient id="greenGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#4CAF50"/>
+      <stop offset="100%" style="stop-color:#81C784"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Container -->
+  <rect x="40" y="100" width="120" height="70" fill="url(#blueGrad)" rx="6"/>
+
+  <!-- Container ridges -->
+  <g fill="#1A7AC7">
+    <rect x="48" y="108" width="104" height="12" rx="2"/>
+    <rect x="48" y="124" width="104" height="12" rx="2"/>
+    <rect x="48" y="140" width="104" height="12" rx="2"/>
+    <rect x="48" y="156" width="104" height="10" rx="2"/>
+  </g>
+
+  <!-- Corner posts -->
+  <rect x="40" y="100" width="10" height="70" fill="#0D47A1" rx="2"/>
+  <rect x="150" y="100" width="10" height="70" fill="#0D47A1" rx="2"/>
+
+  <!-- Plant stem -->
+  <path d="M100 100 Q100 75 100 50" stroke="#4CAF50" stroke-width="6" fill="none" stroke-linecap="round"/>
+
+  <!-- Leaves -->
+  <ellipse cx="85" cy="65" rx="15" ry="8" fill="url(#greenGrad)" transform="rotate(-30 85 65)"/>
+  <ellipse cx="115" cy="65" rx="15" ry="8" fill="url(#greenGrad)" transform="rotate(30 115 65)"/>
+  <ellipse cx="80" cy="80" rx="12" ry="6" fill="url(#greenGrad)" transform="rotate(-45 80 80)"/>
+  <ellipse cx="120" cy="80" rx="12" ry="6" fill="url(#greenGrad)" transform="rotate(45 120 80)"/>
+
+  <!-- Top leaves (crown) -->
+  <ellipse cx="100" cy="45" rx="10" ry="18" fill="url(#greenGrad)"/>
+  <ellipse cx="90" cy="50" rx="8" ry="14" fill="#66BB6A" transform="rotate(-20 90 50)"/>
+  <ellipse cx="110" cy="50" rx="8" ry="14" fill="#66BB6A" transform="rotate(20 110 50)"/>
+</svg>

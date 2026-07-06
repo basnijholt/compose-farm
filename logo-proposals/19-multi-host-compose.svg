@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <title>Compose Farm - multi-host compose</title>
+  <defs>
+    <linearGradient id="cfBlue15" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2496ED"/>
+      <stop offset="100%" stop-color="#1565C0"/>
+    </linearGradient>
+    <linearGradient id="cfGreen15" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#81C784"/>
+      <stop offset="100%" stop-color="#2E7D32"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Field -->
+  <polygon points="16,170 184,170 150,108 50,108" fill="url(#cfGreen15)" opacity="0.35"/>
+  <g stroke="#2E7D32" stroke-width="2" opacity="0.22" stroke-linecap="round">
+    <line x1="34" y1="170" x2="62" y2="108"/>
+    <line x1="70" y1="170" x2="86" y2="108"/>
+    <line x1="100" y1="170" x2="100" y2="108"/>
+    <line x1="130" y1="170" x2="114" y2="108"/>
+    <line x1="166" y1="170" x2="138" y2="108"/>
+  </g>
+
+  <!-- SSH paths -->
+  <g stroke="#334155" stroke-width="3" stroke-dasharray="4 6" opacity="0.75" fill="none" stroke-linecap="round">
+    <path d="M100 132 C82 118 68 114 46 118"/>
+    <path d="M100 132 C118 118 132 114 154 118"/>
+  </g>
+  <g fill="#334155" opacity="0.75">
+    <circle cx="100" cy="132" r="3"/>
+    <circle cx="46" cy="118" r="3"/>
+    <circle cx="154" cy="118" r="3"/>
+  </g>
+
+  <!-- Remote container: left -->
+  <g transform="translate(18,118)">
+    <rect x="0" y="0" width="56" height="34" rx="5" fill="url(#cfBlue15)"/>
+    <rect x="0" y="0" width="7" height="34" rx="3" fill="#0D47A1" opacity="0.9"/>
+    <rect x="49" y="0" width="7" height="34" rx="3" fill="#0D47A1" opacity="0.9"/>
+    <g fill="#1A7AC7" opacity="0.9">
+      <rect x="9" y="7" width="38" height="6" rx="2"/>
+      <rect x="9" y="15" width="38" height="6" rx="2"/>
+      <rect x="9" y="23" width="38" height="6" rx="2"/>
+    </g>
+  </g>
+
+  <!-- Remote container: right -->
+  <g transform="translate(126,118)">
+    <rect x="0" y="0" width="56" height="34" rx="5" fill="url(#cfBlue15)"/>
+    <rect x="0" y="0" width="7" height="34" rx="3" fill="#0D47A1" opacity="0.9"/>
+    <rect x="49" y="0" width="7" height="34" rx="3" fill="#0D47A1" opacity="0.9"/>
+    <g fill="#1A7AC7" opacity="0.9">
+      <rect x="9" y="7" width="38" height="6" rx="2"/>
+      <rect x="9" y="15" width="38" height="6" rx="2"/>
+      <rect x="9" y="23" width="38" height="6" rx="2"/>
+    </g>
+  </g>
+
+  <!-- Central container with prompt -->
+  <g transform="translate(58,80)">
+    <rect x="0" y="0" width="84" height="52" rx="7" fill="url(#cfBlue15)"/>
+    <rect x="0" y="0" width="10" height="52" rx="4" fill="#0D47A1" opacity="0.9"/>
+    <rect x="74" y="0" width="10" height="52" rx="4" fill="#0D47A1" opacity="0.9"/>
+    <g fill="#1A7AC7" opacity="0.9">
+      <rect x="12" y="10" width="60" height="9" rx="3"/>
+      <rect x="12" y="22" width="60" height="9" rx="3"/>
+      <rect x="12" y="34" width="60" height="9" rx="3"/>
+    </g>
+
+    <!-- Prompt: >_ -->
+    <g stroke="#F8FAFC" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95">
+      <polyline points="18,18 30,26 18,34"/>
+      <line x1="36" y1="34" x2="58" y2="34"/>
+    </g>
+  </g>
+</svg>

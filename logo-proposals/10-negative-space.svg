@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Negative space: container with plant cutout -->
+  <defs>
+    <mask id="plantMask">
+      <rect width="200" height="200" fill="white"/>
+      <!-- Stem cutout -->
+      <rect x="96" y="40" width="8" height="55" fill="black"/>
+      <!-- Leaf cutouts -->
+      <ellipse cx="82" cy="55" rx="16" ry="9" fill="black" transform="rotate(-40 82 55)"/>
+      <ellipse cx="118" cy="55" rx="16" ry="9" fill="black" transform="rotate(40 118 55)"/>
+      <ellipse cx="100" cy="38" rx="10" ry="14" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- Container with mask -->
+  <g mask="url(#plantMask)">
+    <rect x="35" y="45" width="130" height="120" rx="12" fill="#2496ED"/>
+    <!-- Ridges -->
+    <rect x="35" y="70" width="130" height="4" fill="#1976D2"/>
+    <rect x="35" y="95" width="130" height="4" fill="#1976D2"/>
+    <rect x="35" y="120" width="130" height="4" fill="#1976D2"/>
+    <rect x="35" y="145" width="130" height="4" fill="#1976D2"/>
+  </g>
+</svg>

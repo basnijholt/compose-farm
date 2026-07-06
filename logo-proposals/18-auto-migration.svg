@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <title>Compose Farm - auto migration</title>
+  <defs>
+    <linearGradient id="cfBlue18" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2496ED"/>
+      <stop offset="100%" stop-color="#1565C0"/>
+    </linearGradient>
+    <linearGradient id="cfGreen18" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#66BB6A"/>
+      <stop offset="100%" stop-color="#2E7D32"/>
+    </linearGradient>
+    <marker id="arrow18" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#2E7D32"/>
+    </marker>
+  </defs>
+
+  <!-- Hosts -->
+  <g fill="#334155" opacity="0.9">
+    <rect x="20" y="55" width="48" height="90" rx="8"/>
+    <rect x="132" y="55" width="48" height="90" rx="8"/>
+  </g>
+  <g fill="#E2E8F0" opacity="0.85">
+    <rect x="30" y="68" width="28" height="10" rx="3"/>
+    <rect x="30" y="86" width="28" height="10" rx="3"/>
+    <rect x="30" y="104" width="28" height="10" rx="3"/>
+    <circle cx="56" cy="130" r="4"/>
+
+    <rect x="142" y="68" width="28" height="10" rx="3"/>
+    <rect x="142" y="86" width="28" height="10" rx="3"/>
+    <rect x="142" y="104" width="28" height="10" rx="3"/>
+    <circle cx="168" cy="130" r="4"/>
+  </g>
+
+  <!-- Migration arrow -->
+  <path d="M72 100 L128 100" stroke="url(#cfGreen18)" stroke-width="6" stroke-linecap="round" marker-end="url(#arrow18)"/>
+
+  <!-- Moving container -->
+  <g transform="translate(88,86)">
+    <rect x="0" y="0" width="28" height="20" rx="4" fill="url(#cfBlue18)"/>
+    <rect x="0" y="0" width="5" height="20" rx="3" fill="#0D47A1" opacity="0.9"/>
+    <rect x="23" y="0" width="5" height="20" rx="3" fill="#0D47A1" opacity="0.9"/>
+    <g fill="#1A7AC7" opacity="0.9">
+      <rect x="6" y="5" width="16" height="4" rx="2"/>
+      <rect x="6" y="11" width="16" height="4" rx="2"/>
+    </g>
+  </g>
+</svg>

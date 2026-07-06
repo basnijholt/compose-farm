@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Silos as Stacked Containers -->
+  <defs>
+    <linearGradient id="silo1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#2496ED"/>
+      <stop offset="50%" style="stop-color:#4AA8F2"/>
+      <stop offset="100%" style="stop-color:#2496ED"/>
+    </linearGradient>
+    <linearGradient id="silo2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1E88E5"/>
+      <stop offset="50%" style="stop-color:#42A5F5"/>
+      <stop offset="100%" style="stop-color:#1E88E5"/>
+    </linearGradient>
+    <linearGradient id="silo3" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#1976D2"/>
+      <stop offset="50%" style="stop-color:#2196F3"/>
+      <stop offset="100%" style="stop-color:#1976D2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Left silo (shortest) -->
+  <rect x="25" y="100" width="40" height="75" fill="url(#silo1)" rx="3"/>
+  <ellipse cx="45" cy="100" rx="20" ry="8" fill="#4AA8F2"/>
+  <ellipse cx="45" cy="175" rx="20" ry="5" fill="#1565C0"/>
+  <!-- Container ridges -->
+  <path d="M25 115 h40 M25 130 h40 M25 145 h40 M25 160 h40" stroke="#1A7AC7" stroke-width="2"/>
+  <!-- Roof dome -->
+  <ellipse cx="45" cy="100" rx="18" ry="12" fill="#1565C0"/>
+  <ellipse cx="45" cy="98" rx="16" ry="10" fill="#2196F3"/>
+
+  <!-- Middle silo (tallest) -->
+  <rect x="80" y="55" width="45" height="120" fill="url(#silo2)" rx="3"/>
+  <ellipse cx="102.5" cy="55" rx="22.5" ry="10" fill="#42A5F5"/>
+  <ellipse cx="102.5" cy="175" rx="22.5" ry="5" fill="#1565C0"/>
+  <!-- Container ridges -->
+  <path d="M80 75 h45 M80 95 h45 M80 115 h45 M80 135 h45 M80 155 h45" stroke="#1976D2" stroke-width="2"/>
+  <!-- Roof dome -->
+  <ellipse cx="102.5" cy="55" rx="20" ry="14" fill="#1565C0"/>
+  <ellipse cx="102.5" cy="52" rx="18" ry="12" fill="#2196F3"/>
+  <!-- Cupola -->
+  <rect x="97" y="35" width="11" height="17" fill="#1565C0"/>
+  <polygon points="92,35 102.5,22 113,35" fill="#1976D2"/>
+
+  <!-- Right silo (medium) -->
+  <rect x="140" y="85" width="38" height="90" fill="url(#silo3)" rx="3"/>
+  <ellipse cx="159" cy="85" rx="19" ry="8" fill="#2196F3"/>
+  <ellipse cx="159" cy="175" rx="19" ry="5" fill="#1565C0"/>
+  <!-- Container ridges -->
+  <path d="M140 100 h38 M140 115 h38 M140 130 h38 M140 145 h38 M140 160 h38" stroke="#1565C0" stroke-width="2"/>
+  <!-- Roof dome -->
+  <ellipse cx="159" cy="85" rx="17" ry="11" fill="#1565C0"/>
+  <ellipse cx="159" cy="83" rx="15" ry="9" fill="#2196F3"/>
+
+  <!-- Ground -->
+  <ellipse cx="100" cy="180" rx="85" ry="10" fill="#5D8A3E" opacity="0.5"/>
+</svg>

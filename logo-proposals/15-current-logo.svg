@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1052 523">
+  <defs>
+    <!-- Container blue colors -->
+    <linearGradient id="containerFront" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#4AA8D8"/>
+      <stop offset="100%" style="stop-color:#5BB5E0"/>
+    </linearGradient>
+    <linearGradient id="containerSide" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#3A8AB8"/>
+      <stop offset="100%" style="stop-color:#4AA8D8"/>
+    </linearGradient>
+    <linearGradient id="containerTop" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#6BC4E8"/>
+      <stop offset="100%" style="stop-color:#7DD0F0"/>
+    </linearGradient>
+    <linearGradient id="roofGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#4AA8D8"/>
+      <stop offset="100%" style="stop-color:#6BC4E8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Green farm field -->
+  <path d="M526 420 L120 280 L526 200 L932 280 Z" fill="#7CB342"/>
+  <path d="M526 420 L526 200" stroke="#8BC34A" stroke-width="2"/>
+  <path d="M526 420 L220 265" stroke="#8BC34A" stroke-width="2"/>
+  <path d="M526 420 L832 265" stroke="#8BC34A" stroke-width="2"/>
+  <path d="M526 420 L320 250" stroke="#8BC34A" stroke-width="2"/>
+  <path d="M526 420 L732 250" stroke="#8BC34A" stroke-width="2"/>
+  <!-- Field edge -->
+  <ellipse cx="526" cy="420" rx="410" ry="30" fill="#5D8C2A"/>
+
+  <!-- Left container stack -->
+  <g transform="translate(95, 180)">
+    <!-- Back container -->
+    <polygon points="60,40 130,10 130,70 60,100" fill="#3A8AB8"/>
+    <polygon points="0,70 60,40 60,100 0,130" fill="url(#containerFront)"/>
+    <polygon points="0,70 60,40 130,70 70,100" fill="url(#containerTop)"/>
+    <!-- Container ridges -->
+    <line x1="5" y1="80" x2="55" y2="52" stroke="#2D7A9E" stroke-width="2"/>
+    <line x1="5" y1="95" x2="55" y2="67" stroke="#2D7A9E" stroke-width="2"/>
+    <line x1="5" y1="110" x2="55" y2="82" stroke="#2D7A9E" stroke-width="2"/>
+
+    <!-- Front container -->
+    <polygon points="60,80 130,50 130,110 60,140" fill="#3A8AB8"/>
+    <polygon points="0,110 60,80 60,140 0,170" fill="url(#containerFront)"/>
+    <polygon points="0,110 60,80 130,110 70,140" fill="url(#containerTop)"/>
+    <!-- Container ridges -->
+    <line x1="5" y1="120" x2="55" y2="92" stroke="#2D7A9E" stroke-width="2"/>
+    <line x1="5" y1="135" x2="55" y2="107" stroke="#2D7A9E" stroke-width="2"/>
+    <line x1="5" y1="150" x2="55" y2="122" stroke="#2D7A9E" stroke-width="2"/>
+  </g>
+
+  <!-- Right container stack -->
+  <g transform="translate(827, 180)">
+    <!-- Back container -->
+    <polygon points="0,10 70,40 70,100 0,70" fill="url(#containerFront)"/>
+    <polygon points="70,40 130,70 130,130 70,100" fill="#3A8AB8"/>
+    <polygon points="0,10 70,40 130,10 60,0" fill="url(#containerTop)"/>
+    <!-- Container ridges -->
+    <line x1="5" y1="20" x2="65" y2="48" stroke="#2D7A9E" stroke-width="2"/>
+    <line x1="5" y1="35" x2="65" y2="63" stroke="#2D7A9E" stroke-width="2"/>
+    <line x1="5" y1="50" x2="65" y2="78" stroke="#2D7A9E" stroke-width="2"/>
+
+    <!-- Front container -->
+    <polygon points="0,50 70,80 70,140 0,110" fill="url(#containerFront)"/>
+    <polygon points="70,80 130,110 130,170 70,140" fill="#3A8AB8"/>
+    <polygon points="0,50 70,80 130,50 60,20" fill="url(#containerTop)"/>
+    <!-- Container ridges -->
+    <line x1="5" y1="60" x2="65" y2="88" stroke="#2D7A9E" stroke-width="2"/>
+    <line x1="5" y1="75" x2="65" y2="103" stroke="#2D7A9E" stroke-width="2"/>
+    <line x1="5" y1="90" x2="65" y2="118" stroke="#2D7A9E" stroke-width="2"/>
+  </g>
+
+  <!-- Dashed connection lines -->
+  <g stroke="#2D3E50" stroke-width="3" stroke-dasharray="8,6" fill="none">
+    <path d="M225 320 Q350 280 430 300"/>
+    <path d="M827 320 Q700 280 620 300"/>
+    <path d="M225 350 Q300 340 380 360"/>
+    <path d="M827 350 Q750 340 670 360"/>
+  </g>
+
+  <!-- Central barn/container structure -->
+  <g transform="translate(400, 85)">
+    <!-- Base left container -->
+    <polygon points="0,220 126,155 126,295 0,360" fill="url(#containerFront)"/>
+    <!-- Container ridges -->
+    <line x1="10" y1="232" x2="116" y2="172" stroke="#2D7A9E" stroke-width="3"/>
+    <line x1="10" y1="262" x2="116" y2="202" stroke="#2D7A9E" stroke-width="3"/>
+    <line x1="10" y1="292" x2="116" y2="232" stroke="#2D7A9E" stroke-width="3"/>
+    <line x1="10" y1="322" x2="116" y2="262" stroke="#2D7A9E" stroke-width="3"/>
+
+    <!-- Base right container -->
+    <polygon points="126,155 252,220 252,360 126,295" fill="#3A8AB8"/>
+    <!-- Container ridges -->
+    <line x1="136" y1="172" x2="242" y2="232" stroke="#2D7A9E" stroke-width="3"/>
+    <line x1="136" y1="202" x2="242" y2="262" stroke="#2D7A9E" stroke-width="3"/>
+    <line x1="136" y1="232" x2="242" y2="292" stroke="#2D7A9E" stroke-width="3"/>
+    <line x1="136" y1="262" x2="242" y2="322" stroke="#2D7A9E" stroke-width="3"/>
+
+    <!-- Door opening -->
+    <polygon points="80,260 126,235 172,260 172,360 126,335 80,360" fill="#1A2530"/>
+
+    <!-- Upper left container -->
+    <polygon points="20,135 126,75 126,155 20,215" fill="url(#containerFront)"/>
+    <line x1="28" y1="148" x2="118" y2="92" stroke="#2D7A9E" stroke-width="3"/>
+    <line x1="28" y1="173" x2="118" y2="117" stroke="#2D7A9E" stroke-width="3"/>
+
+    <!-- Upper right container -->
+    <polygon points="126,75 232,135 232,215 126,155" fill="#3A8AB8"/>
+    <line x1="134" y1="92" x2="224" y2="148" stroke="#2D7A9E" stroke-width="3"/>
+    <line x1="134" y1="117" x2="224" y2="173" stroke="#2D7A9E" stroke-width="3"/>
+
+    <!-- Roof -->
+    <polygon points="126,0 20,70 20,135 126,75" fill="url(#roofGrad)"/>
+    <polygon points="126,0 232,70 232,135 126,75" fill="#4AA8D8"/>
+    <polygon points="126,0 20,70 126,75 232,70" fill="#7DD0F0"/>
+    <!-- Roof ridges -->
+    <line x1="30" y1="80" x2="118" y2="35" stroke="#2D7A9E" stroke-width="2"/>
+    <line x1="30" y1="100" x2="118" y2="55" stroke="#2D7A9E" stroke-width="2"/>
+    <line x1="134" y1="35" x2="222" y2="80" stroke="#2D7A9E" stroke-width="2"/>
+    <line x1="134" y1="55" x2="222" y2="100" stroke="#2D7A9E" stroke-width="2"/>
+
+    <!-- Weather vane -->
+    <line x1="126" y1="0" x2="126" y2="-35" stroke="#2D3E50" stroke-width="3"/>
+    <!-- Crossbar -->
+    <line x1="100" y1="-25" x2="152" y2="-25" stroke="#2D3E50" stroke-width="3"/>
+    <!-- Terminal arrows -->
+    <polygon points="100,-25 108,-20 108,-30" fill="#2D3E50"/>
+    <polygon points="152,-25 144,-20 144,-30" fill="#2D3E50"/>
+    <!-- Top arrow -->
+    <polygon points="126,-35 120,-28 132,-28" fill="#2D3E50"/>
+  </g>
+
+  <!-- COMPOSE FARM text -->
+  <text x="526" y="500" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-size="72" font-weight="900" fill="#2D3E50" letter-spacing="4">COMPOSE FARM</text>
+</svg>
