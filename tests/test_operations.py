@@ -389,6 +389,47 @@ class TestBuildDiscoveryResultsSharedAddress:
         assert strays == {"nas-stack": ["nuc"]}
         assert duplicates == {}
 
+    def test_failed_probe_on_configured_host_is_not_stray(self, config: Config) -> None:
+        """If the configured name's probe fails, its alias must not become a stray."""
+        running_on_host = {
+            "nas": set(),
+            "nuc": set(),  # docker ps failed (get_running_stacks_on_host returns empty)
+            "hp": {"ntfy", "hp-stack"},
+        }
+
+        discovered, strays, duplicates = build_discovery_results(config, running_on_host)
+
+        assert discovered == {"hp-stack": "hp"}
+        assert strays == {}
+        assert duplicates == {}
+
+    def test_multi_host_stack_on_shared_machine(self, tmp_path: Path) -> None:
+        """Multi-host stacks keep every configured name, even when they share a machine."""
+        compose_dir = tmp_path / "compose"
+        for stack in ["multi", "everywhere"]:
+            (compose_dir / stack).mkdir(parents=True)
+            (compose_dir / stack / "docker-compose.yml").write_text("services: {}")
+        config = Config(
+            compose_dir=compose_dir,
+            hosts={
+                "nas": Host(address="192.168.1.6"),
+                "nuc": Host(address="192.168.1.3"),
+                "hp": Host(address="192.168.1.3"),
+            },
+            stacks={"multi": ["nuc", "hp"], "everywhere": "all"},
+        )
+        running_on_host = {
+            "nas": {"everywhere"},
+            "nuc": {"multi", "everywhere"},
+            "hp": {"multi", "everywhere"},
+        }
+
+        discovered, strays, duplicates = build_discovery_results(config, running_on_host)
+
+        assert discovered == {"multi": ["nuc", "hp"], "everywhere": ["nas", "nuc", "hp"]}
+        assert strays == {}
+        assert duplicates == {}
+
     def test_duplicate_on_other_machine_is_still_detected(self, config: Config) -> None:
         """A copy on a genuinely different machine is still a stray/duplicate."""
         running_on_host = {
