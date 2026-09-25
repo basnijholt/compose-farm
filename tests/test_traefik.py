@@ -726,8 +726,8 @@ class TestExtractWebsiteUrls:
         urls = extract_website_urls(config, "mystack")
         assert urls == ["https://app.example.com"]
 
-    def test_no_entrypoints_defaults_to_http(self, tmp_path: Path) -> None:
-        """When no entrypoints specified, defaults to http."""
+    def test_no_entrypoints_defaults_to_https(self, tmp_path: Path) -> None:
+        """When no entrypoints specified, Traefik's defaults apply; assume https."""
         stack_dir = tmp_path / "mystack"
         stack_dir.mkdir()
         compose_file = stack_dir / "compose.yaml"
@@ -746,7 +746,7 @@ class TestExtractWebsiteUrls:
 
         config = self._create_config(tmp_path)
         urls = extract_website_urls(config, "mystack")
-        assert urls == ["http://app.example.com"]
+        assert urls == ["https://app.example.com"]
 
     def test_multiple_entrypoints_with_websecure(self, tmp_path: Path) -> None:
         """When entrypoints includes websecure, use https."""
