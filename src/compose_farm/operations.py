@@ -645,11 +645,14 @@ def build_discovery_results(
 
     Takes the raw data of which stacks are running on which hosts and
     categorizes them into discovered (running correctly), strays (wrong host),
-    and duplicates (single-host stack on multiple hosts).
+    and duplicates (single-host stack on multiple hosts). Hosts sharing an
+    address and SSH port are the same machine, so a stack seen under several
+    of their names is counted once.
 
     Args:
         cfg: Config object.
         running_on_host: Dict mapping host -> set of running stack names.
+            Every host must exist in ``cfg.hosts``.
         stacks: Optional list of stacks to check. Defaults to all configured stacks.
 
     Returns:
@@ -662,15 +665,39 @@ def build_discovery_results(
     stack_list = stacks if stacks is not None else list(cfg.stacks)
     all_hosts = list(running_on_host.keys())
 
+    def machine(host: str) -> tuple[str, int]:
+        h = cfg.hosts[host]
+        return h.address.lower(), h.port
+
+    def running_hosts(stack: str, configured: list[str]) -> list[str]:
+        # Hosts sharing an address+port reach the same Docker daemon, so each
+        # container shows up under every such name. Count each machine once,
+        # preferring configured names, so aliases aren't strays/duplicates.
+        # Seed with all configured machines (not just those that reported the
+        # stack) so a failed probe on the configured name can't make its alias
+        # a stray.
+        running = [h for h in all_hosts if stack in running_on_host[h]]
+        seen = {machine(h) for h in configured}
+        kept: list[str] = []
+        for h in running:
+            if h not in configured:
+                if machine(h) in seen:
+                    continue
+                seen.add(machine(h))
+            kept.append(h)
+        return kept
+
     # Build StackDiscoveryResult for each stack
-    results: list[StackDiscoveryResult] = [
-        StackDiscoveryResult(
-            stack=stack,
-            configured_hosts=cfg.get_hosts(stack),
-            running_hosts=[h for h in all_hosts if stack in running_on_host[h]],
+    results: list[StackDiscoveryResult] = []
+    for stack in stack_list:
+        configured = cfg.get_hosts(stack)
+        results.append(
+            StackDiscoveryResult(
+                stack=stack,
+                configured_hosts=configured,
+                running_hosts=running_hosts(stack, configured),
+            )
         )
-        for stack in stack_list
-    ]
 
     discovered: dict[str, str | list[str]] = {}
     strays: dict[str, list[str]] = {}

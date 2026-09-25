@@ -274,8 +274,8 @@ class TestBuildDiscoveryResults:
         return Config(
             compose_dir=compose_dir,
             hosts={
-                "host1": Host(address="localhost"),
-                "host2": Host(address="localhost"),
+                "host1": Host(address="192.168.1.10"),
+                "host2": Host(address="192.168.1.20"),
             },
             stacks={"plex": "host1", "jellyfin": "host1", "sonarr": "host2"},
         )
@@ -338,3 +338,129 @@ class TestBuildDiscoveryResults:
         assert discovered == {"plex": "host1"}
         assert "jellyfin" not in discovered
         assert "sonarr" not in discovered
+
+
+class TestBuildDiscoveryResultsSharedAddress:
+    """Hosts that share an address are the same machine (issue #206)."""
+
+    @pytest.fixture
+    def config(self, tmp_path: Path) -> Config:
+        """Create a config where nuc failed over to hp's address."""
+        compose_dir = tmp_path / "compose"
+        for stack in ["ntfy", "hp-stack", "nas-stack"]:
+            (compose_dir / stack).mkdir(parents=True)
+            (compose_dir / stack / "docker-compose.yml").write_text("services: {}")
+
+        return Config(
+            compose_dir=compose_dir,
+            hosts={
+                "nas": Host(address="192.168.1.6"),
+                "nuc": Host(address="192.168.1.3"),
+                "hp": Host(address="192.168.1.3"),
+            },
+            stacks={"ntfy": "nuc", "hp-stack": "hp", "nas-stack": "nas"},
+        )
+
+    def test_stacks_on_shared_machine_are_not_strays(self, config: Config) -> None:
+        """Both host names see the same daemon; neither stack is stray or duplicate."""
+        running_on_host = {
+            "nas": {"nas-stack"},
+            "nuc": {"ntfy", "hp-stack"},
+            "hp": {"ntfy", "hp-stack"},
+        }
+
+        discovered, strays, duplicates = build_discovery_results(config, running_on_host)
+
+        assert discovered == {"ntfy": "nuc", "hp-stack": "hp", "nas-stack": "nas"}
+        assert strays == {}
+        assert duplicates == {}
+
+    def test_stray_on_shared_machine_is_reported_once(self, config: Config) -> None:
+        """A stray on a machine with two host names is stopped only once."""
+        running_on_host = {
+            "nas": set(),
+            "nuc": {"nas-stack"},
+            "hp": {"nas-stack"},
+        }
+
+        discovered, strays, duplicates = build_discovery_results(config, running_on_host)
+
+        assert "nas-stack" not in discovered
+        assert strays == {"nas-stack": ["nuc"]}
+        assert duplicates == {}
+
+    def test_failed_probe_on_configured_host_is_not_stray(self, config: Config) -> None:
+        """If the configured name's probe fails, its alias must not become a stray."""
+        running_on_host = {
+            "nas": set(),
+            "nuc": set(),  # docker ps failed (get_running_stacks_on_host returns empty)
+            "hp": {"ntfy", "hp-stack"},
+        }
+
+        discovered, strays, duplicates = build_discovery_results(config, running_on_host)
+
+        assert discovered == {"hp-stack": "hp"}
+        assert strays == {}
+        assert duplicates == {}
+
+    def test_multi_host_stack_on_shared_machine(self, tmp_path: Path) -> None:
+        """Multi-host stacks keep every configured name, even when they share a machine."""
+        compose_dir = tmp_path / "compose"
+        for stack in ["multi", "everywhere"]:
+            (compose_dir / stack).mkdir(parents=True)
+            (compose_dir / stack / "docker-compose.yml").write_text("services: {}")
+        config = Config(
+            compose_dir=compose_dir,
+            hosts={
+                "nas": Host(address="192.168.1.6"),
+                "nuc": Host(address="192.168.1.3"),
+                "hp": Host(address="192.168.1.3"),
+            },
+            stacks={"multi": ["nuc", "hp"], "everywhere": "all"},
+        )
+        running_on_host = {
+            "nas": {"everywhere"},
+            "nuc": {"multi", "everywhere"},
+            "hp": {"multi", "everywhere"},
+        }
+
+        discovered, strays, duplicates = build_discovery_results(config, running_on_host)
+
+        assert discovered == {"multi": ["nuc", "hp"], "everywhere": ["nas", "nuc", "hp"]}
+        assert strays == {}
+        assert duplicates == {}
+
+    def test_duplicate_on_other_machine_is_still_detected(self, config: Config) -> None:
+        """A copy on a genuinely different machine is still a stray/duplicate."""
+        running_on_host = {
+            "nas": {"ntfy"},
+            "nuc": {"ntfy"},
+            "hp": {"ntfy"},
+        }
+
+        discovered, strays, duplicates = build_discovery_results(config, running_on_host)
+
+        assert discovered["ntfy"] == "nuc"
+        assert strays == {"ntfy": ["nas"]}
+        assert duplicates == {"ntfy": ["nas", "nuc"]}
+
+    def test_same_address_different_port_is_different_machine(self, tmp_path: Path) -> None:
+        """Hosts behind one NAT address on different SSH ports are distinct machines."""
+        compose_dir = tmp_path / "compose"
+        (compose_dir / "app").mkdir(parents=True)
+        (compose_dir / "app" / "docker-compose.yml").write_text("services: {}")
+        config = Config(
+            compose_dir=compose_dir,
+            hosts={
+                "a": Host(address="203.0.113.1", port=2201),
+                "b": Host(address="203.0.113.1", port=2202),
+            },
+            stacks={"app": "a"},
+        )
+
+        _discovered, strays, duplicates = build_discovery_results(
+            config, {"a": {"app"}, "b": {"app"}}
+        )
+
+        assert strays == {"app": ["b"]}
+        assert duplicates == {"app": ["a", "b"]}

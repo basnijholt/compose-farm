@@ -368,6 +368,43 @@ class TestApplyCommand:
             refresh_call = mock_up.call_args_list[2]
             assert refresh_call[0][1] == ["svc3"]
 
+    def test_apply_hosts_sharing_address_are_not_strays(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Failover by pointing a dead host at another machine must not stop stacks (#206)."""
+        cfg = Config(
+            compose_dir=tmp_path,
+            hosts={
+                "nas": Host(address="192.168.1.6"),
+                "nuc": Host(address="192.168.1.3"),
+                "hp": Host(address="192.168.1.3"),
+            },
+            stacks={"ntfy": "nuc", "some-hp-stack": "hp"},
+        )
+        running_by_address = {
+            "192.168.1.6": set(),
+            "192.168.1.3": {"ntfy", "some-hp-stack"},
+        }
+
+        async def mock_running(config: Config, host_name: str) -> set[str]:
+            return running_by_address[config.hosts[host_name].address]
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_stacks", return_value={}),
+            patch("compose_farm.cli.lifecycle.get_stacks_needing_migration", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
+            patch(
+                "compose_farm.cli.management.get_running_stacks_on_host",
+                side_effect=mock_running,
+            ),
+        ):
+            apply(dry_run=True, no_orphans=False, no_strays=False, full=False, config=None)
+
+        captured = capsys.readouterr()
+        assert "Stray" not in captured.out
+        assert "Nothing to apply" in captured.out
+
 
 class TestDownOrphaned:
     """Tests for down --orphaned flag."""
