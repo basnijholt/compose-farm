@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="135 30 530 440" width="530" height="440" role="img" aria-label="Compose Farm">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="125 20 550 452" width="550" height="452" role="img" aria-label="Compose Farm">
 <title>Compose Farm</title>
 <style>
 .o{stroke:#1e2a38;stroke-width:2.2;stroke-linejoin:round}
@@ -156,7 +156,8 @@
 <line class="rib" x1="613.0" y1="224.0" x2="613.0" y2="210.0"/>
 <line class="rib" x1="606.1" y1="228.0" x2="606.1" y2="214.0"/>
 <!-- weathervane -->
-<path class="vane" d="M386.1,108.0 V72.0"/>
+<path class="vane" d="M386.1,108.0 V59.0"/>
+<circle class="vane fill" cx="386.1" cy="58.0" r="2.6"/>
 <g transform="translate(386.1 98.0) matrix(12.12 7.00 -12.12 7.00 0 0)">
 <path class="vane thin" d="M-0.6,0 H0.6 M0,-0.6 V0.6"/>
 </g>
@@ -166,7 +167,7 @@
 <polygon class="vane fill" points="1.05,0 0.55,0.3 0.55,-0.3"/>
 <polygon class="vane fill" points="-0.45,0 -0.85,0.32 -1.1,0.32 -0.8,0 -1.1,-0.32 -0.85,-0.32"/>
 </g></g>
-<path class="vane" d="M377.1,44.0 l7,5 l-7,5 M387.1,55.0 h9"/>
+<path class="vane" d="M377.1,35.0 l7,5 l-7,5 M387.1,46.0 h9"/>
 <g class="word" transform="translate(151.2 413) scale(0.78)">
 <path d="M40.5,6.5 H19.5 A13,13 0 0 0 6.5,19.5 V36.5 A13,13 0 0 0 19.5,49.5 H40.5"/>
 <path d="M76.5,6.5 H84.5 A14,14 0 0 1 98.5,20.5 V35.5 A14,14 0 0 1 84.5,49.5 H76.5 A14,14 0 0 1 62.5,35.5 V20.5 A14,14 0 0 1 76.5,6.5 Z"/>
