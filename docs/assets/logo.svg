@@ -5,16 +5,16 @@
 .rib{stroke:#1e2a38;stroke-opacity:.35;stroke-width:1.2}
 .furrow{stroke:#3f8f43;stroke-width:2}
 .dash{fill:none;stroke:#1e2a38;stroke-width:2.2;stroke-dasharray:6 5;stroke-linecap:round;stroke-linejoin:round}
-.vane{fill:none;stroke:#1e2a38;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
-.vane.thin{stroke-width:2}
-.vane.fill{fill:#1e2a38;stroke-width:1.5}
+.vcase{fill:none;stroke:#1e2a38;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.vcore{fill:none;stroke:#fbbf24;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.vfill{fill:#fbbf24;stroke:#1e2a38;stroke-width:1.5;stroke-linejoin:round;vector-effect:non-scaling-stroke}
 .spin{transform-origin:0 0;animation:spin 10s linear infinite}
 @keyframes spin{0%{transform:rotate(0.0deg)}5%{transform:rotate(35.6deg)}10%{transform:rotate(64.5deg)}15%{transform:rotate(82.5deg)}20%{transform:rotate(89.6deg)}25%{transform:rotate(90.0deg)}30%{transform:rotate(90.4deg)}35%{transform:rotate(97.5deg)}40%{transform:rotate(115.5deg)}45%{transform:rotate(144.4deg)}50%{transform:rotate(180.0deg)}55%{transform:rotate(215.6deg)}60%{transform:rotate(244.5deg)}65%{transform:rotate(262.5deg)}70%{transform:rotate(269.6deg)}75%{transform:rotate(270.0deg)}80%{transform:rotate(270.4deg)}85%{transform:rotate(277.5deg)}90%{transform:rotate(295.5deg)}95%{transform:rotate(324.4deg)}100%{transform:rotate(360.0deg)}}
 .pulse{fill:none;stroke:#facc15;stroke-width:4.5;stroke-linecap:round;stroke-dasharray:12 200;stroke-dashoffset:12;filter:drop-shadow(0 0 3px #f59e0b);animation:pulse 2.8s linear infinite}
 @keyframes pulse{0%{stroke-dashoffset:12}65%,100%{stroke-dashoffset:-100}}
 @media (prefers-reduced-motion:reduce){.spin,.pulse{animation:none}.pulse{display:none}}
 .word{fill:none;stroke:#1e2a38;stroke-width:13;stroke-linejoin:miter;stroke-miterlimit:4}
-@media (prefers-color-scheme:dark){.dash,.vane,.word{stroke:#e6edf3}.vane.fill{fill:#e6edf3}}
+@media (prefers-color-scheme:dark){.dash,.word{stroke:#e6edf3}}
 </style>
 <!-- hosts -->
 <polygon class="o" points="174.8,120.0 226.8,150.0 226.8,157.0 174.8,127.0" fill="#3a7d3e"/>
@@ -156,18 +156,14 @@
 <line class="rib" x1="613.0" y1="224.0" x2="613.0" y2="210.0"/>
 <line class="rib" x1="606.1" y1="228.0" x2="606.1" y2="214.0"/>
 <!-- weathervane -->
-<path class="vane" d="M386.1,108.0 V59.0"/>
-<circle class="vane fill" cx="386.1" cy="58.0" r="2.6"/>
-<g transform="translate(386.1 98.0) matrix(12.12 7.00 -12.12 7.00 0 0)">
-<path class="vane thin" d="M-0.6,0 H0.6 M0,-0.6 V0.6"/>
-</g>
-<g transform="translate(386.1 77.0) matrix(12.12 7.00 -12.12 7.00 0 0)">
-<g class="spin">
-<path class="vane" d="M-0.75,0 H0.7"/>
-<polygon class="vane fill" points="1.05,0 0.55,0.3 0.55,-0.3"/>
-<polygon class="vane fill" points="-0.45,0 -0.85,0.32 -1.1,0.32 -0.8,0 -1.1,-0.32 -0.85,-0.32"/>
+<path class="vcase" d="M386.1,108.0 V61.0"/><path class="vcore" d="M386.1,108.0 V61.0"/>
+<g transform="translate(386.1 77.0) matrix(12.12 7.00 -12.12 7.00 0 0)"><g class="spin">
+<path class="vcase" d="M-0.7,0 H0.6"/>
+<polygon class="vfill" points="1.15,0 0.5,0.42 0.5,-0.42"/><polygon class="vfill" points="-0.35,0 -0.8,0.4 -1.15,0.4 -0.85,0 -1.15,-0.4 -0.8,-0.4"/>
+<path class="vcore" d="M-0.7,0 H0.6"/>
 </g></g>
-<path class="vane" d="M377.1,35.0 l7,5 l-7,5 M387.1,46.0 h9"/>
+<circle class="vfill" cx="386.1" cy="60.0" r="3"/>
+<path class="vcase" d="M377.1,37.0 l7,5 l-7,5 M387.1,48.0 h9"/><path class="vcore" d="M377.1,37.0 l7,5 l-7,5 M387.1,48.0 h9"/>
 <g class="word" transform="translate(151.2 413) scale(0.78)">
 <path d="M40.5,6.5 H19.5 A13,13 0 0 0 6.5,19.5 V36.5 A13,13 0 0 0 19.5,49.5 H40.5"/>
 <path d="M76.5,6.5 H84.5 A14,14 0 0 1 98.5,20.5 V35.5 A14,14 0 0 1 84.5,49.5 H76.5 A14,14 0 0 1 62.5,35.5 V20.5 A14,14 0 0 1 76.5,6.5 Z"/>
