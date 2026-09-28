@@ -1,5 +1,6 @@
 """Tests for Containers page routes."""
 
+from collections.abc import Iterator
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -17,12 +18,23 @@ from compose_farm.web.routes.containers import (
     _parse_uptime_seconds,
     _render_row,
     _render_update_badge,
+    _update_check_cache,
 )
 
 # Byte size constants for tests
 KB = 1024
 MB = KB * 1024
 GB = MB * 1024
+
+
+@pytest.fixture(autouse=True)
+def clear_container_caches() -> Iterator[None]:
+    """Keep module-level container caches isolated between tests."""
+    _update_check_cache.clear()
+    _known_image_cache.clear()
+    yield
+    _update_check_cache.clear()
+    _known_image_cache.clear()
 
 
 class TestFormatBytes:
@@ -441,6 +453,43 @@ class TestContainerUpdateChecks:
         assert response.status_code == 200
         assert "1 new" in response.json()["results"][0]["html"]
 
+    def test_host_rows_cache_images_for_update_checks(self) -> None:
+        """The per-host rows route caches its rendered image inventory."""
+        client = TestClient(create_app())
+        result = TagCheckResult(
+            image=ImageRef.parse("ghcr.io/acme/app:1.0"),
+            current_digest="sha256:abc",
+            available_updates=["1.1"],
+        )
+        with (
+            patch("compose_farm.web.routes.containers.get_config", return_value=self._config()),
+            patch(
+                "compose_farm.glances.fetch_container_stats",
+                new_callable=AsyncMock,
+                return_value=([_stats(image="ghcr.io/acme/app:1.0")], None),
+            ),
+            patch(
+                "compose_farm.executor.get_container_compose_labels",
+                new_callable=AsyncMock,
+                return_value={"web": ("web", "app")},
+            ),
+            patch(
+                "compose_farm.registry.check_image_updates",
+                new_callable=AsyncMock,
+                return_value=result,
+            ),
+        ):
+            rows_response = client.get("/api/containers/rows/nas")
+            update_response = client.post(
+                "/api/containers/check-updates",
+                json={"items": [{"image": "ghcr.io/acme/app", "tag": "1.0"}]},
+            )
+
+        assert rows_response.status_code == 200
+        assert "ghcr.io/acme/app:1.0" in rows_response.text
+        assert update_response.status_code == 200
+        assert "1 new" in update_response.json()["results"][0]["html"]
+
     def test_failed_aggregate_refresh_keeps_last_known_images(self) -> None:
         """A partial Glances outage must not erase the last trusted inventory."""
         _known_image_cache.clear()
@@ -490,3 +539,29 @@ class TestContainerUpdateChecks:
         )
 
         assert response.status_code == 413
+
+    def test_rejects_json_integer_exceeding_conversion_limit(self) -> None:
+        client = TestClient(create_app(), raise_server_exceptions=False)
+
+        response = client.post(
+            "/api/containers/check-updates",
+            content=b'{"items":' + b"9" * 10_000 + b"}",
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 400
+
+    def test_rejects_deeply_nested_json(self) -> None:
+        client = TestClient(create_app(), raise_server_exceptions=False)
+
+        with patch(
+            "compose_farm.web.routes.containers.json.loads",
+            side_effect=RecursionError("maximum recursion depth exceeded"),
+        ):
+            response = client.post(
+                "/api/containers/check-updates",
+                content=b"[" * 1_000 + b"]" * 1_000,
+                headers={"Content-Type": "application/json"},
+            )
+
+        assert response.status_code == 400

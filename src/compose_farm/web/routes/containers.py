@@ -63,7 +63,7 @@ async def _read_limited_json(request: Request) -> object:
         body.extend(chunk)
     try:
         return json.loads(body)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except (RecursionError, ValueError) as exc:
         raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
 
 
