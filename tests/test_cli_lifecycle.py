@@ -368,6 +368,43 @@ class TestApplyCommand:
             refresh_call = mock_up.call_args_list[2]
             assert refresh_call[0][1] == ["svc3"]
 
+    def test_apply_hosts_sharing_address_are_not_strays(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Failover by pointing a dead host at another machine must not stop stacks (#206)."""
+        cfg = Config(
+            compose_dir=tmp_path,
+            hosts={
+                "nas": Host(address="192.168.1.6"),
+                "nuc": Host(address="192.168.1.3"),
+                "hp": Host(address="192.168.1.3"),
+            },
+            stacks={"ntfy": "nuc", "some-hp-stack": "hp"},
+        )
+        running_by_address = {
+            "192.168.1.6": set(),
+            "192.168.1.3": {"ntfy", "some-hp-stack"},
+        }
+
+        async def mock_running(config: Config, host_name: str) -> set[str]:
+            return running_by_address[config.hosts[host_name].address]
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_stacks", return_value={}),
+            patch("compose_farm.cli.lifecycle.get_stacks_needing_migration", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
+            patch(
+                "compose_farm.cli.management.get_running_stacks_on_host",
+                side_effect=mock_running,
+            ),
+        ):
+            apply(dry_run=True, no_orphans=False, no_strays=False, full=False, config=None)
+
+        captured = capsys.readouterr()
+        assert "Stray" not in captured.out
+        assert "Nothing to apply" in captured.out
+
 
 class TestDownOrphaned:
     """Tests for down --orphaned flag."""
@@ -514,6 +551,45 @@ class TestLifecycleHostFilters:
         assert set(mock_run.call_args.args[1]) == {"svc1", "multi"}
         assert mock_run.call_args.args[2] == compose_cmd
         assert mock_run.call_args.kwargs.get("filter_host") == "host1"
+
+    @pytest.mark.parametrize(
+        ("command_fn", "compose_cmd"),
+        [
+            (stop, "stop"),
+            (pull, "pull --ignore-buildable"),
+            (restart, "restart"),
+            (up, "up -d"),
+        ],
+    )
+    def test_service_is_shell_quoted(
+        self,
+        command_fn: Callable[..., None],
+        compose_cmd: str,
+        tmp_path: Path,
+    ) -> None:
+        """--service values are shell-quoted so they cannot inject commands."""
+        cfg = _make_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                side_effect=_run_async_returns([_make_result("svc1", host="host1")]),
+            ),
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            command_fn(
+                stacks=["svc1"],
+                all_stacks=False,
+                host=None,
+                service="x; touch /tmp/pwned",
+                config=None,
+            )
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args.args[2] == f"{compose_cmd} 'x; touch /tmp/pwned'"
 
     def test_up_host_filter_multiple_stacks_disables_raw_output(self, tmp_path: Path) -> None:
         """BuildKit/progress output corrupts the terminal when raw output runs in parallel."""

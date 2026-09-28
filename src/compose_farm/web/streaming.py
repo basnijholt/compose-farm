@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import shlex
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -115,15 +116,17 @@ async def _run_cli_via_ssh(
     try:
         web_stack = config.get_web_stack()
         host = config.get_host(web_stack)
-        cf_cmd = f"cf {' '.join(args)} --config={config.config_path}"
+        cf_cmd = shlex.join(["cf", *args, f"--config={config.config_path}"])
         # Include task_id to prevent collision with concurrent updates
         log_file = f"/tmp/cf-self-update-{task_id}.log"  # noqa: S108
+
+        detached_cmd = shlex.quote(f"{cf_cmd} > {log_file} 2>&1")
 
         # setsid detaches command; tail streams output until SSH dies
         remote_cmd = (
             f"rm -f {log_file} && "
             f"PATH=$HOME/.local/bin:/usr/local/bin:$PATH "
-            f"setsid sh -c '{cf_cmd} > {log_file} 2>&1' & "
+            f"setsid sh -c {detached_cmd} & "
             f"sleep 0.3 && tail -f {log_file} 2>/dev/null"
         )
 
@@ -159,18 +162,17 @@ async def run_compose_streaming(
     stack: str,
     command: str,
     task_id: str,
+    extra_args: list[str] | None = None,
 ) -> None:
-    """Run a compose command (up/down/pull/restart) via CLI subprocess."""
-    # Split command into args (e.g., "up -d" -> ["up", "-d"])
-    args = command.split()
-    cli_cmd = args[0]  # up, down, pull, restart
-    extra_args = args[1:]  # -d, etc.
+    """Run a cf CLI command (up/down/pull/restart/...) for a stack via subprocess.
 
-    # Build CLI args
-    cli_args = [cli_cmd, stack, *extra_args]
+    Arguments are passed as separate argv items (never split from a string),
+    so user-provided values cannot inject extra CLI arguments.
+    """
+    cli_args = [command, stack, *(extra_args or [])]
 
     # Use SSH for self-updates to survive container restart
-    if _is_self_update(config, stack, cli_cmd):
+    if _is_self_update(config, stack, command):
         await _run_cli_via_ssh(config, cli_args, task_id)
     else:
         await run_cli_streaming(config, cli_args, task_id)

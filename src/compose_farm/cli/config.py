@@ -393,6 +393,10 @@ def config_init_env(
         f"CF_HOME={home}",
         f"CF_USER={user}",
         "",
+        "# Optional: require a login for the web UI (HTTP Basic auth)",
+        "# CF_WEB_USERNAME=admin",
+        "# CF_WEB_PASSWORD=",
+        "",
     ]
 
     env_path.write_text("\n".join(lines), encoding="utf-8")

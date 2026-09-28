@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import html
+import json
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from urllib.parse import quote
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from compose_farm.executor import TTLCache
@@ -23,12 +24,21 @@ if TYPE_CHECKING:
 # Cache registry update checks for 5 minutes (300 seconds)
 # Registry calls are slow and often rate-limited
 _update_check_cache = TTLCache(ttl_seconds=300.0)
+_known_image_cache = TTLCache(ttl_seconds=300.0)
 
 # Minimum parts needed to infer stack/service from container name
 MIN_NAME_PARTS = 2
 
 # HTML for "no update info" dash
 _DASH_HTML = '<span class="text-xs opacity-50">-</span>'
+
+MAX_UPDATE_CHECK_ITEMS = 100
+MAX_UPDATE_CHECK_BODY_BYTES = 64 * 1024
+
+
+def _esc(value: str) -> str:
+    """Escape a value for safe use in HTML text or a quoted attribute."""
+    return html.escape(value, quote=True)
 
 
 def _parse_image(image: str) -> tuple[str, str]:
@@ -42,6 +52,29 @@ def _parse_image(image: str) -> tuple[str, str]:
             return image, "latest"
         return parts[0], parts[1]
     return image, "latest"
+
+
+async def _read_limited_json(request: Request) -> object:
+    """Read a JSON request body without accepting an unbounded payload."""
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > MAX_UPDATE_CHECK_BODY_BYTES:
+            raise HTTPException(status_code=413, detail="Request body too large")
+        body.extend(chunk)
+    try:
+        return json.loads(body)
+    except (RecursionError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
+
+
+def _cache_known_images(containers: list[ContainerStats], host_names: list[str]) -> None:
+    """Cache the image/tag pairs rendered from each configured host."""
+    images_by_host: dict[str, set[tuple[str, str]]] = {name: set() for name in host_names}
+    for container in containers:
+        if container.host in images_by_host:
+            images_by_host[container.host].add(_parse_image(container.image))
+    for host_name, images in images_by_host.items():
+        _known_image_cache.set(host_name, frozenset(images))
 
 
 def _infer_stack_service(name: str) -> tuple[str, str]:
@@ -131,7 +164,11 @@ def _image_web_url(image: str) -> str | None:
 
 
 def _render_row(c: ContainerStats, idx: int | str) -> str:
-    """Render a single container as an HTML table row."""
+    """Render a single container as an HTML table row.
+
+    Container data comes from remote hosts (Glances/Docker), so every string
+    value is HTML-escaped before interpolation.
+    """
     image_name, tag = _parse_image(c.image)
     inferred_stack, inferred_service = _infer_stack_service(c.name)
     stack = c.stack or inferred_stack
@@ -150,29 +187,35 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
     uptime_sec = _parse_uptime_seconds(c.uptime)
     actions = _render_actions(stack)
     update_cell = _render_update_cell(image_name, tag)
-    image_label = f"{image_name}:{tag}"
+    image_label = _esc(f"{image_name}:{tag}")
     image_url = _image_web_url(image_name)
     if image_url:
         image_html = (
-            f'<a href="{image_url}" target="_blank" rel="noopener noreferrer" '
+            f'<a href="{_esc(image_url)}" target="_blank" rel="noopener noreferrer" '
             f'class="link link-hover">'
             f'<code class="text-xs bg-base-200 px-1 rounded">{image_label}</code></a>'
         )
     else:
         image_html = f'<code class="text-xs bg-base-200 px-1 rounded">{image_label}</code>'
-    # Render as single line to avoid whitespace nodes in DOM
-    row_id = f"c-{c.host}-{c.name}"
+    row_id = _esc(f"c-{c.host}-{c.name}")
+    host = _esc(c.host)
+    stack_url = _esc(f"/stack/{quote(stack, safe='')}")
+    stack_html = _esc(stack)
+    service_html = _esc(service)
+    status = _esc(c.status)
+    uptime = _esc(c.uptime or "-")
     class_attr = f' class="{row_class}"' if row_class else ""
+    # Render as single line to avoid whitespace nodes in DOM
     return (
-        f'<tr id="{row_id}" data-host="{c.host}"{class_attr}><td class="text-xs opacity-50">{idx}</td>'
-        f'<td data-sort="{stack.lower()}"><a href="/stack/{stack}" class="link link-hover link-primary" hx-boost="true">{stack}</a></td>'
-        f'<td data-sort="{service.lower()}" class="text-xs opacity-70">{service}</td>'
+        f'<tr id="{row_id}" data-host="{host}"{class_attr}><td class="text-xs opacity-50">{idx}</td>'
+        f'<td data-sort="{_esc(stack.lower())}"><a href="{stack_url}" class="link link-hover link-primary" hx-boost="true">{stack_html}</a></td>'
+        f'<td data-sort="{_esc(service.lower())}" class="text-xs opacity-70">{service_html}</td>'
         f"<td>{actions}</td>"
-        f'<td data-sort="{c.host.lower()}"><span class="badge badge-outline badge-xs">{c.host}</span></td>'
-        f'<td data-sort="{c.image.lower()}">{image_html}</td>'
+        f'<td data-sort="{_esc(c.host.lower())}"><span class="badge badge-outline badge-xs">{host}</span></td>'
+        f'<td data-sort="{_esc(c.image.lower())}">{image_html}</td>'
         f"{update_cell}"
-        f'<td data-sort="{c.status.lower()}"><span class="{_status_class(c.status)}">{c.status}</span></td>'
-        f'<td data-sort="{uptime_sec}" class="text-xs text-right font-mono">{c.uptime or "-"}</td>'
+        f'<td data-sort="{_esc(c.status.lower())}"><span class="{_status_class(c.status)}">{status}</span></td>'
+        f'<td data-sort="{uptime_sec}" class="text-xs text-right font-mono">{uptime}</td>'
         f'<td data-sort="{cpu}" class="text-right font-mono"><div class="flex flex-col items-end gap-0.5"><div class="w-12 h-2 bg-base-300 rounded-full overflow-hidden"><div class="h-full {cpu_class}" style="width: {min(cpu, 100)}%"></div></div><span class="text-xs">{cpu:.0f}%</span></div></td>'
         f'<td data-sort="{c.memory_usage}" class="text-right font-mono"><div class="flex flex-col items-end gap-0.5"><div class="w-12 h-2 bg-base-300 rounded-full overflow-hidden"><div class="h-full {mem_class}" style="width: {min(mem, 100)}%"></div></div><span class="text-xs">{format_bytes(c.memory_usage)}</span></div></td>'
         f'<td data-sort="{c.network_rx + c.network_tx}" class="text-xs text-right font-mono">↓{format_bytes(c.network_rx)} ↑{format_bytes(c.network_tx)}</td>'
@@ -181,8 +224,13 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
 
 
 def _render_actions(stack: str) -> str:
-    """Render actions dropdown for a container row."""
-    return f"""<button class="btn btn-circle btn-ghost btn-xs" onclick="openActionMenu(event, '{stack}')" aria-label="Actions for {stack}">
+    """Render actions dropdown for a container row.
+
+    The stack name is passed via a data attribute (not inlined into JS) so
+    untrusted names cannot break out of the JavaScript string context.
+    """
+    stack = _esc(stack)
+    return f"""<button class="btn btn-circle btn-ghost btn-xs" data-stack="{stack}" onclick="openActionMenu(event, this.dataset.stack)" aria-label="Actions for {stack}">
 <svg class="h-4 w-4"><use href="#icon-menu" /></svg>
 </button>"""
 
@@ -226,6 +274,11 @@ async def get_containers_rows() -> HTMLResponse:
         )
 
     containers = await fetch_all_container_stats(config)
+    # The aggregate fetch flattens successful hosts and omits failed ones, so only
+    # replace cache entries backed by fresh inventory. A transient host failure must
+    # not erase its last trusted image set.
+    observed_hosts = sorted({container.host for container in containers})
+    _cache_known_images(containers, observed_hosts)
 
     if not containers:
         return HTMLResponse(
@@ -272,8 +325,8 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
             error,
         )
         return HTMLResponse(
-            f'<tr id="error-{host_name}" class="text-error" data-host="{host_name}">'
-            f'<td colspan="12" class="text-center py-2">{host_name}: {error}</td></tr>'
+            f'<tr id="error-{_esc(host_name)}" class="text-error" data-host="{_esc(host_name)}">'
+            f'<td colspan="12" class="text-center py-2">{_esc(host_name)}: {_esc(str(error))}</td></tr>'
         )
 
     if not containers:
@@ -288,6 +341,7 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
 
     # Only show containers from stacks in config (filters out orphaned/unknown stacks)
     containers = [c for c in containers if not c.stack or c.stack in config.stacks]
+    _cache_known_images(containers, [host_name])
 
     # Use placeholder index (will be renumbered by JS after all hosts load)
     rows = "\n".join(_render_row(c, "-") for c in containers)
@@ -311,7 +365,7 @@ def _render_update_badge(result: TagCheckResult) -> str:
         updates = result.available_updates
         count = len(updates)
         title = f"Newer: {', '.join(updates[:3])}" + ("..." if count > 3 else "")  # noqa: PLR2004
-        tip = html.escape(title, quote=True)
+        tip = _esc(title)
         return (
             f'<span class="tooltip whitespace-nowrap" data-tip="{tip}">'
             f'<span class="badge badge-warning badge-xs cursor-help whitespace-nowrap">'
@@ -330,19 +384,43 @@ async def check_container_updates_batch(request: Request) -> JSONResponse:
     """
     import httpx  # noqa: PLC0415
 
-    payload = await request.json()
-    items = payload.get("items", []) if isinstance(payload, dict) else []
+    payload = await _read_limited_json(request)
+    items = cast("dict[str, object]", payload).get("items", []) if isinstance(payload, dict) else []
     if not items:
         return JSONResponse({"results": []})
+    if not isinstance(items, list):
+        raise HTTPException(status_code=400, detail="items must be a list")
+    if len(items) > MAX_UPDATE_CHECK_ITEMS:
+        raise HTTPException(status_code=413, detail="Too many update checks")
+
+    parsed_items: list[tuple[str, str]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise HTTPException(status_code=400, detail="Each item must be an object")
+        item_dict = cast("dict[str, object]", item)
+        image = item_dict.get("image", "")
+        tag = item_dict.get("tag", "")
+        if not isinstance(image, str) or not isinstance(tag, str):
+            raise HTTPException(status_code=400, detail="image and tag must be strings")
+        parsed_items.append((image, tag))
+
+    config = get_config()
+    allowed_images: set[tuple[str, str]] = set()
+    for host_name in config.hosts:
+        allowed_images.update(_known_image_cache.get(host_name) or ())
+    requested_images = {(image, tag) for image, tag in parsed_items if image and tag}
+    if not requested_images.issubset(allowed_images):
+        raise HTTPException(
+            status_code=400,
+            detail="Only images reported by configured hosts may be checked",
+        )
 
     results = []
 
     from compose_farm.registry import check_image_updates  # noqa: PLC0415
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        for item in items:
-            image = item.get("image", "")
-            tag = item.get("tag", "")
+        for image, tag in parsed_items:
             full_image = f"{image}:{tag}"
             if not image or not tag:
                 results.append({"image": image, "tag": tag, "html": _DASH_HTML})

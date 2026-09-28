@@ -736,6 +736,7 @@ cf ssh COMMAND
 |--------|-------------|
 | `--config, -c PATH` | Path to config file |
 | `--force, -f` | Regenerate key even if it exists |
+| `--trust-only` | Trust host keys without generating or installing a client key |
 
 **Options for `cf ssh status`:**
 
@@ -754,6 +755,9 @@ cf ssh COMMAND
 ```bash
 # Set up SSH keys (generates and distributes)
 cf ssh setup
+
+# Keep agent authentication and only trust configured server host keys
+cf ssh setup --trust-only
 
 # Check status and connectivity
 cf ssh status
@@ -778,7 +782,7 @@ cf web [OPTIONS]
 
 | Option | Description |
 |--------|-------------|
-| `--host, -H TEXT` | Host to bind to (default: 0.0.0.0) |
+| `--host, -H TEXT` | Host to bind to (default: 127.0.0.1) |
 | `--port, -p INTEGER` | Port to listen on (default: 8000) |
 | `--reload, -r` | Enable auto-reload for development |
 

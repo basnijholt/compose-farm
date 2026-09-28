@@ -1,5 +1,8 @@
 """Tests for executor module."""
 
+import os
+import shlex
+import subprocess
 import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -12,6 +15,7 @@ from compose_farm.config import Config, Host
 from compose_farm.executor import (
     CommandResult,
     RemoteCheckError,
+    _build_compose_command,
     _run_local_command,
     _run_ssh_command,
     _stream_output_lines,
@@ -26,6 +30,7 @@ from compose_farm.executor import (
     run_compose_on_host,
     run_on_stacks,
 )
+from compose_farm.ssh_keys import SSH_KEY_PATH
 
 # These tests run actual shell commands that only work on Linux
 linux_only = pytest.mark.skipif(sys.platform != "linux", reason="Linux-only shell commands")
@@ -131,16 +136,45 @@ class TestRunCommand:
         assert result.exit_code == 0
         assert result.success is True
 
+    def test_compose_command_executes_hostile_path_literally(self, tmp_path: Path) -> None:
+        """Exercise the generated command through a real shell with a fake Docker binary."""
+        stack_dir = tmp_path / "$(touch injected)"
+        stack_dir.mkdir()
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        docker = bin_dir / "docker"
+        docker.write_text('#!/bin/sh\nprintf "%s\\n" "$PWD"\n')
+        docker.chmod(0o755)
+
+        command = _build_compose_command(stack_dir, "ps")
+        result = subprocess.run(  # noqa: S602
+            command,
+            shell=True,
+            check=True,
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+            env={"PATH": f"{bin_dir}{os.pathsep}{os.defpath}"},
+        )
+
+        assert result.stdout.strip() == str(stack_dir)
+        assert not (tmp_path / "injected").exists()
+
     async def test_non_streaming_ssh_error_is_returned_not_printed(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         """Preflight checks run under progress bars and must not print mid-render."""
         from compose_farm import executor
 
         output = _RecordingConsole()
         monkeypatch.setattr(executor, "err_console", output)
+        known_hosts = tmp_path / "known_hosts"
+        known_hosts.touch()
 
-        with patch("asyncssh.connect", side_effect=OSError("Connection lost")):
+        with (
+            patch("compose_farm.executor.SSH_KNOWN_HOSTS_PATH", known_hosts),
+            patch("asyncssh.connect", side_effect=OSError("Connection lost")),
+        ):
             result = await _run_ssh_command(
                 Host(address="192.168.1.10"),
                 "true",
@@ -152,9 +186,33 @@ class TestRunCommand:
         assert result.stderr == "Connection lost"
         assert output.calls == []
 
+    async def test_missing_known_hosts_returns_setup_guidance(self, tmp_path: Path) -> None:
+        """A missing trust database should produce an actionable failure."""
+        missing = tmp_path / "known_hosts"
+
+        with patch("compose_farm.executor.SSH_KNOWN_HOSTS_PATH", missing):
+            result = await _run_ssh_command(
+                Host(address="192.168.1.10"),
+                "true",
+                "mount-check",
+                stream=False,
+            )
+
+        assert result.success is False
+        assert "known_hosts" in result.stderr
+        assert "cf ssh setup --trust-only" in result.stderr
+
 
 class TestBuildSshCommand:
     """Tests for native SSH command construction."""
+
+    def test_requires_a_known_host_key(self) -> None:
+        """Native SSH must reject unknown or changed server host keys."""
+        args = build_ssh_command(Host(address="192.168.1.10"), "true")
+
+        assert "StrictHostKeyChecking=yes" in args
+        assert "StrictHostKeyChecking=no" not in args
+        assert f"UserKnownHostsFile={SSH_KEY_PATH.parent / 'known_hosts'}" in args
 
     def test_uses_only_compose_farm_key_when_present(self, tmp_path: Path) -> None:
         """Native ssh should match asyncssh by not falling back to agent keys."""
@@ -211,7 +269,26 @@ class TestRunCompose:
             mock_run.assert_called_once()
             call_args = mock_run.call_args
             command = call_args[0][1]  # Second positional arg is command
-            assert command == f'cd "{tmp_path}/mystack" && docker compose up -d'
+            expected_dir = shlex.quote(str(tmp_path / "mystack"))
+            assert command == f"cd {expected_dir} && docker compose up -d"
+
+    async def test_run_compose_shell_quotes_stack_directory(self, tmp_path: Path) -> None:
+        """Shell syntax in a config-derived directory must remain literal."""
+        compose_dir = tmp_path / "$(touch PWNED)"
+        config = Config(
+            compose_dir=compose_dir,
+            hosts={"remote": Host(address="192.168.1.100")},
+            stacks={"mystack": "remote"},
+        )
+
+        mock_result = CommandResult(stack="mystack", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = mock_result
+            await run_compose(config, "mystack", "up -d", stream=False)
+
+        command = mock_run.call_args.args[1]
+        expected_dir = shlex.quote(str(compose_dir / "mystack"))
+        assert command == f"cd {expected_dir} && docker compose up -d"
 
     async def test_run_compose_works_without_local_compose_file(self, tmp_path: Path) -> None:
         """Verify compose works even when compose file doesn't exist locally.
@@ -259,7 +336,8 @@ class TestRunCompose:
             result = await run_compose_on_host(config, "mystack", "host1", "down", stream=False)
 
             command = mock_run.call_args[0][1]
-            assert command == f'cd "{tmp_path}/mystack" && docker compose down'
+            expected_dir = shlex.quote(str(tmp_path / "mystack"))
+            assert command == f"cd {expected_dir} && docker compose down"
             assert result.stack == "mystack"
             assert mock_run.call_args.kwargs["host_name"] == "host1"
             assert mock_run.call_args.kwargs["label"] == "mystack@host1"
@@ -279,7 +357,8 @@ class TestRunCompose:
 
             assert result is True
             command = mock_run.call_args[0][1]
-            assert command == f'cd "{tmp_path}/mystack" && docker compose ps --status running -q'
+            expected_dir = shlex.quote(str(tmp_path / "mystack"))
+            assert command == f"cd {expected_dir} && docker compose ps --status running -q"
 
     async def test_run_compose_quotes_paths_with_spaces(self, tmp_path: Path) -> None:
         """Verify paths with spaces are properly quoted."""
@@ -299,7 +378,7 @@ class TestRunCompose:
 
             command = mock_run.call_args[0][1]
             # Path should be quoted to handle spaces
-            assert f'cd "{compose_dir}/my-stack"' in command
+            assert f"cd {shlex.quote(str(compose_dir / 'my-stack'))}" in command
 
 
 class TestRunOnStacks:

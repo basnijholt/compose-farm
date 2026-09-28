@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import uuid
 from typing import TYPE_CHECKING, Any
 
@@ -38,6 +39,9 @@ ALLOWED_COMMANDS = {"up", "down", "restart", "pull", "update", "logs", "stop"}
 # Allowed service-level commands (no 'down' - use 'stop' for individual services)
 ALLOWED_SERVICE_COMMANDS = {"logs", "pull", "restart", "up", "stop"}
 
+# Compose service-name charset; must not start with '-' so it can't be read as a flag
+SERVICE_NAME_RE = re.compile(r"[a-zA-Z0-9._][a-zA-Z0-9._-]*")
+
 
 @router.post("/stack/{name}/{command}")
 async def stack_action(name: str, command: str) -> dict[str, Any]:
@@ -63,9 +67,12 @@ async def service_action(name: str, service: str, command: str) -> dict[str, Any
     if name not in config.stacks:
         raise HTTPException(status_code=404, detail=f"Stack '{name}' not found")
 
-    # Use --service flag to target specific service
+    if not SERVICE_NAME_RE.fullmatch(service):
+        raise HTTPException(status_code=400, detail=f"Invalid service name '{service}'")
+
+    # Pass --service as a single argv item so the value can't inject extra CLI args
     task_id = _start_task(
-        lambda tid: run_compose_streaming(config, name, f"{command} --service {service}", tid)
+        lambda tid: run_compose_streaming(config, name, command, tid, [f"--service={service}"])
     )
     return {"task_id": task_id, "stack": name, "service": service, "command": command}
 

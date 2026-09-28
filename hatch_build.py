@@ -13,13 +13,14 @@ distributed wheel has vendored assets.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.request import Request, urlopen
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
@@ -46,11 +47,32 @@ def _download(url: str) -> bytes:
     return bytes(result.stdout)
 
 
+def _verify_download(source: dict[str, str], content: bytes) -> bytes:
+    """Verify downloaded bytes against the pinned SHA-256 digest."""
+    url = source["url"]
+    expected = source.get("sha256")
+    if not expected:
+        msg = f"Missing SHA-256 for vendored download: {url}"
+        raise ValueError(msg)
+    actual = hashlib.sha256(content).hexdigest()
+    if actual != expected:
+        msg = f"SHA-256 mismatch for {url}: expected {expected}, got {actual}"
+        raise ValueError(msg)
+    return content
+
+
 def _load_vendor_assets(root: Path) -> dict[str, Any]:
     """Load vendor-assets.json from the web module."""
     json_path = root / "src" / "compose_farm" / "web" / "vendor-assets.json"
     with json_path.open() as f:
-        return json.load(f)
+        return cast("dict[str, Any]", json.load(f))
+
+
+def _verify_vendor_rewrite(html_content: str) -> None:
+    """Reject templates containing vendor markers that were not rewritten."""
+    if "data-vendor" in html_content:
+        msg = "Unresolved data-vendor attribute in base.html"
+        raise ValueError(msg)
 
 
 def _generate_licenses_file(temp_dir: Path, licenses: dict[str, dict[str, str]]) -> None:
@@ -71,7 +93,7 @@ def _generate_licenses_file(temp_dir: Path, licenses: dict[str, dict[str, str]])
         lines.append(f"## {pkg_name} ({license_type})")
         lines.append(f"Source: {license_url}")
         lines.append("")
-        lines.append(_download(license_url).decode("utf-8"))
+        lines.append(_verify_download(license_info, _download(license_url)).decode("utf-8"))
         lines.append("")
         lines.append("=" * 70)
         lines.append("")
@@ -79,17 +101,18 @@ def _generate_licenses_file(temp_dir: Path, licenses: dict[str, dict[str, str]])
     (temp_dir / "LICENSES.txt").write_text("\n".join(lines))
 
 
-class VendorAssetsHook(BuildHookInterface):  # type: ignore[misc]
+class VendorAssetsHook(BuildHookInterface[Any]):
     """Hatch build hook that vendors CDN assets into the wheel."""
 
     PLUGIN_NAME = "vendor-assets"
 
     def initialize(
         self,
-        _version: str,
+        version: str,
         build_data: dict[str, Any],
     ) -> None:
         """Download CDN assets and prepare them for inclusion in the wheel."""
+        del version
         # Only run for wheel builds
         if self.target_name != "wheel":
             return
@@ -110,68 +133,76 @@ class VendorAssetsHook(BuildHookInterface):  # type: ignore[misc]
 
         # Create temp directory for vendored assets
         temp_dir = Path(tempfile.mkdtemp(prefix="compose_farm_vendor_"))
-        vendor_dir = temp_dir / "vendor"
-        vendor_dir.mkdir()
+        try:
+            vendor_dir = temp_dir / "vendor"
+            vendor_dir.mkdir()
 
-        # Read base.html
-        html_content = base_html_path.read_text()
+            # Read base.html
+            html_content = base_html_path.read_text()
 
-        # Build URL to filename mapping and download assets
-        url_to_filename: dict[str, str] = {}
-        for asset in assets_to_vendor:
-            url = asset["url"]
-            filename = asset["filename"]
-            url_to_filename[url] = filename
-            filepath = vendor_dir / filename
-            filepath.parent.mkdir(parents=True, exist_ok=True)
-            content = _download(url)
-            filepath.write_bytes(content)
+            # Build URL to filename mapping and download assets
+            url_to_filename: dict[str, str] = {}
+            for asset in assets_to_vendor:
+                url = asset["url"]
+                filename = asset["filename"]
+                url_to_filename[url] = filename
+                filepath = vendor_dir / filename
+                filepath.parent.mkdir(parents=True, exist_ok=True)
+                content = _verify_download(asset, _download(url))
+                filepath.write_bytes(content)
 
-        # Generate LICENSES.txt from the JSON config
-        _generate_licenses_file(vendor_dir, vendor_config["licenses"])
+            # Generate LICENSES.txt from the JSON config
+            _generate_licenses_file(vendor_dir, vendor_config["licenses"])
 
-        # Rewrite HTML: replace CDN URLs with local paths and remove data-vendor attributes
-        # Pattern matches: src="URL" ... data-vendor="filename" or href="URL" ... data-vendor="filename"
-        vendor_pattern = re.compile(r'(src|href)="(https://[^"]+)"([^>]*?)data-vendor="([^"]+)"')
+            # Rewrite HTML: replace CDN URLs with local paths and remove data-vendor attributes
+            # Pattern matches: src="URL" ... data-vendor="filename" or href="URL" ... data-vendor="filename"
+            vendor_pattern = re.compile(
+                r'(src|href)="(https://[^"]+)"([^>]*?)data-vendor="([^"]+)"'
+            )
 
-        def replace_vendor_tag(match: re.Match[str]) -> str:
-            attr = match.group(1)  # src or href
-            url = match.group(2)
-            between = match.group(3)  # attributes between URL and data-vendor
-            if url in url_to_filename:
-                filename = url_to_filename[url]
-                return f'{attr}="/static/vendor/{filename}"{between}'
-            return match.group(0)
+            def replace_vendor_tag(match: re.Match[str]) -> str:
+                attr = match.group(1)  # src or href
+                url = match.group(2)
+                between = match.group(3)  # attributes between URL and data-vendor
+                if url in url_to_filename:
+                    filename = url_to_filename[url]
+                    return f'{attr}="/static/vendor/{filename}"{between}'
+                return match.group(0)
 
-        modified_html = vendor_pattern.sub(replace_vendor_tag, html_content)
+            modified_html = vendor_pattern.sub(replace_vendor_tag, html_content)
+            _verify_vendor_rewrite(modified_html)
 
-        # Inject vendored mode flag for JavaScript to detect
-        # Insert right after <head> tag so it's available early
-        modified_html = modified_html.replace(
-            "<head>",
-            "<head>\n    <script>window.CF_VENDORED=true;</script>",
-            1,  # Only replace first occurrence
-        )
+            # Inject vendored mode flag for JavaScript to detect
+            # Insert right after <head> tag so it's available early
+            modified_html = modified_html.replace(
+                "<head>",
+                "<head>\n    <script>window.CF_VENDORED=true;</script>",
+                1,  # Only replace first occurrence
+            )
 
-        # Write modified base.html to temp
-        templates_dir = temp_dir / "templates"
-        templates_dir.mkdir()
-        (templates_dir / "base.html").write_text(modified_html)
+            # Write modified base.html to temp
+            templates_dir = temp_dir / "templates"
+            templates_dir.mkdir()
+            (templates_dir / "base.html").write_text(modified_html)
 
-        # Add to force_include to override files in the wheel
-        force_include = build_data.setdefault("force_include", {})
-        force_include[str(vendor_dir)] = "compose_farm/web/static/vendor"
-        force_include[str(templates_dir / "base.html")] = "compose_farm/web/templates/base.html"
+            # Add to force_include to override files in the wheel
+            force_include = build_data.setdefault("force_include", {})
+            force_include[str(vendor_dir)] = "compose_farm/web/static/vendor"
+            force_include[str(templates_dir / "base.html")] = "compose_farm/web/templates/base.html"
+        except Exception:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise
 
         # Store temp_dir path for cleanup
         self._temp_dir = temp_dir
 
     def finalize(
         self,
-        _version: str,
-        _build_data: dict[str, Any],
-        _artifact_path: str,
+        version: str,
+        build_data: dict[str, Any],
+        artifact_path: str,
     ) -> None:
         """Clean up temporary directory after build."""
+        del version, build_data, artifact_path
         if hasattr(self, "_temp_dir") and self._temp_dir.exists():
             shutil.rmtree(self._temp_dir, ignore_errors=True)

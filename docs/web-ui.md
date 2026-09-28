@@ -118,7 +118,7 @@ Click the Shell button on any running container to exec into it directly from th
 ## Starting the Server
 
 ```bash
-# Default: http://0.0.0.0:8000
+# Default: http://127.0.0.1:8000
 cf web
 
 # Custom port
@@ -130,6 +130,28 @@ cf web --reload
 # Bind to specific interface
 cf web --host 127.0.0.1
 ```
+
+## Authentication
+
+The web UI can open shells on your hosts. Passwordless access is limited to requests
+whose network peer and `Host` header are both loopback, which also prevents DNS
+rebinding from turning a local browser into a remote control channel. To serve it
+remotely, set a password (HTTP Basic auth,
+username from `CF_WEB_USERNAME`, default `admin`):
+
+```bash
+CF_WEB_PASSWORD='a-long-random-password' cf web --host 0.0.0.0
+```
+
+Use HTTPS (e.g. via Traefik) when accessing it remotely, since Basic auth sends the password with every request.
+
+Regardless of this setting, cross-origin state-changing requests and WebSocket connections are rejected, which stops ordinary websites you visit from controlling the web UI through your browser.
+
+If authentication is provided by a trusted reverse proxy, explicitly opt out of
+the built-in login with `CF_WEB_NO_AUTH=1`. A reverse proxy counts as remote
+access: use this setting only when the Compose Farm port is reachable solely
+through an authenticating proxy that routes an exact `Host`. Otherwise DNS
+rebinding or a direct connection can bypass the proxy's access controls.
 
 ## Requirements
 
