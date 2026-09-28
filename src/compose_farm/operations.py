@@ -30,6 +30,7 @@ from .executor import (
     run_compose,
     run_compose_on_host,
 )
+from .plugins import HookContext, run_preflight
 from .state import (
     get_orphaned_stacks,
     get_stack_host,
@@ -53,12 +54,17 @@ class PreflightResult(NamedTuple):
     missing_networks: list[str]
     missing_devices: list[str]
     check_errors: list[str]
+    plugin_errors: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
         """Return True if all checks passed."""
         return not (
-            self.missing_paths or self.missing_networks or self.missing_devices or self.check_errors
+            self.missing_paths
+            or self.missing_networks
+            or self.missing_devices
+            or self.check_errors
+            or self.plugin_errors
         )
 
 
@@ -161,7 +167,10 @@ async def check_stack_requirements(
         except RemoteCheckError as e:
             check_errors.append(str(e))
 
-    return PreflightResult(missing_paths, missing_networks, missing_devices, check_errors)
+    plugin_errors = await run_preflight(HookContext(cfg, stack, host_name))
+    return PreflightResult(
+        missing_paths, missing_networks, missing_devices, check_errors, tuple(plugin_errors)
+    )
 
 
 async def _cleanup_and_rollback(
@@ -209,6 +218,8 @@ def _report_preflight_failures(
         err_console.print(f"  [dim]Hint: cf init-network {target_host}[/]")
     for dev in preflight.missing_devices:
         print_error(f"  missing device: {dev}")
+    for err in preflight.plugin_errors:
+        print_error(f"  {err}")
 
 
 def build_up_cmd(
@@ -514,11 +525,9 @@ async def check_host_compatibility(
 
     for host_name in cfg.hosts:
         preflight = await check_stack_requirements(cfg, stack, host_name)
-        all_missing = (
-            preflight.missing_paths + preflight.missing_networks + preflight.missing_devices
-        )
-        found = total - len(all_missing)
-        results[host_name] = (found, total, all_missing)
+        missing = preflight.missing_paths + preflight.missing_networks + preflight.missing_devices
+        errors = [*preflight.check_errors, *preflight.plugin_errors]
+        results[host_name] = (total - len(missing), total + len(errors), missing + errors)
 
     return results
 
