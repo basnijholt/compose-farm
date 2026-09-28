@@ -131,6 +131,23 @@ cf web --reload
 cf web --host 127.0.0.1
 ```
 
+## Authentication
+
+The web UI can open shells on your hosts. By default it has no login and is meant for a trusted network.
+To require a login, set a password (HTTP Basic auth, username from `CF_WEB_USERNAME`, default `admin`):
+
+```bash
+CF_WEB_PASSWORD='a-long-random-password' cf web
+```
+
+Use HTTPS (e.g. via Traefik) when accessing it remotely, since Basic auth sends the password with every request.
+
+Regardless of this setting, cross-origin state-changing requests and WebSocket connections are rejected, which stops ordinary websites you visit from controlling the web UI through your browser.
+
+**Set a password if the UI port is directly reachable.** Without a password, the origin check cannot stop [DNS rebinding](https://en.wikipedia.org/wiki/DNS_rebinding): a malicious site can point its own hostname at the web UI's IP and then talk to it as if it were same-origin.
+A reverse proxy that only routes an exact `Host` (like the Traefik labels in the example `docker-compose.yml`) blocks this, as long as the UI's own port is not reachable directly.
+If users open the UI by IP and port (e.g. `http://192.168.1.10:8000`), set `CF_WEB_PASSWORD`.
+
 ## Requirements
 
 The web UI requires additional dependencies:

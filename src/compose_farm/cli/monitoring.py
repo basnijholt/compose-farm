@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import shlex
 from typing import TYPE_CHECKING, Annotated
 
 import typer
@@ -257,7 +258,7 @@ def logs(
     if follow:
         cmd += " -f"
     if service:
-        cmd += f" {service}"
+        cmd += f" {shlex.quote(service)}"
     results = run_async(run_on_stacks(cfg, stack_list, cmd, filter_host=host))
     report_results(results)
 
@@ -281,7 +282,7 @@ def ps(
     if service and len(stack_list) != 1:
         print_error("--service requires exactly one stack")
         raise typer.Exit(1)
-    cmd = f"ps {service}" if service else "ps"
+    cmd = f"ps {shlex.quote(service)}" if service else "ps"
     results = run_async(run_on_stacks(cfg, stack_list, cmd, filter_host=host))
     report_results(results)
 
