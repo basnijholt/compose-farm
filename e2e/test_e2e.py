@@ -138,7 +138,7 @@ def clean_slate() -> None:
     """Remove containers, datasets, and files left by earlier runs."""
     for name in VMS:
         vm(name, "docker ps -aq | xargs -r docker rm -f", check=False)
-        vm(name, f"rm -rf {STACKS} /tmp/cf-before-* /run/agenix/*")
+        vm(name, f"rm -rf {STACKS} /tmp/cf-before-* /run/agenix/* /root/agenix-src")
         parents = ["tank/data", "tank/shared"] if name == "vm1" else ["tank/data"]  # NFS elsewhere
         for child in [c for parent in parents for c in datasets(name, parent)]:
             vm(name, f"zfs destroy -r {child}", check=False)
@@ -343,40 +343,27 @@ def _deploy_secrets(secrets: dict[str, str]) -> None:
         f"-r '{vm(name, 'cat /etc/ssh/ssh_host_ed25519_key.pub').strip()}'"
         for name in ("vm1", "vm2")
     )
+    src = "/root/agenix-src"  # Not /tmp: protected_regular blocks overwriting pushed files
     for secret, content in secrets.items():
         encrypted = E2E_DIR / f"{secret}.age"
-        vm("vm1", f"printf %s '{content}' | age {recipients} -o /tmp/{secret}.age")
-        subprocess.run(
-            [
-                "incus",
-                "file",
-                "pull",
-                f"vm1/tmp/{secret}.age",
-                str(encrypted),
-                "--project",
-                PROJECT,
-            ],
-            check=True,
+        vm(
+            "vm1",
+            f"mkdir -p {src} && printf %s '{content}' | age {recipients} -o {src}/{secret}.age",
         )
+        _incus_file("pull", f"vm1{src}/{secret}.age", str(encrypted))
         for name in ("vm1", "vm2"):
-            subprocess.run(
-                [
-                    "incus",
-                    "file",
-                    "push",
-                    str(encrypted),
-                    f"{name}/tmp/{secret}.age",
-                    "--project",
-                    PROJECT,
-                ],
-                check=True,
-            )
+            vm(name, f"mkdir -p {src}")
+            _incus_file("push", str(encrypted), f"{name}{src}/{secret}.age")
             vm(
                 name,
                 f"mkdir -p /run/agenix && age -d -i /etc/ssh/ssh_host_ed25519_key "
-                f"-o /run/agenix/{secret} /tmp/{secret}.age && "
+                f"-o /run/agenix/{secret} {src}/{secret}.age && "
                 f"chown cf /run/agenix/{secret} && chmod 0400 /run/agenix/{secret}",
             )
+
+
+def _incus_file(action: str, source: str, target: str) -> None:
+    subprocess.run(["incus", "file", action, source, target, "--project", PROJECT], check=True)
 
 
 def _seen_by_container(name: str) -> str:
