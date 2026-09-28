@@ -114,7 +114,7 @@ class ZfsPlugin(Plugin):
 zfs = "my_package:ZfsPlugin"
 ```
 
-Install the package next to compose-farm (for example `uv tool install compose-farm --with my-package`) and enable it with `plugins: {zfs: {parent: tank/stacks}}`.
+Install the package next to compose-farm (for example `uv tool install compose-farm --with my-package`) and enable it with `plugins: {zfs: {parent: tank/stacks}}`. See [Example plugins](#example-plugins) for complete versions.
 
 `HookContext` has:
 
@@ -136,11 +136,23 @@ Rules for plugins:
 - **No blocking calls**: hooks for different stacks run concurrently. Use `ctx.run`/`ctx.run_local` or asyncio subprocesses.
 - **`compose_args` does no I/O**: it is called for every compose command.
 
-## Recipes
+## Example plugins
 
-### Secrets from agenix
+Two complete, installable plugins live in [`examples/plugins/`](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins). Use them as-is or as a starting point:
 
-agenix decrypts secrets on each host into `/run/agenix/`. Pass them to compose as an env file:
+| Plugin | What it does |
+|--------|--------------|
+| [agenix](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins/agenix) | Passes host-decrypted secret env files (`/run/agenix/...`) to compose as `--env-file` for the stacks you list, and checks during preflight that every secret exists on the target host |
+| [zfs](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins/zfs) | A ZFS dataset per stack: created on first deploy, moved with `zfs send`/`recv` on migration (live send, then a short final incremental), retired on removal. A `storage_host` mode keeps all datasets on one NAS instead |
+
+Install one next to compose-farm:
+
+```bash
+uv tool install compose-farm \
+  --with "compose-farm-zfs @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/zfs"
+```
+
+Without installing anything, the `commands` plugin covers simple cases. For example, a secret env file for every stack:
 
 ```yaml
 plugins:
@@ -150,32 +162,7 @@ plugins:
     compose_args: ["--env-file", ".env", "--env-file", "/run/agenix/{stack}.env"]
 ```
 
-`compose_args` from `commands` apply to **every** stack, so with this recipe every stack needs both `.env` and `/run/agenix/<stack>.env` (compose fails if a listed file is missing). Passing any `--env-file` also stops compose from reading `.env` implicitly, which is why `.env` is listed.
-
-Alternatively, link the decrypted file into the stack directory in `before_up`, only for stacks that have a secret file:
-
-```yaml
-plugins:
-  commands:
-    before_up:
-      - run: "if [ -e /run/agenix/{stack}.env ]; then ln -sfn /run/agenix/{stack}.env {stack_dir}/.env; fi"
-```
-
-This replaces an existing `.env` in those stacks.
-
-### Per-stack ZFS datasets instead of NFS
-
-A ZFS plugin can create a dataset per stack and move it when the stack migrates:
-
-- `preflight`: check the parent dataset exists.
-- `before_up`: without `source_host`, create the dataset if missing. With `source_host`, snapshot on the source and send it to the target while the source still runs (full the first time, incremental after).
-- `after_source_stopped`: snapshot again and send the small incremental, so downtime is short.
-- `after_up` with `source_host`: rename the source dataset out of the way (for example `<parent>/.retired/<stack>`), or destroy it if you opt in.
-- `on_stack_removed`: retire the dataset the same way.
-
-Pipe the transfer through the machine running `cf` (`ssh src zfs send ... | ssh dst zfs recv ...` via `ctx.run_local` and `compose_farm.executor.build_ssh_command`) so hosts do not need SSH access to each other. If `compose_dir/<stack>` is itself the dataset, compose files move with the data and `sync` is not needed.
-
-If the target starts and writes data but then fails, the rollback restarts the source from its own data and the target's writes are discarded (the same as with NFS today).
+`compose_args` from `commands` apply to **every** stack, so every stack then needs both `.env` and `/run/agenix/<stack>.env` (compose fails if a listed file is missing). The agenix example plugin avoids that by only touching the stacks you list.
 
 ## Security
 

@@ -13,6 +13,15 @@ Real-world examples demonstrating compose-farm patterns for multi-host Docker de
 | [paperless-ngx](paperless-ngx/) | Multi-container | Redis + PostgreSQL + App stack |
 | [autokuma](autokuma/) | Multi-host | Demonstrates `all` keyword (runs on every host) |
 
+## Plugins
+
+Installable example [plugins](../docs/plugins.md), each a single module with its own `pyproject.toml`:
+
+| Plugin | Demonstrates |
+|--------|--------------|
+| [agenix](plugins/agenix/) | Secrets decrypted by agenix passed to compose as `--env-file`, checked during preflight |
+| [zfs](plugins/zfs/) | A ZFS dataset per stack that moves with the stack on migration (or lives on a NAS) |
+
 ## Key Patterns
 
 ### External Network
