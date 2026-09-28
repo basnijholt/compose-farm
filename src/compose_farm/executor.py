@@ -12,7 +12,7 @@ from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 from .console import console, err_console, format_stack_prefix
-from .ssh_keys import get_key_path, get_ssh_auth_sock, get_ssh_env
+from .ssh_keys import SSH_KNOWN_HOSTS_PATH, get_key_path, get_ssh_auth_sock, get_ssh_env
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -112,9 +112,9 @@ def build_ssh_command(host: Host, command: str, *, tty: bool = False) -> list[st
     ssh_args = [
         "ssh",
         "-o",
-        "StrictHostKeyChecking=no",
+        "StrictHostKeyChecking=yes",
         "-o",
-        "UserKnownHostsFile=/dev/null",
+        f"UserKnownHostsFile={SSH_KNOWN_HOSTS_PATH}",
         "-o",
         "LogLevel=ERROR",
     ]
@@ -208,7 +208,7 @@ def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
         "host": host.address,
         "port": host.port,
         "username": host.user,
-        "known_hosts": None,
+        "known_hosts": str(SSH_KNOWN_HOSTS_PATH),
         "gss_auth": False,  # Disable GSSAPI - causes multi-second delays
     }
     # Add key file fallback (prioritized over agent if present)
@@ -308,6 +308,22 @@ async def _run_ssh_command(
     label: str = "",
 ) -> CommandResult:
     """Run a command on a remote host via SSH with streaming output."""
+    if not SSH_KNOWN_HOSTS_PATH.is_file():
+        detail = (
+            f"SSH host key database not found at {SSH_KNOWN_HOSTS_PATH}. "
+            "Run 'cf ssh setup --trust-only' to verify and trust configured hosts."
+        )
+        if stream:
+            err_console.print(f"{format_stack_prefix(prefix or stack)} [red]SSH error:[/] {detail}")
+        return CommandResult(
+            stack=stack,
+            exit_code=1,
+            success=False,
+            stderr=detail,
+            host=host_name,
+            label=label,
+        )
+
     if raw:
         # Use native ssh with TTY for proper progress bar rendering
         ssh_args = build_ssh_command(host, command, tty=True)

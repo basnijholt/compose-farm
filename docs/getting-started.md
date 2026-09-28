@@ -96,6 +96,9 @@ ssh-add -l
 
 # Test connection
 ssh user@192.168.1.10 "docker --version"
+
+# Verify and persist the configured servers' host keys for Compose Farm
+cf ssh setup --trust-only
 ```
 
 ### Option 2: Dedicated Key (recommended for Docker)

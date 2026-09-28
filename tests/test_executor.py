@@ -30,6 +30,7 @@ from compose_farm.executor import (
     run_compose_on_host,
     run_on_stacks,
 )
+from compose_farm.ssh_keys import SSH_KEY_PATH
 
 # These tests run actual shell commands that only work on Linux
 linux_only = pytest.mark.skipif(sys.platform != "linux", reason="Linux-only shell commands")
@@ -160,15 +161,20 @@ class TestRunCommand:
         assert not (tmp_path / "injected").exists()
 
     async def test_non_streaming_ssh_error_is_returned_not_printed(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         """Preflight checks run under progress bars and must not print mid-render."""
         from compose_farm import executor
 
         output = _RecordingConsole()
         monkeypatch.setattr(executor, "err_console", output)
+        known_hosts = tmp_path / "known_hosts"
+        known_hosts.touch()
 
-        with patch("asyncssh.connect", side_effect=OSError("Connection lost")):
+        with (
+            patch("compose_farm.executor.SSH_KNOWN_HOSTS_PATH", known_hosts),
+            patch("asyncssh.connect", side_effect=OSError("Connection lost")),
+        ):
             result = await _run_ssh_command(
                 Host(address="192.168.1.10"),
                 "true",
@@ -180,9 +186,33 @@ class TestRunCommand:
         assert result.stderr == "Connection lost"
         assert output.calls == []
 
+    async def test_missing_known_hosts_returns_setup_guidance(self, tmp_path: Path) -> None:
+        """A missing trust database should produce an actionable failure."""
+        missing = tmp_path / "known_hosts"
+
+        with patch("compose_farm.executor.SSH_KNOWN_HOSTS_PATH", missing):
+            result = await _run_ssh_command(
+                Host(address="192.168.1.10"),
+                "true",
+                "mount-check",
+                stream=False,
+            )
+
+        assert result.success is False
+        assert "known_hosts" in result.stderr
+        assert "cf ssh setup --trust-only" in result.stderr
+
 
 class TestBuildSshCommand:
     """Tests for native SSH command construction."""
+
+    def test_requires_a_known_host_key(self) -> None:
+        """Native SSH must reject unknown or changed server host keys."""
+        args = build_ssh_command(Host(address="192.168.1.10"), "true")
+
+        assert "StrictHostKeyChecking=yes" in args
+        assert "StrictHostKeyChecking=no" not in args
+        assert f"UserKnownHostsFile={SSH_KEY_PATH.parent / 'known_hosts'}" in args
 
     def test_uses_only_compose_farm_key_when_present(self, tmp_path: Path) -> None:
         """Native ssh should match asyncssh by not falling back to agent keys."""

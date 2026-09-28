@@ -75,12 +75,29 @@ See [Host Resource Monitoring](https://github.com/basnijholt/compose-farm#host-r
 
 ## Troubleshooting
 
-### SSH "Permission denied" or "Host key verification failed"
+### SSH "Permission denied"
 
 Regenerate keys:
 
 ```bash
 docker compose run --rm cf ssh setup
+```
+
+### SSH "Host key verification failed"
+
+For a new host, verify its fingerprint out-of-band and enroll it without
+changing authentication keys:
+
+```bash
+docker compose run --rm cf ssh setup --trust-only
+```
+
+If a host key legitimately changed, verify the new fingerprint first, remove
+only that host's old entry, then rerun the command above. Use `HOST` for port 22
+or `[HOST]:PORT` for a custom port:
+
+```bash
+ssh-keygen -R HOST -f ~/.ssh/compose-farm/known_hosts
 ```
 
 ### Files created as root

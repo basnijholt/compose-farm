@@ -387,6 +387,15 @@ class TestContainerUpdateChecks:
     """Registry checks are limited to images observed on configured hosts."""
 
     @staticmethod
+    def _client(*, raise_server_exceptions: bool = True) -> TestClient:
+        return TestClient(
+            create_app(),
+            base_url="http://localhost",
+            client=("127.0.0.1", 50000),
+            raise_server_exceptions=raise_server_exceptions,
+        )
+
+    @staticmethod
     def _config() -> Config:
         return Config(
             compose_dir=Path("/opt/compose"),
@@ -397,7 +406,7 @@ class TestContainerUpdateChecks:
 
     def test_rejects_an_image_not_reported_by_glances(self) -> None:
         """Caller-controlled registry hosts must never trigger outbound requests."""
-        client = TestClient(create_app())
+        client = self._client()
         with (
             patch("compose_farm.web.routes.containers.get_config", return_value=self._config()),
             patch(
@@ -425,7 +434,7 @@ class TestContainerUpdateChecks:
 
     def test_checks_an_image_reported_by_glances(self) -> None:
         """Images from the trusted container inventory remain supported."""
-        client = TestClient(create_app())
+        client = self._client()
         result = TagCheckResult(
             image=ImageRef.parse("ghcr.io/acme/app:1.0"),
             current_digest="sha256:abc",
@@ -455,7 +464,7 @@ class TestContainerUpdateChecks:
 
     def test_host_rows_cache_images_for_update_checks(self) -> None:
         """The per-host rows route caches its rendered image inventory."""
-        client = TestClient(create_app())
+        client = self._client()
         result = TagCheckResult(
             image=ImageRef.parse("ghcr.io/acme/app:1.0"),
             current_digest="sha256:abc",
@@ -493,7 +502,7 @@ class TestContainerUpdateChecks:
     def test_failed_aggregate_refresh_keeps_last_known_images(self) -> None:
         """A partial Glances outage must not erase the last trusted inventory."""
         _known_image_cache.clear()
-        client = TestClient(create_app())
+        client = self._client()
         result = TagCheckResult(
             image=ImageRef.parse("ghcr.io/acme/app:1.0"),
             current_digest="sha256:abc",
@@ -522,7 +531,7 @@ class TestContainerUpdateChecks:
         assert response.status_code == 200
 
     def test_rejects_more_than_one_hundred_items(self) -> None:
-        client = TestClient(create_app())
+        client = self._client()
         items = [{"image": "nginx", "tag": "1"}] * 101
 
         response = client.post("/api/containers/check-updates", json={"items": items})
@@ -530,7 +539,7 @@ class TestContainerUpdateChecks:
         assert response.status_code == 413
 
     def test_rejects_request_bodies_over_sixty_four_kibibytes(self) -> None:
-        client = TestClient(create_app())
+        client = self._client()
 
         response = client.post(
             "/api/containers/check-updates",
@@ -541,7 +550,7 @@ class TestContainerUpdateChecks:
         assert response.status_code == 413
 
     def test_rejects_json_integer_exceeding_conversion_limit(self) -> None:
-        client = TestClient(create_app(), raise_server_exceptions=False)
+        client = self._client(raise_server_exceptions=False)
 
         response = client.post(
             "/api/containers/check-updates",
@@ -552,7 +561,7 @@ class TestContainerUpdateChecks:
         assert response.status_code == 400
 
     def test_rejects_deeply_nested_json(self) -> None:
-        client = TestClient(create_app(), raise_server_exceptions=False)
+        client = self._client(raise_server_exceptions=False)
 
         with patch(
             "compose_farm.web.routes.containers.json.loads",
