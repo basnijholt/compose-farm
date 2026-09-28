@@ -84,9 +84,15 @@ def use_plugins(cfg: Config, *plugins: Plugin) -> Config:
     return cfg
 
 
-def load_example_plugin(name: str) -> ModuleType:
-    """Import ``examples/plugins/<name>/compose_farm_<name>.py`` without installing it."""
-    path = Path(__file__).parent.parent / "examples" / "plugins" / name / f"compose_farm_{name}.py"
+def load_example_plugin(name: str, folder: str | None = None) -> ModuleType:
+    """Import ``examples/plugins/<folder>/compose_farm_<name>.py`` without installing it."""
+    path = (
+        Path(__file__).parent.parent
+        / "examples"
+        / "plugins"
+        / (folder or name)
+        / f"compose_farm_{name}.py"
+    )
     module_name = f"compose_farm_{name}"
     spec = importlib.util.spec_from_file_location(module_name, path)
     assert spec is not None
