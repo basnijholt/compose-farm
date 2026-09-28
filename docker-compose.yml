@@ -22,7 +22,7 @@ services:
       - CF_CONFIG=${CF_COMPOSE_DIR:-/opt/stacks}/compose-farm.yaml
       # HOME must match the user running the container for SSH to find keys
       - HOME=${CF_HOME:-/root}
-      # USER is required for SSH when running as non-root (UID not in /etc/passwd)
+      # Default SSH username for hosts without an explicit user.
       - USER=${CF_USER:-root}
 
   web:
@@ -52,7 +52,7 @@ services:
       - CF_WEB_PASSWORD=${CF_WEB_PASSWORD:-}
       # HOME must match the user running the container for SSH to find keys
       - HOME=${CF_HOME:-/root}
-      # USER is required for SSH when running as non-root (UID not in /etc/passwd)
+      # Default SSH username for hosts without an explicit user.
       - USER=${CF_USER:-root}
     labels:
       - traefik.enable=true
