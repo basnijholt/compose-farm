@@ -15,7 +15,7 @@ Real-world examples demonstrating compose-farm patterns for multi-host Docker de
 
 ## Plugins
 
-Installable example [plugins](../docs/plugins.md), each a single module with its own `pyproject.toml`:
+Installable example [plugins](../docs/plugins.md), each a single module with its own `pyproject.toml`. The Docker image already includes them:
 
 | Plugin | Demonstrates |
 |--------|--------------|

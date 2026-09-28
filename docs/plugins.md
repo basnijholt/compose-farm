@@ -20,7 +20,7 @@ plugins:
 
 An unknown plugin name or invalid options make config loading fail, so `cf config validate` and `cf check` catch mistakes early. `cf check` also lists the enabled plugins.
 
-Plugins run wherever `cf` runs, including the web UI (which runs `cf` for its actions). The Docker image includes the builtin plugins; for others, build your own image that installs them next to compose-farm (`uv tool install "compose-farm[web]" --with <plugin>`).
+Plugins run wherever `cf` runs, including the web UI (which runs `cf` for its actions). The Docker image includes the builtin plugins and the [example plugins](#example-plugins); for others, build your own image that installs them next to compose-farm (`uv tool install "compose-farm[web]" --with <plugin>`).
 
 ## Builtin plugins
 
