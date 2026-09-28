@@ -7,6 +7,17 @@ on:
     branches: [main]
 
 jobs:
+  build-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Build wheel and verify vendored asset digests
+        run: uv build --wheel
+
   dependency-audit:
     runs-on: ubuntu-latest
     steps:
@@ -34,9 +45,9 @@ jobs:
             test "$(id -un)" = compose-farm
             ssh -G example.invalid 2>/dev/null | grep -Fqx \
               "userknownhostsfile /tmp/test-home/.ssh/known_hosts /tmp/test-home/.ssh/known_hosts2"
-             test "$(stat -c %a /etc/passwd)" = 644
-             test ! -w /etc/passwd
-           '
+            test "$(stat -c %a /etc/passwd)" = 644
+            test ! -w /etc/passwd
+          '
 
   test:
     runs-on: ${{ matrix.os }}
