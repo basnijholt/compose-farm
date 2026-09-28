@@ -17,7 +17,7 @@ services:
       - /mnt/data/paperless/redisdata:/data
 
   db:
-    image: postgres:16
+    image: postgres:18
     container_name: paperless-db
     restart: unless-stopped
     networks:
