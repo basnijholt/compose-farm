@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from compose_farm.config import Config, Host
-from compose_farm.plugins import HookContext, Plugin
+from compose_farm.plugins import ChangesContext, HookContext, Plugin
 
 if TYPE_CHECKING:
     from types import ModuleType
@@ -47,6 +47,12 @@ class Recorder(Plugin):
     async def after_stack_removed(self, ctx: HookContext) -> None:
         self._record("after_stack_removed", ctx)
 
+    async def after_changes(self, ctx: ChangesContext) -> None:
+        self.events.append(("after_changes", ctx.stacks))
+        if ("after_changes", "*") in self.fail:
+            msg = "after_changes failed"
+            raise RuntimeError(msg)
+
     def compose_args(self, ctx: HookContext) -> list[str]:
         return [arg.format(stack=ctx.stack, host=ctx.host) for arg in self.args]
 
@@ -78,9 +84,15 @@ def use_plugins(cfg: Config, *plugins: Plugin) -> Config:
     return cfg
 
 
-def load_example_plugin(name: str) -> ModuleType:
-    """Import ``examples/plugins/<name>/compose_farm_<name>.py`` without installing it."""
-    path = Path(__file__).parent.parent / "examples" / "plugins" / name / f"compose_farm_{name}.py"
+def load_example_plugin(name: str, folder: str | None = None) -> ModuleType:
+    """Import ``examples/plugins/<folder>/compose_farm_<name>.py`` without installing it."""
+    path = (
+        Path(__file__).parent.parent
+        / "examples"
+        / "plugins"
+        / (folder or name)
+        / f"compose_farm_{name}.py"
+    )
     module_name = f"compose_farm_{name}"
     spec = importlib.util.spec_from_file_location(module_name, path)
     assert spec is not None

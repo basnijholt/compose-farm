@@ -18,7 +18,9 @@ if TYPE_CHECKING:
 
 ENTRY_POINT_GROUP = "compose_farm.plugins"
 
-Hook = Literal["before_up", "after_source_stopped", "after_up", "after_stack_removed"]
+Hook = Literal[
+    "before_up", "after_source_stopped", "after_up", "after_stack_removed", "after_changes"
+]
 
 
 class PluginError(Exception):
@@ -47,21 +49,9 @@ class HookContext:
         check: bool = True,
     ) -> CommandResult:
         """Run a shell command on ``host`` (default: this context's host)."""
-        host_name = host or self.host
-        if host_name not in self.cfg.hosts:
-            msg = f"host {host_name!r} is not in config"
-            raise PluginError(msg)
-        label = f"{self.stack}@{host_name}"
-        result = await run_command(
-            self.cfg.hosts[host_name],
-            command,
-            self.stack,
-            stream=stream,
-            prefix=label,
-            host_name=host_name,
-            label=label,
+        return await _run_on_host(
+            self.cfg, host or self.host, command, stack=self.stack, stream=stream, check=check
         )
-        return _checked(result, command, host_name, check=check)
 
     async def run_local(
         self,
@@ -71,10 +61,60 @@ class HookContext:
         check: bool = True,
     ) -> CommandResult:
         """Run a shell command on the machine running cf."""
-        result = await _run_local_command(
-            command, self.stack, stream=stream, prefix=self.stack, label=self.stack
-        )
-        return _checked(result, command, "local machine", check=check)
+        return await _run_here(command, label=self.stack, stream=stream, check=check)
+
+
+@dataclass(frozen=True)
+class ChangesContext:
+    """The stacks a cf up/update, down, or apply changed, plus helpers to run commands."""
+
+    cfg: Config
+    stacks: tuple[str, ...]
+
+    async def run(
+        self,
+        command: str,
+        *,
+        host: str,
+        stream: bool = True,
+        check: bool = True,
+    ) -> CommandResult:
+        """Run a shell command on ``host``."""
+        return await _run_on_host(self.cfg, host, command, stack="", stream=stream, check=check)
+
+    async def run_local(
+        self,
+        command: str,
+        *,
+        stream: bool = True,
+        check: bool = True,
+    ) -> CommandResult:
+        """Run a shell command on the machine running cf."""
+        return await _run_here(command, label="local", stream=stream, check=check)
+
+
+async def _run_on_host(
+    cfg: Config, host_name: str, command: str, *, stack: str, stream: bool, check: bool
+) -> CommandResult:
+    if host_name not in cfg.hosts:
+        msg = f"host {host_name!r} is not in config"
+        raise PluginError(msg)
+    label = f"{stack}@{host_name}" if stack else host_name
+    result = await run_command(
+        cfg.hosts[host_name],
+        command,
+        stack,
+        stream=stream,
+        prefix=label,
+        host_name=host_name,
+        label=label,
+    )
+    return _checked(result, command, host_name, check=check)
+
+
+async def _run_here(command: str, *, label: str, stream: bool, check: bool) -> CommandResult:
+    result = await _run_local_command(command, label, stream=stream, prefix=label, label=label)
+    return _checked(result, command, "local machine", check=check)
 
 
 def _checked(result: CommandResult, command: str, where: str, *, check: bool) -> CommandResult:
@@ -120,6 +160,9 @@ class Plugin:
     async def after_stack_removed(self, ctx: HookContext) -> None:
         """An orphaned stack (removed from config) was stopped on ctx.host."""
 
+    async def after_changes(self, ctx: ChangesContext) -> None:
+        """Once after a cf up/update, down, or apply that changed stacks (ctx.stacks)."""
+
     def compose_args(self, ctx: HookContext) -> list[str]:  # noqa: ARG002
         """Extra global docker compose arguments for ctx.stack on ctx.host. No I/O, no secrets."""
         return []
@@ -164,7 +207,7 @@ async def run_hook(ctx: HookContext, hook: Hook) -> None:
             raise PluginError(msg) from e
 
 
-async def run_hook_all(ctx: HookContext, hook: Hook) -> list[str]:
+async def run_hook_all(ctx: HookContext | ChangesContext, hook: Hook) -> list[str]:
     """Run a hook on every plugin, returning failure messages instead of raising."""
     errors: list[str] = []
     for plugin in ctx.cfg.get_plugins():

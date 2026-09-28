@@ -40,11 +40,13 @@ plugins:
     preflight:
       - run: "test -r /run/agenix/{stack}.env"  # non-zero exit = preflight problem
     compose_args: ["--env-file", "/run/agenix/{stack}.env"]
+    after_changes:                              # once per cf command, on the machine running cf
+      - local: "cd {compose_dir} && ./scripts/kuma-sync.py sync --apply"
 ```
 
-- Each step is `run:` (runs on the host the hook is for) or `local:` (runs where `cf` runs).
+- Each step is `run:` (runs on the host the hook is for) or `local:` (runs where `cf` runs). `after_changes` steps are always `local:` because that hook is not tied to a host.
 - A failing step fails the hook (see [Hooks](#hooks) for what that means per hook). Preflight steps never fail the hook; each failing check is reported as a problem.
-- Placeholders: `{stack}`, `{host}`, `{source_host}` (empty unless migrating), `{compose_dir}`, `{stack_dir}`. In `run`/`local` commands the values are inserted already shell-quoted, so don't wrap placeholders in quotes yourself (`echo {stack}`, not `echo '{stack}'`). `compose_args` items are substituted as-is and each item is quoted when the compose command is built. Unknown placeholders, conversions (`{stack!r}`), and format specs (`{stack:>9}`) are config errors.
+- Placeholders: `{stack}`, `{host}`, `{source_host}` (empty unless migrating), `{compose_dir}`, `{stack_dir}`. In `run`/`local` commands the values are inserted already shell-quoted, so don't wrap placeholders in quotes yourself (`echo {stack}`, not `echo '{stack}'`). `compose_args` items are substituted as-is and each item is quoted when the compose command is built. `after_changes` steps have `{stacks}` (the changed stacks, each quoted) and `{compose_dir}` instead. Unknown placeholders, conversions (`{stack!r}`), and format specs (`{stack:>9}`) are config errors.
 
 ### sync
 
@@ -65,7 +67,7 @@ plugins:
 
 ## Hooks
 
-Hooks run in config order. The first failure stops the chain for that call, except for `preflight` (problems from every plugin are collected) and `after_up` (every plugin still runs; failures are warnings).
+Hooks run in config order. The first failure stops the chain for that call, except for `preflight` (problems from every plugin are collected), `after_up` and `after_changes` (every plugin still runs; failures are warnings).
 
 | Hook | Called | On failure |
 |------|--------|------------|
@@ -74,6 +76,7 @@ Hooks run in config order. The first failure stops the chain for that call, exce
 | `after_source_stopped` | Migration only: the source is stopped, the target not started yet | Rollback: the stack is restarted on the source if it was running there |
 | `after_up` | The stack started on the host (after the state update) | Warning only |
 | `after_stack_removed` | An orphaned stack (removed from config) was stopped via `cf down --orphaned` or `cf apply`. Not called for strays or a plain `down` | Later plugins are skipped, and the stack stays in the state file, so the next `cf down --orphaned`/`cf apply` retries |
+| `after_changes` | Once per `cf up`/`update`, `down` (including `--orphaned`), or `apply` that started, moved, or stopped stacks, after all of them. Gets a `ChangesContext` with the changed `stacks`. For plugins that act on the whole deployment (DNS records, monitors) | Warning only |
 | `compose_args` | Every time a compose command is built for a stack on a host (`up`, `down`, `ps`, `logs`, `pull`, `restart`, `compose`, ...) | On start, the stack fails before anything is stopped or started; other commands abort with the error |
 
 Migrating a stack runs:
@@ -133,6 +136,8 @@ Install the package next to compose-farm (for example `uv tool install compose-f
 - `await ctx.run(command, host=None, stream=True, check=True)`: run a shell command on `host` (default `ctx.host`) through compose-farm's SSH. With `check=True` a non-zero exit raises `PluginError`.
 - `await ctx.run_local(command, stream=True, check=True)`: the same on the machine running `cf`.
 
+`after_changes` gets a `ChangesContext` instead, with `cfg`, `stacks` (the stacks the command started, moved, or stopped), `await ctx.run(command, host=..., ...)` (the host is required), and `await ctx.run_local(...)`.
+
 Raise `PluginError` (or any exception) to fail a hook; the message is shown to the user.
 
 Rules for plugins:
@@ -147,12 +152,15 @@ Rules for plugins:
 
 ## Example plugins
 
-Two complete, installable plugins live in [`examples/plugins/`](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins). Use them as-is or as a starting point:
+Complete, installable plugins live in [`examples/plugins/`](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins). Use them as-is or as a starting point:
 
 | Plugin | What it does |
 |--------|--------------|
 | [agenix](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins/agenix) | Passes host-decrypted secret env files (`/run/agenix/...`) to compose as `--env-file` for the stacks you list, and checks during preflight that every secret exists on the target host |
 | [zfs](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins/zfs) | A ZFS dataset per stack: created on first deploy, moved with `zfs send`/`recv` on migration (live send, then a short final incremental), retired on removal. A `storage_host` mode keeps all datasets on one NAS instead |
+| [pin](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins/pin) | Keeps stacks on the host they must run on (static IPs, USB devices, GPUs): starting one elsewhere fails with the reason, and `cf check` flags a pin that no longer matches `stacks:` |
+| [traefik-dns](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins/traefik-dns) | After every change, writes one DNS record per Traefik `Host()` name under a domain into a managed block (Headscale `extra_records` or hosts lines) and restarts the reading stack if the records changed |
+| [traefik-policy](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins/traefik-policy) | Checks Traefik router labels in preflight, e.g. that a router on a public entrypoint is also on `websecure` |
 
 Install one next to compose-farm:
 
@@ -172,6 +180,21 @@ plugins:
 ```
 
 `compose_args` from `commands` apply to **every** stack, so every stack then needs both `.env` and `/run/agenix/<stack>.env` (compose fails if a listed file is missing). The agenix example plugin avoids that by only touching the stacks you list.
+
+More `commands` recipes:
+
+```yaml
+plugins:
+  commands:
+    before_up:
+      # Remount NFS after the NAS rebooted (needs passwordless sudo for mount)
+      - run: "mountpoint -q /mnt/data || sudo mount /mnt/data"
+      # Create the shared Docker network if this host doesn't have it yet
+      - run: "docker network inspect mynetwork >/dev/null 2>&1 || docker network create --subnet 172.20.0.0/16 --gateway 172.20.0.1 mynetwork"
+    after_changes:
+      # Sync Uptime Kuma monitors once per command, not once per stack
+      - local: "cd {compose_dir} && ./scripts/kuma-sync.py sync --apply"
+```
 
 ## Security
 

@@ -21,6 +21,9 @@ Installable example [plugins](../docs/plugins.md), each a single module with its
 |--------|--------------|
 | [agenix](plugins/agenix/) | Secrets decrypted by agenix passed to compose as `--env-file`, checked during preflight |
 | [zfs](plugins/zfs/) | A ZFS dataset per stack that moves with the stack on migration (or lives on a NAS) |
+| [pin](plugins/pin/) | Keeps stacks on the host they must run on; an accidental move fails with the reason |
+| [traefik-dns](plugins/traefik-dns/) | Keeps DNS records (Headscale, hosts files) in sync with Traefik hostnames after every change |
+| [traefik-policy](plugins/traefik-policy/) | Enforces Traefik label conventions during preflight |
 
 ## Key Patterns
 

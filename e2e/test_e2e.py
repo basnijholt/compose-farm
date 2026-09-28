@@ -9,6 +9,7 @@ control machine. Compose files reach the VMs through the ``sync`` plugin.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -123,13 +124,11 @@ def cf() -> Path:
     venv = E2E_DIR / "venv"
     if not (venv / "bin" / "cf").exists():
         subprocess.run(["uv", "venv", "-q", str(venv)], check=True)
-        subprocess.run(
-            [
-                "uv", "pip", "install", "-q", "--python", str(venv / "bin" / "python"),
-                "-e", str(REPO), "-e", str(EXAMPLES / "zfs"), "-e", str(EXAMPLES / "agenix"),
-            ],
-            check=True,
-        )  # fmt: skip
+    editable = [arg for path in [REPO, *sorted(EXAMPLES.iterdir())] for arg in ("-e", str(path))]
+    subprocess.run(
+        ["uv", "pip", "install", "-q", "--python", str(venv / "bin" / "python"), *editable],
+        check=True,
+    )
     return venv / "bin" / "cf"
 
 
@@ -371,3 +370,142 @@ def _seen_by_container(name: str) -> str:
         name,
         "docker exec secretapp-app-1 sh -c 'echo $API_TOKEN $DOMAIN $(cat /run/secrets/admin-token)'",
     ).strip()
+
+
+def test_after_changes_and_pin(cf: Path) -> None:
+    """after_changes runs once per command with the changed stacks; pinned stacks don't move."""
+    farm = Farm("changes", cf)
+    for stack in ("alpha", "beta"):
+        write_stack(stack, "services:\n  app:\n    image: busybox\n    command: sleep infinity\n")
+    log = farm.dir / "changes.log"
+    plugins = {
+        "pin": {"alpha": {"host": "vm1", "reason": "e2e pin"}},
+        "sync": {},
+        "commands": {"after_changes": [{"local": f"echo {{stacks}} >> {log}"}]},
+    }
+
+    farm.config({"alpha": "vm1", "beta": "vm2"}, plugins)
+    farm.cf("up", "alpha", "beta")
+    farm.cf("down", "beta")
+    assert log.read_text().splitlines() == ["alpha beta", "beta"]
+
+    farm.config({"alpha": "vm2", "beta": "vm2"}, plugins)
+    out = farm.cf("up", "alpha", ok=False)
+    assert "alpha is pinned to vm1 (e2e pin); not starting it on vm2" in out
+    assert running("vm1", "alpha")
+    assert not running("vm2", "alpha")
+    assert log.read_text().splitlines() == ["alpha beta", "beta"]  # Nothing changed
+    farm.config({"alpha": "vm1", "beta": "vm2"}, plugins)
+    farm.cf("down", "alpha")
+
+
+POLICY_STACK = """\
+services:
+  web:
+    image: busybox
+    command: sleep infinity
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.web.rule=Host(`web.${DOMAIN}`)
+      - traefik.http.routers.web.entrypoints=wan
+"""
+
+
+def test_traefik_policy(cf: Path) -> None:
+    """A router breaking the convention is refused before it starts."""
+    farm = Farm("policy", cf)
+    write_stack("policed", POLICY_STACK, env="DOMAIN=lab.test\n")
+    plugins = {"sync": {}, "traefik-policy": {"entrypoints_require": {"wan": ["websecure"]}}}
+    farm.config({"policed": "vm1"}, plugins)
+    out = farm.cf("up", "policed", ok=False)
+    assert "router web is on entrypoint wan but not on websecure" in out
+    assert not running("vm1", "policed")
+
+    write_stack("policed", POLICY_STACK.replace("entrypoints=wan", "entrypoints=websecure,wan"))
+    farm.cf("up", "policed")
+    assert running("vm1", "policed")
+    farm.cf("down", "policed")
+
+
+DNS_STACK = """\
+services:
+  web:
+    image: busybox
+    command: sleep infinity
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.{name}.rule=Host(`{name}.${{DOMAIN}}`)
+"""
+
+
+def test_traefik_dns(cf: Path) -> None:
+    """Records follow the Traefik hostnames; the reader restarts only when they change."""
+    farm = Farm("dns", cf)
+    write_stack("dnsreader", "services:\n  app:\n    image: busybox\n    command: sleep infinity\n")
+    (STACKS / "dnsreader" / "records.yaml").write_text(
+        "extra_records:\n  # BEGIN E2E DNS\n  # END E2E DNS\n"
+    )
+    write_stack("grafana", DNS_STACK.format(name="grafana"), env="DOMAIN=lab.test\n")
+    plugins = {
+        "sync": {},
+        "traefik-dns": {
+            "file": "dnsreader/records.yaml",
+            "domain": "lab.test",
+            "address": "100.64.0.28",
+            "marker": "E2E DNS",
+            "restart": "dnsreader",
+        },
+    }
+
+    def started_at() -> str:
+        return vm("vm1", "docker inspect -f '{{.State.StartedAt}}' dnsreader-app-1").strip()
+
+    farm.config({"dnsreader": "vm1"}, plugins)
+    farm.cf("up", "dnsreader")
+    first = started_at()
+
+    farm.config({"dnsreader": "vm1", "grafana": "vm2"}, plugins)
+    farm.cf("up", "grafana")
+    records = (STACKS / "dnsreader" / "records.yaml").read_text()
+    assert "  - name: grafana.lab.test\n    type: A\n    value: 100.64.0.28\n" in records
+    # The reader's host got the new file (via sync's before_up) before the restart
+    assert vm("vm1", f"cat {STACKS}/dnsreader/records.yaml") == records
+    restarted = started_at()
+    assert restarted != first
+
+    farm.cf("up", "grafana")  # Same hostnames: no rewrite, no restart
+    assert started_at() == restarted
+
+    write_stack("wiki", DNS_STACK.format(name="wiki"), env="DOMAIN=lab.test\n")
+    farm.config({"dnsreader": "vm1", "grafana": "vm2", "wiki": "vm3"}, plugins)
+    farm.cf("apply")
+    names = re.findall(r"- name: (\S+)", (STACKS / "dnsreader" / "records.yaml").read_text())
+    assert names == ["grafana.lab.test", "wiki.lab.test"]
+    for stack in ("dnsreader", "grafana", "wiki"):
+        farm.cf("down", stack)
+
+
+SYMLINK_STACK = """\
+services:
+  app:
+    image: busybox
+    command: sleep infinity
+    env_file: [.env]
+"""
+
+
+def test_agenix_symlink(cf: Path) -> None:
+    """Symlink mode: services with `env_file: .env` get the decrypted secrets unchanged."""
+    token = f"linked-{os.getpid()}"
+    _deploy_secrets({"symapp.env": f"API_TOKEN={token}\n"})
+    farm = Farm("agenix-symlink", cf)
+    write_stack("symapp", SYMLINK_STACK)
+    plugins = {"sync": {}, "agenix": {"mode": "symlink", "stacks": {"symapp": "symapp.env"}}}
+
+    farm.config({"symapp": "vm1"}, plugins)
+    out = farm.cf("up", "symapp")
+    assert token not in out
+    assert vm("vm1", f"readlink {STACKS}/symapp/.env").strip() == "/run/agenix/symapp.env"
+    env = vm("vm1", "docker exec symapp-app-1 printenv API_TOKEN").strip()
+    assert env == token
+    farm.cf("down", "symapp")

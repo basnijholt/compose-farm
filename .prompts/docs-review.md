@@ -59,14 +59,14 @@ Check:
 - Config file search order is accurate
 - Example YAML would actually work
 
-### 4. Verify docs/architecture.md and CLAUDE.md
+### 4. Verify docs/architecture.md and AGENTS.md
 
 ```bash
 # What source files actually exist?
 git ls-files "src/**/*.py"
 ```
 
-Check **both** `docs/architecture.md` and `CLAUDE.md` (Architecture section):
+Check **both** `docs/architecture.md` and `AGENTS.md` (Architecture section):
 - Listed files exist
 - No files are missing from the list
 - Descriptions match what the code does
@@ -84,7 +84,7 @@ For examples in any doc:
 
 The same info appears in multiple places. Check for conflicts:
 - README.md vs docs/index.md
-- docs/commands.md vs CLAUDE.md command tables
+- docs/commands.md vs AGENTS.md command tables
 - Config examples across different docs
 
 ### 7. Self-Check This Prompt

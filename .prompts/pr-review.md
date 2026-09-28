@@ -11,6 +11,6 @@ Review the pull request for:
 - **PR**: Is the PR description and title clear and informative?
 - **Tests**: Are there tests, and do they cover the changes adequately? Are they testing something meaningful or are they just trivial?
 - **Live tests**: Test the changes in a REAL live environment to ensure they work as expected, use the config in `/opt/stacks/compose-farm.yaml`.
-- **Rules**: Does the code follow the project's coding standards and guidelines as laid out in @CLAUDE.md?
+- **Rules**: Does the code follow the project's coding standards and guidelines as laid out in @AGENTS.md?
 
 Look at `git diff origin/main..HEAD` for the changes made in this pull request.

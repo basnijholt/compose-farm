@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from compose_farm.plugins import HookContext, PluginError, run_hook
+from compose_farm.plugins import ChangesContext, HookContext, PluginError, run_hook, run_hook_all
 from compose_farm.plugins.commands import CommandsPlugin
 from tests.plugin_helpers import make_config, use_plugins
 
@@ -37,6 +37,9 @@ class TestOptions:
             ({"before_up": [{"run": "echo {stack!r}"}]}, "cannot use conversions or format specs"),
             ({"before_up": [{"run": "echo {stack:>9}"}]}, "cannot use conversions or format specs"),
             ({"compose_args": "--env-file x"}, "compose_args must be a list of strings"),
+            ({"after_changes": [{"run": "true"}]}, "after_changes steps must be 'local'"),
+            ({"after_changes": [{"local": "echo {stack}"}]}, "unknown placeholder {stack}"),
+            ({"before_up": [{"run": "echo {stacks}"}]}, "unknown placeholder {stacks}"),
         ],
     )
     def test_invalid_options(self, options: dict[str, Any], error: str) -> None:
@@ -89,6 +92,13 @@ class TestHooks:
         cfg = _setup(tmp_path, {"preflight": [{"run": "echo 'pool tank missing' >&2; exit 1"}]})
         [problem] = await cfg.get_plugins()[0].preflight(HookContext(cfg, "web", "h1"))
         assert problem.endswith("(exit 1): pool tank missing")
+
+    async def test_after_changes_runs_locally_with_the_stacks(self, tmp_path: Path) -> None:
+        out = tmp_path / "changed"
+        cfg = _setup(tmp_path, {"after_changes": [{"local": f"printf '%s\\n' {{stacks}} > {out}"}]})
+        errors = await run_hook_all(ChangesContext(cfg, ("db", "my app")), "after_changes")
+        assert errors == []
+        assert out.read_text().splitlines() == ["db", "my app"]
 
     def test_compose_args_are_rendered_verbatim(self, tmp_path: Path) -> None:
         cfg = _setup(tmp_path, {"compose_args": ["--env-file", "/run/agenix/{stack}.env"]})

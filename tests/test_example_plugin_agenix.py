@@ -38,6 +38,8 @@ class TestOptions:
             ({"stacks": {"mealie": 5}}, "stacks.mealie"),
             ({"stacks": {"mealie": {"env": "a.env", "oops": "b"}}}, "unknown key"),
             ({"stacks": {"mealie": {"files": [1]}}}, "stacks.mealie.files"),
+            ({"stacks": {}, "mode": "copy"}, "mode must be"),
+            ({"stacks": {"forgejo": ["a.env", "b.env"]}, "mode": "symlink"}, "one env file"),
         ],
     )
     def test_invalid(self, options: dict[str, Any], error: str) -> None:
@@ -108,6 +110,34 @@ class TestPreflight:
         cfg = _setup(tmp_path, {"stacks": {"mealie": "mealie.env"}})
         cfg.hosts.clear()  # Any command would fail with "host not in config"
         assert await cfg.get_plugins()[0].preflight(HookContext(cfg, "plain", "h1")) == []
+
+
+class TestSymlinkMode:
+    """.env becomes a symlink to the decrypted file, so `env_file: .env` works unchanged."""
+
+    async def test_links_dotenv_and_adds_no_args(self, tmp_path: Path) -> None:
+        cfg = _setup(tmp_path, {"mode": "symlink", "stacks": {"mealie": "mealie.env"}})
+        plugin = cfg.get_plugins()[0]
+        ctx = HookContext(cfg, "mealie", "h1")
+        await plugin.before_up(ctx)
+        await plugin.before_up(ctx)  # Idempotent: an existing symlink is replaced
+        dotenv = cfg.get_stack_dir("mealie") / ".env"
+        assert dotenv.is_symlink()
+        assert str(dotenv.readlink()) == "/run/agenix/mealie.env"
+        assert cfg.compose_args("mealie", "h1") == []
+
+    async def test_refuses_to_replace_a_regular_dotenv(self, tmp_path: Path) -> None:
+        cfg = _setup(tmp_path, {"mode": "symlink", "stacks": {"mealie": "mealie.env"}})
+        dotenv = cfg.get_stack_dir("mealie") / ".env"
+        dotenv.write_text("DOMAIN=example.com\n")
+        with pytest.raises(PluginError, match=r"\.env is a regular file"):
+            await cfg.get_plugins()[0].before_up(HookContext(cfg, "mealie", "h1"))
+        assert dotenv.read_text() == "DOMAIN=example.com\n"
+
+    async def test_unlisted_stack_is_untouched(self, tmp_path: Path) -> None:
+        cfg = _setup(tmp_path, {"mode": "symlink", "stacks": {"mealie": "mealie.env"}})
+        await cfg.get_plugins()[0].before_up(HookContext(cfg, "plain", "h1"))
+        assert not (cfg.get_stack_dir("plain") / ".env").exists()
 
 
 def test_package_registers_entry_point() -> None:

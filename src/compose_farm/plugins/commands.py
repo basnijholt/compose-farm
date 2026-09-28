@@ -10,6 +10,8 @@ Example::
         preflight:
           - run: "test -r /run/agenix/{stack}.env"
         compose_args: ["--env-file", "/run/agenix/{stack}.env"]
+        after_changes:                            # once per cf command, locally
+          - local: "./scripts/kuma-sync.py sync --apply"
 """
 
 from __future__ import annotations
@@ -18,13 +20,14 @@ import shlex
 import string
 from typing import TYPE_CHECKING, Any
 
-from compose_farm.plugins import HookContext, Plugin, PluginError
+from compose_farm.plugins import ChangesContext, HookContext, Plugin, PluginError
 
 if TYPE_CHECKING:
     from compose_farm.executor import CommandResult
 
 _STEP_HOOKS = ("before_up", "after_source_stopped", "after_up", "after_stack_removed", "preflight")
 _PLACEHOLDERS = ("stack", "host", "source_host", "compose_dir", "stack_dir")
+_CHANGES_PLACEHOLDERS = ("stacks", "compose_dir")
 
 Step = tuple[str, str]  # ("run" | "local", command template)
 
@@ -35,12 +38,18 @@ class CommandsPlugin(Plugin):
     def __init__(self, options: dict[str, Any]) -> None:
         """Validate hook steps, placeholders, and compose_args."""
         super().__init__(options)
-        unknown = sorted(set(options) - {*_STEP_HOOKS, "compose_args"})
+        unknown = sorted(set(options) - {*_STEP_HOOKS, "after_changes", "compose_args"})
         if unknown:
             msg = f"unknown option(s): {', '.join(unknown)}"
             raise PluginError(msg)
         self.steps = {hook: _parse_steps(hook, options.get(hook, [])) for hook in _STEP_HOOKS}
         self.args = _parse_args(options.get("compose_args", []))
+        self.changes_steps = _parse_steps(
+            "after_changes", options.get("after_changes", []), _CHANGES_PLACEHOLDERS
+        )
+        if any(where != "local" for where, _ in self.changes_steps):
+            msg = "after_changes steps must be 'local' (the hook is not tied to a host)"
+            raise PluginError(msg)
 
     async def before_up(self, ctx: HookContext) -> None:
         """Run the before_up steps."""
@@ -57,6 +66,13 @@ class CommandsPlugin(Plugin):
     async def after_stack_removed(self, ctx: HookContext) -> None:
         """Run the after_stack_removed steps."""
         await self._run_steps("after_stack_removed", ctx)
+
+    async def after_changes(self, ctx: ChangesContext) -> None:
+        """Run the after_changes steps; ``{stacks}`` becomes the changed stacks, each quoted."""
+        stacks = " ".join(shlex.quote(stack) for stack in ctx.stacks)
+        compose_dir = shlex.quote(str(ctx.cfg.compose_dir))
+        for _, template in self.changes_steps:
+            await ctx.run_local(template.format(stacks=stacks, compose_dir=compose_dir))
 
     async def preflight(self, ctx: HookContext) -> list[str]:
         """Report every preflight step that exits non-zero."""
@@ -87,7 +103,9 @@ async def _execute(
     return await ctx.run(command, stream=stream, check=check)
 
 
-def _parse_steps(hook: str, raw: object) -> list[Step]:
+def _parse_steps(
+    hook: str, raw: object, placeholders: tuple[str, ...] = _PLACEHOLDERS
+) -> list[Step]:
     if not isinstance(raw, list):
         msg = f"{hook} must be a list"
         raise PluginError(msg)
@@ -101,7 +119,7 @@ def _parse_steps(hook: str, raw: object) -> list[Step]:
         if not valid_where or not isinstance(template, str):
             msg = f"{hook}: each step needs exactly one of 'run' or 'local' with a string command"
             raise PluginError(msg)
-        _check_placeholders(template)
+        _check_placeholders(template, placeholders)
         steps.append((where, template))
     return steps
 
@@ -119,7 +137,7 @@ def _parse_args(raw: object) -> list[str]:
     return args
 
 
-def _check_placeholders(template: str) -> None:
+def _check_placeholders(template: str, placeholders: tuple[str, ...] = _PLACEHOLDERS) -> None:
     try:
         parsed = list(string.Formatter().parse(template))
     except ValueError as e:
@@ -128,10 +146,10 @@ def _check_placeholders(template: str) -> None:
     for _, field, spec, conversion in parsed:
         if field is None:
             continue
-        if field not in _PLACEHOLDERS:
+        if field not in placeholders:
             msg = (
                 f"unknown placeholder {{{field}}} in {template!r} "
-                f"(available: {', '.join(_PLACEHOLDERS)})"
+                f"(available: {', '.join(placeholders)})"
             )
             raise PluginError(msg)
         if spec or conversion:

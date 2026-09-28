@@ -1311,7 +1311,7 @@ This makes the config truly declarative: comment out a stack, run `cf apply`, an
 
 ## Plugins
 
-Plugins replace built-in assumptions without forking: copy compose files with rsync instead of NFS (`sync`), run your own commands at lifecycle hooks and add `docker compose` arguments (`commands`), or install third-party plugins such as the example [agenix](examples/plugins/agenix/) (host-decrypted secrets) and [zfs](examples/plugins/zfs/) (a dataset per stack that moves with it) plugins.
+Plugins replace built-in assumptions without forking: copy compose files with rsync instead of NFS (`sync`), run your own commands at lifecycle hooks and add `docker compose` arguments (`commands`), or install plugins such as the examples in [`examples/plugins/`](examples/plugins/): [agenix](examples/plugins/agenix/) (host-decrypted secrets), [zfs](examples/plugins/zfs/) (a dataset per stack that moves with it), [pin](examples/plugins/pin/) (keep stacks on their host), [traefik-dns](examples/plugins/traefik-dns/) (DNS records for Traefik hostnames), and [traefik-policy](examples/plugins/traefik-policy/) (label conventions).
 
 ```yaml
 plugins:
