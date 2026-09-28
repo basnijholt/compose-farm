@@ -97,5 +97,7 @@ For advanced users, here's the complete reference:
 | `CF_HOME` | Home directory | `/root` |
 | `CF_USER` | Username for SSH | `root` |
 | `CF_WEB_STACK` | Web UI stack name (enables self-update, local host inference) | *(none)* |
+| `CF_WEB_USERNAME` | Web UI login username | `admin` |
+| `CF_WEB_PASSWORD` | Web UI login password; enables HTTP Basic auth when set | *(none: no login)* |
 | `CF_SSH_DIR` | SSH keys directory | `~/.ssh/compose-farm` |
 | `CF_XDG_CONFIG` | Config/backup directory | `~/.config/compose-farm` |

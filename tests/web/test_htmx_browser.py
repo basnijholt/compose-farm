@@ -31,7 +31,7 @@ from compose_farm.web.routes import api as web_api
 from compose_farm.web.routes import pages as web_pages
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Page, Route, WebSocket
+    from playwright.sync_api import Browser, Page, Route, WebSocket
 
 # Default timeout for Playwright waits (ms) - higher for CI stability
 TIMEOUT = 10000
@@ -2565,3 +2565,56 @@ class TestContainersPagePause:
             f"Refresh should resume after closing dropdown. timer='{timer_text}'"
         )
         assert "↻" in timer_text, f"Timer should show countdown, got '{timer_text}'"
+
+
+@pytest.fixture
+def password_server_url(monkeypatch: pytest.MonkeyPatch) -> Generator[str, None, None]:
+    """Start a server with CF_WEB_PASSWORD set (static files and WebSockets need no config)."""
+    monkeypatch.setenv("CF_WEB_PASSWORD", "s3cret")
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    server = uvicorn.Server(
+        uvicorn.Config(create_app(), host="127.0.0.1", port=port, log_level="error")
+    )
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 30
+    while not server.started and time.monotonic() < deadline:
+        time.sleep(0.02)
+    if not server.started:
+        msg = f"Password test server failed to start on port {port}"
+        raise RuntimeError(msg)
+    yield f"http://127.0.0.1:{port}"
+    server.should_exit = True
+    thread.join(timeout=2)
+
+
+class TestBasicAuth:
+    """Browsers must send cached Basic credentials on WebSocket handshakes too."""
+
+    def test_websocket_uses_browser_credentials(
+        self, browser: Browser, password_server_url: str
+    ) -> None:
+        """After logging in, terminal WebSockets connect without extra handling."""
+        context = browser.new_context(http_credentials={"username": "admin", "password": "s3cret"})
+        page = context.new_page()
+        response = page.goto(f"{password_server_url}/static/app.js")
+        assert response is not None
+        assert response.status == 200
+        message = page.evaluate(
+            """() => new Promise(resolve => {
+                const ws = new WebSocket(location.origin.replace('http', 'ws') + '/ws/terminal/x');
+                ws.onmessage = e => resolve(e.data);
+                ws.onerror = () => resolve('error');
+            })"""
+        )
+        assert "Task not found" in message
+        context.close()
+
+    def test_requests_without_credentials_rejected(
+        self, browser: Browser, password_server_url: str
+    ) -> None:
+        context = browser.new_context()
+        assert context.request.get(f"{password_server_url}/static/app.js").status == 401
+        context.close()

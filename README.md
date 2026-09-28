@@ -1249,6 +1249,9 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Start the web UI server.
 
+ Set CF_WEB_PASSWORD (and optionally CF_WEB_USERNAME, default admin) to
+ require a login via HTTP Basic auth.
+
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --host    -H      <str>  Host to bind to [default: 0.0.0.0]                            │
 │ --port    -p      <int>  Port to listen on [default: 8000]                             │

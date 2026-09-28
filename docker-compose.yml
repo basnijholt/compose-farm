@@ -47,6 +47,9 @@ services:
       - CF_CONFIG=${CF_COMPOSE_DIR:-/opt/stacks}/compose-farm.yaml
       # Used to detect self-updates and run via SSH to survive container restart
       - CF_WEB_STACK=compose-farm
+      # Optional web UI login (HTTP Basic auth); set CF_WEB_PASSWORD in .env to enable
+      - CF_WEB_USERNAME=${CF_WEB_USERNAME:-admin}
+      - CF_WEB_PASSWORD=${CF_WEB_PASSWORD:-}
       # HOME must match the user running the container for SSH to find keys
       - HOME=${CF_HOME:-/root}
       # USER is required for SSH when running as non-root (UID not in /etc/passwd)
