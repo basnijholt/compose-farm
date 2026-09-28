@@ -137,13 +137,14 @@ class HookContext:
     cfg: Config
     stack: str
     host: str                        # host this call concerns (target for up hooks)
-    source_host: str | None = None   # set only during a migration
+    source_host: str | None = None   # previous host during a migration, see below
 
     async def run(self, command: str, *, host: str | None = None,
-                  stream: bool = True) -> CommandResult:
+                  stream: bool = True, check: bool = True) -> CommandResult:
         """Run a shell command on `host` (default: self.host) through
         compose-farm's executor (SSH keys, known_hosts, local detection,
-        [stack@host] output prefix)."""
+        [stack@host] output prefix). With check=True a non-zero exit raises
+        PluginError including the command, host and exit code."""
 
 
 class PluginError(Exception):
@@ -151,6 +152,24 @@ class PluginError(Exception):
 ```
 
 Plugins signal failure by raising. No result objects.
+
+`source_host` is the host recorded in state when it differs from the target
+host of a single-host stack. It is set **even if that host is no longer in
+`cfg.hosts`**, so plugins can tell "previous deployment unreachable" apart
+from "first deployment". A plugin that needs the source (ZFS) must raise in
+`before_up`, before mutating anything, when `ctx.source_host not in
+ctx.cfg.hosts`. Multi-host stacks never migrate, so `source_host` is always
+`None` for them.
+
+HookContext never looks up `cfg.stacks[stack]`, so contexts work for orphaned
+stacks that are no longer in config.
+
+**Plugin contract**
+
+- Every hook may run again for the same (stack, host) after a partial
+  failure or retry, so hooks must be idempotent.
+- `before_up` and `after_source_stopped` must leave the source host's data
+  intact. Irreversible cleanup of the source belongs in `after_up` only.
 
 Forward compatibility: new hooks are added as base-class methods with no-op
 defaults; new context data is added as fields on `HookContext`. Neither breaks
@@ -160,16 +179,17 @@ existing plugins.
 
 | Hook | Called | On failure | Used by |
 |------|--------|------------|---------|
-| `before_up` | Per target host, **before** preflight, on every `up`/`update`/`apply` start. `source_host` is set when migrating (source still running). | Abort this stack (failed `CommandResult`); source untouched | ZFS create or initial send; sync rsync; agenix symlink approach |
-| `preflight` | Inside `check_stack_requirements`, so during `up` and `cf check`. Must not mutate. | Returned strings reported like missing paths | ZFS pool exists; secret file readable |
+| `before_up` | Per target host, **before** preflight, on every `up` path: plain, `--service`, `--host`, and therefore `update` and `apply`. `source_host` set when migrating (source still running). | Abort this stack (failed `CommandResult`); source untouched | ZFS create or initial send; sync rsync; agenix symlink approach |
+| `preflight` | Inside `check_stack_requirements`, so during `up` and `cf check`. Must not mutate. | Returned strings reported as preflight errors | ZFS pool exists; secret file readable |
 | `after_source_stopped` | Migration only: source `down` succeeded, target not started | Roll back (restart source if it was running) | ZFS final incremental send |
-| `after_up` | Target `up` succeeded. `source_host` set if this was a migration | Warning only | ZFS retire source dataset |
-| `on_stack_removed` | After a successful `down` of an **orphaned** stack (removed from config) via `cf down --orphaned` / `cf apply`. Not fired for strays or plain `down` | Warning only | ZFS retire/destroy dataset |
-| `compose_args` | Synchronously, whenever a compose command is built for (stack, host). No I/O. | Error aborts the command | agenix `--env-file`, extra `-f`, `--profile` |
+| `after_up` | Target `up` succeeded, after the state update. `source_host` set if this was a migration | Warning that names the source host so the user can clean up manually | ZFS retire source dataset |
+| `on_stack_removed` | After a successful `down` of an **orphaned** stack (removed from config) via `cf down --orphaned` / `cf apply`. Not fired for strays or plain `down` | That host counts as not stopped, so the stack stays in state and the next `cf down --orphaned`/`cf apply` retries | ZFS retire/destroy dataset |
+| `compose_args` | Synchronously, whenever a compose command is built for (stack, host). No I/O. | Exception propagates (options are validated at load, so this indicates a plugin bug) | agenix `--env-file`, extra `-f`, `--profile` |
 
-Hooks run sequentially in config order within one stack. Different stacks
-still run concurrently, so hooks must be async and use `ctx.run` (or
-`asyncio` subprocesses), never blocking calls.
+Hooks run sequentially in config order within one stack. For blocking hooks
+the first failure stops the chain; for warning hooks every plugin still runs.
+Different stacks still run concurrently, so hooks must be async and use
+`ctx.run` (or `asyncio` subprocesses), never blocking calls.
 
 ### Lifecycle flow
 
@@ -178,30 +198,71 @@ Single-host `up` with migration (`_up_single_stack`), new steps in bold:
 1. **`before_up(host=target, source_host=current)`**
 2. Preflight on target (core checks + **plugin `preflight`**)
 3. Pull/build on target
-4. `down` on source
-5. **`after_source_stopped`**; on failure run existing
-   `_cleanup_and_rollback` with the correct `was_running`
+4. `down` on source (skipped with a warning, as today, when the source host
+   is no longer in config; step 5 is then skipped too)
+5. **`after_source_stopped`**; on failure run `_cleanup_and_rollback` with
+   the correct `was_running`
 6. `up` on target (compose command includes **`compose_args`**)
 7. On success: state update, then **`after_up(source_host=current)`**;
-   on failure: existing rollback
+   on failure: rollback
 
-Without migration (`_up_stack_simple`, `_up_multi_host_stack`): steps 1, 2,
-6, 7 per host with `source_host=None`.
+Without migration (`_up_stack_simple`): steps 1, 2, 6, 7 with
+`source_host=None`.
+
+Multi-host (`_up_multi_host_stack`) keeps its barrier: for every host,
+`before_up` then preflight; only if all hosts pass does it start any host.
+Then `up` per host, one state update for all succeeded hosts, then
+`after_up` per succeeded host in config order.
+
+`up --service` and `up --host` (and `update` with those flags) keep their
+current direct `run_on_stacks` path and no preflight, but run `before_up`
+for each (stack, host) first (failures drop that stack) and `after_up` for
+each success.
+
+**Rollback guard:** `_cleanup_and_rollback` currently ignores the result of
+`down` on the target before restarting the source. It must skip the source
+restart and report an error when that `down` fails, so the stack never runs
+on both hosts against diverging data.
+
+**`apply` ordering fix:** `apply` stops strays before migrating, and a stack
+still running on its old host is a stray, so its source is stopped before
+the migration starts. That turns ZFS's live bulk send into downtime and sets
+`was_running=False`, which disables rollback. `apply` must exclude
+`(stack, state host)` for stacks in the migration list from stray cleanup and
+let the migration stop the source.
 
 `stop_orphaned_stacks` passes a flag to `_stop_stacks_on_hosts` so it fires
 `on_stack_removed` after each successful `down`; `stop_stray_stacks` does not.
+A failed hook marks that host's result as failed, which already keeps the
+stack in state.
 
-`compose_args` is applied at the single choke point
-`executor._build_compose_command` (gains `extra_args`), so every compose
-invocation (`up`, `down`, `ps`, `logs`, `pull`, `restart`, `compose`
-passthrough, `check_stack_running`) sees the same project. Callers pass
-`(cfg, stack, host)` so the args can be computed. `_print_compose_command`
-shows them.
+`compose_args` feeds the single choke point `executor._build_compose_command`,
+which gains an `extra_args` parameter and stays a pure function. Every
+executor caller computes the args **per host** (the multi-host helpers and
+`_up_multi_host_stack` currently build one command outside their host loop and
+must move it inside), so every compose invocation (`up`, `down`, `ps`, `logs`,
+`pull`, `restart`, `compose` passthrough, `check_stack_running`) sees the same
+project. `_print_compose_command` shows them.
+
+Import direction: executor must not import the plugin package (the package
+imports executor for `HookContext.run`). Executor reaches plugins through a
+method on the object it already receives: `Config.compose_args(stack, host)`,
+which returns `[]` when no plugins are configured.
+
+Exceptions from hooks are caught inside each per-stack coroutine and turned
+into a failed `CommandResult`, so one failing stack cannot abort the
+`asyncio.gather` in `up_stacks`.
 
 The web UI runs `cf` as a subprocess, so it gets plugin behavior for free.
 
 Not hooked (by design): `stop`, `restart`, plain `down`, `cf compose ... up`
 passthrough. They still get `compose_args`.
+
+**Local parsing limitation:** compose-farm parses the stack's compose file
+and `.env` locally for preflight paths, ports, and Traefik labels
+(`compose.py`, `traefik.py`). That parsing does not see `compose_args`. Use
+`compose_args` for env files and secrets; adding volumes, labels or services
+through extra `-f` files will not be reflected in preflight or Traefik output.
 
 ### Loading
 
@@ -222,12 +283,18 @@ def get_plugins(cfg: Config) -> tuple[Plugin, ...]:
 
 ### Error handling
 
-- Blocking hooks (`before_up`, `after_source_stopped`, `preflight`,
-  `compose_args`): exception becomes a failed `CommandResult` for that stack
-  with message `plugin <name>.<hook>: <error>`; other stacks continue.
+- Blocking hooks (`before_up`, `after_source_stopped`): exception becomes a
+  failed `CommandResult` for that stack with message
+  `plugin <name>.<hook>: <error>`; other stacks continue.
   `after_source_stopped` failure triggers rollback.
-- Warning hooks (`after_up`, `on_stack_removed`): exception printed with
-  `print_warning`, operation still succeeds.
+- `preflight`: returned strings and exceptions both land in a new
+  `PreflightResult.plugin_errors` list, reported by
+  `_report_preflight_failures` and counted as missing items by
+  `check_host_compatibility` (which today drops `check_errors`; include those
+  too).
+- `after_up`: exception printed with `print_warning`; operation succeeds.
+- `on_stack_removed`: exception printed; that host's result becomes failed,
+  so the stack stays in state for retry.
 - `KeyboardInterrupt`/`OperationInterruptedError` propagate unchanged.
 
 ### Security
@@ -302,9 +369,15 @@ Fine for secrets, not for domains/ports.
 - If `compose_dir/<stack>` is itself the dataset, compose files and data move
   together and `sync` is unnecessary.
 
-Known limitation: if the state's previous host has been removed from config,
-`source_host` is `None`, so a plugin cannot distinguish that from a first
-deploy. The core already warns in this case.
+- Refuse to proceed in `before_up` when `source_host` is set but not in
+  `cfg.hosts` (data unreachable), instead of creating an empty dataset.
+- Handle retries: a target that already holds an older snapshot of the
+  dataset receives incrementally (`zfs recv -F` from the latest common
+  snapshot); source snapshots are kept until `after_up`.
+- Rollback risk: if the target started and wrote data before failing, the
+  rollback restarts the source from its pre-migration data and the target's
+  writes are lost. This matches today's NFS behavior (the failed deployment's
+  writes are discarded) and is documented rather than handled.
 
 ## Testing
 
@@ -315,9 +388,19 @@ deploy. The core already warns in this case.
   stacks proceed; warning hook failure does not fail the operation.
 - Migration ordering with a recording fake plugin: exact hook sequence;
   `after_source_stopped` failure restarts the source only if it was running
-  (port the fork's rollback tests).
-- `on_stack_removed` fires for orphans, not strays.
-- `compose_args` appear, quoted, in commands from every executor entry point.
+  (port the fork's rollback tests); `source_host` passed even when the
+  previous host is not in config.
+- Rollback guard: failed target `down` skips the source restart.
+- `apply`: a stack pending migration is not stopped as a stray on its state
+  host.
+- Multi-host: all `before_up` + preflight before any `up`; `after_up` only
+  for succeeded hosts.
+- `up --service` / `up --host` run `before_up` and `after_up`.
+- One stack's hook exception does not abort other stacks in `up_stacks`.
+- `on_stack_removed` fires for orphans, not strays; its failure keeps the
+  stack in state.
+- `compose_args` appear, quoted and computed per host, in commands from every
+  executor entry point.
 - `commands`: placeholder rendering and quoting, `run` vs `local`, preflight
   exit codes, unknown placeholder rejected.
 - `sync`: generated rsync argv includes compose-farm SSH options; local host
@@ -335,6 +418,19 @@ deploy. The core already warns in this case.
   plain `down`, per-hook policy overrides, plugin-private state storage.
 - Shipping `zfs` and `agenix` plugins: wait for Joe's private implementations,
   then decide builtin vs separate package.
+
+## Review record
+
+Reviewed by Codex (`gpt-6-astra`) on 2026-09-28. Accepted: `apply` ordering
+fix, rollback guard, `source_host` for unreachable hosts, hooks on
+`--service`/`--host`, multi-host ordering, retry-via-state for
+`on_stack_removed`, per-host compose args with the `Config.compose_args`
+indirection, local-parsing limitation, per-stack exception isolation,
+`ctx.run(check=...)`, plugin preflight errors in compatibility checks.
+Declined: halting for manual reconciliation on every rollback (same risk
+exists with NFS today; documented instead), core-level rejection of
+multi-host topology changes and durable pending-cleanup records (plugin
+concerns; failing safe means leaving data in place).
 
 ## Phases
 
