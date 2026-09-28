@@ -24,7 +24,7 @@ MALICIOUS_SERVICE = "x; touch /tmp/pwned"
 def client(mock_config: Config, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Create a test client with get_config patched in the actions module."""
     monkeypatch.setattr(actions, "get_config", lambda: mock_config)
-    return TestClient(create_app())
+    return TestClient(create_app(), client=("127.0.0.1", 50000))
 
 
 class TestServiceAction:

@@ -59,7 +59,7 @@ def client(mock_config: Config) -> TestClient:
     """Create a test client with mocked config."""
     from compose_farm.web.app import create_app
 
-    return TestClient(create_app())
+    return TestClient(create_app(), client=("127.0.0.1", 50000))
 
 
 class TestPageTemplatesRender:
