@@ -644,10 +644,27 @@ async def check_host_compatibility(
     return results
 
 
+async def _run_stack_removed(cfg: Config, result: CommandResult, host: str) -> CommandResult:
+    """Run on_stack_removed hooks; a failure keeps the stack in state so it is retried."""
+    errors = await run_hook_all(HookContext(cfg, result.stack, host), "on_stack_removed")
+    if not errors:
+        return result
+    return CommandResult(
+        stack=result.stack,
+        exit_code=1,
+        success=False,
+        stderr=f"stopped, but {'; '.join(errors)} (will retry)",
+        host=host,
+        label=result.label,
+    )
+
+
 async def _stop_stacks_on_hosts(
     cfg: Config,
     stacks_to_hosts: dict[str, list[str]],
     label: str = "",
+    *,
+    removed: bool = False,
 ) -> list[CommandResult]:
     """Stop stacks on specific hosts.
 
@@ -657,6 +674,8 @@ async def _stop_stacks_on_hosts(
         cfg: Config object.
         stacks_to_hosts: Dict mapping stack name to list of hosts to stop on.
         label: Optional label for success message (e.g., "stray", "orphaned").
+        removed: Stacks were removed from config; run on_stack_removed hooks
+            after each successful stop.
 
     Returns:
         List of CommandResults for each stack@host.
@@ -690,6 +709,8 @@ async def _stop_stacks_on_hosts(
     for stack, host, task in tasks:
         try:
             result = await task
+            if removed and result.success:
+                result = await _run_stack_removed(cfg, result, host)
             results.append(result)
             if result.success:
                 print_success(f"{stack}@{host}: stopped{suffix}")
@@ -727,7 +748,7 @@ async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
         stack: (hosts if isinstance(hosts, list) else [hosts]) for stack, hosts in orphaned.items()
     }
 
-    results = await _stop_stacks_on_hosts(cfg, normalized)
+    results = await _stop_stacks_on_hosts(cfg, normalized, removed=True)
 
     # Remove from state only for stacks where ALL hosts succeeded
     for stack, hosts in normalized.items():

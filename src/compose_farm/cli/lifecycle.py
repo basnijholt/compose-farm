@@ -263,6 +263,24 @@ def _discover_strays(cfg: Config) -> dict[str, list[str]]:
     return strays
 
 
+def _exclude_migration_sources(
+    cfg: Config,
+    strays: dict[str, list[str]],
+    migrations: list[str],
+) -> dict[str, list[str]]:
+    """Drop migration sources from strays so the migration stops them itself.
+
+    Stopping the source early would turn a live data transfer into downtime and
+    disable rollback (the stack no longer counts as running on the source).
+    """
+    sources = {stack: get_stack_host(cfg, stack) for stack in migrations}
+    filtered = {
+        stack: [host for host in hosts if host != sources.get(stack)]
+        for stack, hosts in strays.items()
+    }
+    return {stack: hosts for stack, hosts in filtered.items() if hosts}
+
+
 @app.command(rich_help_panel="Lifecycle")
 def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs these branches)
     dry_run: Annotated[
@@ -306,7 +324,7 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
     strays: dict[str, list[str]] = {}
     if not no_strays:
         console.print("[dim]Scanning hosts for stray containers...[/]")
-        strays = _discover_strays(cfg)
+        strays = _exclude_migration_sources(cfg, _discover_strays(cfg), migrations)
 
     # For --full: refresh all stacks not already being started/migrated
     handled = set(migrations) | set(missing)

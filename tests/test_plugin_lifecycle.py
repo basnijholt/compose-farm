@@ -7,8 +7,14 @@ from typing import TYPE_CHECKING, Any, Self
 from unittest.mock import AsyncMock, patch
 
 from compose_farm.executor import CommandResult
-from compose_farm.operations import PreflightResult, up_stacks, up_stacks_direct
-from compose_farm.state import get_stack_host, set_stack_host
+from compose_farm.operations import (
+    PreflightResult,
+    stop_orphaned_stacks,
+    stop_stray_stacks,
+    up_stacks,
+    up_stacks_direct,
+)
+from compose_farm.state import get_stack_host, load_state, set_stack_host
 from tests.plugin_helpers import Recorder, make_config, use_plugins
 
 if TYPE_CHECKING:
@@ -281,3 +287,44 @@ class TestDirectUp:
         with patch("compose_farm.operations.run_on_stacks", _fake_run_on_stacks({"web"})):
             await up_stacks_direct(cfg, ["web"], "up -d")
         assert events == [("before_up", "web", "h1", None)]
+
+
+def _fake_down() -> AsyncMock:
+    async def down(cfg: Config, stack: str, host: str, command: str, **_: Any) -> CommandResult:
+        return CommandResult(
+            stack=stack, exit_code=0, success=True, host=host, label=f"{stack}@{host}"
+        )
+
+    return AsyncMock(side_effect=down)
+
+
+class TestStackRemoved:
+    """on_stack_removed for orphans only; failures keep state for retry."""
+
+    async def test_orphan_fires_hook_and_leaves_state(self, tmp_path: Path) -> None:
+        events: list[Any] = []
+        cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), _recorder(events))
+        set_stack_host(cfg, "old", "h1")
+        with patch("compose_farm.operations.run_compose_on_host", _fake_down()):
+            [result] = await stop_orphaned_stacks(cfg)
+        assert result.success
+        assert events == [("on_stack_removed", "old", "h1", None)]
+        assert "old" not in load_state(cfg)
+
+    async def test_hook_failure_keeps_state_for_retry(self, tmp_path: Path) -> None:
+        events: list[Any] = []
+        plugin = _recorder(events, fail=[("on_stack_removed", "old")])
+        cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), plugin)
+        set_stack_host(cfg, "old", "h1")
+        with patch("compose_farm.operations.run_compose_on_host", _fake_down()):
+            [result] = await stop_orphaned_stacks(cfg)
+        assert not result.success
+        assert "will retry" in result.stderr
+        assert load_state(cfg)["old"] == "h1"
+
+    async def test_strays_do_not_fire_hook(self, tmp_path: Path) -> None:
+        events: list[Any] = []
+        cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), _recorder(events))
+        with patch("compose_farm.operations.run_compose_on_host", _fake_down()):
+            await stop_stray_stacks(cfg, {"web": ["h2"]})
+        assert events == []

@@ -8,9 +8,20 @@ from unittest.mock import call, patch
 import pytest
 import typer
 
-from compose_farm.cli.lifecycle import apply, down, pull, restart, stop, up, update
+from compose_farm.cli.lifecycle import (
+    _exclude_migration_sources,
+    apply,
+    down,
+    pull,
+    restart,
+    stop,
+    up,
+    update,
+)
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
+from compose_farm.state import set_stack_host
+from tests.plugin_helpers import make_config
 
 
 def _make_config(tmp_path: Path, stacks: dict[str, str | list[str]] | None = None) -> Config:
@@ -855,3 +866,12 @@ class TestHostFilterMultiHost:
                 call(cfg, "multi-host", "host2"),
                 call(cfg, "multi-host", "host3"),
             ]
+
+
+def test_apply_keeps_migration_source_running(tmp_path: Path) -> None:
+    """A stack pending migration is not stopped as a stray on its state host."""
+    cfg = make_config(tmp_path, {"web": "h2", "db": "h2"}, hosts=("h1", "h2", "h3"))
+    set_stack_host(cfg, "web", "h1")
+    strays = {"web": ["h1", "h3"], "db": ["h1"]}
+    assert _exclude_migration_sources(cfg, strays, ["web"]) == {"web": ["h3"], "db": ["h1"]}
+    assert _exclude_migration_sources(cfg, {"web": ["h1"]}, ["web"]) == {}
