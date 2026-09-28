@@ -1249,6 +1249,10 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Start the web UI server.
 
+ Without CF_WEB_PASSWORD, only localhost can connect. Set CF_WEB_PASSWORD
+ (and optionally CF_WEB_USERNAME, default admin) to enable HTTP Basic auth,
+ or CF_WEB_NO_AUTH=1 when an authenticating reverse proxy sits in front.
+
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --host    -H      <str>  Host to bind to [default: 0.0.0.0]                            │
 │ --port    -p      <int>  Port to listen on [default: 8000]                             │

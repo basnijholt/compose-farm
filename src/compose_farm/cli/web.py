@@ -61,7 +61,12 @@ def web(
         typer.Option("--reload", "-r", help="Enable auto-reload for development"),
     ] = False,
 ) -> None:
-    """Start the web UI server."""
+    """Start the web UI server.
+
+    Without CF_WEB_PASSWORD, only localhost can connect. Set CF_WEB_PASSWORD
+    (and optionally CF_WEB_USERNAME, default admin) to enable HTTP Basic auth,
+    or CF_WEB_NO_AUTH=1 when an authenticating reverse proxy sits in front.
+    """
     try:
         import uvicorn  # noqa: PLC0415
     except ImportError:
@@ -71,8 +76,12 @@ def web(
         )
         raise typer.Exit(1) from None
 
+    # Lazy: importing compose_farm.web pulls in FastAPI, which slows CLI startup
+    from compose_farm.web.auth import AuthSettings  # noqa: PLC0415
+
     console.print(_compose_farm_banner())
     console.print(f"[green]Starting Compose Farm Web UI[/] at http://{host}:{port}")
+    console.print(f"[dim]Authentication: {AuthSettings.from_env().describe()}[/]")
     console.print("[dim]Press Ctrl+C to stop[/]")
 
     uvicorn.run(

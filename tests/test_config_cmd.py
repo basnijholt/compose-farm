@@ -294,6 +294,9 @@ class TestConfigInitEnv:
         assert "CF_COMPOSE_DIR=/opt/compose" in content
         assert "CF_UID=" in content
         assert "CF_GID=" in content
+        assert "CF_WEB_USERNAME=admin" in content
+        password = content.split("CF_WEB_PASSWORD=")[1].splitlines()[0]
+        assert len(password) >= 32
 
     def test_init_env_force_overwrites(
         self,

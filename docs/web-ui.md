@@ -131,6 +131,23 @@ cf web --reload
 cf web --host 127.0.0.1
 ```
 
+## Authentication
+
+The web UI can open shells on your hosts, so access is restricted:
+
+| Setting | Behavior |
+|---------|----------|
+| *(nothing set)* | Only `localhost` can connect |
+| `CF_WEB_PASSWORD=...` | HTTP Basic auth (username from `CF_WEB_USERNAME`, default `admin`) |
+| `CF_WEB_NO_AUTH=1` | No auth; use only behind an authenticating reverse proxy (e.g. Authelia, Authentik) |
+
+```bash
+CF_WEB_PASSWORD='a-long-random-password' cf web
+```
+
+Serve it over HTTPS (e.g. via Traefik) when accessed remotely, since Basic auth sends the password with every request.
+Cross-origin state-changing requests and WebSocket connections are always rejected.
+
 ## Requirements
 
 The web UI requires additional dependencies:
