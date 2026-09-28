@@ -23,7 +23,7 @@ from compose_farm.plugins import HookContext, Plugin, PluginError
 if TYPE_CHECKING:
     from compose_farm.executor import CommandResult
 
-_STEP_HOOKS = ("before_up", "after_source_stopped", "after_up", "on_stack_removed", "preflight")
+_STEP_HOOKS = ("before_up", "after_source_stopped", "after_up", "after_stack_removed", "preflight")
 _PLACEHOLDERS = ("stack", "host", "source_host", "compose_dir", "stack_dir")
 
 Step = tuple[str, str]  # ("run" | "local", command template)
@@ -54,9 +54,9 @@ class CommandsPlugin(Plugin):
         """Run the after_up steps."""
         await self._run_steps("after_up", ctx)
 
-    async def on_stack_removed(self, ctx: HookContext) -> None:
-        """Run the on_stack_removed steps."""
-        await self._run_steps("on_stack_removed", ctx)
+    async def after_stack_removed(self, ctx: HookContext) -> None:
+        """Run the after_stack_removed steps."""
+        await self._run_steps("after_stack_removed", ctx)
 
     async def preflight(self, ctx: HookContext) -> list[str]:
         """Report every preflight step that exits non-zero."""

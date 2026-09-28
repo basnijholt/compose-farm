@@ -36,7 +36,7 @@ plugins:
       - local: "./scripts/notify.sh {stack}"  # on the machine running cf
     after_source_stopped: []
     after_up: []
-    on_stack_removed: []
+    after_stack_removed: []
     preflight:
       - run: "test -r /run/agenix/{stack}.env"  # non-zero exit = preflight problem
     compose_args: ["--env-file", "/run/agenix/{stack}.env"]
@@ -73,7 +73,7 @@ Hooks run in config order. The first failure stops the chain for that call, exce
 | `preflight` | During preflight (`up`) and `cf check`. Must not change anything. | Returned problems are reported like missing paths |
 | `after_source_stopped` | Migration only: the source is stopped, the target not started yet | Rollback: the stack is restarted on the source if it was running there |
 | `after_up` | The stack started on the host (after the state update) | Warning only |
-| `on_stack_removed` | An orphaned stack (removed from config) was stopped via `cf down --orphaned` or `cf apply`. Not called for strays or a plain `down` | Later plugins are skipped, and the stack stays in the state file, so the next `cf down --orphaned`/`cf apply` retries |
+| `after_stack_removed` | An orphaned stack (removed from config) was stopped via `cf down --orphaned` or `cf apply`. Not called for strays or a plain `down` | Later plugins are skipped, and the stack stays in the state file, so the next `cf down --orphaned`/`cf apply` retries |
 | `compose_args` | Every time a compose command is built for a stack on a host (`up`, `down`, `ps`, `logs`, `pull`, `restart`, `compose`, ...) | On start, the stack fails before anything is stopped or started; other commands abort with the error |
 
 Migrating a stack runs:
@@ -141,7 +141,7 @@ Rules for plugins:
 - **Keep the source intact** in `before_up` and `after_source_stopped`. Irreversible cleanup of the source belongs in `after_up`.
 - **Refuse when the source is unreachable**: if your plugin needs the source (for example to copy data) and `ctx.source_host not in ctx.cfg.hosts`, raise in `before_up` instead of starting from scratch.
 - **Don't treat a missing `source_host` as proof of a first deploy**: `cf down` removes the stack from the state file, so a later `cf up` on another host has no `source_host`. A data-moving plugin should check whether the data already exists elsewhere before creating it empty.
-- **`on_stack_removed` needs the stack directory**: it runs after `docker compose down` succeeds in that directory, and a retry runs `down` again. If your plugin removes or renames the directory, list it last, so a failure in another plugin does not leave the stack stuck in the state file.
+- **`after_stack_removed` needs the stack directory**: it runs after `docker compose down` succeeds in that directory, and a retry runs `down` again. If your plugin removes or renames the directory, list it last, so a failure in another plugin does not leave the stack stuck in the state file.
 - **No blocking calls**: hooks for different stacks run concurrently. Use `ctx.run`/`ctx.run_local` or asyncio subprocesses.
 - **`compose_args` stays cheap**: it is called for every compose command, so no remote commands or slow work there.
 

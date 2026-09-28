@@ -353,7 +353,7 @@ def _fake_down() -> AsyncMock:
 
 
 class TestStackRemoved:
-    """on_stack_removed for orphans only; failures keep state for retry."""
+    """after_stack_removed for orphans only; failures keep state for retry."""
 
     async def test_orphan_fires_hook_and_clears_state(self, tmp_path: Path) -> None:
         events: list[Any] = []
@@ -362,12 +362,12 @@ class TestStackRemoved:
         with patch("compose_farm.operations.run_compose_on_host", _fake_down()):
             [result] = await stop_orphaned_stacks(cfg)
         assert result.success
-        assert events == [("on_stack_removed", "old", "h1", None)]
+        assert events == [("after_stack_removed", "old", "h1", None)]
         assert "old" not in load_state(cfg)
 
     async def test_hook_failure_keeps_state_for_retry(self, tmp_path: Path) -> None:
         events: list[Any] = []
-        plugin = _recorder(events, fail=[("on_stack_removed", "old")])
+        plugin = _recorder(events, fail=[("after_stack_removed", "old")])
         cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), plugin)
         set_stack_host(cfg, "old", "h1")
         with patch("compose_farm.operations.run_compose_on_host", _fake_down()):
@@ -379,7 +379,7 @@ class TestStackRemoved:
     async def test_failure_stops_later_cleanup(self, tmp_path: Path) -> None:
         """A later plugin may remove the stack directory, which the retry's `down` needs."""
         events: list[Any] = []
-        first = _recorder(events, fail=[("on_stack_removed", "old")])
+        first = _recorder(events, fail=[("after_stack_removed", "old")])
         later = Recorder({"events": events})
         later.name = "later"
         cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), first, later)
@@ -387,14 +387,14 @@ class TestStackRemoved:
         with patch("compose_farm.operations.run_compose_on_host", _fake_down()):
             [result] = await stop_orphaned_stacks(cfg)
         assert not result.success
-        assert events == [("on_stack_removed", "old", "h1", None)]
+        assert events == [("after_stack_removed", "old", "h1", None)]
 
     async def test_retry_only_revisits_hosts_that_failed(self, tmp_path: Path) -> None:
         cleaned: list[str] = []
         broken = {"h2"}
 
         class Retire(Plugin):
-            async def on_stack_removed(self, ctx: HookContext) -> None:
+            async def after_stack_removed(self, ctx: HookContext) -> None:
                 if ctx.host in broken:
                     msg = "zfs busy"
                     raise RuntimeError(msg)

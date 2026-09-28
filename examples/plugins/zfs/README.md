@@ -57,7 +57,7 @@ services:
 
 Transfers are relayed through the machine running `cf` (`ssh old zfs send | ssh new zfs recv`), so hosts don't need SSH access to each other. That machine's network link carries the data.
 
-**`storage_host` mode**: `before_up` creates the dataset on the storage host and `on_stack_removed` retires it there, once no host runs the stack anymore (a removed multi-host stack stops host by host). Migrations move nothing. Export the parent so child datasets are visible over NFS, e.g. on a NixOS NAS:
+**`storage_host` mode**: `before_up` creates the dataset on the storage host and `after_stack_removed` retires it there, once no host runs the stack anymore (a removed multi-host stack stops host by host). Migrations move nothing. Export the parent so child datasets are visible over NFS, e.g. on a NixOS NAS:
 
 ```nix
 services.nfs.server = {

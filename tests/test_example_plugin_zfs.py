@@ -297,20 +297,20 @@ class TestRetire:
     async def test_removed_stack_is_renamed(self, tmp_path: Path) -> None:
         fake = FakeZfs(_hosts(h2={DS: []}))
         cfg, plugin = _setup(tmp_path, fake)
-        await plugin.on_stack_removed(HookContext(cfg, "web", "h2"))
+        await plugin.after_stack_removed(HookContext(cfg, "web", "h2"))
         [retired] = fake.hosts["h2"]
         assert retired.startswith(f"{DS}.retired-")
 
     async def test_destroy_when_opted_in(self, tmp_path: Path) -> None:
         fake = FakeZfs(_hosts(h2={DS: []}))
         cfg, plugin = _setup(tmp_path, fake, {"retire": "destroy"})
-        await plugin.on_stack_removed(HookContext(cfg, "web", "h2"))
+        await plugin.after_stack_removed(HookContext(cfg, "web", "h2"))
         assert fake.calls == [("destroy", "h2", DS)]
 
     async def test_missing_dataset_is_a_no_op(self, tmp_path: Path) -> None:
         fake = FakeZfs(_hosts())
         cfg, plugin = _setup(tmp_path, fake)
-        await plugin.on_stack_removed(HookContext(cfg, "web", "h2"))
+        await plugin.after_stack_removed(HookContext(cfg, "web", "h2"))
         assert fake.calls == []
 
 
@@ -335,7 +335,7 @@ class TestStorageHost:
     async def test_removal_retires_on_storage_host(self, tmp_path: Path) -> None:
         fake = FakeZfs(_hosts(h1={DS: []}))
         cfg, plugin = _setup(tmp_path, fake, {"storage_host": "h1"})
-        await plugin.on_stack_removed(HookContext(cfg, "web", "h2"))
+        await plugin.after_stack_removed(HookContext(cfg, "web", "h2"))
         [retired] = fake.hosts["h1"]
         assert retired.startswith(f"{DS}.retired-")
 
@@ -343,17 +343,17 @@ class TestStorageHost:
         """A multi-host orphan stops host by host; shared data must outlive every instance."""
         fake = FakeZfs(_hosts(h1={DS: []}), running=("h3",))
         cfg, plugin = _setup(tmp_path, fake, {"storage_host": "h1"})
-        await plugin.on_stack_removed(HookContext(cfg, "web", "h2"))
+        await plugin.after_stack_removed(HookContext(cfg, "web", "h2"))
         assert fake.calls == []
         fake.running_on = ()
-        await plugin.on_stack_removed(HookContext(cfg, "web", "h3"))
+        await plugin.after_stack_removed(HookContext(cfg, "web", "h3"))
         assert fake.calls[0][0] == "rename"
 
     async def test_removal_fails_when_another_host_is_unreachable(self, tmp_path: Path) -> None:
         fake = FakeZfs(_hosts(h1={DS: []}), unreachable=("h3",))
         cfg, plugin = _setup(tmp_path, fake, {"storage_host": "h1"})
         with pytest.raises(PluginError, match="h3"):
-            await plugin.on_stack_removed(HookContext(cfg, "web", "h2"))
+            await plugin.after_stack_removed(HookContext(cfg, "web", "h2"))
         assert DS in fake.hosts["h1"]
 
     async def test_preflight_checks_storage_host(self, tmp_path: Path) -> None:

@@ -258,7 +258,7 @@ class ZfsPlugin(Plugin):
             for snap in ours[:-1]:
                 await zfs.destroy(ctx.host, f"{name}@{snap}")
 
-    async def on_stack_removed(self, ctx: HookContext) -> None:
+    async def after_stack_removed(self, ctx: HookContext) -> None:
         """Retire the dataset of a stack that was removed from the config."""
         name = self._dataset(ctx)
         if name is None:

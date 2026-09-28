@@ -92,7 +92,7 @@ SSH and local command execution:
 
 Entry-point plugins enabled in the config's `plugins:` mapping:
 
-- **Lifecycle hooks**: `before_up`, `preflight`, `after_source_stopped`, `after_up`, `on_stack_removed`, called from operations
+- **Lifecycle hooks**: `before_up`, `preflight`, `after_source_stopped`, `after_up`, `after_stack_removed`, called from operations
 - **Compose arguments**: `compose_args` adds global `docker compose` flags to every command; the executor reaches it only through `Config.compose_args`
 - **Builtins**: `commands` (shell commands from config) and `sync` (rsync stack directories instead of NFS)
 

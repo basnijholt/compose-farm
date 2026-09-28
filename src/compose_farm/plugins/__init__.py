@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 ENTRY_POINT_GROUP = "compose_farm.plugins"
 
-Hook = Literal["before_up", "after_source_stopped", "after_up", "on_stack_removed"]
+Hook = Literal["before_up", "after_source_stopped", "after_up", "after_stack_removed"]
 
 
 class PluginError(Exception):
@@ -117,7 +117,7 @@ class Plugin:
     async def after_up(self, ctx: HookContext) -> None:
         """The stack started on ctx.host. After a migration, ctx.source_host is set."""
 
-    async def on_stack_removed(self, ctx: HookContext) -> None:
+    async def after_stack_removed(self, ctx: HookContext) -> None:
         """An orphaned stack (removed from config) was stopped on ctx.host."""
 
     def compose_args(self, ctx: HookContext) -> list[str]:  # noqa: ARG002

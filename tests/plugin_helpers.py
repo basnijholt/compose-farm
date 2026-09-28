@@ -44,8 +44,8 @@ class Recorder(Plugin):
     async def after_up(self, ctx: HookContext) -> None:
         self._record("after_up", ctx)
 
-    async def on_stack_removed(self, ctx: HookContext) -> None:
-        self._record("on_stack_removed", ctx)
+    async def after_stack_removed(self, ctx: HookContext) -> None:
+        self._record("after_stack_removed", ctx)
 
     def compose_args(self, ctx: HookContext) -> list[str]:
         return [arg.format(stack=ctx.stack, host=ctx.host) for arg in self.args]

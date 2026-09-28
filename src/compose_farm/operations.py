@@ -650,14 +650,14 @@ async def check_host_compatibility(
     return results
 
 
-async def _run_stack_removed(cfg: Config, result: CommandResult) -> CommandResult:
-    """Run on_stack_removed hooks; a failure keeps the stack in state so it is retried.
+async def _run_after_stack_removed(cfg: Config, result: CommandResult) -> CommandResult:
+    """Run after_stack_removed hooks; a failure keeps the stack in state so it is retried.
 
     The first failure stops the chain: a later plugin may remove the stack
     directory, which the retry's `docker compose down` still needs.
     """
     try:
-        await run_hook(HookContext(cfg, result.stack, result.host), "on_stack_removed")
+        await run_hook(HookContext(cfg, result.stack, result.host), "after_stack_removed")
     except PluginError as e:
         return CommandResult(
             stack=result.stack,
@@ -685,7 +685,7 @@ async def _stop_stacks_on_hosts(
         cfg: Config object.
         stacks_to_hosts: Dict mapping stack name to list of hosts to stop on.
         label: Optional label for success message (e.g., "stray", "orphaned").
-        removed: Stacks were removed from config; run on_stack_removed hooks
+        removed: Stacks were removed from config; run after_stack_removed hooks
             after each successful stop.
 
     Returns:
@@ -721,7 +721,7 @@ async def _stop_stacks_on_hosts(
         try:
             result = await task
             if removed and result.success:
-                result = await _run_stack_removed(cfg, result)
+                result = await _run_after_stack_removed(cfg, result)
             results.append(result)
             if result.success:
                 print_success(f"{stack}@{host}: stopped{suffix}")
@@ -747,7 +747,7 @@ async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
     """Stop orphaned stacks (in state but not in config).
 
     Runs docker compose down on each stack on its tracked host(s), then
-    on_stack_removed hooks. Removes each host from state once both succeed.
+    after_stack_removed hooks. Removes each host from state once both succeed.
 
     Returns list of CommandResults for each stack@host.
     """

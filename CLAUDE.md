@@ -56,7 +56,7 @@ Icons use [Lucide](https://lucide.dev/). Add new icons as macros in `web/templat
 6. **Local IP auto-detection**: Skips SSH when target host matches local machine's IP
 7. **State tracking**: Tracks where stacks are deployed for auto-migration
 8. **Pre-flight checks**: Verifies NFS mounts and Docker networks exist before starting/migrating
-9. **Plugins**: Entry-point plugins with intent-level hooks (`before_up`, `after_source_stopped`, `after_up`, `on_stack_removed`, `preflight`, `compose_args`). The executor reaches plugins only through `Config.compose_args` (the plugin package imports the executor)
+9. **Plugins**: Entry-point plugins with intent-level hooks (`before_up`, `after_source_stopped`, `after_up`, `after_stack_removed`, `preflight`, `compose_args`). The executor reaches plugins only through `Config.compose_args` (the plugin package imports the executor)
 
 ## Code Style
 
