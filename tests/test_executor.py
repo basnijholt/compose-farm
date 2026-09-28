@@ -1,5 +1,6 @@
 """Tests for executor module."""
 
+import shlex
 import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -211,7 +212,26 @@ class TestRunCompose:
             mock_run.assert_called_once()
             call_args = mock_run.call_args
             command = call_args[0][1]  # Second positional arg is command
-            assert command == f'cd "{tmp_path}/mystack" && docker compose up -d'
+            expected_dir = shlex.quote(str(tmp_path / "mystack"))
+            assert command == f"cd {expected_dir} && docker compose up -d"
+
+    async def test_run_compose_shell_quotes_stack_directory(self, tmp_path: Path) -> None:
+        """Shell syntax in a config-derived directory must remain literal."""
+        compose_dir = tmp_path / "$(touch PWNED)"
+        config = Config(
+            compose_dir=compose_dir,
+            hosts={"remote": Host(address="192.168.1.100")},
+            stacks={"mystack": "remote"},
+        )
+
+        mock_result = CommandResult(stack="mystack", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", new_callable=AsyncMock) as mock_run:
+            mock_run.return_value = mock_result
+            await run_compose(config, "mystack", "up -d", stream=False)
+
+        command = mock_run.call_args.args[1]
+        expected_dir = shlex.quote(str(compose_dir / "mystack"))
+        assert command == f"cd {expected_dir} && docker compose up -d"
 
     async def test_run_compose_works_without_local_compose_file(self, tmp_path: Path) -> None:
         """Verify compose works even when compose file doesn't exist locally.
@@ -259,7 +279,8 @@ class TestRunCompose:
             result = await run_compose_on_host(config, "mystack", "host1", "down", stream=False)
 
             command = mock_run.call_args[0][1]
-            assert command == f'cd "{tmp_path}/mystack" && docker compose down'
+            expected_dir = shlex.quote(str(tmp_path / "mystack"))
+            assert command == f"cd {expected_dir} && docker compose down"
             assert result.stack == "mystack"
             assert mock_run.call_args.kwargs["host_name"] == "host1"
             assert mock_run.call_args.kwargs["label"] == "mystack@host1"
@@ -279,7 +300,8 @@ class TestRunCompose:
 
             assert result is True
             command = mock_run.call_args[0][1]
-            assert command == f'cd "{tmp_path}/mystack" && docker compose ps --status running -q'
+            expected_dir = shlex.quote(str(tmp_path / "mystack"))
+            assert command == f"cd {expected_dir} && docker compose ps --status running -q"
 
     async def test_run_compose_quotes_paths_with_spaces(self, tmp_path: Path) -> None:
         """Verify paths with spaces are properly quoted."""
@@ -299,7 +321,7 @@ class TestRunCompose:
 
             command = mock_run.call_args[0][1]
             # Path should be quoted to handle spaces
-            assert f'cd "{compose_dir}/my-stack"' in command
+            assert f"cd {shlex.quote(str(compose_dir / 'my-stack'))}" in command
 
 
 class TestRunOnStacks:
