@@ -148,8 +148,10 @@ Use HTTPS (e.g. via Traefik) when accessing it remotely, since Basic auth sends 
 Regardless of this setting, cross-origin state-changing requests and WebSocket connections are rejected, which stops ordinary websites you visit from controlling the web UI through your browser.
 
 If authentication is provided by a trusted reverse proxy, explicitly opt out of
-the built-in login with `CF_WEB_NO_AUTH=1`. Do not use this setting when the
-Compose Farm port is directly reachable by untrusted clients.
+the built-in login with `CF_WEB_NO_AUTH=1`. A reverse proxy counts as remote
+access: use this setting only when the Compose Farm port is reachable solely
+through an authenticating proxy that routes an exact `Host`. Otherwise DNS
+rebinding or a direct connection can bypass the proxy's access controls.
 
 ## Requirements
 
