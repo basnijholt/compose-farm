@@ -34,6 +34,8 @@ class TestOptions:
             ({"before_up": [{"shell": "a"}]}, "exactly one of"),
             ({"before_up": [{"run": "echo {oops}"}]}, "unknown placeholder {oops}"),
             ({"before_up": [{"run": "echo {"}]}, "invalid template"),
+            ({"before_up": [{"run": "echo {stack!r}"}]}, "cannot use conversions or format specs"),
+            ({"before_up": [{"run": "echo {stack:>9}"}]}, "cannot use conversions or format specs"),
             ({"compose_args": "--env-file x"}, "compose_args must be a list of strings"),
         ],
     )
@@ -82,6 +84,11 @@ class TestHooks:
         assert len(problems) == 1
         assert "nope" in problems[0]
         assert "exit 1" in problems[0]
+
+    async def test_preflight_includes_stderr(self, tmp_path: Path) -> None:
+        cfg = _setup(tmp_path, {"preflight": [{"run": "echo 'pool tank missing' >&2; exit 1"}]})
+        [problem] = await cfg.get_plugins()[0].preflight(HookContext(cfg, "web", "h1"))
+        assert problem.endswith("(exit 1): pool tank missing")
 
     def test_compose_args_are_rendered_verbatim(self, tmp_path: Path) -> None:
         cfg = _setup(tmp_path, {"compose_args": ["--env-file", "/run/agenix/{stack}.env"]})

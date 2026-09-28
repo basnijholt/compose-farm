@@ -65,7 +65,9 @@ class CommandsPlugin(Plugin):
             command = _render(template, ctx, quote=True)
             result = await _execute(ctx, where, command, stream=False, check=False)
             if not result.success:
-                problems.append(f"`{command}` failed (exit {result.exit_code})")
+                problem = f"`{command}` failed (exit {result.exit_code})"
+                detail = result.stderr.strip()
+                problems.append(f"{problem}: {detail}" if detail else problem)
         return problems
 
     def compose_args(self, ctx: HookContext) -> list[str]:
@@ -119,16 +121,22 @@ def _parse_args(raw: object) -> list[str]:
 
 def _check_placeholders(template: str) -> None:
     try:
-        fields = [field for _, field, _, _ in string.Formatter().parse(template)]
+        parsed = list(string.Formatter().parse(template))
     except ValueError as e:
         msg = f"invalid template {template!r}: {e}"
         raise PluginError(msg) from e
-    for field in fields:
-        if field is not None and field not in _PLACEHOLDERS:
+    for _, field, spec, conversion in parsed:
+        if field is None:
+            continue
+        if field not in _PLACEHOLDERS:
             msg = (
                 f"unknown placeholder {{{field}}} in {template!r} "
                 f"(available: {', '.join(_PLACEHOLDERS)})"
             )
+            raise PluginError(msg)
+        if spec or conversion:
+            # Values are shell-quoted before formatting; conversions would undo that
+            msg = f"placeholder {{{field}}} in {template!r} cannot use conversions or format specs"
             raise PluginError(msg)
 
 
