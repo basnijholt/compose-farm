@@ -13,13 +13,14 @@ distributed wheel has vendored assets.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.request import Request, urlopen
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
@@ -46,11 +47,25 @@ def _download(url: str) -> bytes:
     return bytes(result.stdout)
 
 
+def _verify_download(source: dict[str, str], content: bytes) -> bytes:
+    """Verify downloaded bytes against the pinned SHA-256 digest."""
+    url = source["url"]
+    expected = source.get("sha256")
+    if not expected:
+        msg = f"Missing SHA-256 for vendored download: {url}"
+        raise ValueError(msg)
+    actual = hashlib.sha256(content).hexdigest()
+    if actual != expected:
+        msg = f"SHA-256 mismatch for {url}: expected {expected}, got {actual}"
+        raise ValueError(msg)
+    return content
+
+
 def _load_vendor_assets(root: Path) -> dict[str, Any]:
     """Load vendor-assets.json from the web module."""
     json_path = root / "src" / "compose_farm" / "web" / "vendor-assets.json"
     with json_path.open() as f:
-        return json.load(f)
+        return cast("dict[str, Any]", json.load(f))
 
 
 def _generate_licenses_file(temp_dir: Path, licenses: dict[str, dict[str, str]]) -> None:
@@ -71,7 +86,7 @@ def _generate_licenses_file(temp_dir: Path, licenses: dict[str, dict[str, str]])
         lines.append(f"## {pkg_name} ({license_type})")
         lines.append(f"Source: {license_url}")
         lines.append("")
-        lines.append(_download(license_url).decode("utf-8"))
+        lines.append(_verify_download(license_info, _download(license_url)).decode("utf-8"))
         lines.append("")
         lines.append("=" * 70)
         lines.append("")
@@ -79,7 +94,7 @@ def _generate_licenses_file(temp_dir: Path, licenses: dict[str, dict[str, str]])
     (temp_dir / "LICENSES.txt").write_text("\n".join(lines))
 
 
-class VendorAssetsHook(BuildHookInterface):  # type: ignore[misc]
+class VendorAssetsHook(BuildHookInterface[Any]):
     """Hatch build hook that vendors CDN assets into the wheel."""
 
     PLUGIN_NAME = "vendor-assets"
@@ -124,7 +139,7 @@ class VendorAssetsHook(BuildHookInterface):  # type: ignore[misc]
             url_to_filename[url] = filename
             filepath = vendor_dir / filename
             filepath.parent.mkdir(parents=True, exist_ok=True)
-            content = _download(url)
+            content = _verify_download(asset, _download(url))
             filepath.write_bytes(content)
 
         # Generate LICENSES.txt from the JSON config

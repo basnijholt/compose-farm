@@ -188,6 +188,7 @@ unresolved-import = "ignore"  # _version.py is generated at build time
 
 [dependency-groups]
 dev = [
+    "hatchling>=1.28.0",
     "mypy>=1.19.0",
     "ty>=0.0.1a13",
     "pre-commit>=4.5.0",
