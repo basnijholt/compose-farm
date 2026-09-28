@@ -119,8 +119,7 @@ class TestContainersPage:
     @pytest.fixture
     def client(self) -> TestClient:
         app = create_app()
-        # Localhost client: allowed without a configured password
-        return TestClient(app, base_url="http://localhost", client=("127.0.0.1", 50000))
+        return TestClient(app)
 
     @pytest.fixture
     def mock_config(self) -> Config:
@@ -165,8 +164,7 @@ class TestContainersRowsAPI:
     @pytest.fixture
     def client(self) -> TestClient:
         app = create_app()
-        # Localhost client: allowed without a configured password
-        return TestClient(app, base_url="http://localhost", client=("127.0.0.1", 50000))
+        return TestClient(app)
 
     def test_rows_without_glances(self, client: TestClient) -> None:
         """Test rows endpoint returns error when Glances not configured."""
