@@ -368,3 +368,93 @@ class TestHtmlEscaping:
         assert response.status_code == 200
         assert "<script>" not in response.text
         assert "&lt;script&gt;" in response.text
+
+
+class TestContainerUpdateChecks:
+    """Registry checks are limited to images observed on configured hosts."""
+
+    @staticmethod
+    def _config() -> Config:
+        return Config(
+            compose_dir=Path("/opt/compose"),
+            hosts={"nas": Host(address="192.168.1.6")},
+            stacks={"web": "nas"},
+            glances_stack="glances",
+        )
+
+    def test_rejects_an_image_not_reported_by_glances(self) -> None:
+        """Caller-controlled registry hosts must never trigger outbound requests."""
+        client = TestClient(create_app())
+        with (
+            patch("compose_farm.web.routes.containers.get_config", return_value=self._config()),
+            patch(
+                "compose_farm.web.routes.containers.fetch_all_container_stats",
+                new_callable=AsyncMock,
+                side_effect=[
+                    [_stats(image="nginx:1.25")],
+                    [_stats(image="nginx:1.25")],
+                ],
+            ),
+            patch(
+                "compose_farm.registry.check_image_updates",
+                new_callable=AsyncMock,
+                side_effect=AssertionError("untrusted registry request"),
+            ),
+        ):
+            assert client.get("/api/containers/rows").status_code == 200
+            response = client.post(
+                "/api/containers/check-updates",
+                json={"items": [{"image": "metadata.internal/repo", "tag": "1"}]},
+            )
+
+        assert response.status_code == 400
+        assert "reported by configured hosts" in response.text
+
+    def test_checks_an_image_reported_by_glances(self) -> None:
+        """Images from the trusted container inventory remain supported."""
+        client = TestClient(create_app())
+        result = TagCheckResult(
+            image=ImageRef.parse("ghcr.io/acme/app:1.0"),
+            current_digest="sha256:abc",
+            available_updates=["1.1"],
+        )
+        with (
+            patch("compose_farm.web.routes.containers.get_config", return_value=self._config()),
+            patch(
+                "compose_farm.web.routes.containers.fetch_all_container_stats",
+                new_callable=AsyncMock,
+                side_effect=[[_stats(image="ghcr.io/acme/app:1.0")], []],
+            ),
+            patch(
+                "compose_farm.registry.check_image_updates",
+                new_callable=AsyncMock,
+                return_value=result,
+            ),
+        ):
+            assert client.get("/api/containers/rows").status_code == 200
+            response = client.post(
+                "/api/containers/check-updates",
+                json={"items": [{"image": "ghcr.io/acme/app", "tag": "1.0"}]},
+            )
+
+        assert response.status_code == 200
+        assert "1 new" in response.json()["results"][0]["html"]
+
+    def test_rejects_more_than_one_hundred_items(self) -> None:
+        client = TestClient(create_app())
+        items = [{"image": "nginx", "tag": "1"}] * 101
+
+        response = client.post("/api/containers/check-updates", json={"items": items})
+
+        assert response.status_code == 413
+
+    def test_rejects_request_bodies_over_sixty_four_kibibytes(self) -> None:
+        client = TestClient(create_app())
+
+        response = client.post(
+            "/api/containers/check-updates",
+            content=b'{"items": [], "padding": "' + b"x" * 65536 + b'"}',
+            headers={"Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 413
