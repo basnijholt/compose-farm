@@ -1,20 +1,18 @@
 """Authentication and origin checks for the web UI.
 
-The web UI can open shells on hosts, so every HTTP and WebSocket request is gated:
+The web UI can open shells on hosts, so every HTTP and WebSocket request is checked:
 
-- ``CF_WEB_PASSWORD`` set: HTTP Basic auth (username ``CF_WEB_USERNAME``, default ``admin``).
-- ``CF_WEB_NO_AUTH=1``: no auth, for when an authenticating reverse proxy sits in front.
-- Neither: only requests from localhost are allowed.
-
-Independently, state-changing requests and WebSocket handshakes from browsers must come
-from the same origin, which blocks CSRF and cross-site WebSocket hijacking.
+- State-changing requests and WebSocket handshakes from browsers must come from the
+  same origin. This blocks websites you visit from driving the UI through your browser
+  (CSRF and cross-site WebSocket hijacking). Always on, no configuration needed.
+- If ``CF_WEB_PASSWORD`` is set, HTTP Basic auth is required (username
+  ``CF_WEB_USERNAME``, default ``admin``).
 """
 
 from __future__ import annotations
 
 import base64
 import binascii
-import ipaddress
 import os
 import secrets
 from dataclasses import dataclass
@@ -25,13 +23,6 @@ if TYPE_CHECKING:
     from starlette.types import ASGIApp, Receive, Scope, Send
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
-LOOPBACK_HOSTNAMES = {"localhost", "127.0.0.1", "::1"}
-
-NO_AUTH_MESSAGE = (
-    "Compose Farm web UI: no password configured, so only localhost access is allowed.\n"
-    "Set CF_WEB_PASSWORD (and optionally CF_WEB_USERNAME) to enable HTTP Basic auth,\n"
-    "or set CF_WEB_NO_AUTH=1 if an authenticating reverse proxy sits in front.\n"
-)
 
 
 @dataclass(frozen=True)
@@ -40,44 +31,24 @@ class AuthSettings:
 
     username: str = "admin"
     password: str | None = None
-    no_auth: bool = False
 
     @classmethod
     def from_env(cls) -> AuthSettings:
-        """Load settings from CF_WEB_USERNAME, CF_WEB_PASSWORD, and CF_WEB_NO_AUTH."""
+        """Load settings from CF_WEB_USERNAME and CF_WEB_PASSWORD."""
         return cls(
             username=os.environ.get("CF_WEB_USERNAME") or "admin",
             password=os.environ.get("CF_WEB_PASSWORD") or None,
-            no_auth=os.environ.get("CF_WEB_NO_AUTH", "").lower() in {"1", "true", "yes"},
         )
 
     def describe(self) -> str:
         """Human-readable summary of the active auth mode."""
         if self.password:
             return f"HTTP Basic auth (user '{self.username}')"
-        if self.no_auth:
-            return "disabled (CF_WEB_NO_AUTH=1)"
-        return "localhost only (set CF_WEB_PASSWORD to allow remote access)"
+        return "none (set CF_WEB_PASSWORD to require a login)"
 
 
 def _headers(scope: Scope) -> dict[str, str]:
     return {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
-
-
-def _is_loopback_client(scope: Scope) -> bool:
-    client = scope.get("client")
-    if not client:
-        return False
-    try:
-        return ipaddress.ip_address(client[0]).is_loopback
-    except ValueError:
-        return False
-
-
-def _is_loopback_host_header(host: str) -> bool:
-    """Check the Host header names localhost (guards against DNS rebinding)."""
-    hostname = urlsplit(f"//{host}").hostname
-    return hostname in LOOPBACK_HOSTNAMES
 
 
 def _check_basic_auth(header: str, settings: AuthSettings) -> bool:
@@ -110,7 +81,7 @@ def _is_same_origin(headers: dict[str, str]) -> bool:
 
 
 class AuthMiddleware:
-    """ASGI middleware enforcing auth and same-origin checks on HTTP and WebSocket."""
+    """ASGI middleware enforcing same-origin checks and optional auth on HTTP and WebSocket."""
 
     def __init__(self, app: ASGIApp, settings: AuthSettings) -> None:
         """Wrap an ASGI app with the given auth settings."""
@@ -130,14 +101,10 @@ class AuthMiddleware:
             await self._reject(scope, send, 403, "Cross-origin request blocked.\n")
             return
 
-        if self.settings.password:
-            if not _check_basic_auth(headers.get("authorization", ""), self.settings):
-                await self._reject(scope, send, 401, "Authentication required.\n")
-                return
-        elif not self.settings.no_auth and not (
-            _is_loopback_client(scope) and _is_loopback_host_header(headers.get("host", ""))
+        if self.settings.password and not _check_basic_auth(
+            headers.get("authorization", ""), self.settings
         ):
-            await self._reject(scope, send, 403, NO_AUTH_MESSAGE)
+            await self._reject(scope, send, 401, "Authentication required.\n")
             return
 
         await self.app(scope, receive, send)

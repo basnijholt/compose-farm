@@ -23,7 +23,7 @@ def _basic(user: str, password: str) -> dict[str, str]:
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for var in ("CF_WEB_USERNAME", "CF_WEB_PASSWORD", "CF_WEB_NO_AUTH"):
+    for var in ("CF_WEB_USERNAME", "CF_WEB_PASSWORD"):
         monkeypatch.delenv(var, raising=False)
 
 
@@ -32,16 +32,14 @@ class TestAuthSettings:
 
     def test_defaults(self) -> None:
         settings = AuthSettings.from_env()
-        assert settings == AuthSettings(username="admin", password=None, no_auth=False)
-        assert "localhost only" in settings.describe()
+        assert settings == AuthSettings(username="admin", password=None)
+        assert "CF_WEB_PASSWORD" in settings.describe()
 
     def test_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("CF_WEB_USERNAME", "bas")
         monkeypatch.setenv("CF_WEB_PASSWORD", "hunter2")
-        monkeypatch.setenv("CF_WEB_NO_AUTH", "true")
         settings = AuthSettings.from_env()
-        assert settings == AuthSettings(username="bas", password="hunter2", no_auth=True)  # noqa: S106
-        # Password wins over no_auth
+        assert settings == AuthSettings(username="bas", password="hunter2")  # noqa: S106
         assert "Basic auth" in settings.describe()
 
     def test_empty_password_is_unset(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -49,30 +47,16 @@ class TestAuthSettings:
         assert AuthSettings.from_env().password is None
 
 
-class TestLocalhostOnlyDefault:
-    """Without a password, only localhost may connect."""
+class TestNoPassword:
+    """Without CF_WEB_PASSWORD, behavior is unchanged: no login required."""
 
-    def test_localhost_allowed(self) -> None:
-        assert TestClient(create_app(), **LOCAL).get(STATIC).status_code == 200
+    def test_remote_allowed(self) -> None:
+        assert TestClient(create_app(), **REMOTE).get(STATIC).status_code == 200
 
-    def test_remote_client_blocked(self) -> None:
-        response = TestClient(create_app(), **REMOTE).get(STATIC)
-        assert response.status_code == 403
-        assert "CF_WEB_PASSWORD" in response.text
-
-    def test_dns_rebinding_blocked(self) -> None:
-        """Loopback client with a foreign Host header (DNS rebinding) is blocked."""
-        client = TestClient(create_app(), base_url="http://evil.example", client=("127.0.0.1", 1))
-        assert client.get(STATIC).status_code == 403
-
-    def test_api_blocked_for_remote(self) -> None:
+    def test_websocket_allowed(self) -> None:
         client = TestClient(create_app(), **REMOTE)
-        assert client.get("/api/console/file?host=x&path=/etc/passwd").status_code == 403
-
-    def test_websocket_blocked_for_remote(self) -> None:
-        client = TestClient(create_app(), **REMOTE)
-        with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/shell/local"):
-            pass
+        with client.websocket_connect("ws://cf.example.com/ws/terminal/missing") as ws:
+            assert "Task not found" in ws.receive_text()
 
 
 class TestBasicAuth:
@@ -116,14 +100,6 @@ class TestBasicAuth:
             "/ws/terminal/missing", headers=_basic("admin", "s3cret")
         ) as ws:
             assert "Task not found" in ws.receive_text()
-
-
-class TestNoAuthOptOut:
-    """CF_WEB_NO_AUTH disables the localhost restriction."""
-
-    def test_remote_allowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("CF_WEB_NO_AUTH", "1")
-        assert TestClient(create_app(), **REMOTE).get(STATIC).status_code == 200
 
 
 class TestOriginCheck:

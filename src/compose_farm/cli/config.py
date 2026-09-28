@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import secrets
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -351,7 +350,6 @@ def config_init_env(
     - CF_COMPOSE_DIR from compose_dir
     - CF_UID/GID/HOME/USER from current user
     - DOMAIN from traefik labels in stacks (if found)
-    - CF_WEB_PASSWORD as a random password for the web UI
 
     Example::
 
@@ -395,9 +393,9 @@ def config_init_env(
         f"CF_HOME={home}",
         f"CF_USER={user}",
         "",
-        "# Web UI login (HTTP Basic auth)",
-        "CF_WEB_USERNAME=admin",
-        f"CF_WEB_PASSWORD={secrets.token_urlsafe(24)}",
+        "# Optional: require a login for the web UI (HTTP Basic auth)",
+        "# CF_WEB_USERNAME=admin",
+        "# CF_WEB_PASSWORD=",
         "",
     ]
 
@@ -409,7 +407,6 @@ def config_init_env(
     console.print(f"  DOMAIN: {domain or '[yellow]example.com[/] (edit this)'}")
     console.print(f"  CF_COMPOSE_DIR: {compose_dir}")
     console.print(f"  CF_UID/GID: {uid}:{gid}")
-    console.print("  CF_WEB_PASSWORD: [green]generated[/] (web UI login: admin)")
     console.print()
     console.print("[dim]Review and edit as needed:[/dim]")
     console.print(f"  [cyan]$EDITOR {env_path}[/cyan]")
