@@ -240,14 +240,25 @@ cf ssh status
 
 This creates `~/.ssh/compose-farm/id_ed25519` (ED25519, no passphrase) and copies the public key to each host's `authorized_keys`. Compose Farm tries the SSH agent first, then falls back to this key.
 
+Compose Farm verifies SSH server host keys using
+`~/.ssh/compose-farm/known_hosts`. On first setup, confirm the fingerprint shown
+by `ssh-copy-id` against the host's fingerprint. Later connections fail closed
+if the key is missing or changes.
+
+When upgrading from a release that did not verify host keys, run `cf ssh setup`
+once before other remote commands. Agent-only users can instead run
+`cf ssh setup --trust-only` to enroll host keys without generating or installing
+a dedicated key. Confirm each displayed fingerprint against the host itself.
+
 <details><summary>🐳 Docker volume options for SSH keys</summary>
 
-When running in Docker, mount a volume to persist the SSH keys. Choose ONE option and use it for both `cf` and `web` Compose services:
+When running in Docker, choose one persistent storage option for SSH host keys
+and optional dedicated keys. Use it for both `cf` and `web` Compose services:
 
 **Option 1: Host path (default)** - keys at `~/.ssh/compose-farm/id_ed25519`
 ```yaml
 volumes:
-  - ~/.ssh/compose-farm:${CF_HOME:-/root}/.ssh
+  - ~/.ssh/compose-farm:${CF_HOME:-/root}/.ssh/compose-farm
 ```
 
 **Option 2: Named volume** - managed by Docker
@@ -256,20 +267,21 @@ volumes:
   - cf-ssh:${CF_HOME:-/root}/.ssh
 ```
 
-**Option 3: SSH agent forwarding** - if you prefer using your host's ssh-agent
+**SSH agent forwarding** - add this alongside option 1 or 2 if you prefer using
+your host's ssh-agent. The persistent mount is still required for `known_hosts`.
 ```yaml
 volumes:
   - ${SSH_AUTH_SOCK}:/ssh-agent:ro
 ```
 Note: Requires `SSH_AUTH_SOCK` environment variable to be set. The socket path is ephemeral and changes across sessions.
 
-Run setup once after starting the container (while the SSH agent still works):
+Enroll the configured server host keys without installing a dedicated key:
 
 ```bash
-docker compose exec web cf ssh setup
+docker compose run --rm cf ssh setup --trust-only
 ```
 
-The keys will persist across restarts.
+The trusted host keys will persist across restarts.
 
 **Note:** When running as non-root (with `CF_UID`/`CF_GID`), set `CF_HOME` to your home directory so SSH finds the keys at the correct path.
 
