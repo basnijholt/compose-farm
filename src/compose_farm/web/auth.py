@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from starlette.types import ASGIApp, Receive, Scope, Send
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
 @dataclass(frozen=True)
@@ -66,17 +67,34 @@ def _check_basic_auth(header: str, settings: AuthSettings) -> bool:
     return user_ok and pass_ok
 
 
-def _is_same_origin(headers: dict[str, str]) -> bool:
+def _first(value: str) -> str:
+    """First entry of a possibly comma-separated proxy header, lowercased."""
+    return value.split(",", maxsplit=1)[0].strip().lower()
+
+
+def _is_same_origin(scope: Scope, headers: dict[str, str]) -> bool:
     """Check Origin matches Host (or X-Forwarded-Host). Requests without Origin pass."""
     origin = headers.get("origin")
     if origin is None:
         return True  # Non-browser client; CSRF needs a browser
-    origin_netloc = urlsplit(origin).netloc.lower()
+    try:
+        parsed = urlsplit(origin)
+    except ValueError:
+        return False
+    origin_netloc = parsed.netloc.lower()
     if not origin_netloc:
         return False  # e.g. "null" from sandboxed iframes
+    # An http:// page must not drive an https:// UI (e.g. content injected over plain HTTP).
+    # The reverse is allowed: TLS-terminating proxies often omit X-Forwarded-Proto.
+    request_scheme = _first(headers.get("x-forwarded-proto", "")) or scope["scheme"]
+    if parsed.scheme == "http" and request_scheme in ("https", "wss"):
+        return False
     allowed = {headers.get("host", "").lower()}
     if forwarded := headers.get("x-forwarded-host"):
-        allowed.add(forwarded.split(",")[0].strip().lower())
+        allowed.add(_first(forwarded))
+    # Browsers omit default ports in Origin, but proxies may send e.g. "Host: example.com:443"
+    default_port = DEFAULT_PORTS.get(parsed.scheme)
+    allowed |= {host.removesuffix(f":{default_port}") for host in allowed}
     return origin_netloc in allowed
 
 
@@ -97,7 +115,7 @@ class AuthMiddleware:
         headers = _headers(scope)
         is_ws = scope["type"] == "websocket"
 
-        if (is_ws or scope["method"] not in SAFE_METHODS) and not _is_same_origin(headers):
+        if (is_ws or scope["method"] not in SAFE_METHODS) and not _is_same_origin(scope, headers):
             await self._reject(scope, send, 403, "Cross-origin request blocked.\n")
             return
 
@@ -110,12 +128,18 @@ class AuthMiddleware:
         await self.app(scope, receive, send)
 
     async def _reject(self, scope: Scope, send: Send, status: int, message: str) -> None:
-        if scope["type"] == "websocket":
-            # Closing before accept makes the server answer the handshake with HTTP 403
-            await send({"type": "websocket.close", "code": 1008})
-            return
         response_headers = [(b"content-type", b"text/plain; charset=utf-8")]
         if status == 401:  # noqa: PLR2004
+            # Browsers only retry with saved credentials after this challenge, which
+            # matters for WebSocket paths outside the one the user logged in on
             response_headers.append((b"www-authenticate", b'Basic realm="Compose Farm"'))
-        await send({"type": "http.response.start", "status": status, "headers": response_headers})
-        await send({"type": "http.response.body", "body": message.encode()})
+        prefix = "http"
+        if scope["type"] == "websocket":
+            if "websocket.http.response" not in scope.get("extensions", {}):
+                # Closing before accept makes the server answer the handshake with HTTP 403
+                await send({"type": "websocket.close", "code": 1008})
+                return
+            prefix = "websocket.http"
+        start = {"type": f"{prefix}.response.start", "status": status, "headers": response_headers}
+        await send(start)
+        await send({"type": f"{prefix}.response.body", "body": message.encode()})

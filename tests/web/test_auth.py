@@ -6,6 +6,7 @@ import base64
 
 import pytest
 from fastapi.testclient import TestClient
+from starlette.testclient import WebSocketDenialResponse
 from starlette.websockets import WebSocketDisconnect
 
 from compose_farm.web.app import create_app
@@ -92,8 +93,14 @@ class TestBasicAuth:
         assert TestClient(create_app(), **LOCAL).get(STATIC).status_code == 401
 
     def test_websocket_requires_credentials(self, client: TestClient) -> None:
-        with pytest.raises(WebSocketDisconnect), client.websocket_connect("/ws/shell/local"):
+        """Handshake gets a real 401 challenge so browsers retry with saved credentials."""
+        with (
+            pytest.raises(WebSocketDenialResponse) as exc_info,
+            client.websocket_connect("/ws/shell/local"),
+        ):
             pass
+        assert exc_info.value.status_code == 401
+        assert exc_info.value.headers["www-authenticate"].startswith("Basic")
 
     def test_websocket_with_credentials(self, client: TestClient) -> None:
         with client.websocket_connect(
@@ -109,7 +116,7 @@ class TestOriginCheck:
     def client(self) -> TestClient:
         return TestClient(create_app(), **LOCAL)
 
-    @pytest.mark.parametrize("origin", ["https://evil.example", "null"])
+    @pytest.mark.parametrize("origin", ["https://evil.example", "null", "http://["])
     def test_cross_origin_post_blocked(self, client: TestClient, origin: str) -> None:
         response = client.post("/api/stack/plex/down", headers={"Origin": origin})
         assert response.status_code == 403
@@ -130,6 +137,41 @@ class TestOriginCheck:
             headers={"Origin": "https://cf.example.com", "X-Forwarded-Host": "cf.example.com"},
         )
         assert response.status_code == 404
+
+    def test_http_origin_to_https_blocked(self) -> None:
+        client = TestClient(create_app(), base_url="https://cf.example.com")
+        response = client.post("/api/stack/plex/bogus", headers={"Origin": "http://cf.example.com"})
+        assert response.status_code == 403
+
+    def test_http_origin_to_forwarded_https_blocked(self, client: TestClient) -> None:
+        response = client.post(
+            "/api/stack/plex/bogus",
+            headers={"Origin": "http://localhost", "X-Forwarded-Proto": "https"},
+        )
+        assert response.status_code == 403
+
+    def test_https_origin_behind_plain_http_proxy_passes(self) -> None:
+        """TLS-terminating proxy without X-Forwarded-Proto: app sees http, Origin is https."""
+        client = TestClient(create_app(), base_url="http://cf.example.com")
+        response = client.post(
+            "/api/stack/plex/bogus", headers={"Origin": "https://cf.example.com"}
+        )
+        assert response.status_code == 404
+
+    def test_default_port_in_host_passes(self, client: TestClient) -> None:
+        """Proxies may send "Host: example.com:443" while the browser Origin omits it."""
+        response = client.post(
+            "/api/stack/plex/bogus",
+            headers={"Origin": "https://cf.example.com", "X-Forwarded-Host": "cf.example.com:443"},
+        )
+        assert response.status_code == 404
+
+    def test_non_default_port_mismatch_blocked(self, client: TestClient) -> None:
+        response = client.post(
+            "/api/stack/plex/bogus",
+            headers={"Origin": "https://cf.example.com", "X-Forwarded-Host": "cf.example.com:8443"},
+        )
+        assert response.status_code == 403
 
     def test_post_without_origin_passes(self, client: TestClient) -> None:
         assert client.post("/api/stack/plex/bogus").status_code == 404
