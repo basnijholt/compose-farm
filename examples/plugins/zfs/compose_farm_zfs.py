@@ -15,8 +15,9 @@ example ``zfs set mountpoint=/mnt/data tank/data``) and bind-mount
 
 What happens:
 
-- First deploy: the dataset is created, unless it already exists on another
-  reachable host (then the start is refused instead of starting empty).
+- First deploy: the dataset is created, unless a copy exists on another host
+  (then the start is refused instead of starting empty). Hosts that cannot be
+  checked also block the start.
 - Migration: while the old host still runs the stack, a snapshot is sent to
   the new host (full the first time, incremental after). Once the old host is
   stopped, a final incremental is sent, so downtime is short. After the stack
@@ -29,25 +30,39 @@ ssh new zfs recv``), so hosts need no SSH access to each other.
 
 With ``storage_host``, all datasets live on that one host (a NAS that shares
 ``/mnt/data`` with the others over NFS). Datasets are created and retired
-there, and a migration moves nothing because every host sees the same data.
+there (once no host runs the stack anymore), and a migration moves nothing
+because every host sees the same data.
+
+Safety rules: copies are matched by snapshot guid, never by name; snapshots on
+the target are only dropped when they hold no data (``written == 0``);
+datasets with children are not moved; anything that cannot be checked stops
+the operation before it changes data.
 """
 
 from __future__ import annotations
 
 import shlex
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, NamedTuple
 
-from compose_farm.console import print_warning
 from compose_farm.executor import build_ssh_command, is_local
 from compose_farm.plugins import HookContext, Plugin, PluginError
 from compose_farm.ssh_keys import get_ssh_auth_sock
+from compose_farm.state import get_stack_host
 
 SNAPSHOT_PREFIX = "cf-"
 
 
+class Snapshot(NamedTuple):
+    """A snapshot of a dataset on one host."""
+
+    name: str  # The part after "@"
+    guid: str  # Identical on every copy of the same snapshot
+    written: int  # Bytes changed since the previous snapshot
+
+
 class Zfs:
-    """Runs zfs commands on hosts through a hook context."""
+    """Runs zfs (and one docker) command on hosts through a hook context."""
 
     def __init__(self, ctx: HookContext, command: str) -> None:
         """Use ``command`` (e.g. ``zfs`` or ``sudo zfs``) on the context's hosts."""
@@ -62,18 +77,41 @@ class Zfs:
         return result.stdout
 
     async def exists(self, host: str, name: str) -> bool:
-        """Whether dataset ``name`` exists on host. SSH failures raise."""
-        check = self._zfs("list", "-H", "-o", "name", name)
-        script = f"if {check} >/dev/null 2>&1; then echo yes; else echo no; fi"
-        result = await self.ctx.run(script, host=host, stream=False)
-        return result.stdout.strip() == "yes"
-
-    async def snapshots(self, host: str, name: str) -> list[str]:
-        """Snapshot names of ``name`` on host, oldest first."""
-        out = await self._run(
-            host, "list", "-H", "-t", "snapshot", "-o", "name", "-s", "creation", "-d", "1", name
+        """Whether dataset ``name`` exists on host; any other failure raises."""
+        result = await self.ctx.run(
+            self._zfs("list", "-H", "-o", "name", name), host=host, stream=False, check=False
         )
-        return [line.split("@", 1)[1] for line in out.splitlines() if "@" in line]
+        if result.success:
+            return True
+        if "dataset does not exist" in result.stderr:
+            return False
+        detail = result.stderr.strip() or f"exit {result.exit_code}"
+        msg = f"cannot check {name} on {host}: {detail}"
+        raise PluginError(msg)
+
+    async def snapshots(self, host: str, name: str) -> list[Snapshot]:
+        """Snapshots of ``name`` on host, oldest first."""
+        out = await self._run(
+            host, "list", "-Hp", "-t", "snapshot", "-o", "name,guid,written", "-s", "creation", "-d", "1", name
+        )  # fmt: skip
+        snapshots = []
+        for line in out.splitlines():
+            full_name, guid, written = line.split("\t")
+            snapshots.append(Snapshot(full_name.split("@", 1)[1], guid, int(written)))
+        return snapshots
+
+    async def children(self, host: str, name: str) -> list[str]:
+        """Datasets below ``name`` on host."""
+        out = await self._run(
+            host, "list", "-H", "-o", "name", "-r", "-t", "filesystem,volume", name
+        )
+        return [line for line in out.splitlines() if line and line != name]
+
+    async def running(self, host: str, stack: str) -> bool:
+        """Whether any container of the stack's compose project runs on host."""
+        label = shlex.quote(f"label=com.docker.compose.project={stack}")
+        result = await self.ctx.run(f"docker ps -q --filter {label}", host=host, stream=False)
+        return bool(result.stdout.strip())
 
     async def snapshot(self, host: str, name: str, snap: str) -> None:
         """Take snapshot ``name@snap`` on host."""
@@ -100,7 +138,7 @@ class Zfs:
             pipeline = f"export SSH_AUTH_SOCK={shlex.quote(sock)}; {pipeline}"
         await self.ctx.run_local(pipeline, stream=False)
         # sh has no pipefail, so confirm the snapshot actually arrived
-        if snap not in await self.snapshots(dst, name):
+        if snap not in [s.name for s in await self.snapshots(dst, name)]:
             msg = f"{name}@{snap} did not arrive on {dst}"
             raise PluginError(msg)
 
@@ -188,11 +226,14 @@ class ZfsPlugin(Plugin):
             if await zfs.exists(ctx.source_host, name):
                 await _send(zfs, name, ctx.source_host, ctx.host)
                 return
-        if await zfs.exists(ctx.host, name):
-            return
-        if len(ctx.cfg.get_hosts(ctx.stack)) == 1:  # Multi-host stacks have one per host
+        # compose-farm forgets a stack's host on `cf down`, so unless the state says the
+        # stack runs here, make sure no other host holds a (possibly newer) copy.
+        # Multi-host stacks have one dataset per host.
+        single_host = len(ctx.cfg.get_hosts(ctx.stack)) == 1
+        if single_host and get_stack_host(ctx.cfg, ctx.stack) != ctx.host:
             await _refuse_if_elsewhere(zfs, name, ctx)
-        await zfs.create(ctx.host, name)
+        if not await zfs.exists(ctx.host, name):
+            await zfs.create(ctx.host, name)
 
     async def after_source_stopped(self, ctx: HookContext) -> None:
         """Send the changes made since the live copy, now that the source is stopped."""
@@ -212,15 +253,26 @@ class ZfsPlugin(Plugin):
         if ctx.source_host and ctx.source_host in ctx.cfg.hosts:
             await self._retire(zfs, ctx.source_host, name)
         if await zfs.exists(ctx.host, name):
-            ours = [s for s in await zfs.snapshots(ctx.host, name) if s.startswith(SNAPSHOT_PREFIX)]
+            snapshots = await zfs.snapshots(ctx.host, name)
+            ours = [s.name for s in snapshots if s.name.startswith(SNAPSHOT_PREFIX)]
             for snap in ours[:-1]:
                 await zfs.destroy(ctx.host, f"{name}@{snap}")
 
     async def on_stack_removed(self, ctx: HookContext) -> None:
         """Retire the dataset of a stack that was removed from the config."""
         name = self._dataset(ctx)
-        if name is not None:
-            await self._retire(self.tool(ctx), self.storage_host or ctx.host, name)
+        if name is None:
+            return
+        zfs = self.tool(ctx)
+        if not self.storage_host:
+            await self._retire(zfs, ctx.host, name)
+            return
+        # Shared data: a multi-host stack stops host by host, so keep the dataset while
+        # any other host still runs the stack (the last one to stop retires it)
+        for other in ctx.cfg.hosts:
+            if other != ctx.host and await zfs.running(other, ctx.stack):
+                return
+        await self._retire(zfs, self.storage_host, name)
 
     async def _retire(self, zfs: Zfs, host: str, name: str) -> None:
         if not await zfs.exists(host, name):
@@ -233,43 +285,57 @@ class ZfsPlugin(Plugin):
 
 async def _send(zfs: Zfs, name: str, src: str, dst: str) -> None:
     """Snapshot on src and bring dst up to date (full or incremental)."""
+    if children := await zfs.children(src, name):
+        msg = (
+            f"{name} on {src} has child datasets ({', '.join(children)}); "
+            "this example only moves single datasets"
+        )
+        raise PluginError(msg)
+    base, extra = await _plan_incremental(zfs, name, src, dst)
     snap = f"{SNAPSHOT_PREFIX}{_timestamp()}"
     await zfs.snapshot(src, name, snap)
-    base = None
-    if await zfs.exists(dst, name):
-        on_source = set(await zfs.snapshots(src, name))
-        on_target = await zfs.snapshots(dst, name)
-        common = [s for s in on_target if s in on_source]
-        if not common:
-            msg = f"{name} exists on {src} and {dst} without a common snapshot; resolve by hand"
-            raise PluginError(msg)
-        base = common[-1]
-        # Snapshots taken on dst after the base (e.g. by sanoid, while the stack is not
-        # running there) make the incremental receive fail. They only hold data that
-        # came from src, since dst does not run the stack.
-        for extra in on_target[on_target.index(base) + 1 :]:
-            await zfs.destroy(dst, f"{name}@{extra}")
+    for old in extra:
+        await zfs.destroy(dst, f"{name}@{old}")
     await zfs.send(src, dst, name, snap, base)
 
 
-async def _refuse_if_elsewhere(zfs: Zfs, name: str, ctx: HookContext) -> None:
-    """Refuse to create an empty dataset while a copy exists on another host.
+async def _plan_incremental(
+    zfs: Zfs, name: str, src: str, dst: str
+) -> tuple[str | None, list[str]]:
+    """Return the incremental base (None for a full send) and dst snapshots to drop first.
 
-    compose-farm forgets a stack's host on `cf down`, so a missing source host
-    does not prove this is the first deploy.
+    The base is the newest dst snapshot whose guid also exists on src; equal names
+    alone prove nothing (independent auto-snapshots share names). Snapshots taken on
+    dst after the base block the receive; they are only dropped when they hold no
+    data (e.g. taken by sanoid on the idle copy), otherwise nothing is changed.
     """
+    if not await zfs.exists(dst, name):
+        return None, []
+    source_names = {s.guid: s.name for s in await zfs.snapshots(src, name)}
+    target = await zfs.snapshots(dst, name)
+    shared = [i for i, s in enumerate(target) if s.guid in source_names]
+    if not shared:
+        msg = f"{name} exists on {src} and {dst} without a common snapshot; resolve by hand"
+        raise PluginError(msg)
+    base = target[shared[-1]]
+    extra = target[shared[-1] + 1 :]
+    if changed := [s.name for s in extra if s.written > 0]:
+        msg = (
+            f"{name} changed on {dst} after {base.name} (snapshots {', '.join(changed)} "
+            "hold data); resolve by hand"
+        )
+        raise PluginError(msg)
+    return source_names[base.guid], [s.name for s in extra]
+
+
+async def _refuse_if_elsewhere(zfs: Zfs, name: str, ctx: HookContext) -> None:
+    """Refuse to go on while another host holds a copy (or cannot be checked)."""
     for other in ctx.cfg.hosts:
-        if other == ctx.host:
-            continue
-        try:
-            found = await zfs.exists(other, name)
-        except PluginError as e:
-            print_warning(f"[{ctx.stack}] zfs: could not check {other} for {name}: {e}")
-            continue
-        if found:
+        if other != ctx.host and await zfs.exists(other, name):
             msg = (
-                f"{name} already exists on {other}; refusing to create an empty one on "
-                f"{ctx.host}. Start the stack on {other}, or move the dataset by hand."
+                f"{name} already exists on {other}; refusing to start {ctx.stack} on "
+                f"{ctx.host} next to it. Start the stack on {other}, or move or remove "
+                "one copy by hand."
             )
             raise PluginError(msg)
 

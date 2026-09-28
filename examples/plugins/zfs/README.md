@@ -46,9 +46,9 @@ services:
 
 **Per-host mode**:
 
-1. **First deploy**: `before_up` creates `tank/data/mealie` on the target. If the dataset already exists on another reachable host, the start is refused instead of starting empty. `cf down` forgets where a stack ran, so a missing previous host doesn't prove this is a first deploy. Multi-host stacks (`all`) get one dataset per host.
+1. **First deploy**: `before_up` creates `tank/data/mealie` on the target. `cf down` forgets where a stack ran, so whenever the state doesn't say the stack runs on the target, every other host is checked first. If one holds a copy, or can't be reached, the start is refused instead of starting empty or next to a newer copy. Multi-host stacks (`all`) get one dataset per host.
 2. **Migration** (`cf up` after changing the stack's host):
-   1. `before_up`: snapshot `cf-<time>` on the old host and send it to the new one while the stack still runs. The first send is full; later sends are incremental from the newest common snapshot.
+   1. `before_up`: snapshot `cf-<time>` on the old host and send it to the new one while the stack still runs. The first send is full; later sends are incremental from the newest snapshot both copies share (matched by guid, not name).
    2. compose-farm stops the stack on the old host.
    3. `after_source_stopped`: second snapshot and a small incremental send.
    4. compose-farm starts the stack on the new host.
@@ -57,7 +57,7 @@ services:
 
 Transfers are relayed through the machine running `cf` (`ssh old zfs send | ssh new zfs recv`), so hosts don't need SSH access to each other. That machine's network link carries the data.
 
-**`storage_host` mode**: `before_up` creates the dataset on the storage host and `on_stack_removed` retires it there. Migrations move nothing. Export the parent so child datasets are visible over NFS, e.g. on a NixOS NAS:
+**`storage_host` mode**: `before_up` creates the dataset on the storage host and `on_stack_removed` retires it there, once no host runs the stack anymore (a removed multi-host stack stops host by host). Migrations move nothing. Export the parent so child datasets are visible over NFS, e.g. on a NixOS NAS:
 
 ```nix
 services.nfs.server = {
@@ -77,11 +77,12 @@ security.sudo.extraRules = [{
 }];
 ```
 
-> ⚠️ Passwordless `zfs` lets that user destroy any dataset on the host. Only grant it to the account compose-farm uses, and keep `retire: rename` (the default) so the plugin never destroys data.
+> ⚠️ Passwordless `zfs` lets that user destroy any dataset on the host. Only grant it to the account compose-farm uses, and keep `retire: rename` (the default) so retired copies are never destroyed.
 
 ## Notes
 
-- If the old host is no longer in the config, or has the dataset but can't be reached, the migration stops before anything changes. Move the dataset by hand, then `cf up` again.
-- Auto-snapshot tools (sanoid, zfs-auto-snapshot) are fine. Snapshots they take on the new copy between the two sends are dropped before the final receive; they only contain data that was just received.
+- Anything that can't be checked stops the operation before data changes: an old host that is no longer in the config or can't be reached, a `zfs` error, or another host that is down during a first deploy. Fix the host (or move the dataset by hand), then `cf up` again.
+- Auto-snapshot tools (sanoid, zfs-auto-snapshot) are fine. Snapshots they take on the idle new copy between the two sends hold no data (`written` is 0) and are dropped before the final receive. If a target snapshot does hold data, the migration stops instead.
+- Datasets with child datasets are not moved (the migration is refused); this example sends single datasets only.
 - Retired copies stay mounted next to the live ones (`/mnt/data/mealie.retired-...`). Destroy them once you're happy.
 - A failed start after the final send restarts the stack on the old host from its own data. Anything the new host wrote is discarded.
