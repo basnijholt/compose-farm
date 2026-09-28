@@ -18,6 +18,10 @@ from tests.plugin_helpers import make_config
 class TestOptions:
     """Option validation."""
 
+    def test_delete_is_off_by_default(self) -> None:
+        """Deleting host files missing locally could remove bind-mounted data."""
+        assert SyncPlugin({}).delete is False
+
     @pytest.mark.parametrize(
         ("options", "error"),
         [
@@ -51,6 +55,12 @@ class TestRsyncArgv:
             "bas@10.0.0.5:/opt/compose/web/",
         ]
 
+    def test_ipv6_destination_is_bracketed(self) -> None:
+        argv = rsync_argv(
+            Host(address="fd00::5", user="u"), Path("/c/web"), excludes=[], delete=False
+        )
+        assert argv[-1] == "u@[fd00::5]:/c/web/"
+
     def test_without_delete(self) -> None:
         argv = rsync_argv(Host(address="h", user="u"), Path("/c/web"), excludes=[], delete=False)
         assert "--delete" not in argv
@@ -76,6 +86,7 @@ class TestBeforeUp:
         with (
             patch.object(HookContext, "run", AsyncMock()) as run,
             patch.object(HookContext, "run_local", AsyncMock()) as run_local,
+            patch("compose_farm.plugins.sync.get_ssh_auth_sock", return_value=None),
         ):
             await SyncPlugin({"excludes": [".git"]}).before_up(HookContext(cfg, "web", "far"))
         run.assert_awaited_once_with(f"mkdir -p {shlex.quote(str(stack_dir))}", stream=False)
@@ -83,6 +94,18 @@ class TestBeforeUp:
         command = run_local.await_args.args[0]
         assert command.startswith("rsync -az -e ")
         assert command.endswith(f"{stack_dir}/ bas@192.0.2.10:{stack_dir}/")
+
+    async def test_uses_detected_ssh_agent(self, tmp_path: Path) -> None:
+        cfg = make_config(tmp_path, {"web": "far"}, hosts=("far",))
+        cfg.hosts["far"] = Host(address="192.0.2.10", user="bas")
+        with (
+            patch.object(HookContext, "run", AsyncMock()),
+            patch.object(HookContext, "run_local", AsyncMock()) as run_local,
+            patch("compose_farm.plugins.sync.get_ssh_auth_sock", return_value="/tmp/agent sock"),
+        ):
+            await SyncPlugin({}).before_up(HookContext(cfg, "web", "far"))
+        assert run_local.await_args is not None
+        assert run_local.await_args.args[0].startswith("SSH_AUTH_SOCK='/tmp/agent sock' rsync ")
 
     async def test_missing_local_dir_fails(self, tmp_path: Path) -> None:
         cfg = make_config(tmp_path, {"web": "far"}, hosts=("far",))

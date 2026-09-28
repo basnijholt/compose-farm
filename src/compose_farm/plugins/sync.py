@@ -9,7 +9,7 @@ Example::
     plugins:
       sync:
         excludes: [".git"]
-        delete: true
+        delete: false  # true removes host files missing locally, e.g. bind-mounted data
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from compose_farm.executor import build_ssh_command, is_local
 from compose_farm.plugins import HookContext, Plugin, PluginError
+from compose_farm.ssh_keys import get_ssh_auth_sock
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -30,7 +31,7 @@ class SyncPlugin(Plugin):
     """Copy the local stack directory to the target host before it starts."""
 
     def __init__(self, options: dict[str, Any]) -> None:
-        """Validate ``excludes`` (rsync patterns) and ``delete`` (default true)."""
+        """Validate ``excludes`` (rsync patterns) and ``delete`` (default false)."""
         super().__init__(options)
         unknown = sorted(set(options) - {"excludes", "delete"})
         if unknown:
@@ -40,7 +41,7 @@ class SyncPlugin(Plugin):
         if not isinstance(excludes, list) or not all(isinstance(p, str) for p in excludes):
             msg = "excludes must be a list of strings"
             raise PluginError(msg)
-        delete = options.get("delete", True)
+        delete = options.get("delete", False)
         if not isinstance(delete, bool):
             msg = "delete must be true or false"
             raise PluginError(msg)
@@ -57,8 +58,13 @@ class SyncPlugin(Plugin):
             msg = f"local stack directory not found: {stack_dir}"
             raise PluginError(msg)
         await ctx.run(f"mkdir -p {shlex.quote(str(stack_dir))}", stream=False)
-        argv = rsync_argv(host, stack_dir, excludes=self.excludes, delete=self.delete)
-        await ctx.run_local(shlex.join(argv), stream=False)
+        command = shlex.join(
+            rsync_argv(host, stack_dir, excludes=self.excludes, delete=self.delete)
+        )
+        # Use the same agent auto-detection as compose-farm's own SSH connections
+        if sock := get_ssh_auth_sock():
+            command = f"SSH_AUTH_SOCK={shlex.quote(sock)} {command}"
+        await ctx.run_local(command, stream=False)
 
 
 def rsync_argv(host: Host, stack_dir: Path, *, excludes: list[str], delete: bool) -> list[str]:
@@ -69,5 +75,6 @@ def rsync_argv(host: Host, stack_dir: Path, *, excludes: list[str], delete: bool
         argv.append("--delete")
     for pattern in excludes:
         argv.extend(["--exclude", pattern])
-    argv.extend([f"{stack_dir}/", f"{host.user}@{host.address}:{stack_dir}/"])
+    address = f"[{host.address}]" if ":" in host.address else host.address  # IPv6
+    argv.extend([f"{stack_dir}/", f"{host.user}@{address}:{stack_dir}/"])
     return argv
