@@ -72,8 +72,8 @@ cp .envrc.example .envrc && direnv allow
 ```
 
 This ensures files like `compose-farm-state.yaml` and web UI edits are owned by
-your user instead of root. `CF_USER` also preserves the invoking username for
-tools that inspect the container's `USER` environment variable.
+your user instead of root. `CF_USER` also becomes the default SSH username for
+hosts that do not set `user` explicitly.
 
 ### Verify Installation
 
