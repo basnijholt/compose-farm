@@ -51,7 +51,7 @@ def web(
     host: Annotated[
         str,
         typer.Option("--host", "-H", help="Host to bind to"),
-    ] = "0.0.0.0",  # noqa: S104
+    ] = "127.0.0.1",
     port: Annotated[
         int,
         typer.Option("--port", "-p", help="Port to listen on"),
@@ -61,7 +61,11 @@ def web(
         typer.Option("--reload", "-r", help="Enable auto-reload for development"),
     ] = False,
 ) -> None:
-    """Start the web UI server."""
+    """Start the web UI server.
+
+    Remote access requires CF_WEB_PASSWORD (and optionally CF_WEB_USERNAME,
+    default admin). Set CF_WEB_NO_AUTH=1 only behind a trusted access layer.
+    """
     try:
         import uvicorn  # noqa: PLC0415
     except ImportError:
@@ -71,8 +75,12 @@ def web(
         )
         raise typer.Exit(1) from None
 
+    # Lazy: importing compose_farm.web pulls in FastAPI, which slows CLI startup
+    from compose_farm.web.auth import AuthSettings  # noqa: PLC0415
+
     console.print(_compose_farm_banner())
     console.print(f"[green]Starting Compose Farm Web UI[/] at http://{host}:{port}")
+    console.print(f"[dim]Authentication: {AuthSettings.from_env().describe()}[/]")
     console.print("[dim]Press Ctrl+C to stop[/]")
 
     uvicorn.run(
