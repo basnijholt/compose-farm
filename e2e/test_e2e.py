@@ -481,3 +481,29 @@ def test_traefik_dns(cf: Path) -> None:
     assert names == ["grafana.lab.test", "wiki.lab.test"]
     for stack in ("dnsreader", "grafana", "wiki"):
         farm.cf("down", stack)
+
+
+SYMLINK_STACK = """\
+services:
+  app:
+    image: busybox
+    command: sleep infinity
+    env_file: [.env]
+"""
+
+
+def test_agenix_symlink(cf: Path) -> None:
+    """Symlink mode: services with `env_file: .env` get the decrypted secrets unchanged."""
+    token = f"linked-{os.getpid()}"
+    _deploy_secrets({"symapp.env": f"API_TOKEN={token}\n"})
+    farm = Farm("agenix-symlink", cf)
+    write_stack("symapp", SYMLINK_STACK)
+    plugins = {"sync": {}, "agenix": {"mode": "symlink", "stacks": {"symapp": "symapp.env"}}}
+
+    farm.config({"symapp": "vm1"}, plugins)
+    out = farm.cf("up", "symapp")
+    assert token not in out
+    assert vm("vm1", f"readlink {STACKS}/symapp/.env").strip() == "/run/agenix/symapp.env"
+    env = vm("vm1", "docker exec symapp-app-1 printenv API_TOKEN").strip()
+    assert env == token
+    farm.cf("down", "symapp")
