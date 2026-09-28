@@ -1078,7 +1078,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ─────────────────────────────────────────────────────────────────────────────╮
 │ keygen  Generate SSH key (does not distribute to hosts).                               │
-│ setup   Generate SSH key and distribute to all configured hosts.                       │
+│ setup   Generate and distribute a key, or only trust configured host keys.             │
 │ status  Show SSH key status and host connectivity.                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
