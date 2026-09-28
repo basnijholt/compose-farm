@@ -2618,3 +2618,24 @@ class TestLiveStatsActionMenu:
         button.click()
         assert menu.get_attribute("data-stack") == hostile
         assert page.evaluate("window.__pwned") is None
+
+    def test_host_row_escapes_host_and_message(self, page: Page, server_url: str) -> None:
+        """Client-built fallback rows (empty/error) render host and message as text."""
+        page.goto(f"{server_url}/live-stats")
+        page.wait_for_selector("#container-rows", timeout=TIMEOUT)
+        hostile = "<img src=x onerror=window.__pwned=1>"
+        text = page.evaluate(
+            """(hostile) => {
+                const tbody = document.createElement('tbody');
+                tbody.innerHTML = buildHostRow(hostile, `Error: ${hostile}`, 'text-error');
+                document.body.appendChild(tbody);
+                return {
+                    imgs: tbody.querySelectorAll('img').length,
+                    host: tbody.querySelector('tr').dataset.host,
+                    text: tbody.textContent.trim(),
+                };
+            }""",
+            hostile,
+        )
+        assert text == {"imgs": 0, "host": hostile, "text": f"Error: {hostile}"}
+        assert page.evaluate("window.__pwned") is None
