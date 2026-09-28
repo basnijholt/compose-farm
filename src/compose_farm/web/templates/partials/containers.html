@@ -58,7 +58,7 @@
         </div>
         <div class="tooltip tooltip-top" data-tip="Open shell">
             <button class="btn btn-sm btn-outline join-item"
-                    onclick="initExecTerminal('{{ stack }}', '{{ container.Name }}', '{{ host }}')">
+                    onclick='initExecTerminal({{ stack | tojson }}, {{ container.Name | tojson }}, {{ host | tojson }})'>
                 {{ terminal() }}
             </button>
         </div>

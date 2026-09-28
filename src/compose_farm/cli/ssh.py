@@ -11,13 +11,14 @@ import typer
 from compose_farm.cli.app import app
 from compose_farm.cli.common import ConfigOption, load_config_or_exit, run_parallel_with_progress
 from compose_farm.console import console, err_console
-from compose_farm.executor import run_command
+from compose_farm.executor import CommandResult, run_command
 
 if TYPE_CHECKING:
     from compose_farm.config import Host
 
 from compose_farm.ssh_keys import (
     SSH_KEY_PATH,
+    SSH_KNOWN_HOSTS_PATH,
     SSH_PUBKEY_PATH,
     get_pubkey_content,
     get_ssh_env,
@@ -37,6 +38,24 @@ _ForceOption = Annotated[
     bool,
     typer.Option("--force", "-f", help="Regenerate key even if it exists."),
 ]
+_TrustOnlyOption = Annotated[
+    bool,
+    typer.Option(
+        "--trust-only",
+        help="Trust configured host keys without generating or installing an SSH key.",
+    ),
+]
+
+
+def _format_connectivity_status(result: CommandResult) -> str:
+    """Format a failed SSH probe without hiding its actual cause."""
+    if result.success:
+        return "[green]OK[/]"
+    # Lazy import keeps the common CLI startup path fast.
+    from rich.markup import escape  # noqa: PLC0415
+
+    detail = result.stderr.strip() or f"SSH exited with status {result.exit_code}"
+    return f"[red]Failed: {escape(detail)}[/]"
 
 
 def _generate_key(*, force: bool = False) -> bool:
@@ -100,10 +119,8 @@ def _copy_key_to_host(host_name: str, address: str, user: str, port: int) -> boo
     console.print(f"[dim]Copying key to {host_name} ({target})...[/]")
 
     cmd = ["ssh-copy-id"]
-
-    # Disable strict host key checking (consistent with executor.py)
-    cmd.extend(["-o", "StrictHostKeyChecking=no"])
-    cmd.extend(["-o", "UserKnownHostsFile=/dev/null"])
+    cmd.extend(["-o", "StrictHostKeyChecking=ask"])
+    cmd.extend(["-o", f"UserKnownHostsFile={SSH_KNOWN_HOSTS_PATH}"])
 
     if port != _DEFAULT_SSH_PORT:
         cmd.extend(["-p", str(port)])
@@ -120,6 +137,35 @@ def _copy_key_to_host(host_name: str, address: str, user: str, port: int) -> boo
         return False
     except FileNotFoundError:
         err_console.print("[red]ssh-copy-id not found. Is OpenSSH installed?[/]")
+        return False
+
+
+def _trust_host_key(host_name: str, address: str, user: str, port: int) -> bool:
+    """Interactively enroll one server host key without installing a client key."""
+    target = f"{user}@{address}"
+    console.print(f"[dim]Trusting host key for {host_name} ({target})...[/]")
+    SSH_KNOWN_HOSTS_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+
+    cmd = [
+        "ssh",
+        "-o",
+        "StrictHostKeyChecking=ask",
+        "-o",
+        f"UserKnownHostsFile={SSH_KNOWN_HOSTS_PATH}",
+    ]
+    if port != _DEFAULT_SSH_PORT:
+        cmd.extend(["-p", str(port)])
+    cmd.extend([target, "true"])
+
+    try:
+        result = subprocess.run(cmd, check=False, env=get_ssh_env())
+        if result.returncode == 0:
+            console.print(f"[green]Trusted host key for {host_name}[/]")
+            return True
+        err_console.print(f"[red]Failed to trust host key for {host_name}[/]")
+        return False
+    except FileNotFoundError:
+        err_console.print("[red]ssh not found. Is OpenSSH installed?[/]")
         return False
 
 
@@ -141,11 +187,13 @@ def ssh_keygen(
 def ssh_setup(
     config: ConfigOption = None,
     force: _ForceOption = False,
+    trust_only: _TrustOnlyOption = False,
 ) -> None:
-    """Generate SSH key and distribute to all configured hosts.
+    """Generate and distribute a key, or only trust configured host keys.
 
     Creates an ED25519 key at ~/.ssh/compose-farm/id_ed25519 (no passphrase)
-    and copies the public key to authorized_keys on each host.
+    and copies the public key to authorized_keys on each host. With --trust-only,
+    preserves existing agent authentication and only enrolls server host keys.
 
     For each host, tries SSH agent first. If agent is unavailable,
     prompts for password.
@@ -163,15 +211,21 @@ def ssh_setup(
         console.print("[yellow]No remote hosts configured.[/]")
         raise typer.Exit(0)
 
-    # Generate key if needed
-    if not key_exists() or force:
-        if not _generate_key(force=force):
-            raise typer.Exit(1)
-    else:
-        console.print(f"[dim]Using existing key: {SSH_KEY_PATH}[/]")
+    if trust_only and force:
+        msg = "--force cannot be used with --trust-only"
+        raise typer.BadParameter(msg)
+
+    if not trust_only:
+        # Generate key if needed
+        if not key_exists() or force:
+            if not _generate_key(force=force):
+                raise typer.Exit(1)
+        else:
+            console.print(f"[dim]Using existing key: {SSH_KEY_PATH}[/]")
 
     console.print()
-    console.print(f"[bold]Distributing key to {len(remote_hosts)} host(s)...[/]")
+    action = "Trusting host keys on" if trust_only else "Distributing key to"
+    console.print(f"[bold]{action} {len(remote_hosts)} host(s)...[/]")
     console.print()
 
     # Copy key to each host
@@ -179,7 +233,8 @@ def ssh_setup(
     failed = 0
 
     for host_name, host in remote_hosts.items():
-        if _copy_key_to_host(host_name, host.address, host.user, host.port):
+        operation = _trust_host_key if trust_only else _copy_key_to_host
+        if operation(host_name, host.address, host.user, host.port):
             succeeded += 1
         else:
             failed += 1
@@ -250,7 +305,7 @@ def ssh_status(
                 run_command(host, "echo ok", host_name, stream=False),
                 timeout=5.0,
             )
-            status = "[green]OK[/]" if result.success else "[red]Auth failed[/]"
+            status = _format_connectivity_status(result)
         except TimeoutError:
             status = "[red]Timeout (5s)[/]"
         except Exception as e:
