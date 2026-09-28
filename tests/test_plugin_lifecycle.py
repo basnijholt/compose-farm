@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Self
 from unittest.mock import AsyncMock, patch
 
 from compose_farm.executor import CommandResult
-from compose_farm.operations import PreflightResult, up_stacks
+from compose_farm.operations import PreflightResult, up_stacks, up_stacks_direct
 from compose_farm.state import get_stack_host, set_stack_host
 from tests.plugin_helpers import Recorder, make_config, use_plugins
 
@@ -224,3 +224,59 @@ class TestMultiHost:
         assert not result.success
         assert result.label == "glances@h1"
         assert not any(e[0] == "compose" for e in events)
+
+
+def _fake_run_on_stacks(failing: set[str] | None = None) -> AsyncMock:
+    async def run(cfg: Config, stacks: list[str], cmd: str, **kwargs: Any) -> list[CommandResult]:
+        results = []
+        for stack in stacks:
+            hosts = [kwargs["filter_host"]] if kwargs.get("filter_host") else cfg.get_hosts(stack)
+            for host in hosts:
+                ok = stack not in (failing or set())
+                results.append(
+                    CommandResult(stack=stack, exit_code=int(not ok), success=ok, host=host)
+                )
+        return results
+
+    return AsyncMock(side_effect=run)
+
+
+class TestDirectUp:
+    """Hooks around up --service and up --host."""
+
+    async def test_service_up_runs_hooks(self, tmp_path: Path) -> None:
+        events: list[Any] = []
+        cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), _recorder(events))
+        fake = _fake_run_on_stacks()
+        with patch("compose_farm.operations.run_on_stacks", fake):
+            [result] = await up_stacks_direct(cfg, ["web"], "up -d app", raw=True)
+        assert result.success
+        fake.assert_awaited_once_with(cfg, ["web"], "up -d app", raw=True, filter_host=None)
+        assert events == [("before_up", "web", "h1", None), ("after_up", "web", "h1", None)]
+
+    async def test_before_up_failure_skips_stack(self, tmp_path: Path) -> None:
+        events: list[Any] = []
+        plugin = _recorder(events, fail=[("before_up", "bad")])
+        cfg = use_plugins(make_config(tmp_path, {"web": "h1", "bad": "h1"}), plugin)
+        fake = _fake_run_on_stacks()
+        with patch("compose_farm.operations.run_on_stacks", fake):
+            results = await up_stacks_direct(cfg, ["web", "bad"], "up -d", filter_host="h1")
+        assert fake.await_args.args[1] == ["web"]
+        assert {r.stack: r.success for r in results} == {"web": True, "bad": False}
+
+    async def test_host_filter_limits_multi_host_hooks(self, tmp_path: Path) -> None:
+        events: list[Any] = []
+        cfg = use_plugins(make_config(tmp_path, {"glances": ["h1", "h2"]}), _recorder(events))
+        with patch("compose_farm.operations.run_on_stacks", _fake_run_on_stacks()):
+            await up_stacks_direct(cfg, ["glances"], "up -d", filter_host="h2")
+        assert events == [
+            ("before_up", "glances", "h2", None),
+            ("after_up", "glances", "h2", None),
+        ]
+
+    async def test_no_after_up_for_failed_run(self, tmp_path: Path) -> None:
+        events: list[Any] = []
+        cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), _recorder(events))
+        with patch("compose_farm.operations.run_on_stacks", _fake_run_on_stacks({"web"})):
+            await up_stacks_direct(cfg, ["web"], "up -d")
+        assert events == [("before_up", "web", "h1", None)]

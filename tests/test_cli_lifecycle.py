@@ -553,18 +553,19 @@ class TestLifecycleHostFilters:
         assert mock_run.call_args.kwargs.get("filter_host") == "host1"
 
     @pytest.mark.parametrize(
-        ("command_fn", "compose_cmd"),
+        ("command_fn", "compose_cmd", "runner"),
         [
-            (stop, "stop"),
-            (pull, "pull --ignore-buildable"),
-            (restart, "restart"),
-            (up, "up -d"),
+            (stop, "stop", "run_on_stacks"),
+            (pull, "pull --ignore-buildable", "run_on_stacks"),
+            (restart, "restart", "run_on_stacks"),
+            (up, "up -d", "up_stacks_direct"),
         ],
     )
     def test_service_is_shell_quoted(
         self,
         command_fn: Callable[..., None],
         compose_cmd: str,
+        runner: str,
         tmp_path: Path,
     ) -> None:
         """--service values are shell-quoted so they cannot inject commands."""
@@ -572,7 +573,7 @@ class TestLifecycleHostFilters:
 
         with (
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
+            patch(f"compose_farm.cli.lifecycle.{runner}") as mock_run,
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 side_effect=_run_async_returns([_make_result("svc1", host="host1")]),
@@ -604,7 +605,7 @@ class TestLifecycleHostFilters:
 
         with (
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
+            patch("compose_farm.cli.lifecycle.up_stacks_direct") as mock_run,
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 side_effect=_run_async_returns(
@@ -631,7 +632,7 @@ class TestLifecycleHostFilters:
 
         with (
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
+            patch("compose_farm.cli.lifecycle.up_stacks_direct") as mock_run,
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 side_effect=_run_async_returns([_make_result("svc1")]),

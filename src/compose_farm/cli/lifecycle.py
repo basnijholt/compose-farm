@@ -35,6 +35,7 @@ from compose_farm.operations import (
     stop_orphaned_stacks,
     stop_stray_stacks,
     up_stacks,
+    up_stacks_direct,
 )
 from compose_farm.state import (
     add_stack_host,
@@ -73,18 +74,18 @@ def up(
         if len(stack_list) != 1:
             print_error("--service requires exactly one stack")
             raise typer.Exit(1)
-        # For service-level up, use run_on_stacks directly (no migration logic)
+        # For service-level up, skip migration logic (plugin hooks still run)
         results = run_async(
-            run_on_stacks(
+            up_stacks_direct(
                 cfg, stack_list, build_up_cmd(pull=pull, build=build, service=service), raw=True
             )
         )
     elif host:
-        # For host-filtered up, use run_on_stacks to only affect that host
-        # (skips migration logic, which is intended when explicitly specifying a host)
+        # For host-filtered up, only affect that host (skips migration logic, which is
+        # intended when explicitly specifying a host; plugin hooks still run)
         raw = len(stack_list) == 1
         results = run_async(
-            run_on_stacks(
+            up_stacks_direct(
                 cfg,
                 stack_list,
                 build_up_cmd(pull=pull, build=build),

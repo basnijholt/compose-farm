@@ -29,6 +29,7 @@ from .executor import (
     run_command,
     run_compose,
     run_compose_on_host,
+    run_on_stacks,
 )
 from .plugins import HookContext, PluginError, run_hook, run_hook_all, run_preflight
 from .state import (
@@ -575,6 +576,47 @@ async def up_stacks(
         raise KeyboardInterrupt from None
 
     return results
+
+
+def _direct_up_hosts(cfg: Config, stack: str, filter_host: str | None) -> list[str]:
+    """Hosts that run_on_stacks touches for a stack (filter applies to multi-host stacks)."""
+    if filter_host and cfg.is_multi_host(stack):
+        return [filter_host]
+    return cfg.get_hosts(stack)
+
+
+async def up_stacks_direct(
+    cfg: Config,
+    stacks: list[str],
+    compose_cmd: str,
+    *,
+    raw: bool = False,
+    filter_host: str | None = None,
+) -> list[CommandResult]:
+    """Run an up command without migration or preflight, wrapped in before_up/after_up hooks.
+
+    Used by `up --service` and `up --host`.
+    """
+
+    async def prepare(stack: str) -> CommandResult | None:
+        for host_name in _direct_up_hosts(cfg, stack, filter_host):
+            ctx = HookContext(cfg, stack, host_name)
+            if failure := await _run_before_up(ctx, label=f"{stack}@{host_name}"):
+                return failure
+        return None
+
+    prepared = await asyncio.gather(*(prepare(stack) for stack in stacks))
+    failures = [failure for failure in prepared if failure is not None]
+    ready = [stack for stack, failure in zip(stacks, prepared, strict=True) if failure is None]
+    results = (
+        await run_on_stacks(cfg, ready, compose_cmd, raw=raw, filter_host=filter_host)
+        if ready
+        else []
+    )
+    for result in results:
+        if result.success and result.host:
+            await _run_after_up(HookContext(cfg, result.stack, result.host))
+    return [*failures, *results]
 
 
 async def check_host_compatibility(
