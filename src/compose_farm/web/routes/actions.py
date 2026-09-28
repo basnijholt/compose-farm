@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine
 
+from compose_farm.compose import extract_services, load_compose_data_for_stack
 from compose_farm.web.deps import get_config
 from compose_farm.web.streaming import run_cli_streaming, run_compose_streaming, tasks
 
@@ -63,9 +64,13 @@ async def service_action(name: str, service: str, command: str) -> dict[str, Any
     if name not in config.stacks:
         raise HTTPException(status_code=404, detail=f"Stack '{name}' not found")
 
-    # Use --service flag to target specific service
+    _, compose_data = load_compose_data_for_stack(config, name)
+    if service not in extract_services(compose_data):
+        raise HTTPException(status_code=404, detail=f"Service '{service}' not found in '{name}'")
+
+    # Pass --service as a single argv item so the value can't inject extra CLI args
     task_id = _start_task(
-        lambda tid: run_compose_streaming(config, name, f"{command} --service {service}", tid)
+        lambda tid: run_compose_streaming(config, name, command, tid, [f"--service={service}"])
     )
     return {"task_id": task_id, "stack": name, "service": service, "command": command}
 

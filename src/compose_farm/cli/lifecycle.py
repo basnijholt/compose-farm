@@ -178,7 +178,7 @@ def stop(
     if service and len(stack_list) != 1:
         print_error("--service requires exactly one stack")
         raise typer.Exit(1)
-    cmd = f"stop {service}" if service else "stop"
+    cmd = f"stop {shlex.quote(service)}" if service else "stop"
     raw = len(stack_list) == 1
     results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw, filter_host=host))
     report_results(results)
@@ -197,7 +197,9 @@ def pull(
     if service and len(stack_list) != 1:
         print_error("--service requires exactly one stack")
         raise typer.Exit(1)
-    cmd = f"pull --ignore-buildable {service}" if service else "pull --ignore-buildable"
+    cmd = (
+        f"pull --ignore-buildable {shlex.quote(service)}" if service else "pull --ignore-buildable"
+    )
     raw = len(stack_list) == 1
     results = run_async(run_on_stacks(cfg, stack_list, cmd, raw=raw, filter_host=host))
     report_results(results)
@@ -217,7 +219,7 @@ def restart(
         if len(stack_list) != 1:
             print_error("--service requires exactly one stack")
             raise typer.Exit(1)
-        cmd = f"restart {service}"
+        cmd = f"restart {shlex.quote(service)}"
     else:
         cmd = "restart"
     raw = len(stack_list) == 1

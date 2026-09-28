@@ -7,6 +7,7 @@ CLI commands are thin wrappers around these functions.
 from __future__ import annotations
 
 import asyncio
+import shlex
 from typing import TYPE_CHECKING, NamedTuple
 
 from .compose import parse_devices, parse_external_networks, parse_host_volumes
@@ -222,7 +223,7 @@ def build_up_cmd(
     if build:
         parts.append("--build")
     if service:
-        parts.append(service)
+        parts.append(shlex.quote(service))
     return " ".join(parts)
 
 

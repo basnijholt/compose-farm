@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 import typer
 
-from compose_farm.cli.monitoring import logs
+from compose_farm.cli.monitoring import logs, ps
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
 
@@ -262,3 +262,51 @@ class TestLogsHostFilter:
             mock_run.assert_called_once()
             call_kwargs = mock_run.call_args.kwargs
             assert call_kwargs.get("filter_host") == "host1"
+
+
+class TestServiceQuoting:
+    """--service values are shell-quoted so they cannot inject commands."""
+
+    def test_logs_service_is_shell_quoted(self, tmp_path: Path) -> None:
+        """Malicious service name ends up quoted in the logs command."""
+        cfg = _make_config(tmp_path)
+        mock_run_async, _ = _mock_run_async_factory(["svc1"])
+
+        with (
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
+            patch("compose_farm.cli.monitoring.run_on_stacks") as mock_run,
+        ):
+            logs(
+                stacks=["svc1"],
+                all_stacks=False,
+                host=None,
+                service="x; touch /tmp/pwned",
+                follow=False,
+                tail=None,
+                config=None,
+            )
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args[0][2] == "logs --tail 100 'x; touch /tmp/pwned'"
+
+    def test_ps_service_is_shell_quoted(self, tmp_path: Path) -> None:
+        """Malicious service name ends up quoted in the ps command."""
+        cfg = _make_config(tmp_path)
+        mock_run_async, _ = _mock_run_async_factory(["svc1"])
+
+        with (
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.monitoring.run_async", side_effect=mock_run_async),
+            patch("compose_farm.cli.monitoring.run_on_stacks") as mock_run,
+        ):
+            ps(
+                stacks=["svc1"],
+                all_stacks=False,
+                host=None,
+                service="$(touch${IFS}/tmp/pwned)",
+                config=None,
+            )
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args[0][2] == "ps '$(touch${IFS}/tmp/pwned)'"

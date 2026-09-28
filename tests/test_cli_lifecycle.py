@@ -552,6 +552,45 @@ class TestLifecycleHostFilters:
         assert mock_run.call_args.args[2] == compose_cmd
         assert mock_run.call_args.kwargs.get("filter_host") == "host1"
 
+    @pytest.mark.parametrize(
+        ("command_fn", "compose_cmd"),
+        [
+            (stop, "stop"),
+            (pull, "pull --ignore-buildable"),
+            (restart, "restart"),
+            (up, "up -d"),
+        ],
+    )
+    def test_service_is_shell_quoted(
+        self,
+        command_fn: Callable[..., None],
+        compose_cmd: str,
+        tmp_path: Path,
+    ) -> None:
+        """--service values are shell-quoted so they cannot inject commands."""
+        cfg = _make_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                side_effect=_run_async_returns([_make_result("svc1", host="host1")]),
+            ),
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            command_fn(
+                stacks=["svc1"],
+                all_stacks=False,
+                host=None,
+                service="x; touch /tmp/pwned",
+                config=None,
+            )
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args.args[2] == f"{compose_cmd} 'x; touch /tmp/pwned'"
+
     def test_up_host_filter_multiple_stacks_disables_raw_output(self, tmp_path: Path) -> None:
         """BuildKit/progress output corrupts the terminal when raw output runs in parallel."""
         cfg = _make_config(
