@@ -37,6 +37,11 @@ web:
 kill-web:
     lsof -ti :9001 | xargs kill -9 2>/dev/null || true
 
+# Regenerate logo, icon, and social preview (PNG needs inkscape)
+logo:
+    python docs/logo/generate.py
+    inkscape docs/assets/social-preview.svg -o docs/assets/social-preview.png
+
 # Build docs and serve locally
 doc:
     uvx zensical build
