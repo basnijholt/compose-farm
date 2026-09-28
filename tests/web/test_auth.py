@@ -15,6 +15,7 @@ from compose_farm.web.auth import AuthSettings
 
 LOCAL: dict[str, Any] = {"base_url": "http://localhost", "client": ("127.0.0.1", 50000)}
 REMOTE: dict[str, Any] = {"base_url": "http://cf.example.com", "client": ("203.0.113.5", 50000)}
+UNKNOWN: dict[str, Any] = {"base_url": "http://localhost", "client": ("testclient", 50000)}
 STATIC = "/static/app.js"
 
 
@@ -25,7 +26,7 @@ def _basic(user: str, password: str) -> dict[str, str]:
 
 @pytest.fixture(autouse=True)
 def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    for var in ("CF_WEB_USERNAME", "CF_WEB_PASSWORD"):
+    for var in ("CF_WEB_USERNAME", "CF_WEB_PASSWORD", "CF_WEB_NO_AUTH"):
         monkeypatch.delenv(var, raising=False)
 
 
@@ -34,7 +35,7 @@ class TestAuthSettings:
 
     def test_defaults(self) -> None:
         settings = AuthSettings.from_env()
-        assert settings == AuthSettings(username="admin", password=None)
+        assert settings == AuthSettings(username="admin", password=None, no_auth=False)
         assert "CF_WEB_PASSWORD" in settings.describe()
 
     def test_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -48,17 +49,49 @@ class TestAuthSettings:
         monkeypatch.setenv("CF_WEB_PASSWORD", "")
         assert AuthSettings.from_env().password is None
 
+    @pytest.mark.parametrize("value", ["1", "true", "yes", "on", "TRUE"])
+    def test_explicit_no_auth_values(self, monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+        monkeypatch.setenv("CF_WEB_NO_AUTH", value)
+        assert AuthSettings.from_env().no_auth is True
+
 
 class TestNoPassword:
-    """Without CF_WEB_PASSWORD, behavior is unchanged: no login required."""
+    """Without CF_WEB_PASSWORD, only loopback clients are allowed."""
 
-    def test_remote_allowed(self) -> None:
-        assert TestClient(create_app(), **REMOTE).get(STATIC).status_code == 200
+    def test_remote_blocked(self) -> None:
+        response = TestClient(create_app(), **REMOTE).get(STATIC)
+        assert response.status_code == 403
+        assert "CF_WEB_PASSWORD" in response.text
 
-    def test_websocket_allowed(self) -> None:
+    def test_local_allowed(self) -> None:
+        assert TestClient(create_app(), **LOCAL).get(STATIC).status_code == 200
+
+    def test_loopback_peer_with_remote_host_is_blocked(self) -> None:
+        """A DNS-rebinding hostname must not inherit loopback-only access."""
+        client = TestClient(
+            create_app(), base_url="http://attacker.example", client=("127.0.0.1", 50000)
+        )
+        response = client.post(
+            "/api/stack/plex/down", headers={"Origin": "http://attacker.example"}
+        )
+        assert response.status_code == 403
+        assert "CF_WEB_PASSWORD" in response.text
+
+    def test_unrecognized_peer_is_blocked(self) -> None:
+        assert TestClient(create_app(), **UNKNOWN).get(STATIC).status_code == 403
+
+    def test_remote_websocket_blocked(self) -> None:
         client = TestClient(create_app(), **REMOTE)
-        with client.websocket_connect("ws://cf.example.com/ws/terminal/missing") as ws:
-            assert "Task not found" in ws.receive_text()
+        with (
+            pytest.raises(WebSocketDenialResponse) as exc_info,
+            client.websocket_connect("ws://cf.example.com/ws/terminal/missing"),
+        ):
+            pass
+        assert exc_info.value.status_code == 403
+
+    def test_explicit_no_auth_allows_remote(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CF_WEB_NO_AUTH", "1")
+        assert TestClient(create_app(), **REMOTE).get(STATIC).status_code == 200
 
 
 class TestBasicAuth:
@@ -139,8 +172,11 @@ class TestOriginCheck:
         )
         assert response.status_code == 404
 
-    def test_http_origin_to_https_blocked(self) -> None:
-        client = TestClient(create_app(), base_url="https://cf.example.com")
+    def test_http_origin_to_https_blocked(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CF_WEB_NO_AUTH", "1")
+        client = TestClient(
+            create_app(), base_url="https://cf.example.com", client=("127.0.0.1", 50000)
+        )
         response = client.post("/api/stack/plex/bogus", headers={"Origin": "http://cf.example.com"})
         assert response.status_code == 403
 
@@ -151,9 +187,14 @@ class TestOriginCheck:
         )
         assert response.status_code == 403
 
-    def test_https_origin_behind_plain_http_proxy_passes(self) -> None:
+    def test_https_origin_behind_plain_http_proxy_passes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """TLS-terminating proxy without X-Forwarded-Proto: app sees http, Origin is https."""
-        client = TestClient(create_app(), base_url="http://cf.example.com")
+        monkeypatch.setenv("CF_WEB_NO_AUTH", "1")
+        client = TestClient(
+            create_app(), base_url="http://cf.example.com", client=("127.0.0.1", 50000)
+        )
         response = client.post(
             "/api/stack/plex/bogus", headers={"Origin": "https://cf.example.com"}
         )

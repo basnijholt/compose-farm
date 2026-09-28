@@ -782,7 +782,7 @@ cf web [OPTIONS]
 
 | Option | Description |
 |--------|-------------|
-| `--host, -H TEXT` | Host to bind to (default: 0.0.0.0) |
+| `--host, -H TEXT` | Host to bind to (default: 127.0.0.1) |
 | `--port, -p INTEGER` | Port to listen on (default: 8000) |
 | `--reload, -r` | Enable auto-reload for development |
 

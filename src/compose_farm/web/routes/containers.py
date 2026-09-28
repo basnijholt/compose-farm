@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import html
+import json
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from urllib.parse import quote
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from compose_farm.executor import TTLCache
@@ -23,12 +24,16 @@ if TYPE_CHECKING:
 # Cache registry update checks for 5 minutes (300 seconds)
 # Registry calls are slow and often rate-limited
 _update_check_cache = TTLCache(ttl_seconds=300.0)
+_known_image_cache = TTLCache(ttl_seconds=300.0)
 
 # Minimum parts needed to infer stack/service from container name
 MIN_NAME_PARTS = 2
 
 # HTML for "no update info" dash
 _DASH_HTML = '<span class="text-xs opacity-50">-</span>'
+
+MAX_UPDATE_CHECK_ITEMS = 100
+MAX_UPDATE_CHECK_BODY_BYTES = 64 * 1024
 
 
 def _esc(value: str) -> str:
@@ -47,6 +52,29 @@ def _parse_image(image: str) -> tuple[str, str]:
             return image, "latest"
         return parts[0], parts[1]
     return image, "latest"
+
+
+async def _read_limited_json(request: Request) -> object:
+    """Read a JSON request body without accepting an unbounded payload."""
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > MAX_UPDATE_CHECK_BODY_BYTES:
+            raise HTTPException(status_code=413, detail="Request body too large")
+        body.extend(chunk)
+    try:
+        return json.loads(body)
+    except (RecursionError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid JSON body") from exc
+
+
+def _cache_known_images(containers: list[ContainerStats], host_names: list[str]) -> None:
+    """Cache the image/tag pairs rendered from each configured host."""
+    images_by_host: dict[str, set[tuple[str, str]]] = {name: set() for name in host_names}
+    for container in containers:
+        if container.host in images_by_host:
+            images_by_host[container.host].add(_parse_image(container.image))
+    for host_name, images in images_by_host.items():
+        _known_image_cache.set(host_name, frozenset(images))
 
 
 def _infer_stack_service(name: str) -> tuple[str, str]:
@@ -246,6 +274,11 @@ async def get_containers_rows() -> HTMLResponse:
         )
 
     containers = await fetch_all_container_stats(config)
+    # The aggregate fetch flattens successful hosts and omits failed ones, so only
+    # replace cache entries backed by fresh inventory. A transient host failure must
+    # not erase its last trusted image set.
+    observed_hosts = sorted({container.host for container in containers})
+    _cache_known_images(containers, observed_hosts)
 
     if not containers:
         return HTMLResponse(
@@ -308,6 +341,7 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
 
     # Only show containers from stacks in config (filters out orphaned/unknown stacks)
     containers = [c for c in containers if not c.stack or c.stack in config.stacks]
+    _cache_known_images(containers, [host_name])
 
     # Use placeholder index (will be renumbered by JS after all hosts load)
     rows = "\n".join(_render_row(c, "-") for c in containers)
@@ -350,19 +384,43 @@ async def check_container_updates_batch(request: Request) -> JSONResponse:
     """
     import httpx  # noqa: PLC0415
 
-    payload = await request.json()
-    items = payload.get("items", []) if isinstance(payload, dict) else []
+    payload = await _read_limited_json(request)
+    items = cast("dict[str, object]", payload).get("items", []) if isinstance(payload, dict) else []
     if not items:
         return JSONResponse({"results": []})
+    if not isinstance(items, list):
+        raise HTTPException(status_code=400, detail="items must be a list")
+    if len(items) > MAX_UPDATE_CHECK_ITEMS:
+        raise HTTPException(status_code=413, detail="Too many update checks")
+
+    parsed_items: list[tuple[str, str]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise HTTPException(status_code=400, detail="Each item must be an object")
+        item_dict = cast("dict[str, object]", item)
+        image = item_dict.get("image", "")
+        tag = item_dict.get("tag", "")
+        if not isinstance(image, str) or not isinstance(tag, str):
+            raise HTTPException(status_code=400, detail="image and tag must be strings")
+        parsed_items.append((image, tag))
+
+    config = get_config()
+    allowed_images: set[tuple[str, str]] = set()
+    for host_name in config.hosts:
+        allowed_images.update(_known_image_cache.get(host_name) or ())
+    requested_images = {(image, tag) for image, tag in parsed_items if image and tag}
+    if not requested_images.issubset(allowed_images):
+        raise HTTPException(
+            status_code=400,
+            detail="Only images reported by configured hosts may be checked",
+        )
 
     results = []
 
     from compose_farm.registry import check_image_updates  # noqa: PLC0415
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        for item in items:
-            image = item.get("image", "")
-            tag = item.get("tag", "")
+        for image, tag in parsed_items:
             full_image = f"{image}:{tag}"
             if not image or not tag:
                 results.append({"image": image, "tag": tag, "html": _DASH_HTML})
