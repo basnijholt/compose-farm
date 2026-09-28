@@ -7,6 +7,48 @@ on:
     branches: [main]
 
 jobs:
+  build-wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Build wheel and verify vendored asset digests
+        run: uv build --wheel
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v10.2.0
+
+      - name: Audit locked production dependencies
+        run: uv audit --preview-features audit-command --locked --no-dev
+
+  container-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Build image
+        run: docker build --tag compose-farm:test .
+
+      - name: Verify arbitrary-UID identity without writable account files
+        run: |
+          docker run --rm --user 12345:23456 compose-farm:test --version
+          docker run --rm --user 12345:23456 --env HOME=/tmp/test-home --entrypoint /bin/sh compose-farm:test -c '
+            eval "$(head -n -1 /usr/local/bin/docker-entrypoint.sh)"
+            test "$(id -un)" = compose-farm
+            ssh -G example.invalid 2>/dev/null | grep -Fqx \
+              "userknownhostsfile /tmp/test-home/.ssh/known_hosts /tmp/test-home/.ssh/known_hosts2"
+            test "$(stat -c %a /etc/passwd)" = 644
+            test ! -w /etc/passwd
+          '
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -16,10 +58,10 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v6.1.0
+      - uses: actions/checkout@v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7.6.0
+        uses: astral-sh/setup-uv@v10.2.0
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
@@ -32,17 +74,17 @@ jobs:
 
       - name: Upload coverage reports to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.13'
-        uses: codecov/codecov-action@v5.5.5
+        uses: codecov/codecov-action@v7.1.1
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   browser-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.1.0
+      - uses: actions/checkout@v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7.6.0
+        uses: astral-sh/setup-uv@v10.2.0
 
       - name: Set up Python
         run: uv python install 3.13
@@ -59,10 +101,10 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6.1.0
+      - uses: actions/checkout@v7.0.1
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v7.6.0
+        uses: astral-sh/setup-uv@v10.2.0
 
       - name: Set up Python
         run: uv python install 3.12

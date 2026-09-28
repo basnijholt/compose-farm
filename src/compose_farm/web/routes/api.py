@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import html
 import json
 import logging
 import shlex
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any
+from urllib.parse import quote
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -213,7 +215,8 @@ async def get_containers(name: str, host: str | None = None) -> HTMLResponse:
     # If host specified, return just that host's containers with status
     if host:
         if host not in all_hosts:
-            return HTMLResponse(f'<span class="text-error">Host {host} not found</span>')
+            host_html = html.escape(host, quote=True)
+            return HTMLResponse(f'<span class="text-error">Host {host_html} not found</span>')
 
         containers = _get_compose_services(config, name, [host])
         containers = await _get_container_states(config, name, containers)
@@ -224,16 +227,20 @@ async def get_containers(name: str, host: str | None = None) -> HTMLResponse:
     is_multi_host = len(all_hosts) > 1
 
     for h in all_hosts:
-        host_id = f"containers-{name}-{h}".replace(".", "-")
+        host_id = html.escape(f"containers-{name}-{h}".replace(".", "-"), quote=True)
+        url = f"/api/stack/{quote(name, safe='')}/containers?host={quote(h, safe='')}"
+        url = html.escape(url, quote=True)
         containers = _get_compose_services(config, name, [h])
 
         if is_multi_host:
-            html_parts.append(f'<div class="font-semibold text-sm mt-3 mb-1">{h}</div>')
+            html_parts.append(
+                f'<div class="font-semibold text-sm mt-3 mb-1">{html.escape(h, quote=True)}</div>'
+            )
 
         # Container for this host that auto-fetches its own status
         html_parts.append(f"""
             <div id="{host_id}"
-                 hx-get="/api/stack/{name}/containers?host={h}"
+                 hx-get="{url}"
                  hx-trigger="load"
                  hx-target="this"
                  hx-select="unset"
@@ -407,5 +414,5 @@ async def get_glances_stats() -> HTMLResponse:
 
     templates = get_templates()
     template = templates.env.get_template("partials/glances.html")
-    html = template.render(stats=stats)
-    return HTMLResponse(html)
+    rendered = template.render(stats=stats)
+    return HTMLResponse(rendered)

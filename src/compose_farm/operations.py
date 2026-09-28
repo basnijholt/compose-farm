@@ -7,6 +7,7 @@ CLI commands are thin wrappers around these functions.
 from __future__ import annotations
 
 import asyncio
+import shlex
 from typing import TYPE_CHECKING, NamedTuple
 
 from .compose import parse_devices, parse_external_networks, parse_host_volumes
@@ -21,6 +22,7 @@ from .console import (
 from .executor import (
     CommandResult,
     RemoteCheckError,
+    _build_compose_command,
     check_networks_exist,
     check_paths_exist,
     check_stack_running,
@@ -222,7 +224,7 @@ def build_up_cmd(
     if build:
         parts.append("--build")
     if service:
-        parts.append(service)
+        parts.append(shlex.quote(service))
     return " ".join(parts)
 
 
@@ -245,7 +247,7 @@ async def _up_multi_host_stack(
     results: list[CommandResult] = []
     stack_dir = cfg.get_stack_dir(stack)
     # Use cd to let docker compose find the compose file on the remote host
-    command = f'cd "{stack_dir}" && docker compose {build_up_cmd(pull=pull, build=build)}'
+    command = _build_compose_command(stack_dir, build_up_cmd(pull=pull, build=build))
 
     # Pre-flight checks on all hosts
     for host_name in host_names:
@@ -645,11 +647,14 @@ def build_discovery_results(
 
     Takes the raw data of which stacks are running on which hosts and
     categorizes them into discovered (running correctly), strays (wrong host),
-    and duplicates (single-host stack on multiple hosts).
+    and duplicates (single-host stack on multiple hosts). Hosts sharing an
+    address and SSH port are the same machine, so a stack seen under several
+    of their names is counted once.
 
     Args:
         cfg: Config object.
         running_on_host: Dict mapping host -> set of running stack names.
+            Every host must exist in ``cfg.hosts``.
         stacks: Optional list of stacks to check. Defaults to all configured stacks.
 
     Returns:
@@ -662,15 +667,39 @@ def build_discovery_results(
     stack_list = stacks if stacks is not None else list(cfg.stacks)
     all_hosts = list(running_on_host.keys())
 
+    def machine(host: str) -> tuple[str, int]:
+        h = cfg.hosts[host]
+        return h.address.lower(), h.port
+
+    def running_hosts(stack: str, configured: list[str]) -> list[str]:
+        # Hosts sharing an address+port reach the same Docker daemon, so each
+        # container shows up under every such name. Count each machine once,
+        # preferring configured names, so aliases aren't strays/duplicates.
+        # Seed with all configured machines (not just those that reported the
+        # stack) so a failed probe on the configured name can't make its alias
+        # a stray.
+        running = [h for h in all_hosts if stack in running_on_host[h]]
+        seen = {machine(h) for h in configured}
+        kept: list[str] = []
+        for h in running:
+            if h not in configured:
+                if machine(h) in seen:
+                    continue
+                seen.add(machine(h))
+            kept.append(h)
+        return kept
+
     # Build StackDiscoveryResult for each stack
-    results: list[StackDiscoveryResult] = [
-        StackDiscoveryResult(
-            stack=stack,
-            configured_hosts=cfg.get_hosts(stack),
-            running_hosts=[h for h in all_hosts if stack in running_on_host[h]],
+    results: list[StackDiscoveryResult] = []
+    for stack in stack_list:
+        configured = cfg.get_hosts(stack)
+        results.append(
+            StackDiscoveryResult(
+                stack=stack,
+                configured_hosts=configured,
+                running_hosts=running_hosts(stack, configured),
+            )
         )
-        for stack in stack_list
-    ]
 
     discovered: dict[str, str | list[str]] = {}
     strays: dict[str, list[str]] = {}
