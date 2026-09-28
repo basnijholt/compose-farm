@@ -1,0 +1,228 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="139 28 522 369" width="522" height="369" role="img" aria-label="Compose Farm">
+<title>Compose Farm</title>
+<style>
+.o{stroke:#1e2a38;stroke-width:2.2;stroke-linejoin:round}
+.o.thin{stroke-width:1.4}
+.rib{stroke:#1e2a38;stroke-opacity:.35;stroke-width:1.2}
+.furrow{stroke:#3f8f43;stroke-width:2;stroke-linecap:round}
+.dash{fill:none;stroke:#1e2a38;stroke-width:2.2;stroke-dasharray:6 5;stroke-linecap:round;stroke-linejoin:round}
+.term{fill:none;stroke:#4ade80;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.vcase{fill:none;stroke:#1e2a38;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.vcore{fill:none;stroke:#fbbf24;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.vfill{fill:#fbbf24;stroke:#1e2a38;stroke-width:1.5;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.wfill{fill:#1e2a38;stroke:none}
+.pulse{display:none}
+.spin{transform-origin:0 0;animation:spin 10s linear infinite}
+@keyframes spin{0%{transform:rotate(0.0deg)}5%{transform:rotate(35.6deg)}10%{transform:rotate(64.5deg)}15%{transform:rotate(82.5deg)}20%{transform:rotate(89.6deg)}25%{transform:rotate(90.0deg)}30%{transform:rotate(90.4deg)}35%{transform:rotate(97.5deg)}40%{transform:rotate(115.5deg)}45%{transform:rotate(144.4deg)}50%{transform:rotate(180.0deg)}55%{transform:rotate(215.6deg)}60%{transform:rotate(244.5deg)}65%{transform:rotate(262.5deg)}70%{transform:rotate(269.6deg)}75%{transform:rotate(270.0deg)}80%{transform:rotate(270.4deg)}85%{transform:rotate(277.5deg)}90%{transform:rotate(295.5deg)}95%{transform:rotate(324.4deg)}100%{transform:rotate(360.0deg)}}
+.pulse{display:inline;fill:none;stroke-width:4.5;stroke-linecap:round;stroke-dasharray:12 200;stroke-dashoffset:12;animation:pulse 2.8s linear infinite}
+.pulse.out{stroke:#facc15;filter:drop-shadow(0 0 3px #f59e0b)}
+.pulse.back{stroke:#4ade80;filter:drop-shadow(0 0 3px #16a34a)}
+@keyframes pulse{0%{stroke-dashoffset:12}65%,100%{stroke-dashoffset:-100}}
+.crop{transform-box:fill-box;transform-origin:50% 100%;animation:grow 12s ease-out infinite both}
+@keyframes grow{0%,78%{transform:scale(1)}84%,88%{transform:scale(0)}94%{transform:scale(1.15)}97%,100%{transform:scale(1)}}
+.migrant{animation:migrate 12s ease-in-out infinite}
+@keyframes migrate{0%,36%{transform:translate(0.0px,0.0px)}39%{transform:translate(0.0px,-14.0px)}44%{transform:translate(-12.1px,-30.0px)}51%{transform:translate(-24.2px,100.0px)}54%,86%{transform:translate(-24.2px,114.0px)}89%{transform:translate(-24.2px,100.0px)}94%{transform:translate(-12.1px,-30.0px)}98%{transform:translate(0.0px,-14.0px)}100%{transform:translate(0.0px,0.0px)}}
+.cursor{animation:blink 1.2s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.spin,.crop,.migrant,.cursor{animation:none}.pulse{display:none}}
+@media (prefers-color-scheme:dark){.dash{stroke:#e6edf3}.wfill{fill:#e6edf3}}
+</style>
+<!-- hosts (back) -->
+<polygon class="o" points="174.8,120.0 226.8,150.0 226.8,157.0 174.8,127.0" fill="#3a7d3e"/>
+<polygon class="o" points="278.8,120.0 226.8,150.0 226.8,157.0 278.8,127.0" fill="#3f8f43"/>
+<polygon class="o" points="226.8,90.0 278.8,120.0 226.8,150.0 174.8,120.0" fill="#5cb85c"/>
+<polygon class="o" points="521.2,120.0 573.2,150.0 573.2,157.0 521.2,127.0" fill="#3a7d3e"/>
+<polygon class="o" points="625.2,120.0 573.2,150.0 573.2,157.0 625.2,127.0" fill="#3f8f43"/>
+<polygon class="o" points="573.2,90.0 625.2,120.0 573.2,150.0 521.2,120.0" fill="#5cb85c"/>
+<polygon class="o" points="195.6,122.0 223.3,138.0 223.3,118.0 195.6,102.0" fill="#3d92e3"/>
+<polygon class="o" points="258.0,118.0 223.3,138.0 223.3,118.0 258.0,98.0" fill="#2a74c4"/>
+<polygon class="o" points="230.3,82.0 258.0,98.0 223.3,118.0 195.6,102.0" fill="#6cb4f5"/>
+<line class="rib" x1="202.5" y1="123.0" x2="202.5" y2="109.0"/>
+<line class="rib" x1="209.5" y1="127.0" x2="209.5" y2="113.0"/>
+<line class="rib" x1="216.4" y1="131.0" x2="216.4" y2="117.0"/>
+<line class="rib" x1="251.0" y1="119.0" x2="251.0" y2="105.0"/>
+<line class="rib" x1="244.1" y1="123.0" x2="244.1" y2="109.0"/>
+<line class="rib" x1="237.2" y1="127.0" x2="237.2" y2="113.0"/>
+<line class="rib" x1="230.3" y1="131.0" x2="230.3" y2="117.0"/>
+<polygon class="o" points="542.0,118.0 576.7,138.0 576.7,118.0 542.0,98.0" fill="#3d92e3"/>
+<polygon class="o" points="604.4,122.0 576.7,138.0 576.7,118.0 604.4,102.0" fill="#2a74c4"/>
+<polygon class="o" points="569.7,82.0 604.4,102.0 576.7,118.0 542.0,98.0" fill="#6cb4f5"/>
+<line class="rib" x1="549.0" y1="119.0" x2="549.0" y2="105.0"/>
+<line class="rib" x1="555.9" y1="123.0" x2="555.9" y2="109.0"/>
+<line class="rib" x1="562.8" y1="127.0" x2="562.8" y2="113.0"/>
+<line class="rib" x1="569.7" y1="131.0" x2="569.7" y2="117.0"/>
+<line class="rib" x1="597.5" y1="123.0" x2="597.5" y2="109.0"/>
+<line class="rib" x1="590.5" y1="127.0" x2="590.5" y2="113.0"/>
+<line class="rib" x1="583.6" y1="131.0" x2="583.6" y2="117.0"/>
+<!-- links -->
+<path class="dash" d="M344.6,188.0 L252.8,135.0"/>
+<path class="pulse out" pathLength="100" style="animation-delay:-0.0s" d="M344.6,188.0 L252.8,135.0"/>
+<path class="pulse back" pathLength="100" style="animation-delay:-1.4s" d="M252.8,135.0 L344.6,188.0"/>
+<path class="dash" d="M469.3,180.0 L547.2,135.0"/>
+<path class="pulse out" pathLength="100" style="animation-delay:-0.7s" d="M469.3,180.0 L547.2,135.0"/>
+<path class="pulse back" pathLength="100" style="animation-delay:-2.1s" d="M547.2,135.0 L469.3,180.0"/>
+<path class="dash" d="M327.3,218.0 L249.3,263.0 L209.5,240.0"/>
+<path class="pulse out" pathLength="100" style="animation-delay:-1.4s" d="M327.3,218.0 L249.3,263.0 L209.5,240.0"/>
+<path class="pulse back" pathLength="100" style="animation-delay:-2.8s" d="M209.5,240.0 L249.3,263.0 L327.3,218.0"/>
+<path class="dash" d="M455.4,208.0 L550.7,263.0 L590.5,240.0"/>
+<path class="pulse out" pathLength="100" style="animation-delay:-2.1s" d="M455.4,208.0 L550.7,263.0 L590.5,240.0"/>
+<path class="pulse back" pathLength="100" style="animation-delay:-3.5s" d="M590.5,240.0 L550.7,263.0 L455.4,208.0"/>
+<!-- barn -->
+<polygon class="o" points="413.9,88.0 452.0,70.0 348.0,130.0 309.9,148.0" fill="#3d92e3"/>
+<polygon class="o" points="490.1,192.0 386.1,252.0 386.1,192.0 490.1,132.0" fill="#2a74c4"/>
+<line class="rib" x1="481.4" y1="194.0" x2="481.4" y2="140.0"/>
+<line class="rib" x1="472.7" y1="199.0" x2="472.7" y2="145.0"/>
+<line class="rib" x1="464.1" y1="204.0" x2="464.1" y2="150.0"/>
+<line class="rib" x1="455.4" y1="209.0" x2="455.4" y2="155.0"/>
+<line class="rib" x1="446.8" y1="214.0" x2="446.8" y2="160.0"/>
+<line class="rib" x1="438.1" y1="219.0" x2="438.1" y2="165.0"/>
+<line class="rib" x1="429.4" y1="224.0" x2="429.4" y2="170.0"/>
+<line class="rib" x1="420.8" y1="229.0" x2="420.8" y2="175.0"/>
+<line class="rib" x1="412.1" y1="234.0" x2="412.1" y2="180.0"/>
+<line class="rib" x1="403.5" y1="239.0" x2="403.5" y2="185.0"/>
+<line class="rib" x1="394.8" y1="244.0" x2="394.8" y2="190.0"/>
+<polygon class="o" points="309.9,208.0 386.1,252.0 386.1,192.0 348.0,130.0 309.9,148.0" fill="#3d92e3"/>
+<line class="rib" x1="317.6" y1="209.4" x2="317.6" y2="147.4"/>
+<line class="rib" x1="325.2" y1="213.8" x2="325.2" y2="143.8"/>
+<line class="rib" x1="332.8" y1="218.2" x2="332.8" y2="140.2"/>
+<line class="rib" x1="340.4" y1="222.6" x2="340.4" y2="136.6"/>
+<line class="rib" x1="348.0" y1="227.0" x2="348.0" y2="133.0"/>
+<line class="rib" x1="355.7" y1="231.4" x2="355.7" y2="145.4"/>
+<line class="rib" x1="363.3" y1="235.8" x2="363.3" y2="157.8"/>
+<line class="rib" x1="370.9" y1="240.2" x2="370.9" y2="170.2"/>
+<line class="rib" x1="378.5" y1="244.6" x2="378.5" y2="182.6"/>
+<polygon class="o" points="452.0,70.0 496.1,140.5 392.2,200.5 348.0,130.0" fill="#6cb4f5"/>
+<polygon class="o" points="332.5,221.0 363.6,239.0 363.6,197.0 332.5,179.0" fill="#1e2a38"/>
+<polygon class="o" points="337.3,161.8 358.8,174.2 358.8,155.2 337.3,142.8" fill="#1e2a38"/>
+<g transform="matrix(17.32 10.00 0 -20.00 348.0 230.0)">
+<path class="term" d="M-0.42,3.83 L-0.2,3.575 L-0.42,3.32"/>
+<path class="term cursor" d="M-0.02,3.32 H0.36"/>
+</g>
+<!-- field -->
+<polygon class="o" points="289.1,320.0 393.1,380.0 393.1,387.0 289.1,327.0" fill="#3a7d3e"/>
+<polygon class="o" points="497.0,320.0 393.1,380.0 393.1,387.0 497.0,327.0" fill="#3f8f43"/>
+<polygon class="o" points="393.1,260.0 497.0,320.0 393.1,380.0 289.1,320.0" fill="#5cb85c"/>
+<line class="furrow" x1="377.5" y1="275.0" x2="471.0" y2="329.0"/>
+<line class="furrow" x1="346.3" y1="293.0" x2="439.8" y2="347.0"/>
+<line class="furrow" x1="315.1" y1="311.0" x2="408.7" y2="365.0"/>
+<g class="crop" style="animation-delay:0.00s">
+<polygon class="o thin" points="378.9,280.2 389.3,286.2 389.3,278.6 378.9,272.6" fill="#3d92e3"/>
+<polygon class="o thin" points="396.9,281.8 389.3,286.2 389.3,278.6 396.9,274.2" fill="#2a74c4"/>
+<polygon class="o thin" points="386.5,268.2 396.9,274.2 389.3,278.6 378.9,272.6" fill="#6cb4f5"/>
+</g>
+<g class="crop" style="animation-delay:0.12s">
+<polygon class="o thin" points="347.7,298.2 358.1,304.2 358.1,296.6 347.7,290.6" fill="#3d92e3"/>
+<polygon class="o thin" points="365.7,299.8 358.1,304.2 358.1,296.6 365.7,292.2" fill="#2a74c4"/>
+<polygon class="o thin" points="355.3,286.2 365.7,292.2 358.1,296.6 347.7,290.6" fill="#6cb4f5"/>
+</g>
+<g class="crop" style="animation-delay:0.12s">
+<polygon class="o thin" points="403.1,294.2 413.5,300.2 413.5,292.6 403.1,286.6" fill="#3d92e3"/>
+<polygon class="o thin" points="421.1,295.8 413.5,300.2 413.5,292.6 421.1,288.2" fill="#2a74c4"/>
+<polygon class="o thin" points="410.7,282.2 421.1,288.2 413.5,292.6 403.1,286.6" fill="#6cb4f5"/>
+</g>
+<g class="crop" style="animation-delay:0.24s">
+<polygon class="o thin" points="316.5,316.2 326.9,322.2 326.9,314.6 316.5,308.6" fill="#3d92e3"/>
+<polygon class="o thin" points="334.5,317.8 326.9,322.2 326.9,314.6 334.5,310.2" fill="#2a74c4"/>
+<polygon class="o thin" points="324.1,304.2 334.5,310.2 326.9,314.6 316.5,308.6" fill="#6cb4f5"/>
+</g>
+<g class="crop" style="animation-delay:0.24s">
+<polygon class="o thin" points="371.9,312.2 382.3,318.2 382.3,310.6 371.9,304.6" fill="#3d92e3"/>
+<polygon class="o thin" points="390.0,313.8 382.3,318.2 382.3,310.6 390.0,306.2" fill="#2a74c4"/>
+<polygon class="o thin" points="379.6,300.2 390.0,306.2 382.3,310.6 371.9,304.6" fill="#6cb4f5"/>
+</g>
+<g class="crop" style="animation-delay:0.24s">
+<polygon class="o thin" points="427.4,308.2 437.8,314.2 437.8,306.6 427.4,300.6" fill="#3d92e3"/>
+<polygon class="o thin" points="445.4,309.8 437.8,314.2 437.8,306.6 445.4,302.2" fill="#2a74c4"/>
+<polygon class="o thin" points="435.0,296.2 445.4,302.2 437.8,306.6 427.4,300.6" fill="#6cb4f5"/>
+</g>
+<g class="crop" style="animation-delay:0.36s">
+<polygon class="o thin" points="340.8,330.2 351.2,336.2 351.2,328.6 340.8,322.6" fill="#3d92e3"/>
+<polygon class="o thin" points="358.8,331.8 351.2,336.2 351.2,328.6 358.8,324.2" fill="#2a74c4"/>
+<polygon class="o thin" points="348.4,318.2 358.8,324.2 351.2,328.6 340.8,322.6" fill="#6cb4f5"/>
+</g>
+<g class="crop" style="animation-delay:0.36s">
+<polygon class="o thin" points="396.2,326.2 406.6,332.2 406.6,324.6 396.2,318.6" fill="#3d92e3"/>
+<polygon class="o thin" points="414.2,327.8 406.6,332.2 406.6,324.6 414.2,320.2" fill="#2a74c4"/>
+<polygon class="o thin" points="403.8,314.2 414.2,320.2 406.6,324.6 396.2,318.6" fill="#6cb4f5"/>
+</g>
+<g class="crop" style="animation-delay:0.36s">
+<polygon class="o thin" points="451.6,322.2 462.0,328.2 462.0,320.6 451.6,314.6" fill="#3d92e3"/>
+<polygon class="o thin" points="469.6,323.8 462.0,328.2 462.0,320.6 469.6,316.2" fill="#2a74c4"/>
+<polygon class="o thin" points="459.2,310.2 469.6,316.2 462.0,320.6 451.6,314.6" fill="#6cb4f5"/>
+</g>
+<g class="crop" style="animation-delay:0.48s">
+<polygon class="o thin" points="365.0,344.2 375.4,350.2 375.4,342.6 365.0,336.6" fill="#3d92e3"/>
+<polygon class="o thin" points="383.0,345.8 375.4,350.2 375.4,342.6 383.0,338.2" fill="#2a74c4"/>
+<polygon class="o thin" points="372.6,332.2 383.0,338.2 375.4,342.6 365.0,336.6" fill="#6cb4f5"/>
+</g>
+<g class="crop" style="animation-delay:0.48s">
+<polygon class="o thin" points="420.4,340.2 430.8,346.2 430.8,338.6 420.4,332.6" fill="#3d92e3"/>
+<polygon class="o thin" points="438.5,341.8 430.8,346.2 430.8,338.6 438.5,334.2" fill="#2a74c4"/>
+<polygon class="o thin" points="428.1,328.2 438.5,334.2 430.8,338.6 420.4,332.6" fill="#6cb4f5"/>
+</g>
+<g class="crop" style="animation-delay:0.60s">
+<polygon class="o thin" points="389.3,358.2 399.7,364.2 399.7,356.6 389.3,350.6" fill="#3d92e3"/>
+<polygon class="o thin" points="407.3,359.8 399.7,364.2 399.7,356.6 407.3,352.2" fill="#2a74c4"/>
+<polygon class="o thin" points="396.9,346.2 407.3,352.2 399.7,356.6 389.3,350.6" fill="#6cb4f5"/>
+</g>
+<!-- hosts (front) -->
+<polygon class="o" points="148.9,235.0 200.8,265.0 200.8,272.0 148.9,242.0" fill="#3a7d3e"/>
+<polygon class="o" points="252.8,235.0 200.8,265.0 200.8,272.0 252.8,242.0" fill="#3f8f43"/>
+<polygon class="o" points="200.8,205.0 252.8,235.0 200.8,265.0 148.9,235.0" fill="#5cb85c"/>
+<polygon class="o" points="547.2,235.0 599.2,265.0 599.2,272.0 547.2,242.0" fill="#3a7d3e"/>
+<polygon class="o" points="651.1,235.0 599.2,265.0 599.2,272.0 651.1,242.0" fill="#3f8f43"/>
+<polygon class="o" points="599.2,205.0 651.1,235.0 599.2,265.0 547.2,235.0" fill="#5cb85c"/>
+<polygon class="o" points="167.9,234.0 202.5,254.0 202.5,234.0 167.9,214.0" fill="#3d92e3"/>
+<polygon class="o" points="233.7,236.0 202.5,254.0 202.5,234.0 233.7,216.0" fill="#2a74c4"/>
+<polygon class="o" points="199.1,196.0 233.7,216.0 202.5,234.0 167.9,214.0" fill="#6cb4f5"/>
+<line class="rib" x1="174.8" y1="235.0" x2="174.8" y2="221.0"/>
+<line class="rib" x1="181.8" y1="239.0" x2="181.8" y2="225.0"/>
+<line class="rib" x1="188.7" y1="243.0" x2="188.7" y2="229.0"/>
+<line class="rib" x1="195.6" y1="247.0" x2="195.6" y2="233.0"/>
+<line class="rib" x1="226.8" y1="237.0" x2="226.8" y2="223.0"/>
+<line class="rib" x1="219.9" y1="241.0" x2="219.9" y2="227.0"/>
+<line class="rib" x1="212.9" y1="245.0" x2="212.9" y2="231.0"/>
+<line class="rib" x1="206.0" y1="249.0" x2="206.0" y2="235.0"/>
+<polygon class="o" points="564.5,235.0 599.2,255.0 599.2,235.0 564.5,215.0" fill="#3d92e3"/>
+<polygon class="o" points="633.8,235.0 599.2,255.0 599.2,235.0 633.8,215.0" fill="#2a74c4"/>
+<polygon class="o" points="599.2,195.0 633.8,215.0 599.2,235.0 564.5,215.0" fill="#6cb4f5"/>
+<line class="rib" x1="571.5" y1="236.0" x2="571.5" y2="222.0"/>
+<line class="rib" x1="578.4" y1="240.0" x2="578.4" y2="226.0"/>
+<line class="rib" x1="585.3" y1="244.0" x2="585.3" y2="230.0"/>
+<line class="rib" x1="592.3" y1="248.0" x2="592.3" y2="234.0"/>
+<line class="rib" x1="626.9" y1="236.0" x2="626.9" y2="222.0"/>
+<line class="rib" x1="620.0" y1="240.0" x2="620.0" y2="226.0"/>
+<line class="rib" x1="613.0" y1="244.0" x2="613.0" y2="230.0"/>
+<line class="rib" x1="606.1" y1="248.0" x2="606.1" y2="234.0"/>
+<polygon class="o" points="564.5,215.0 599.2,235.0 599.2,215.0 564.5,195.0" fill="#3d92e3"/>
+<polygon class="o" points="626.9,219.0 599.2,235.0 599.2,215.0 626.9,199.0" fill="#2a74c4"/>
+<polygon class="o" points="592.3,179.0 626.9,199.0 599.2,215.0 564.5,195.0" fill="#6cb4f5"/>
+<line class="rib" x1="571.5" y1="216.0" x2="571.5" y2="202.0"/>
+<line class="rib" x1="578.4" y1="220.0" x2="578.4" y2="206.0"/>
+<line class="rib" x1="585.3" y1="224.0" x2="585.3" y2="210.0"/>
+<line class="rib" x1="592.3" y1="228.0" x2="592.3" y2="214.0"/>
+<line class="rib" x1="620.0" y1="220.0" x2="620.0" y2="206.0"/>
+<line class="rib" x1="613.0" y1="224.0" x2="613.0" y2="210.0"/>
+<line class="rib" x1="606.1" y1="228.0" x2="606.1" y2="214.0"/>
+<!-- migrating container -->
+<g class="migrant">
+<polygon class="o" points="195.6,102.0 223.3,118.0 223.3,98.0 195.6,82.0" fill="#3d92e3"/>
+<polygon class="o" points="247.6,104.0 223.3,118.0 223.3,98.0 247.6,84.0" fill="#2a74c4"/>
+<polygon class="o" points="219.9,68.0 247.6,84.0 223.3,98.0 195.6,82.0" fill="#6cb4f5"/>
+<line class="rib" x1="202.5" y1="103.0" x2="202.5" y2="89.0"/>
+<line class="rib" x1="209.5" y1="107.0" x2="209.5" y2="93.0"/>
+<line class="rib" x1="216.4" y1="111.0" x2="216.4" y2="97.0"/>
+<line class="rib" x1="240.7" y1="105.0" x2="240.7" y2="91.0"/>
+<line class="rib" x1="233.7" y1="109.0" x2="233.7" y2="95.0"/>
+</g>
+<!-- weathervane -->
+<path class="vcase" d="M386.1,108.0 V82.0"/><path class="vcore" d="M386.1,108.0 V82.0"/>
+<g transform="translate(386.1 82.0) matrix(12.12 7.00 -12.12 7.00 0 0)"><g class="spin">
+<path class="vcase" d="M-0.7,0 H0.6"/>
+<polygon class="vfill" points="1.15,0 0.5,0.42 0.5,-0.42"/>
+<polygon class="vfill" points="-0.35,0 -0.8,0.4 -1.15,0.4 -0.85,0 -1.15,-0.4 -0.8,-0.4"/>
+<path class="vcore" d="M-0.7,0 H0.6"/>
+</g></g>
+<path class="vcase" d="M386.1,82.0 V69.0"/><path class="vcore" d="M386.1,82.0 V69.0"/>
+<circle class="vfill" cx="386.1" cy="68.0" r="3"/>
+</svg>

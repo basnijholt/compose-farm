@@ -189,7 +189,7 @@ class TestSshConnectKwargs:
             assert result["host"] == "example.com"
             assert result["port"] == 22
             assert result["username"] == "testuser"
-            assert result["known_hosts"] is None
+            assert result["known_hosts"] == str(SSH_KEY_PATH.parent / "known_hosts")
             assert "agent_path" not in result
             assert "client_keys" not in result
 

@@ -10,6 +10,7 @@ from pathlib import Path
 SSH_KEY_DIR = Path.home() / ".ssh" / "compose-farm"
 SSH_KEY_PATH = SSH_KEY_DIR / "id_ed25519"
 SSH_PUBKEY_PATH = SSH_KEY_PATH.with_suffix(".pub")
+SSH_KNOWN_HOSTS_PATH = SSH_KEY_DIR / "known_hosts"
 
 
 def get_ssh_auth_sock() -> str | None:
