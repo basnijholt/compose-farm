@@ -95,7 +95,7 @@ For advanced users, here's the complete reference:
 | `CF_COMPOSE_DIR` | Compose files directory | `/opt/stacks` |
 | `CF_UID` / `CF_GID` | User/group ID | `0` (root) |
 | `CF_HOME` | Home directory | `/root` |
-| `CF_USER` | Username for SSH | `root` |
+| `CF_USER` | Username exposed through the container's `USER` environment variable | `root` |
 | `CF_WEB_STACK` | Web UI stack name (enables self-update, local host inference) | *(none)* |
 | `CF_WEB_USERNAME` | Web UI login username | `admin` |
 | `CF_WEB_PASSWORD` | Web UI login password; enables HTTP Basic auth when set | *(none: no login)* |
