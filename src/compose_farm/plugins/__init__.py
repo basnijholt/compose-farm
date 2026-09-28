@@ -79,7 +79,9 @@ class HookContext:
 
 def _checked(result: CommandResult, command: str, where: str, *, check: bool) -> CommandResult:
     """Turn Ctrl+C into KeyboardInterrupt and, with check, failures into PluginError."""
-    if result.interrupted:
+    # Only signal deaths count as Ctrl+C: ssh and rsync exit 255 on connection errors,
+    # which must fail the hook (and trigger rollback) instead of aborting the run.
+    if result.exit_code < 0:
         raise KeyboardInterrupt
     if check and not result.success:
         detail = result.stderr.strip()
@@ -144,6 +146,9 @@ def load_plugins(cfg: Config) -> tuple[Plugin, ...]:
         except Exception as e:
             msg = f"plugin {name}: {e}"
             raise PluginError(msg) from e
+        if not isinstance(plugin, Plugin):
+            msg = f"plugin {name}: {type(plugin).__name__} is not a compose_farm.plugins.Plugin"
+            raise PluginError(msg)
         plugin.name = name
         plugins.append(plugin)
     return tuple(plugins)

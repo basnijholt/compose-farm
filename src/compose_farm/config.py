@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, PrivateAttr, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 
 from .paths import config_search_paths, find_config_path
 from .plugins import Plugin, load_plugins
@@ -42,6 +42,12 @@ class Config(BaseModel, extra="forbid"):
     config_path: Path = Path()  # Set by load_config()
 
     _loaded_plugins: tuple[Plugin, ...] | None = PrivateAttr(default=None)
+
+    @field_validator("plugins", mode="before")
+    @classmethod
+    def empty_plugins(cls, value: Any) -> Any:
+        """Treat an empty ``plugins:`` section (YAML null) as no plugins."""
+        return {} if value is None else value
 
     def get_state_path(self) -> Path:
         """Get the state file path (stored alongside config)."""

@@ -111,6 +111,24 @@ class TestLoader:
         with _entry_points(), pytest.raises(PluginError, match="Unknown plugin"):
             load_config(path)
 
+    def test_non_plugin_class_is_rejected(self, tmp_path: Path) -> None:
+        cfg = make_config(tmp_path, {"web": "h1"})
+        cfg.plugins = {"bad": None}
+        with (
+            _entry_points(_EntryPoint("bad", dict)),
+            pytest.raises(
+                PluginError, match=r"plugin bad: dict is not a compose_farm\.plugins\.Plugin"
+            ),
+        ):
+            load_plugins(cfg)
+
+    def test_empty_plugins_section_is_allowed(self, tmp_path: Path) -> None:
+        path = tmp_path / "compose-farm.yaml"
+        path.write_text(
+            "compose_dir: /opt/compose\nhosts: {h1: localhost}\nstacks: {web: h1}\nplugins:\n"
+        )
+        assert load_config(path).plugins == {}
+
     def test_plugins_must_be_a_mapping(self) -> None:
         with pytest.raises(ValidationError):
             Config(hosts={"h1": Host(address="localhost")}, stacks={}, plugins=["sync"])
@@ -199,6 +217,13 @@ class TestHookContextRun:
             pytest.raises(KeyboardInterrupt),
         ):
             await HookContext(cfg, "web", "h1").run("sleep 10")
+
+    async def test_exit_255_is_a_failure_not_an_interrupt(self, tmp_path: Path) -> None:
+        """Ssh and rsync exit 255 on connection errors; that must not look like Ctrl+C."""
+        ctx = HookContext(make_config(tmp_path, {"web": "h1"}), "web", "h1")
+        with pytest.raises(PluginError, match=r"exit 255"):
+            await ctx.run_local("exit 255", stream=False)
+        assert not (await ctx.run_local("exit 255", stream=False, check=False)).success
 
     async def test_run_executes_on_local_host(self, tmp_path: Path) -> None:
         cfg = make_config(tmp_path, {"web": "h1"})
