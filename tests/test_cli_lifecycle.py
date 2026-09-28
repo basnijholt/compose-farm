@@ -897,7 +897,19 @@ class TestHostFilterMultiHost:
 def test_apply_keeps_migration_source_running(tmp_path: Path) -> None:
     """A stack pending migration is not stopped as a stray on its state host."""
     cfg = make_config(tmp_path, {"web": "h2", "db": "h2"}, hosts=("h1", "h2", "h3"))
+    for index, name in enumerate(("h1", "h2", "h3")):
+        cfg.hosts[name] = Host(address=f"192.0.2.{index + 1}")
     set_stack_host(cfg, "web", "h1")
     strays = {"web": ["h1", "h3"], "db": ["h1"]}
     assert _exclude_migration_sources(cfg, strays, ["web"]) == {"web": ["h3"], "db": ["h1"]}
     assert _exclude_migration_sources(cfg, {"web": ["h1"]}, ["web"]) == {}
+
+
+def test_apply_keeps_migration_source_running_under_an_alias(tmp_path: Path) -> None:
+    """Discovery may report the source under another name for the same machine."""
+    cfg = make_config(tmp_path, {"web": "far"}, hosts=("old", "new", "far"))
+    cfg.hosts["old"] = Host(address="192.0.2.1")
+    cfg.hosts["new"] = Host(address="192.0.2.1")
+    cfg.hosts["far"] = Host(address="192.0.2.9")
+    set_stack_host(cfg, "web", "old")
+    assert _exclude_migration_sources(cfg, {"web": ["new"]}, ["web"]) == {}

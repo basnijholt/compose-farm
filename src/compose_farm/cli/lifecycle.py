@@ -32,6 +32,7 @@ from compose_farm.console import MSG_DRY_RUN, console, print_error, print_succes
 from compose_farm.executor import run_compose_on_host, run_on_stacks
 from compose_farm.operations import (
     build_up_cmd,
+    host_machine,
     stop_orphaned_stacks,
     stop_stray_stacks,
     up_stacks,
@@ -269,8 +270,19 @@ def _exclude_migration_sources(
     disable rollback (the stack no longer counts as running on the source).
     """
     sources = {stack: get_stack_host(cfg, stack) for stack in migrations}
+
+    def is_source(stack: str, host: str) -> bool:
+        source = sources.get(stack)
+        if source is None:
+            return False
+        if host == source:
+            return True
+        # Discovery may report the source under another name for the same machine
+        both_known = host in cfg.hosts and source in cfg.hosts
+        return both_known and host_machine(cfg, host) == host_machine(cfg, source)
+
     filtered = {
-        stack: [host for host in hosts if host != sources.get(stack)]
+        stack: [host for host in hosts if not is_source(stack, host)]
         for stack, hosts in strays.items()
     }
     return {stack: hosts for stack, hosts in filtered.items() if hosts}
