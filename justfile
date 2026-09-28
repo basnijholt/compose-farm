@@ -29,6 +29,15 @@ lint:
     uv run mypy src
     uv run ty check src
 
+# Audit the exact locked production dependencies, including web extras
+audit:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    audit_requirements="$(mktemp)"
+    trap 'rm -f "$audit_requirements"' EXIT
+    uv export --frozen --all-extras --no-dev --no-hashes --output-file "$audit_requirements"
+    uvx pip-audit==2.10.1 --requirement "$audit_requirements"
+
 # Start web UI in development mode with auto-reload
 web:
     uv run cf web --reload --port 9001

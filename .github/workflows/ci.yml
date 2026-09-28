@@ -7,6 +7,20 @@ on:
     branches: [main]
 
 jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Export locked production dependencies
+        run: uv export --frozen --all-extras --no-dev --no-hashes --output-file "${RUNNER_TEMP}/requirements-audit.txt"
+
+      - name: Audit dependencies
+        run: uvx pip-audit==2.10.1 --requirement "${RUNNER_TEMP}/requirements-audit.txt"
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:
