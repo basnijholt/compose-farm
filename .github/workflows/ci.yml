@@ -113,4 +113,4 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Run pre-commit (via prek)
-        uses: j178/prek-action@v1.1.1
+        uses: j178/prek-action@v3.0.0
