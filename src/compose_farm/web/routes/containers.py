@@ -274,7 +274,11 @@ async def get_containers_rows() -> HTMLResponse:
         )
 
     containers = await fetch_all_container_stats(config)
-    _cache_known_images(containers, list(config.hosts))
+    # The aggregate fetch flattens successful hosts and omits failed ones, so only
+    # replace cache entries backed by fresh inventory. A transient host failure must
+    # not erase its last trusted image set.
+    observed_hosts = sorted({container.host for container in containers})
+    _cache_known_images(containers, observed_hosts)
 
     if not containers:
         return HTMLResponse(

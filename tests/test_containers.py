@@ -12,6 +12,7 @@ from compose_farm.registry import ImageRef, TagCheckResult
 from compose_farm.web.app import create_app
 from compose_farm.web.routes.containers import (
     _infer_stack_service,
+    _known_image_cache,
     _parse_image,
     _parse_uptime_seconds,
     _render_row,
@@ -439,6 +440,37 @@ class TestContainerUpdateChecks:
 
         assert response.status_code == 200
         assert "1 new" in response.json()["results"][0]["html"]
+
+    def test_failed_aggregate_refresh_keeps_last_known_images(self) -> None:
+        """A partial Glances outage must not erase the last trusted inventory."""
+        _known_image_cache.clear()
+        client = TestClient(create_app())
+        result = TagCheckResult(
+            image=ImageRef.parse("ghcr.io/acme/app:1.0"),
+            current_digest="sha256:abc",
+            available_updates=[],
+        )
+        with (
+            patch("compose_farm.web.routes.containers.get_config", return_value=self._config()),
+            patch(
+                "compose_farm.web.routes.containers.fetch_all_container_stats",
+                new_callable=AsyncMock,
+                side_effect=[[_stats(image="ghcr.io/acme/app:1.0")], []],
+            ),
+            patch(
+                "compose_farm.registry.check_image_updates",
+                new_callable=AsyncMock,
+                return_value=result,
+            ),
+        ):
+            assert client.get("/api/containers/rows").status_code == 200
+            assert client.get("/api/containers/rows").status_code == 200
+            response = client.post(
+                "/api/containers/check-updates",
+                json={"items": [{"image": "ghcr.io/acme/app", "tag": "1.0"}]},
+            )
+
+        assert response.status_code == 200
 
     def test_rejects_more_than_one_hundred_items(self) -> None:
         client = TestClient(create_app())
