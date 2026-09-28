@@ -58,7 +58,8 @@ plugins:
 - `compose_dir` must exist locally at the same path it has on the hosts.
 - Hosts that are the local machine are skipped.
 - `rsync` must be installed on the machine running `cf` (the Docker image includes it) and on the hosts.
-- **Careful with `delete: true`**: it removes every file on the host that is not in the local copy, including data in bind mounts under the stack directory (`./data`, `./config`) and host-only `.env` files. Only enable it together with `excludes` for those paths.
+- **The local copy is the source of truth.** Every file that exists locally replaces the host's version whenever they differ, even if the host's file is newer. Keep runtime data (`./data`, `./config` bind mounts) and host-specific files (a per-host `.env`) out of the stack directory, or list them in `excludes`.
+- **Careful with `delete: true`**: it also removes every file on the host that is not in the local copy, including such data and host-only files. Only enable it together with `excludes` for those paths.
 
 ## Hooks
 
@@ -174,5 +175,5 @@ The `commands` plugin runs shell commands from the config file. The config alrea
 
 - Compose Farm parses each stack's compose file and `.env` locally for preflight paths, ports, and Traefik labels. That parsing does not see `compose_args`: variables that only exist in an extra env file are not visible there, and services, volumes, or labels added through extra `-f` files are not reflected in preflight or Traefik output.
 - Avoid `-f` and `-p` in `compose_args`: a single `-f` replaces compose's file discovery (list the stack's own compose file too), and `-p` changes the project name, which `cf refresh` and stray detection rely on (they expect the directory name).
-- With per-stack datasets, volume paths do not exist on hosts that never ran the stack, so `cf check` reports them as missing there.
+- `cf check` runs preflight without running `before_up` first. Paths that a plugin creates on start are therefore reported as missing on hosts that never ran the stack: `compose_dir` with `sync`, and volume paths with per-stack datasets. `cf up` creates them.
 - Plugins cannot add CLI commands yet.

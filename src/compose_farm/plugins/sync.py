@@ -2,7 +2,9 @@
 
 Replaces NFS for compose files. ``compose_dir`` must exist locally at the same
 path it has on the hosts; ``compose_dir/<stack>/`` is copied to that path on
-the target host before every start.
+the target host before every start. The local copy is the source of truth:
+files that differ are overwritten on the host, so exclude runtime data and
+host-specific files.
 
 Example::
 
