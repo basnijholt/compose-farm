@@ -47,6 +47,7 @@ class TestServiceAction:
             response = client.post("/api/stack/plex/service/remote-only.v2/restart")
 
         assert response.status_code == 200
+        assert mock_stream.await_args is not None
         assert mock_stream.await_args.args[4] == ["--service=remote-only.v2"]
 
     def test_known_service_passes_single_argv_item(self, client: TestClient) -> None:
@@ -57,6 +58,7 @@ class TestServiceAction:
         assert response.status_code == 200
         assert response.json()["service"] == "plex"
         mock_stream.assert_awaited_once()
+        assert mock_stream.await_args is not None
         args = mock_stream.await_args.args
         assert args[1:3] == ("plex", "restart")
         assert args[4] == ["--service=plex"]
