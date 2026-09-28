@@ -16,7 +16,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Export locked production dependencies
-        run: uv export --frozen --all-extras --no-dev --no-hashes --output-file "${RUNNER_TEMP}/requirements-audit.txt"
+        run: uv export --frozen --all-extras --no-dev --no-emit-project --no-hashes --output-file "${RUNNER_TEMP}/requirements-audit.txt"
 
       - name: Audit dependencies
         run: uvx pip-audit==2.10.1 --requirement "${RUNNER_TEMP}/requirements-audit.txt"

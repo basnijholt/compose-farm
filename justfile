@@ -35,7 +35,7 @@ audit:
     set -euo pipefail
     audit_requirements="$(mktemp)"
     trap 'rm -f "$audit_requirements"' EXIT
-    uv export --frozen --all-extras --no-dev --no-hashes --output-file "$audit_requirements"
+    uv export --frozen --all-extras --no-dev --no-emit-project --no-hashes --output-file "$audit_requirements"
     uvx pip-audit==2.10.1 --requirement "$audit_requirements"
 
 # Start web UI in development mode with auto-reload
