@@ -243,99 +243,75 @@ def scene(*, animated: bool) -> list[str]:
 
 
 # --- wordmark -------------------------------------------------------------
-# Monoline letters on centerlines (stroke 13), cap height 56 including stroke.
-T, B, MID, SW = 6.5, 49.5, 28.0, 13.0
+# "COMPOSE FARM" set in Inter ExtraBold (SIL Open Font License) with its own
+# kerning plus 4% tracking, converted to outlines so it renders identically
+# without the font installed. Cap height is 56.
+WORDMARK_WIDTH = 668.4
+WORDMARK_HEIGHT = 56.0
+WORDMARK = (
+    "M29.6 56.8Q22 56.8 16 53.4Q10 50.1 6.6 43.6Q3.1 37.2 3.1 28Q3.1 18.8 6.6 12.4Q10.1 5.9 "
+    "16.1 2.6Q22.1 -0.8 29.6 -0.8Q34.6 -0.8 38.8 0.6Q43.1 2 46.3 4.6Q49.6 7.3 51.7 11.1Q53.7 "
+    "14.9 54.3 19.8H40.9Q40.6 17.7 39.7 16.1Q38.7 14.4 37.3 13.3Q35.9 12.1 34.1 11.5Q32.2 "
+    "10.9 29.9 10.9Q25.8 10.9 22.8 12.9Q19.8 15 18.2 18.8Q16.6 22.6 16.6 28Q16.6 33.6 18.3 "
+    "37.5Q19.9 41.3 22.9 43.2Q25.8 45.1 29.8 45.1Q32.1 45.1 34 44.5Q35.9 43.9 37.3 42.7Q38.7 "
+    "41.6 39.7 39.9Q40.6 38.3 40.9 36.2H54.3Q54 40 52.2 43.6Q50.4 47.2 47.3 50.2Q44.2 53.2 "
+    "39.7 55Q35.3 56.8 29.6 56.8Z M90.1 56.8Q82.5 56.8 76.5 53.4Q70.5 50.1 66.9 43.6Q63.4 "
+    "37.2 63.4 28Q63.4 18.8 66.9 12.4Q70.5 5.9 76.5 2.6Q82.5 -0.8 90.1 -0.8Q97.6 -0.8 103.6 "
+    "2.6Q109.7 5.9 113.2 12.4Q116.7 18.8 116.7 28Q116.7 37.2 113.2 43.7Q109.7 50.1 103.6 "
+    "53.4Q97.6 56.8 90.1 56.8ZM90.1 45.1Q94.1 45.1 97.1 43.1Q100 41.2 101.6 37.4Q103.2 33.6 "
+    "103.2 28Q103.2 22.5 101.6 18.6Q100 14.8 97.1 12.9Q94.1 10.9 90.1 10.9Q86 10.9 83.1 "
+    "12.9Q80.1 14.8 78.5 18.7Q77 22.5 77 28Q77 33.6 78.5 37.4Q80.1 41.2 83.1 43.1Q86 45.1 "
+    "90.1 45.1Z M127.3 56V0H147.9L155.1 21.8Q155.7 23.8 156.4 27.1Q157.2 30.4 158 34.1Q158.8 "
+    "37.9 159.4 41.4Q160.1 44.9 160.5 47.4H158Q158.4 44.9 159.1 41.4Q159.7 37.9 160.5 "
+    "34.1Q161.3 30.4 162 27.1Q162.8 23.8 163.4 21.8L170.4 0H191.1V56H177.8V31.9Q177.8 30 "
+    "177.9 27Q178 24.1 178 20.6Q178.1 17.2 178.2 13.7Q178.3 10.1 178.3 7.1H179.1Q178.4 10.4 "
+    "177.6 14Q176.7 17.6 175.8 21Q174.9 24.4 174.1 27.2Q173.3 30 172.7 31.9L164.8 "
+    "56H153.7L145.6 31.9Q145 30 144.2 27.2Q143.4 24.4 142.5 21Q141.6 17.6 140.7 14.1Q139.8 "
+    "10.5 139 7.1H140Q140 10.1 140.1 13.6Q140.2 17.1 140.3 20.6Q140.4 24.1 140.5 27Q140.6 30 "
+    "140.6 31.9V56Z M202.9 56V0H225.9Q232.2 0 236.8 2.4Q241.4 4.9 243.8 9.2Q246.3 13.6 246.3 "
+    "19.4Q246.3 25.1 243.8 29.4Q241.2 33.7 236.6 36.1Q231.9 38.5 225.5 "
+    "38.5H211.3V28H223.1Q226.2 28 228.3 26.9Q230.4 25.9 231.5 23.9Q232.5 21.9 232.5 "
+    "19.4Q232.5 16.7 231.5 14.8Q230.4 12.9 228.3 11.8Q226.2 10.7 223.1 10.7H216.2V56Z M281.6 "
+    "56.8Q274 56.8 268 53.4Q262 50.1 258.5 43.6Q254.9 37.2 254.9 28Q254.9 18.8 258.5 12.4Q262 "
+    "5.9 268 2.6Q274 -0.8 281.6 -0.8Q289.1 -0.8 295.2 2.6Q301.2 5.9 304.7 12.4Q308.2 18.8 "
+    "308.2 28Q308.2 37.2 304.7 43.7Q301.2 50.1 295.2 53.4Q289.1 56.8 281.6 56.8ZM281.6 "
+    "45.1Q285.7 45.1 288.6 43.1Q291.5 41.2 293.1 37.4Q294.7 33.6 294.7 28Q294.7 22.5 293.1 "
+    "18.6Q291.5 14.8 288.6 12.9Q285.7 10.9 281.6 10.9Q277.5 10.9 274.6 12.9Q271.6 14.8 270.1 "
+    "18.7Q268.5 22.5 268.5 28Q268.5 33.6 270.1 37.4Q271.6 41.2 274.6 43.1Q277.5 45.1 281.6 "
+    "45.1Z M340.4 56.8Q333.4 56.8 328.2 54.6Q323 52.5 320.1 48.3Q317.2 44 317.1 "
+    "37.5H329.9Q330 40.2 331.3 42.1Q332.6 43.9 334.9 44.8Q337.2 45.7 340.2 45.7Q343 45.7 345 "
+    "45Q347 44.2 348 42.9Q349.1 41.5 349.1 39.7Q349.1 38.1 348.1 37Q347.1 35.9 345.1 35Q343.1 "
+    "34.1 340 33.4L334.1 32.1Q326.9 30.4 322.7 26.6Q318.6 22.9 318.6 16.6Q318.6 11.4 321.4 "
+    "7.5Q324.2 3.6 329.1 1.4Q334 -0.8 340.4 -0.8Q346.9 -0.8 351.7 1.4Q356.4 3.6 359.1 "
+    "7.6Q361.7 11.5 361.8 16.7H349Q348.8 13.6 346.5 12Q344.3 10.3 340.3 10.3Q337.7 10.3 335.9 "
+    "11Q334.1 11.7 333.2 12.9Q332.3 14.1 332.3 15.7Q332.3 17.4 333.3 18.6Q334.3 19.8 336.2 "
+    "20.6Q338.1 21.3 340.6 21.9L345.4 23Q349.5 23.9 352.7 25.4Q355.8 26.9 358 28.9Q360.2 31 "
+    "361.4 33.7Q362.5 36.4 362.5 39.8Q362.5 45.1 359.9 48.9Q357.2 52.7 352.3 54.7Q347.3 56.8 "
+    "340.4 56.8Z M372.7 56V0H411.5V10.8H385.9V22.4H409.5V33H385.9V45.2H411.5V56Z M442.6 "
+    "56V0H480.7V10.8H455.9V25H478.2V35.6H455.9V56Z M481.2 56 499.8 0H517.6L536.9 56H522L514.2 "
+    "31.5Q512.3 25.4 510.6 18.5Q508.8 11.6 507.1 4.2H510Q508.3 11.7 506.8 18.5Q505.2 25.4 "
+    "503.4 31.5L495.9 56ZM493.9 44.1V33.9H524.2V44.1Z M546.1 56V0H569Q575.3 0 579.9 2.3Q584.5 "
+    "4.5 586.9 8.7Q589.4 12.9 589.4 18.6Q589.4 24.4 586.9 28.4Q584.4 32.5 579.7 34.6Q575 36.7 "
+    "568.6 36.7H554V26.2H566.2Q569.3 26.2 571.4 25.4Q573.5 24.6 574.6 22.9Q575.6 21.2 575.6 "
+    "18.6Q575.6 16 574.6 14.2Q573.5 12.5 571.4 11.6Q569.3 10.7 566.2 10.7H559.3V56ZM576.8 56 "
+    "563.2 30.4H577.4L591.4 56Z M600.1 56V0H620.8L627.9 21.8Q628.5 23.8 629.3 27.1Q630.1 30.4 "
+    "630.9 34.1Q631.6 37.9 632.3 41.4Q633 44.9 633.4 47.4H630.9Q631.3 44.9 631.9 41.4Q632.6 "
+    "37.9 633.3 34.1Q634.1 30.4 634.9 27.1Q635.7 23.8 636.3 21.8L643.3 "
+    "0H664V56H650.7V31.9Q650.7 30 650.7 27Q650.8 24.1 650.9 20.6Q651 17.2 651.1 13.7Q651.2 "
+    "10.1 651.2 7.1H652Q651.3 10.4 650.4 14Q649.5 17.6 648.6 21Q647.8 24.4 647 27.2Q646.1 30 "
+    "645.6 31.9L637.6 56H626.5L618.4 31.9Q617.9 30 617.1 27.2Q616.2 24.4 615.3 21Q614.4 17.6 "
+    "613.5 14.1Q612.6 10.5 611.9 7.1H612.8Q612.9 10.1 613 13.6Q613 17.1 613.1 20.6Q613.2 24.1 "
+    "613.3 27Q613.4 30 613.4 31.9V56Z"
+)
 
 
-def _c(x: float, w: float) -> str:
-    lx, rx, k = x + 6.5, x + 6.5 + w, 13
-    return f"M{rx},{T} H{lx + k} A{k},{k} 0 0 0 {lx},{T + k} V{B - k} A{k},{k} 0 0 0 {lx + k},{B} H{rx}"
-
-
-def _o(x: float, w: float) -> str:
-    lx, rx, k = x + 6.5, x + 6.5 + w, 14
+def wordmark(x: float, y: float, width: float) -> str:
+    """The wordmark scaled to `width`, with its top-left corner at (x, y)."""
+    scale = width / WORDMARK_WIDTH
     return (
-        f"M{lx + k},{T} H{rx - k} A{k},{k} 0 0 1 {rx},{T + k} V{B - k} A{k},{k} 0 0 1 {rx - k},{B} "
-        f"H{lx + k} A{k},{k} 0 0 1 {lx},{B - k} V{T + k} A{k},{k} 0 0 1 {lx + k},{T} Z"
+        f'<path class="wfill" transform="translate({x:.1f} {y:.1f}) scale({scale:.4f})" '
+        f'd="{WORDMARK}"/>'
     )
-
-
-def _p(x: float, w: float) -> str:
-    lx, rx, k, y = x + 6.5, x + 6.5 + w, 11, 30
-    return f"M{lx},{B} V{T} H{rx - k} A{k},{k} 0 0 1 {rx},{T + k} V{y - k} A{k},{k} 0 0 1 {rx - k},{y} H{lx}"
-
-
-def _r(x: float, w: float) -> str:
-    rx = x + 6.5 + w
-    return _p(x, w) + f" M{rx - 13},30 L{rx},{B}"
-
-
-def _s(x: float, w: float) -> str:
-    lx, rx, k = x + 6.5, x + 6.5 + w, 10.75
-    return (
-        f"M{rx},{T} H{lx + k} A{k},{k} 0 0 0 {lx + k},{MID} H{rx - k} "
-        f"A{k},{k} 0 0 1 {rx - k},{B} H{lx}"
-    )
-
-
-def _e(x: float, w: float) -> str:
-    lx, rx = x + 6.5, x + 6.5 + w
-    return f"M{rx},{T} H{lx} V{B} H{rx} M{lx},{MID} H{rx - 6}"
-
-
-def _f(x: float, w: float) -> str:
-    lx, rx = x + 6.5, x + 6.5 + w
-    return f"M{rx},{T} H{lx} V{B} M{lx},{MID} H{rx - 6}"
-
-
-def _a(x: float, w: float) -> str:
-    lx, rx, k = x + 6.5, x + 6.5 + w, 14
-    return (
-        f"M{lx},{B} V{T + k} A{k},{k} 0 0 1 {lx + k},{T} H{rx - k} A{k},{k} 0 0 1 {rx},{T + k} "
-        f"V{B} M{lx},{MID + 3} H{rx}"
-    )
-
-
-def _m(x: float, w: float) -> str:
-    """Filled outline, so the pointed joins don't overshoot the cap height."""
-    x0, x1 = x, x + w + SW
-    xm = (x0 + x1) / 2
-    pts = [
-        (x0, 56),
-        (x0, 0),
-        (x0 + SW + 2, 0),
-        (xm, 23),
-        (x1 - SW - 2, 0),
-        (x1, 0),
-        (x1, 56),
-        (x1 - SW, 56),
-        (x1 - SW, 20),
-        (xm, 43),
-        (x0 + SW, 20),
-        (x0 + SW, 56),
-    ]
-    return "F" + " ".join(f"{a:g},{b:g}" for a, b in pts)
-
-
-LETTERS = [(_c, 34), (_o, 36), (_m, 42), (_p, 33), (_o, 36), (_s, 34), (_e, 30), None,
-           (_f, 30), (_a, 36), (_r, 33), (_m, 42)]  # fmt: skip
-
-
-def wordmark() -> tuple[list[str], float]:
-    """Paths for "COMPOSE FARM" and the total width (height is 56)."""
-    gap, space, x, out = 9.0, 28.0, 0.0, []
-    for item in LETTERS:
-        if item is None:
-            x += space - gap
-            continue
-        fn, w = item
-        d = fn(x, w)
-        if d.startswith("F"):
-            out.append(f'<polygon class="wfill" points="{d[1:]}"/>')
-        else:
-            out.append(f'<path d="{d}"/>')
-        x += w + SW + gap
-    return out, x - gap
 
 
 # --- styles ---------------------------------------------------------------
@@ -381,7 +357,6 @@ def styles(*, animated: bool, dark: str) -> str:
         "stroke-linejoin:round;vector-effect:non-scaling-stroke}",
         f".vfill{{fill:{AMBER};stroke:{INK};stroke-width:1.5;stroke-linejoin:round;"
         "vector-effect:non-scaling-stroke}",
-        f".word{{fill:none;stroke:{INK};stroke-width:13;stroke-linejoin:miter}}",
         f".wfill{{fill:{INK};stroke:none}}",
         ".pulse{display:none}",
     ]
@@ -405,7 +380,7 @@ def styles(*, animated: bool, dark: str) -> str:
             "@media (prefers-reduced-motion:reduce){.spin,.crop,.migrant,.cursor{animation:none}"
             ".pulse{display:none}}",
         ]
-    on_dark = f".dash,.word{{stroke:{LIGHT}}}.wfill{{fill:{LIGHT}}}"
+    on_dark = f".dash{{stroke:{LIGHT}}}.wfill{{fill:{LIGHT}}}"
     if dark == "media":
         css.append(f"@media (prefers-color-scheme:dark){{{on_dark}}}")
     elif dark == "force":
@@ -437,15 +412,9 @@ def logo(*, with_wordmark: bool) -> str:
     body = scene(animated=True)
     x, y, w, h = bounds(pad=10)
     if with_wordmark:
-        letters, width = wordmark()
-        scale = (w - 20) / width
-        top = y + h + 6
-        body += [
-            f'<g class="word" transform="translate({x + 10:.1f} {top:.1f}) scale({scale:.3f})">',
-            *letters,
-            "</g>",
-        ]
-        h += 6 + 56 * scale + 10
+        width = w - 40
+        body.append(wordmark(x + 20, y + h + 4, width))
+        h += 4 + WORDMARK_HEIGHT * width / WORDMARK_WIDTH + 12
     return svg(body, (x, y, w, h), styles(animated=True, dark="media"))
 
 
@@ -463,29 +432,22 @@ def icon() -> str:
 
 
 def social_preview() -> str:
-    """1280x640 card with the farm, wordmark, and tagline on a dark background."""
+    """1280x640 card with the farm and wordmark on a dark background."""
     _bbox.clear()
     farm = scene(animated=False)
     x, y, w, h = bounds(pad=0)
-    letters, width = wordmark()
-    scale = 0.62 * w / width
-    farm_scale = 400 / h
-    tx = 640 - (x + w / 2) * farm_scale
-    ty = 60 - y * farm_scale
-    word_x = 640 - width * scale * farm_scale / 2
-    word_y = 60 + h * farm_scale + 34
+    farm_scale = 420 / h
+    word_w = 0.62 * w * farm_scale
+    word_h = WORDMARK_HEIGHT * word_w / WORDMARK_WIDTH
+    gap = 40
+    top = (640 - h * farm_scale - gap - word_h) / 2
     body = [
         '<rect width="1280" height="640" fill="#0d1117"/>',
-        f'<g transform="translate({tx:.1f} {ty:.1f}) scale({farm_scale:.3f})">',
+        f'<g transform="translate({640 - (x + w / 2) * farm_scale:.1f} {top - y * farm_scale:.1f}) '
+        f'scale({farm_scale:.3f})">',
         *farm,
         "</g>",
-        f'<g class="word" transform="translate({word_x:.1f} {word_y:.1f}) '
-        f'scale({scale * farm_scale:.3f})">',
-        *letters,
-        "</g>",
-        f'<text x="640" y="{word_y + 56 * scale * farm_scale + 46:.0f}" text-anchor="middle" '
-        f'fill="#9aa7b4" font-family="Inter, \'DejaVu Sans\', sans-serif" font-size="26">'
-        "Agentless multi-host Docker Compose over SSH</text>",
+        wordmark(640 - word_w / 2, top + h * farm_scale + gap, word_w),
     ]
     return svg(body, (0, 0, 1280, 640), styles(animated=False, dark="force"))
 
