@@ -18,12 +18,16 @@ curl -O https://raw.githubusercontent.com/basnijholt/compose-farm/main/docker-co
 
 ```bash
 cf config init-env
+printf 'CF_WEB_PASSWORD=%s\n' "$(openssl rand -hex 32)" >> .env
 ```
 
 This auto-detects settings from your `compose-farm.yaml`:
 - `DOMAIN` from existing traefik labels
 - `CF_COMPOSE_DIR` from config
 - `CF_UID/GID/HOME/USER` from current user
+
+The generated password is required because the container is reached through a
+non-loopback Docker network. Save it in your password manager before starting the UI.
 
 Review the output and edit if needed.
 
@@ -98,6 +102,7 @@ For advanced users, here's the complete reference:
 | `CF_USER` | Default SSH username for hosts without an explicit `user` | `root` |
 | `CF_WEB_STACK` | Web UI stack name (enables self-update, local host inference) | *(none)* |
 | `CF_WEB_USERNAME` | Web UI login username | `admin` |
-| `CF_WEB_PASSWORD` | Web UI login password; enables HTTP Basic auth when set | *(none: no login)* |
+| `CF_WEB_PASSWORD` | Web UI login password required for remote access | *(none)* |
+| `CF_WEB_NO_AUTH` | Allow remote passwordless access behind a trusted access layer | *(disabled)* |
 | `CF_SSH_DIR` | SSH keys directory | `~/.ssh/compose-farm` |
 | `CF_XDG_CONFIG` | Config/backup directory | `~/.config/compose-farm` |
