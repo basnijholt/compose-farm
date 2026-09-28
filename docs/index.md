@@ -4,6 +4,10 @@ icon: lucide/server
 
 # Compose Farm
 
+<p align="center">
+  <img src="assets/logo-scene.svg" alt="Compose Farm logo" width="420" />
+</p>
+
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 ## What is Compose Farm?
