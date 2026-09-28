@@ -16,7 +16,7 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
 
 **Why Compose Farm?**
 - **Your files, your control** — Plain folders + YAML, not locked in Portainer. Version control everything.
-- **Agentless** — Just SSH, no agents to deploy (unlike [Dockge](https://github.com/louislam/dockge)).
+- **Agentless** — Just SSH, no agents to deploy (unlike [Dockge](https://github.com/louislam/dockge) or [Komodo](https://github.com/moghtech/komodo)).
 - **Zero changes required** — Existing compose files work as-is.
 - **Grows with you** — Start single-host, scale to multi-host seamlessly.
 - **Declarative** — Change config, run `cf apply`, reality matches.
@@ -1476,16 +1476,16 @@ With Glances configured, a Live Stats page (`/live-stats`) shows all running con
 
 There are many ways to run containers on multiple hosts. Here is where Compose Farm sits:
 
-| | Compose Farm | Docker Contexts | K8s / Swarm | Ansible / Terraform | Portainer / Coolify |
-|---|:---:|:---:|:---:|:---:|:---:|
-| No compose rewrites | ✅ | ✅ | ❌ | ✅ | ✅ |
-| Version controlled | ✅ | ✅ | ✅ | ✅ | ❌ |
-| State tracking | ✅ | ❌ | ✅ | ✅ | ✅ |
-| Auto-migration | ✅ | ❌ | ✅ | ❌ | ❌ |
-| Interactive CLI | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Parallel execution | ✅ | ❌ | ✅ | ✅ | ✅ |
-| Agentless | ✅ | ✅ | ❌ | ✅ | ❌ |
-| High availability | ❌ | ❌ | ✅ | ❌ | ❌ |
+| | Compose Farm | Docker Contexts | K8s / Swarm | Ansible / Terraform | Portainer / Coolify | Komodo |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| No compose rewrites | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ |
+| Version controlled | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| State tracking | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Auto-migration | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Interactive CLI | ✅ | ❌ | ❌ | ❌ | ❌ | Partial |
+| Parallel execution | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Agentless | ✅ | ✅ | ❌ | ✅ | ❌ | ❌ |
+| High availability | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
 
 **Docker Contexts** — You can use `docker context create remote ssh://...` and `docker compose --context remote up`. But it's manual: you must remember which host runs which stack, there's no global view, no parallel execution, and no auto-migration.
 
@@ -1494,6 +1494,8 @@ There are many ways to run containers on multiple hosts. Here is where Compose F
 **Ansible / Terraform** — Infrastructure-as-Code tools that can SSH in and deploy containers. But they're push-based configuration management, not interactive CLIs. Great for setting up state, clumsy for day-to-day operations like `cf logs -f` or quickly restarting a stack.
 
 **Portainer / Coolify** — Web-based management UIs. But they're UI-first and often require agents on your servers. Compose Farm is CLI-first and agentless.
+
+**Komodo** — The closest alternative: a full deployment platform with a Rust Core server, a MongoDB/FerretDB database, and a Periphery agent on every server. It adds image builds, git webhooks, alerts, multi-user auth, and GitOps via Resource Sync. Its `km` CLI runs deploys and actions, but day-to-day work (logs, status) happens in the web UI. Pick Komodo if you want those platform features; pick Compose Farm if you want zero extra infrastructure—just SSH, plain folders, and a CLI.
 
 **Compose Farm is the middle ground:** a robust CLI that productizes the manual SSH pattern. You get the "cluster feel" (unified commands, state tracking) without the "cluster cost" (complexity, agents, control planes).
 
