@@ -261,6 +261,7 @@ class TestDirectUp:
         fake = _fake_run_on_stacks()
         with patch("compose_farm.operations.run_on_stacks", fake):
             results = await up_stacks_direct(cfg, ["web", "bad"], "up -d", filter_host="h1")
+        assert fake.await_args is not None
         assert fake.await_args.args[1] == ["web"]
         assert {r.stack: r.success for r in results} == {"web": True, "bad": False}
 
