@@ -42,7 +42,7 @@ plugins:
 
 - Each step is `run:` (runs on the host the hook is for) or `local:` (runs where `cf` runs).
 - A failing step fails the hook (see [Hooks](#hooks) for what that means per hook). Preflight steps never fail the hook; each failing check is reported as a problem.
-- Placeholders: `{stack}`, `{host}`, `{source_host}` (empty unless migrating), `{compose_dir}`, `{stack_dir}`. In `run`/`local` commands the values are shell-quoted. `compose_args` items are substituted as-is and each item is quoted when the compose command is built. Unknown placeholders are a config error.
+- Placeholders: `{stack}`, `{host}`, `{source_host}` (empty unless migrating), `{compose_dir}`, `{stack_dir}`. In `run`/`local` commands the values are inserted already shell-quoted, so don't wrap placeholders in quotes yourself (`echo {stack}`, not `echo '{stack}'`). `compose_args` items are substituted as-is and each item is quoted when the compose command is built. Unknown placeholders, conversions (`{stack!r}`), and format specs (`{stack:>9}`) are config errors.
 
 ### sync
 
@@ -52,12 +52,13 @@ Copies `compose_dir/<stack>/` from the machine running `cf` to the same path on 
 plugins:
   sync:
     excludes: [".git", "*.tmp"]  # rsync --exclude patterns
-    delete: true                 # rsync --delete (default)
+    delete: false                # rsync --delete (default: false)
 ```
 
 - `compose_dir` must exist locally at the same path it has on the hosts.
 - Hosts that are the local machine are skipped.
-- `rsync` must be installed on the machine running `cf` and on the hosts.
+- `rsync` must be installed on the machine running `cf` (the Docker image includes it) and on the hosts.
+- **Careful with `delete: true`**: it removes every file on the host that is not in the local copy, including data in bind mounts under the stack directory (`./data`, `./config`) and host-only `.env` files. Only enable it together with `excludes` for those paths.
 
 ## Hooks
 
@@ -68,7 +69,7 @@ plugins:
 | `after_source_stopped` | Migration only: the source is stopped, the target not started yet | Rollback: the stack is restarted on the source if it was running there |
 | `after_up` | The stack started on the host (after the state update) | Warning only |
 | `on_stack_removed` | An orphaned stack (removed from config) was stopped via `cf down --orphaned` or `cf apply`. Not called for strays or a plain `down` | The stack stays in the state file, so the next `cf down --orphaned`/`cf apply` retries |
-| `compose_args` | Every time a compose command is built for a stack on a host (`up`, `down`, `ps`, `logs`, `pull`, `restart`, `compose`, ...) | The command fails |
+| `compose_args` | Every time a compose command is built for a stack on a host (`up`, `down`, `ps`, `logs`, `pull`, `restart`, `compose`, ...) | The whole `cf` command aborts with the error |
 
 Migrating a stack runs:
 
@@ -130,6 +131,8 @@ Rules for plugins:
 - **Idempotent**: a hook can run again for the same stack and host after a failure or retry.
 - **Keep the source intact** in `before_up` and `after_source_stopped`. Irreversible cleanup of the source belongs in `after_up`.
 - **Refuse when the source is unreachable**: if your plugin needs the source (for example to copy data) and `ctx.source_host not in ctx.cfg.hosts`, raise in `before_up` instead of starting from scratch.
+- **Don't treat a missing `source_host` as proof of a first deploy**: `cf down` removes the stack from the state file, so a later `cf up` on another host has no `source_host`. A data-moving plugin should check whether the data already exists elsewhere before creating it empty.
+- **`on_stack_removed` needs the stack directory**: it runs after `docker compose down` succeeds in that directory, and a retry runs `down` again. If your plugin removes or renames the directory, list it last, so a failure in another plugin does not leave the stack stuck in the state file.
 - **No blocking calls**: hooks for different stacks run concurrently. Use `ctx.run`/`ctx.run_local` or asyncio subprocesses.
 - **`compose_args` does no I/O**: it is called for every compose command.
 
@@ -147,9 +150,18 @@ plugins:
     compose_args: ["--env-file", ".env", "--env-file", "/run/agenix/{stack}.env"]
 ```
 
-Passing any `--env-file` stops compose from reading `.env` implicitly, so list `.env` too if the stack has one (compose fails if a listed file is missing).
+`compose_args` from `commands` apply to **every** stack, so with this recipe every stack needs both `.env` and `/run/agenix/<stack>.env` (compose fails if a listed file is missing). Passing any `--env-file` also stops compose from reading `.env` implicitly, which is why `.env` is listed.
 
-Alternatively, symlink the decrypted file into the stack directory in `before_up` (`ln -sfn /run/agenix/{stack}.env {stack_dir}/.env`).
+Alternatively, link the decrypted file into the stack directory in `before_up`, only for stacks that have a secret file:
+
+```yaml
+plugins:
+  commands:
+    before_up:
+      - run: "if [ -e /run/agenix/{stack}.env ]; then ln -sfn /run/agenix/{stack}.env {stack_dir}/.env; fi"
+```
+
+This replaces an existing `.env` in those stacks.
 
 ### Per-stack ZFS datasets instead of NFS
 
@@ -174,5 +186,6 @@ The `commands` plugin runs shell commands from the config file. The config alrea
 ## Limitations
 
 - Compose Farm parses each stack's compose file and `.env` locally for preflight paths, ports, and Traefik labels. That parsing does not see `compose_args`: variables that only exist in an extra env file are not visible there, and services, volumes, or labels added through extra `-f` files are not reflected in preflight or Traefik output.
+- Avoid `-f` and `-p` in `compose_args`: a single `-f` replaces compose's file discovery (list the stack's own compose file too), and `-p` changes the project name, which `cf refresh` and stray detection rely on (they expect the directory name).
 - With per-stack datasets, volume paths do not exist on hosts that never ran the stack, so `cf check` reports them as missing there.
 - Plugins cannot add CLI commands yet.

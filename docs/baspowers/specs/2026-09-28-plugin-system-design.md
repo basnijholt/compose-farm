@@ -299,7 +299,9 @@ def get_plugins(cfg: Config) -> tuple[Plugin, ...]:
 - `after_up`: exception printed with `print_warning`; operation succeeds.
 - `on_stack_removed`: exception printed; that host's result becomes failed,
   so the stack stays in state for retry.
-- `KeyboardInterrupt`/`OperationInterruptedError` propagate unchanged.
+- `KeyboardInterrupt` propagates unchanged. `ctx.run`/`ctx.run_local` raise it only when the
+  command was killed by a signal (negative exit code); exit code 255 (ssh/rsync connection
+  errors) is an ordinary failure so rollback still runs.
 
 ### Security
 
@@ -337,8 +339,9 @@ placeholders are a config error at load time.
 
 **`sync`** (rewrite of the fork's plugin): `before_up` rsyncs
 `compose_dir/<stack>/` from the machine running `cf` to the same path on the
-target host, using compose-farm's SSH options (key, `known_hosts`, port) via
-`rsync -e`. Skipped for local hosts. Options: `excludes`, `delete`.
+target host, using compose-farm's SSH options (key, `known_hosts`, port, agent
+auto-detection) via `rsync -e`. Skipped for local hosts. Options: `excludes`, `delete`
+(default `false`: `--delete` would remove bind-mounted data and host-only `.env` files).
 Keeps the "same path everywhere" invariant without NFS, so the fork's
 `source_dir` option and the `get_compose_path` special case are dropped.
 
@@ -435,6 +438,17 @@ Declined: halting for manual reconciliation on every rollback (same risk
 exists with NFS today; documented instead), core-level rejection of
 multi-host topology changes and durable pending-cleanup records (plugin
 concerns; failing safe means leaving data in place).
+
+### Implementation review (2026-09-28)
+
+Reviewed by a Claude subagent and by Codex (`gpt-6-astra`). Fixed: exit 255 treated as
+Ctrl+C (skipped rollback), web UI failing to start on plugin config errors, `sync`
+`delete` default, rsync missing SSH agent auto-detection and IPv6 brackets, `rsync` in
+the Docker image, loader `isinstance` check, empty `plugins:`, preflight stderr, placeholder
+conversions/format specs, `up --host` state recorded before `after_up`, orphan cleanup
+retried per host. Declined: resumable per-plugin cleanup progress (documented ordering
+instead), re-raising `OperationInterruptedError` from hooks (plugins cannot raise it;
+Ctrl+C arrives as `KeyboardInterrupt`), caching plugin loading across web requests.
 
 ## Phases
 
