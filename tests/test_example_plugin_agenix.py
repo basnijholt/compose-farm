@@ -33,6 +33,7 @@ class TestOptions:
             ({}, "stacks is required"),
             ({"stacks": {}, "nope": 1}, "unknown option"),
             ({"stacks": {}, "secrets_dir": 5}, "secrets_dir must be a string"),
+            ({"stacks": {}, "secrets_dir": "run/agenix"}, "secrets_dir must be an absolute path"),
             ({"stacks": ["mealie"]}, "stacks must map stack names"),
             ({"stacks": {"mealie": 5}}, "stacks.mealie"),
             ({"stacks": {"mealie": {"env": "a.env", "oops": "b"}}}, "unknown key"),

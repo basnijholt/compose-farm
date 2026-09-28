@@ -41,6 +41,10 @@ class AgenixPlugin(Plugin):
         if not isinstance(secrets_dir, str):
             msg = "secrets_dir must be a string"
             raise PluginError(msg)
+        if not PurePosixPath(secrets_dir).is_absolute():
+            # compose resolves --env-file from the stack directory, preflight from $HOME
+            msg = "secrets_dir must be an absolute path"
+            raise PluginError(msg)
         if "stacks" not in options:
             msg = "stacks is required (stack name -> secret files)"
             raise PluginError(msg)
