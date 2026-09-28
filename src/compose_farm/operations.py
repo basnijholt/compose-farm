@@ -246,8 +246,7 @@ async def _up_multi_host_stack(
     host_names = cfg.get_hosts(stack)
     results: list[CommandResult] = []
     stack_dir = cfg.get_stack_dir(stack)
-    # Use cd to let docker compose find the compose file on the remote host
-    command = _build_compose_command(stack_dir, build_up_cmd(pull=pull, build=build))
+    up_cmd = build_up_cmd(pull=pull, build=build)
 
     # Pre-flight checks on all hosts
     for host_name in host_names:
@@ -274,6 +273,8 @@ async def _up_multi_host_stack(
     for host_name in host_names:
         host = cfg.hosts[host_name]
         label = f"{stack}@{host_name}"
+        # Use cd to let docker compose find the compose file on the remote host
+        command = _build_compose_command(stack_dir, up_cmd, cfg.compose_args(stack, host_name))
         result = await run_command(
             host,
             command,

@@ -21,6 +21,7 @@ from compose_farm.operations import (
     check_stack_requirements,
     up_stacks,
 )
+from tests.plugin_helpers import Recorder, make_config, use_plugins
 
 
 @pytest.fixture
@@ -468,3 +469,25 @@ class TestBuildDiscoveryResultsSharedAddress:
 
         assert strays == {"app": ["b"]}
         assert duplicates == {"app": ["a", "b"]}
+
+
+class TestMultiHostComposeArgs:
+    """Multi-host up builds each host's command with that host's plugin args."""
+
+    async def test_up_multi_host_builds_command_per_host(self, tmp_path: Path) -> None:
+        plugin = Recorder({"args": ["--env-file", "/run/{host}.env"]})
+        plugin.name = "env"
+        cfg = use_plugins(make_config(tmp_path, {"glances": ["h1", "h2"]}), plugin)
+        ok = CommandResult(stack="glances", exit_code=0, success=True)
+        with (
+            patch(
+                "compose_farm.operations.check_stack_requirements",
+                AsyncMock(return_value=PreflightResult([], [], [], [])),
+            ),
+            patch("compose_farm.operations.run_command", AsyncMock(return_value=ok)) as mock,
+            patch("compose_farm.operations.set_multi_host_stack"),
+        ):
+            await up_stacks(cfg, ["glances"])
+        commands = [call.args[1] for call in mock.call_args_list]
+        assert "--env-file /run/h1.env up -d" in commands[0]
+        assert "--env-file /run/h2.env up -d" in commands[1]

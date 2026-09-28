@@ -31,6 +31,7 @@ from compose_farm.executor import (
     run_on_stacks,
 )
 from compose_farm.ssh_keys import SSH_KEY_PATH
+from tests.plugin_helpers import Recorder, make_config, use_plugins
 
 # These tests run actual shell commands that only work on Linux
 linux_only = pytest.mark.skipif(sys.platform != "linux", reason="Linux-only shell commands")
@@ -685,3 +686,47 @@ class TestGetRunningStacksOnHost:
         # Result should not contain empty strings
         result = await get_running_stacks_on_host(config, "local")
         assert "" not in result
+
+
+class TestPluginComposeArgs:
+    """Plugin compose_args reach every compose command, computed per host."""
+
+    @staticmethod
+    def _env_plugin() -> Recorder:
+        plugin = Recorder({"args": ["--env-file", "/run/{host} {stack}.env"]})
+        plugin.name = "env"
+        return plugin
+
+    def test_build_compose_command_quotes_extra_args(self) -> None:
+        cmd = _build_compose_command(Path("/opt/x"), "up -d", ["--env-file", "/run/a b.env"])
+        assert cmd == "cd /opt/x && docker compose --env-file '/run/a b.env' up -d"
+
+    def test_build_compose_command_without_extra_args_is_unchanged(self) -> None:
+        assert _build_compose_command(Path("/opt/x"), "ps") == "cd /opt/x && docker compose ps"
+
+    async def test_run_compose_and_on_host(self, tmp_path: Path) -> None:
+        cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), self._env_plugin())
+        ok = CommandResult(stack="web", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", AsyncMock(return_value=ok)) as mock:
+            await run_compose(cfg, "web", "ps")
+            await run_compose_on_host(cfg, "web", "h2", "down")
+        assert "--env-file '/run/h1 web.env' ps" in mock.call_args_list[0].args[1]
+        assert "--env-file '/run/h2 web.env' down" in mock.call_args_list[1].args[1]
+
+    async def test_multi_host_commands_are_per_host(self, tmp_path: Path) -> None:
+        cfg = use_plugins(make_config(tmp_path, {"glances": "all"}), self._env_plugin())
+        ok = CommandResult(stack="glances", exit_code=0, success=True)
+        with patch("compose_farm.executor.run_command", AsyncMock(return_value=ok)) as mock:
+            await run_on_stacks(cfg, ["glances"], "pull")
+            await run_on_stacks(cfg, ["glances"], "pull", filter_host="h2")
+        commands = [call.args[1] for call in mock.call_args_list]
+        assert "'/run/h1 glances.env' pull" in commands[0]
+        assert "'/run/h2 glances.env' pull" in commands[1]
+        assert "'/run/h2 glances.env' pull" in commands[2]
+
+    async def test_check_stack_running_uses_args(self, tmp_path: Path) -> None:
+        cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), self._env_plugin())
+        ok = CommandResult(stack="web", exit_code=0, success=True, stdout="abc")
+        with patch("compose_farm.executor.run_command", AsyncMock(return_value=ok)) as mock:
+            assert await check_stack_running(cfg, "web", "h2")
+        assert "'/run/h2 web.env' ps --status running -q" in mock.call_args.args[1]
