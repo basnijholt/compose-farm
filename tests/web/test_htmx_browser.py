@@ -2582,6 +2582,9 @@ def password_server_url(monkeypatch: pytest.MonkeyPatch) -> Generator[str, None,
     deadline = time.monotonic() + 30
     while not server.started and time.monotonic() < deadline:
         time.sleep(0.02)
+    if not server.started:
+        msg = f"Password test server failed to start on port {port}"
+        raise RuntimeError(msg)
     yield f"http://127.0.0.1:{port}"
     server.should_exit = True
     thread.join(timeout=2)
