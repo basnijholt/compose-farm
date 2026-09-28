@@ -146,6 +146,10 @@ class HookContext:
         [stack@host] output prefix). With check=True a non-zero exit raises
         PluginError including the command, host and exit code."""
 
+    async def run_local(self, command: str, *, stream: bool = True,
+                        check: bool = True) -> CommandResult:
+        """Same, on the machine running cf (rsync, ssh relays, notify scripts)."""
+
 
 class PluginError(Exception):
     """Raised by plugins to fail a hook with a user-facing message."""
@@ -288,7 +292,7 @@ def get_plugins(cfg: Config) -> tuple[Plugin, ...]:
   `plugin <name>.<hook>: <error>`; other stacks continue.
   `after_source_stopped` failure triggers rollback.
 - `preflight`: returned strings and exceptions both land in a new
-  `PreflightResult.plugin_errors` list, reported by
+  `PreflightResult.plugin_errors: tuple[str, ...] = ()` field, reported by
   `_report_preflight_failures` and counted as missing items by
   `check_host_compatibility` (which today drops `check_errors`; include those
   too).
