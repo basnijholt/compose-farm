@@ -130,6 +130,10 @@ class TestBuildUpCmd:
             build_up_cmd(pull=True, build=True, service="web") == "up -d --pull always --build web"
         )
 
+    def test_service_is_shell_quoted(self) -> None:
+        """Service names are shell-quoted so they cannot inject commands."""
+        assert build_up_cmd(service="x; touch /tmp/pwned") == "up -d 'x; touch /tmp/pwned'"
+
 
 class TestUpActionLabel:
     """Tests for user-facing up action labels."""
