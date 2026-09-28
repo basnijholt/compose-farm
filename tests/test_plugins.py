@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pydantic import ValidationError
 
-from compose_farm.config import Config, Host, load_config
+from compose_farm.config import Config, load_config
 from compose_farm.executor import CommandResult
 from compose_farm.plugins import (
     HookContext,
@@ -131,7 +131,9 @@ class TestLoader:
 
     def test_plugins_must_be_a_mapping(self) -> None:
         with pytest.raises(ValidationError):
-            Config(hosts={"h1": Host(address="localhost")}, stacks={}, plugins=["sync"])
+            Config.model_validate(
+                {"hosts": {"h1": {"address": "localhost"}}, "stacks": {}, "plugins": ["sync"]}
+            )
 
 
 class TestDispatch:

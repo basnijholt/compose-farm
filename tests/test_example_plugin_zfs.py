@@ -111,7 +111,8 @@ def _setup(
     options: dict[str, Any] | None = None,
     stacks: dict[str, str | list[str]] | None = None,
 ) -> tuple[Config, Any]:
-    cfg = make_config(tmp_path, stacks or {"web": "h2"}, hosts=("h1", "h2", "h3"))
+    default: dict[str, str | list[str]] = {"web": "h2"}
+    cfg = make_config(tmp_path, stacks or default, hosts=("h1", "h2", "h3"))
     plugin = zfs_example.ZfsPlugin({"dataset": "tank/data", **(options or {})})
     plugin.name = "zfs"
     plugin.tool = lambda _ctx: fake
