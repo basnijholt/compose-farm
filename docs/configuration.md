@@ -131,6 +131,20 @@ glances_stack: glances
 
 The Glances stack should run on all hosts and expose port 61208. See the README for full setup instructions.
 
+### plugins
+
+Plugins to enable, as plugin name to options, run in the listed order. Use them to replace NFS (`sync`), hand host-decrypted secrets to compose, or run your own commands at lifecycle hooks (`commands`).
+
+```yaml
+plugins:
+  sync:
+    excludes: [".git"]
+  commands:
+    compose_args: ["--env-file", "/run/agenix/{stack}.env"]
+```
+
+See [Plugins](plugins.md) for the builtin plugins, hooks, and writing your own.
+
 ## Hosts Configuration
 
 ### Basic Host

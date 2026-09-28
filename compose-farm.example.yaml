@@ -7,6 +7,13 @@ compose_dir: /opt/compose
 traefik_file: /opt/traefik/dynamic.d/compose-farm.yml
 traefik_stack: traefik  # Skip stacks on same host (docker provider handles them)
 
+# Optional: plugins (name -> options), run in this order. See docs/plugins.md
+# plugins:
+#   sync:
+#     excludes: [".git"]
+#   commands:
+#     compose_args: ["--env-file", "/run/agenix/{stack}.env"]
+
 hosts:
   # Full form with all options
   server-1:
