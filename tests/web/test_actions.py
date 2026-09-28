@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from compose_farm.web import streaming
+from compose_farm.web.app import create_app
 from compose_farm.web.routes import actions
 
 if TYPE_CHECKING:
@@ -22,8 +23,6 @@ MALICIOUS_SERVICE = "x; touch /tmp/pwned"
 @pytest.fixture
 def client(mock_config: Config, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Create a test client with get_config patched in the actions module."""
-    from compose_farm.web.app import create_app
-
     monkeypatch.setattr(actions, "get_config", lambda: mock_config)
     return TestClient(create_app())
 
@@ -40,6 +39,14 @@ class TestServiceAction:
         assert response.status_code == 400
         assert response.json()["detail"] == f"Invalid service name '{service}'"
         mock_start.assert_not_called()
+
+    @pytest.mark.parametrize("service", ["_worker", ".worker", "web-1.v2"])
+    def test_valid_service_names_accepted(self, client: TestClient, service: str) -> None:
+        """Names allowed by the Compose schema ([a-zA-Z0-9._-]+) pass, except a leading '-'."""
+        with patch.object(actions, "run_compose_streaming", new=AsyncMock()):
+            response = client.post(f"/api/stack/plex/service/{service}/restart")
+
+        assert response.status_code == 200
 
     def test_service_not_in_local_compose_file_is_allowed(self, client: TestClient) -> None:
         """No local compose lookup: the file may only exist on the target host."""

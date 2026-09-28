@@ -39,8 +39,8 @@ ALLOWED_COMMANDS = {"up", "down", "restart", "pull", "update", "logs", "stop"}
 # Allowed service-level commands (no 'down' - use 'stop' for individual services)
 ALLOWED_SERVICE_COMMANDS = {"logs", "pull", "restart", "up", "stop"}
 
-# Compose service names; must not start with '-' so they can't be read as flags
-SERVICE_NAME_RE = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9._-]*")
+# Compose service-name charset; must not start with '-' so it can't be read as a flag
+SERVICE_NAME_RE = re.compile(r"[a-zA-Z0-9._][a-zA-Z0-9._-]*")
 
 
 @router.post("/stack/{name}/{command}")
