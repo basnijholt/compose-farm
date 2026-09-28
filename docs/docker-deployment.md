@@ -18,12 +18,16 @@ curl -O https://raw.githubusercontent.com/basnijholt/compose-farm/main/docker-co
 
 ```bash
 cf config init-env
+printf 'CF_WEB_PASSWORD=%s\n' "$(openssl rand -hex 32)" >> .env
 ```
 
 This auto-detects settings from your `compose-farm.yaml`:
 - `DOMAIN` from existing traefik labels
 - `CF_COMPOSE_DIR` from config
 - `CF_UID/GID/HOME/USER` from current user
+
+The generated password is required because the container is reached through a
+non-loopback Docker network. Save it in your password manager before starting the UI.
 
 Review the output and edit if needed.
 

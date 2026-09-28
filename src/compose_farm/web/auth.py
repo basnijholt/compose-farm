@@ -5,8 +5,9 @@ The web UI can open shells on hosts, so every HTTP and WebSocket request is chec
 - State-changing requests and WebSocket handshakes from browsers must come from the
   same origin. This blocks websites you visit from driving the UI through your browser
   (CSRF and cross-site WebSocket hijacking). Always on, no configuration needed.
-- Without a password, only loopback clients are accepted. ``CF_WEB_NO_AUTH=1``
-  explicitly permits remote passwordless access behind a trusted access layer.
+- Without a password, only requests with both a loopback peer and loopback Host are
+  accepted. ``CF_WEB_NO_AUTH=1`` explicitly permits remote passwordless access behind
+  a trusted access layer.
 - If ``CF_WEB_PASSWORD`` is set, HTTP Basic auth is required (username
   ``CF_WEB_USERNAME``, default ``admin``).
 """
@@ -95,6 +96,25 @@ def _is_loopback_client(scope: Scope) -> bool:
     return address.is_loopback
 
 
+def _is_loopback_host(headers: dict[str, str]) -> bool:
+    """Return whether Host names localhost or a loopback IP address."""
+    try:
+        hostname = urlsplit(f"//{headers.get('host', '')}").hostname
+    except ValueError:
+        return False
+    if hostname is None:
+        return False
+    if hostname.rstrip(".").lower() == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        address = address.ipv4_mapped
+    return address.is_loopback
+
+
 def _is_same_origin(scope: Scope, headers: dict[str, str]) -> bool:
     """Check Origin matches Host (or X-Forwarded-Host). Requests without Origin pass."""
     origin = headers.get("origin")
@@ -141,7 +161,7 @@ class AuthMiddleware:
         if (
             self.settings.password is None
             and not self.settings.no_auth
-            and not _is_loopback_client(scope)
+            and not (_is_loopback_client(scope) and _is_loopback_host(headers))
         ):
             await self._reject(
                 scope,

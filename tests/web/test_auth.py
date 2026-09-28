@@ -66,6 +66,17 @@ class TestNoPassword:
     def test_local_allowed(self) -> None:
         assert TestClient(create_app(), **LOCAL).get(STATIC).status_code == 200
 
+    def test_loopback_peer_with_remote_host_is_blocked(self) -> None:
+        """A DNS-rebinding hostname must not inherit loopback-only access."""
+        client = TestClient(
+            create_app(), base_url="http://attacker.example", client=("127.0.0.1", 50000)
+        )
+        response = client.post(
+            "/api/stack/plex/down", headers={"Origin": "http://attacker.example"}
+        )
+        assert response.status_code == 403
+        assert "CF_WEB_PASSWORD" in response.text
+
     def test_unrecognized_peer_is_blocked(self) -> None:
         assert TestClient(create_app(), **UNKNOWN).get(STATIC).status_code == 403
 
@@ -161,7 +172,8 @@ class TestOriginCheck:
         )
         assert response.status_code == 404
 
-    def test_http_origin_to_https_blocked(self) -> None:
+    def test_http_origin_to_https_blocked(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CF_WEB_NO_AUTH", "1")
         client = TestClient(
             create_app(), base_url="https://cf.example.com", client=("127.0.0.1", 50000)
         )
@@ -175,8 +187,11 @@ class TestOriginCheck:
         )
         assert response.status_code == 403
 
-    def test_https_origin_behind_plain_http_proxy_passes(self) -> None:
+    def test_https_origin_behind_plain_http_proxy_passes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """TLS-terminating proxy without X-Forwarded-Proto: app sees http, Origin is https."""
+        monkeypatch.setenv("CF_WEB_NO_AUTH", "1")
         client = TestClient(
             create_app(), base_url="http://cf.example.com", client=("127.0.0.1", 50000)
         )

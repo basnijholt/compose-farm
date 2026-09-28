@@ -133,8 +133,10 @@ cf web --host 127.0.0.1
 
 ## Authentication
 
-The web UI can open shells on your hosts. Passwordless access is limited to
-loopback clients. To serve it remotely, set a password (HTTP Basic auth,
+The web UI can open shells on your hosts. Passwordless access is limited to requests
+whose network peer and `Host` header are both loopback, which also prevents DNS
+rebinding from turning a local browser into a remote control channel. To serve it
+remotely, set a password (HTTP Basic auth,
 username from `CF_WEB_USERNAME`, default `admin`):
 
 ```bash
