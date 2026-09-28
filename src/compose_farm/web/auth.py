@@ -5,6 +5,9 @@ The web UI can open shells on hosts, so every HTTP and WebSocket request is chec
 - State-changing requests and WebSocket handshakes from browsers must come from the
   same origin. This blocks websites you visit from driving the UI through your browser
   (CSRF and cross-site WebSocket hijacking). Always on, no configuration needed.
+- Without a password, only requests with both a loopback peer and loopback Host are
+  accepted. ``CF_WEB_NO_AUTH=1`` explicitly permits remote passwordless access behind
+  a trusted access layer.
 - If ``CF_WEB_PASSWORD`` is set, HTTP Basic auth is required (username
   ``CF_WEB_USERNAME``, default ``admin``).
 """
@@ -13,6 +16,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import ipaddress
 import os
 import secrets
 from dataclasses import dataclass
@@ -24,6 +28,7 @@ if TYPE_CHECKING:
 
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 DEFAULT_PORTS = {"http": 80, "https": 443}
+TRUE_VALUES = frozenset({"1", "true", "yes", "on"})
 
 
 @dataclass(frozen=True)
@@ -32,20 +37,24 @@ class AuthSettings:
 
     username: str = "admin"
     password: str | None = None
+    no_auth: bool = False
 
     @classmethod
     def from_env(cls) -> AuthSettings:
-        """Load settings from CF_WEB_USERNAME and CF_WEB_PASSWORD."""
+        """Load settings from the web authentication environment variables."""
         return cls(
             username=os.environ.get("CF_WEB_USERNAME") or "admin",
             password=os.environ.get("CF_WEB_PASSWORD") or None,
+            no_auth=os.environ.get("CF_WEB_NO_AUTH", "").lower() in TRUE_VALUES,
         )
 
     def describe(self) -> str:
         """Human-readable summary of the active auth mode."""
         if self.password:
             return f"HTTP Basic auth (user '{self.username}')"
-        return "none (set CF_WEB_PASSWORD to require a login)"
+        if self.no_auth:
+            return "none (remote passwordless access explicitly enabled)"
+        return "loopback only (set CF_WEB_PASSWORD for remote access)"
 
 
 def _headers(scope: Scope) -> dict[str, str]:
@@ -70,6 +79,40 @@ def _check_basic_auth(header: str, settings: AuthSettings) -> bool:
 def _first(value: str) -> str:
     """First entry of a possibly comma-separated proxy header, lowercased."""
     return value.split(",", maxsplit=1)[0].strip().lower()
+
+
+def _is_loopback_client(scope: Scope) -> bool:
+    """Return whether the ASGI peer is a loopback address."""
+    client = scope.get("client")
+    if not client:
+        return False
+    host = client[0]
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        address = address.ipv4_mapped
+    return address.is_loopback
+
+
+def _is_loopback_host(headers: dict[str, str]) -> bool:
+    """Return whether Host names localhost or a loopback IP address."""
+    try:
+        hostname = urlsplit(f"//{headers.get('host', '')}").hostname
+    except ValueError:
+        return False
+    if hostname is None:
+        return False
+    if hostname.rstrip(".").lower() == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped:
+        address = address.ipv4_mapped
+    return address.is_loopback
 
 
 def _is_same_origin(scope: Scope, headers: dict[str, str]) -> bool:
@@ -114,6 +157,20 @@ class AuthMiddleware:
 
         headers = _headers(scope)
         is_ws = scope["type"] == "websocket"
+
+        if (
+            self.settings.password is None
+            and not self.settings.no_auth
+            and not (_is_loopback_client(scope) and _is_loopback_host(headers))
+        ):
+            await self._reject(
+                scope,
+                send,
+                403,
+                "Remote access requires CF_WEB_PASSWORD. "
+                "Set CF_WEB_NO_AUTH=1 only behind a trusted access layer.\n",
+            )
+            return
 
         if (is_ws or scope["method"] not in SAFE_METHODS) and not _is_same_origin(scope, headers):
             await self._reject(scope, send, 403, "Cross-origin request blocked.\n")

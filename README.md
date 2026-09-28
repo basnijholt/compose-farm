@@ -208,6 +208,9 @@ Or use [direnv](https://direnv.net/) (copies `.envrc.example` to `.envrc`):
 cp .envrc.example .envrc && direnv allow
 ```
 
+This preserves file ownership and makes `CF_USER` the default SSH username for
+hosts that do not set `user` explicitly.
+
 </details>
 
 ## SSH Authentication
@@ -263,10 +266,10 @@ volumes:
 ```
 Note: Requires `SSH_AUTH_SOCK` environment variable to be set. The socket path is ephemeral and changes across sessions.
 
-Run setup once after starting the container (while the SSH agent still works):
+Run setup once (while the SSH agent still works):
 
 ```bash
-docker compose exec web cf ssh setup
+docker compose run --rm cf ssh setup
 ```
 
 The keys will persist across restarts.
@@ -1249,11 +1252,11 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
  Start the web UI server.
 
- Set CF_WEB_PASSWORD (and optionally CF_WEB_USERNAME, default admin) to
- require a login via HTTP Basic auth.
+ Remote access requires CF_WEB_PASSWORD (and optionally CF_WEB_USERNAME,
+ default admin). Set CF_WEB_NO_AUTH=1 only behind a trusted access layer.
 
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --host    -H      <str>  Host to bind to [default: 0.0.0.0]                            │
+│ --host    -H      <str>  Host to bind to [default: 127.0.0.1]                          │
 │ --port    -p      <int>  Port to listen on [default: 8000]                             │
 │ --reload  -r             Enable auto-reload for development                            │
 │ --help    -h             Show this message and exit.                                   │

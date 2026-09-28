@@ -51,7 +51,7 @@ def web(
     host: Annotated[
         str,
         typer.Option("--host", "-H", help="Host to bind to"),
-    ] = "0.0.0.0",  # noqa: S104
+    ] = "127.0.0.1",
     port: Annotated[
         int,
         typer.Option("--port", "-p", help="Port to listen on"),
@@ -63,8 +63,8 @@ def web(
 ) -> None:
     """Start the web UI server.
 
-    Set CF_WEB_PASSWORD (and optionally CF_WEB_USERNAME, default admin) to
-    require a login via HTTP Basic auth.
+    Remote access requires CF_WEB_PASSWORD (and optionally CF_WEB_USERNAME,
+    default admin). Set CF_WEB_NO_AUTH=1 only behind a trusted access layer.
     """
     try:
         import uvicorn  # noqa: PLC0415

@@ -256,7 +256,7 @@ class TestContainersHtmlEscaping:
 
         from compose_farm.web.app import create_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_app(), base_url="http://localhost", client=("127.0.0.1", 50000))
         response = client.get("/api/stack/plex/containers?host=<script>alert(1)</script>")
 
         assert response.status_code == 200
@@ -268,7 +268,7 @@ class TestContainersHtmlEscaping:
 
         from compose_farm.web.app import create_app
 
-        client = TestClient(create_app())
+        client = TestClient(create_app(), base_url="http://localhost", client=("127.0.0.1", 50000))
         response = client.get("/api/stack/plex/containers")
 
         assert response.status_code == 200

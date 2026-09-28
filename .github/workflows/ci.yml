@@ -18,6 +18,26 @@ jobs:
       - name: Audit locked production dependencies
         run: uv audit --preview-features audit-command --locked --no-dev
 
+  container-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build image
+        run: docker build --tag compose-farm:test .
+
+      - name: Verify arbitrary-UID identity without writable account files
+        run: |
+          docker run --rm --user 12345:23456 compose-farm:test --version
+          docker run --rm --user 12345:23456 --env HOME=/tmp/test-home --entrypoint /bin/sh compose-farm:test -c '
+            eval "$(head -n -1 /usr/local/bin/docker-entrypoint.sh)"
+            test "$(id -un)" = compose-farm
+            ssh -G example.invalid 2>/dev/null | grep -Fqx \
+              "userknownhostsfile /tmp/test-home/.ssh/known_hosts /tmp/test-home/.ssh/known_hosts2"
+             test "$(stat -c %a /etc/passwd)" = 644
+             test ! -w /etc/passwd
+           '
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:
