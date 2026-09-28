@@ -24,11 +24,13 @@ import pytest
 import uvicorn
 
 from compose_farm.config import load_config
+from compose_farm.glances import ContainerStats
 from compose_farm.web import deps as web_deps
 from compose_farm.web.app import create_app
 from compose_farm.web.cdn import CDN_ASSETS, ensure_vendor_cache
 from compose_farm.web.routes import api as web_api
 from compose_farm.web.routes import pages as web_pages
+from compose_farm.web.routes.containers import _render_row
 
 if TYPE_CHECKING:
     from playwright.sync_api import Browser, Page, Route, WebSocket
@@ -2565,6 +2567,78 @@ class TestContainersPagePause:
             f"Refresh should resume after closing dropdown. timer='{timer_text}'"
         )
         assert "↻" in timer_text, f"Timer should show countdown, got '{timer_text}'"
+
+
+class TestLiveStatsActionMenu:
+    """Action menu on live-stats rows reads the stack name from data-stack."""
+
+    def test_action_menu_with_hostile_stack_name(self, page: Page, server_url: str) -> None:
+        """A stack name with quotes/HTML must not execute and must round-trip intact."""
+        hostile = "x');window.__pwned=1;//<img src=x onerror=window.__pwned=2>"
+        row = _render_row(
+            ContainerStats(
+                name="evil-1",
+                host="server-1",
+                status="running",
+                image="nginx:latest",
+                cpu_percent=1.0,
+                memory_usage=100,
+                memory_limit=1000,
+                memory_percent=10.0,
+                network_rx=0,
+                network_tx=0,
+                uptime="1 hour",
+                ports="",
+                engine="docker",
+                stack=hostile,
+                service="web",
+            ),
+            "-",
+        )
+        page.route(
+            "**/api/containers/rows/*",
+            lambda route: route.fulfill(status=200, content_type="text/html", body=row),
+        )
+        page.route(
+            "**/api/containers/check-updates",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body='{"results": []}'
+            ),
+        )
+
+        page.goto(f"{server_url}/live-stats")
+        button = page.locator("#container-rows button[data-stack]").first
+        button.wait_for(timeout=TIMEOUT)
+        button.hover()
+
+        menu = page.locator("#shared-action-menu")
+        menu.wait_for(state="visible", timeout=TIMEOUT)
+        assert menu.get_attribute("data-stack") == hostile
+
+        button.click()
+        assert menu.get_attribute("data-stack") == hostile
+        assert page.evaluate("window.__pwned") is None
+
+    def test_host_row_escapes_host_and_message(self, page: Page, server_url: str) -> None:
+        """Client-built fallback rows (empty/error) render host and message as text."""
+        page.goto(f"{server_url}/live-stats")
+        page.wait_for_selector("#container-rows", timeout=TIMEOUT)
+        hostile = "<img src=x onerror=window.__pwned=1>"
+        text = page.evaluate(
+            """(hostile) => {
+                const tbody = document.createElement('tbody');
+                tbody.innerHTML = buildHostRow(hostile, `Error: ${hostile}`, 'text-error');
+                document.body.appendChild(tbody);
+                return {
+                    imgs: tbody.querySelectorAll('img').length,
+                    host: tbody.querySelector('tr').dataset.host,
+                    text: tbody.textContent.trim(),
+                };
+            }""",
+            hostile,
+        )
+        assert text == {"imgs": 0, "host": hostile, "text": f"Error: {hostile}"}
+        assert page.evaluate("window.__pwned") is None
 
 
 @pytest.fixture

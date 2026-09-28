@@ -31,6 +31,11 @@ MIN_NAME_PARTS = 2
 _DASH_HTML = '<span class="text-xs opacity-50">-</span>'
 
 
+def _esc(value: str) -> str:
+    """Escape a value for safe use in HTML text or a quoted attribute."""
+    return html.escape(value, quote=True)
+
+
 def _parse_image(image: str) -> tuple[str, str]:
     """Parse image string into (name, tag)."""
     # Handle registry prefix (e.g., ghcr.io/user/repo:tag)
@@ -131,7 +136,11 @@ def _image_web_url(image: str) -> str | None:
 
 
 def _render_row(c: ContainerStats, idx: int | str) -> str:
-    """Render a single container as an HTML table row."""
+    """Render a single container as an HTML table row.
+
+    Container data comes from remote hosts (Glances/Docker), so every string
+    value is HTML-escaped before interpolation.
+    """
     image_name, tag = _parse_image(c.image)
     inferred_stack, inferred_service = _infer_stack_service(c.name)
     stack = c.stack or inferred_stack
@@ -150,29 +159,35 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
     uptime_sec = _parse_uptime_seconds(c.uptime)
     actions = _render_actions(stack)
     update_cell = _render_update_cell(image_name, tag)
-    image_label = f"{image_name}:{tag}"
+    image_label = _esc(f"{image_name}:{tag}")
     image_url = _image_web_url(image_name)
     if image_url:
         image_html = (
-            f'<a href="{image_url}" target="_blank" rel="noopener noreferrer" '
+            f'<a href="{_esc(image_url)}" target="_blank" rel="noopener noreferrer" '
             f'class="link link-hover">'
             f'<code class="text-xs bg-base-200 px-1 rounded">{image_label}</code></a>'
         )
     else:
         image_html = f'<code class="text-xs bg-base-200 px-1 rounded">{image_label}</code>'
-    # Render as single line to avoid whitespace nodes in DOM
-    row_id = f"c-{c.host}-{c.name}"
+    row_id = _esc(f"c-{c.host}-{c.name}")
+    host = _esc(c.host)
+    stack_url = _esc(f"/stack/{quote(stack, safe='')}")
+    stack_html = _esc(stack)
+    service_html = _esc(service)
+    status = _esc(c.status)
+    uptime = _esc(c.uptime or "-")
     class_attr = f' class="{row_class}"' if row_class else ""
+    # Render as single line to avoid whitespace nodes in DOM
     return (
-        f'<tr id="{row_id}" data-host="{c.host}"{class_attr}><td class="text-xs opacity-50">{idx}</td>'
-        f'<td data-sort="{stack.lower()}"><a href="/stack/{stack}" class="link link-hover link-primary" hx-boost="true">{stack}</a></td>'
-        f'<td data-sort="{service.lower()}" class="text-xs opacity-70">{service}</td>'
+        f'<tr id="{row_id}" data-host="{host}"{class_attr}><td class="text-xs opacity-50">{idx}</td>'
+        f'<td data-sort="{_esc(stack.lower())}"><a href="{stack_url}" class="link link-hover link-primary" hx-boost="true">{stack_html}</a></td>'
+        f'<td data-sort="{_esc(service.lower())}" class="text-xs opacity-70">{service_html}</td>'
         f"<td>{actions}</td>"
-        f'<td data-sort="{c.host.lower()}"><span class="badge badge-outline badge-xs">{c.host}</span></td>'
-        f'<td data-sort="{c.image.lower()}">{image_html}</td>'
+        f'<td data-sort="{_esc(c.host.lower())}"><span class="badge badge-outline badge-xs">{host}</span></td>'
+        f'<td data-sort="{_esc(c.image.lower())}">{image_html}</td>'
         f"{update_cell}"
-        f'<td data-sort="{c.status.lower()}"><span class="{_status_class(c.status)}">{c.status}</span></td>'
-        f'<td data-sort="{uptime_sec}" class="text-xs text-right font-mono">{c.uptime or "-"}</td>'
+        f'<td data-sort="{_esc(c.status.lower())}"><span class="{_status_class(c.status)}">{status}</span></td>'
+        f'<td data-sort="{uptime_sec}" class="text-xs text-right font-mono">{uptime}</td>'
         f'<td data-sort="{cpu}" class="text-right font-mono"><div class="flex flex-col items-end gap-0.5"><div class="w-12 h-2 bg-base-300 rounded-full overflow-hidden"><div class="h-full {cpu_class}" style="width: {min(cpu, 100)}%"></div></div><span class="text-xs">{cpu:.0f}%</span></div></td>'
         f'<td data-sort="{c.memory_usage}" class="text-right font-mono"><div class="flex flex-col items-end gap-0.5"><div class="w-12 h-2 bg-base-300 rounded-full overflow-hidden"><div class="h-full {mem_class}" style="width: {min(mem, 100)}%"></div></div><span class="text-xs">{format_bytes(c.memory_usage)}</span></div></td>'
         f'<td data-sort="{c.network_rx + c.network_tx}" class="text-xs text-right font-mono">↓{format_bytes(c.network_rx)} ↑{format_bytes(c.network_tx)}</td>'
@@ -181,8 +196,13 @@ def _render_row(c: ContainerStats, idx: int | str) -> str:
 
 
 def _render_actions(stack: str) -> str:
-    """Render actions dropdown for a container row."""
-    return f"""<button class="btn btn-circle btn-ghost btn-xs" onclick="openActionMenu(event, '{stack}')" aria-label="Actions for {stack}">
+    """Render actions dropdown for a container row.
+
+    The stack name is passed via a data attribute (not inlined into JS) so
+    untrusted names cannot break out of the JavaScript string context.
+    """
+    stack = _esc(stack)
+    return f"""<button class="btn btn-circle btn-ghost btn-xs" data-stack="{stack}" onclick="openActionMenu(event, this.dataset.stack)" aria-label="Actions for {stack}">
 <svg class="h-4 w-4"><use href="#icon-menu" /></svg>
 </button>"""
 
@@ -272,8 +292,8 @@ async def get_containers_rows_by_host(host_name: str) -> HTMLResponse:
             error,
         )
         return HTMLResponse(
-            f'<tr id="error-{host_name}" class="text-error" data-host="{host_name}">'
-            f'<td colspan="12" class="text-center py-2">{host_name}: {error}</td></tr>'
+            f'<tr id="error-{_esc(host_name)}" class="text-error" data-host="{_esc(host_name)}">'
+            f'<td colspan="12" class="text-center py-2">{_esc(host_name)}: {_esc(str(error))}</td></tr>'
         )
 
     if not containers:
@@ -311,7 +331,7 @@ def _render_update_badge(result: TagCheckResult) -> str:
         updates = result.available_updates
         count = len(updates)
         title = f"Newer: {', '.join(updates[:3])}" + ("..." if count > 3 else "")  # noqa: PLR2004
-        tip = html.escape(title, quote=True)
+        tip = _esc(title)
         return (
             f'<span class="tooltip whitespace-nowrap" data-tip="{tip}">'
             f'<span class="badge badge-warning badge-xs cursor-help whitespace-nowrap">'
