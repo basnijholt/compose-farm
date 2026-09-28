@@ -12,7 +12,9 @@ import pytest
 
 # Thresholds in seconds, per OS
 if sys.platform == "darwin":
-    CLI_STARTUP_THRESHOLD = 0.35
+    # macOS CI runners are ~2x slower and noisier than Linux (0.35s flaked with a
+    # best-of-6 of 0.37s). Heavy eager imports like asyncssh/fastapi still add >0.4s.
+    CLI_STARTUP_THRESHOLD = 0.5
 else:  # Linux
     # Top-level help intentionally uses Typer/Rich rendering. The threshold should catch
     # slow import regressions while allowing normal variance on slower virtualenv filesystems.

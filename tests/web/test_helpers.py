@@ -246,3 +246,40 @@ class TestRenderContainers:
 
         assert "app-web-1" in html
         assert "app-db-1" in html
+
+
+class TestContainersHtmlEscaping:
+    """Untrusted values interpolated into container HTML must be escaped."""
+
+    def test_unknown_host_query_param_is_escaped(self, mock_config: Config) -> None:
+        from fastapi.testclient import TestClient
+
+        from compose_farm.web.app import create_app
+
+        client = TestClient(create_app(), base_url="http://localhost", client=("127.0.0.1", 50000))
+        response = client.get("/api/stack/plex/containers?host=<script>alert(1)</script>")
+
+        assert response.status_code == 200
+        assert "<script>" not in response.text
+        assert "&lt;script&gt;alert(1)&lt;/script&gt;" in response.text
+
+    def test_initial_load_hx_get_url(self, mock_config: Config) -> None:
+        from fastapi.testclient import TestClient
+
+        from compose_farm.web.app import create_app
+
+        client = TestClient(create_app(), base_url="http://localhost", client=("127.0.0.1", 50000))
+        response = client.get("/api/stack/plex/containers")
+
+        assert response.status_code == 200
+        assert 'hx-get="/api/stack/plex/containers?host=server-1"' in response.text
+
+    def test_exec_terminal_onclick_is_js_safe(self, mock_config: Config) -> None:
+        from compose_farm.web.routes.api import _render_containers
+
+        containers = [{"Name": "x');alert(1);//<script>", "State": "running"}]
+        html = _render_containers("plex", "server-1", containers)
+
+        assert "<script>" not in html
+        assert "x');alert" not in html
+        assert '"x\\u0027);alert(1);//\\u003cscript\\u003e"' in html

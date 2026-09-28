@@ -44,7 +44,7 @@ classifiers = [
 dependencies = [
     "typer>=0.9.0",
     "pydantic>=2.0.0",
-    "asyncssh>=2.14.0",
+    "asyncssh>=2.24.0",
     "pyyaml>=6.0",
     "rich>=13.0.0",
     "python-dotenv>=1.0.0",
@@ -178,7 +178,6 @@ python-version = "3.11"
 
 [tool.ty.src]
 exclude = [
-    "hatch_build.py",  # Build-time only, hatchling not in dev deps
     "docs/demos/**",   # Demo scripts with local conftest imports
     "src/compose_farm/_version.py",  # Generated at build time
 ]
@@ -188,6 +187,7 @@ unresolved-import = "ignore"  # _version.py is generated at build time
 
 [dependency-groups]
 dev = [
+    "hatchling>=1.28.0",
     "mypy>=1.19.0",
     "ty>=0.0.1a13",
     "pre-commit>=4.5.0",

@@ -27,6 +27,8 @@ nav = [
 
 [project.theme]
 custom_dir = "docs/overrides"
+logo = "assets/icon.svg"
+favicon = "assets/icon.svg"
 language = "en"
 
 features = [
@@ -76,7 +78,6 @@ text = "Inter"
 code = "JetBrains Mono"
 
 [project.theme.icon]
-logo = "lucide/server"
 repo = "fontawesome/brands/github"
 
 [project.extra]

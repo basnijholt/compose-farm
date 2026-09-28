@@ -83,6 +83,17 @@ let execWs = null;
 // ============================================================================
 
 /**
+ * Escape text for safe interpolation into HTML (text and quoted attributes)
+ * @param {*} value - Value to escape
+ * @returns {string} Escaped string
+ */
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[ch]);
+}
+
+/**
  * Get Monaco language from file path
  * @param {string} path - File path
  * @returns {string} Monaco language identifier
@@ -734,8 +745,8 @@ function playFabIntro() {
     function render() {
         list.innerHTML = filtered.map((c, i) => `
             <a class="flex justify-between items-center px-3 py-2 rounded-r cursor-pointer hover:bg-base-200 border-l-4 ${i === selected ? 'bg-base-300' : ''}" style="border-left-color: ${colors[c.type] || '#666'}" data-idx="${i}"${c.themeId ? ` data-theme-id="${c.themeId}"` : ''}>
-                <span class="flex items-center gap-2">${c.icon || ''}<span>${c.name}</span></span>
-                <span class="opacity-40 text-xs">${c.desc}</span>
+                <span class="flex items-center gap-2">${c.icon || ''}<span>${escapeHtml(c.name)}</span></span>
+                <span class="opacity-40 text-xs">${escapeHtml(c.desc)}</span>
             </a>
         `).join('') || '<div class="opacity-50 p-2">No matches</div>';
         // Scroll selected item into view
@@ -884,7 +895,8 @@ function initPage() {
 }
 
 function navigateToStack(stack, action = null) {
-    const url = action ? `/stack/${stack}?action=${action}` : `/stack/${stack}`;
+    const path = `/stack/${encodeURIComponent(stack)}`;
+    const url = action ? `${path}?action=${encodeURIComponent(action)}` : path;
     window.location.href = url;
 }
 
@@ -943,12 +955,11 @@ function initSharedActionMenu() {
             const btn = e.target.closest('button[onclick^="openActionMenu"]');
             if (!btn) return;
 
-            // Extract stack from onclick attribute
-            const match = btn.getAttribute('onclick')?.match(/openActionMenu\(event,\s*'([^']+)'\)/);
-            if (!match) return;
+            const stack = btn.dataset.stack;
+            if (!stack) return;
 
             cancelClose();
-            showMenuForButton(btn, match[1]);
+            showMenuForButton(btn, stack);
         }, true);
 
         tbody.addEventListener('mouseleave', (e) => {
@@ -1098,6 +1109,7 @@ let liveStats = {
 
 const REFRESH_INTERVAL = 5000;
 const UPDATE_CHECK_TTL = 120000;
+const UPDATE_CHECK_BATCH_SIZE = 100;
 const NUMERIC_COLS = new Set([8, 9, 10, 11]);  // uptime, cpu, mem, net
 
 function filterTable() {
@@ -1197,9 +1209,9 @@ function getLiveStatsHosts() {
 
 function buildHostRow(host, message, className) {
     return (
-        `<tr class="${className}" data-host="${host}">` +
+        `<tr class="${className}" data-host="${escapeHtml(host)}">` +
         `<td colspan="12" class="text-center py-2">` +
-        `<span class="text-sm opacity-60">${message}</span>` +
+        `<span class="text-sm opacity-60">${escapeHtml(message)}</span>` +
         `</td></tr>`
     );
 }
@@ -1228,19 +1240,22 @@ async function checkUpdatesForHost(host) {
     if (items.length === 0) return;
 
     try {
-        const response = await fetch('/api/containers/check-updates', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items })
-        });
-        if (!response.ok) return;
-        const data = await response.json();
-        const results = Array.isArray(data?.results) ? data.results : [];
         const htmlMap = new Map();
-        results.forEach(result => {
-            const key = `${result.image}:${result.tag}`;
-            htmlMap.set(key, result.html);
-        });
+        for (let start = 0; start < items.length; start += UPDATE_CHECK_BATCH_SIZE) {
+            const batch = items.slice(start, start + UPDATE_CHECK_BATCH_SIZE);
+            const response = await fetch('/api/containers/check-updates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: batch })
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            const results = Array.isArray(data?.results) ? data.results : [];
+            results.forEach(result => {
+                const key = `${result.image}:${result.tag}`;
+                htmlMap.set(key, result.html);
+            });
+        }
 
         cells.forEach(cell => {
             const image = decodeURIComponent(cell.dataset.image || '');
@@ -1359,7 +1374,7 @@ async function loadHostRows(host) {
             // Last resort: find row and force innerHTML
             const tbody = document.getElementById('container-rows');
             const row = tbody?.querySelector(`tr[data-host="${host}"]`);
-            if (row) row.innerHTML = `<td colspan="12" class="text-center text-error">Error: ${msg}</td>`;
+            if (row) row.innerHTML = `<td colspan="12" class="text-center text-error">Error: ${escapeHtml(msg)}</td>`;
         }
     } finally {
         liveStats.loadingHosts.delete(host);
