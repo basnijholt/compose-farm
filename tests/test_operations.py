@@ -92,6 +92,7 @@ class TestMigrationCommands:
                 target_host="host2",
                 prefix="[test]",
                 raw=False,
+                was_running=True,
             )
 
         # Migration should call pull with --ignore-buildable, then build, then down

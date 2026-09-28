@@ -30,7 +30,7 @@ from .executor import (
     run_compose,
     run_compose_on_host,
 )
-from .plugins import HookContext, run_preflight
+from .plugins import HookContext, PluginError, run_hook, run_hook_all, run_preflight
 from .state import (
     get_orphaned_stacks,
     get_stack_host,
@@ -185,8 +185,26 @@ async def _cleanup_and_rollback(
 ) -> None:
     """Clean up failed start and attempt rollback to old host if it was running."""
     print_warning(f"{prefix} Cleaning up failed start on [magenta]{target_host}[/]")
-    await run_compose(cfg, stack, "down", raw=raw)
+    cleanup = await run_compose(cfg, stack, "down", raw=raw)
+    if not cleanup.success:
+        print_error(
+            f"{prefix} Cleanup failed on [magenta]{target_host}[/]; not restarting on "
+            f"[magenta]{current_host}[/] to avoid running on both hosts"
+        )
+        return
+    await _rollback_to_source(cfg, stack, current_host, prefix, was_running=was_running, raw=raw)
 
+
+async def _rollback_to_source(
+    cfg: Config,
+    stack: str,
+    current_host: str,
+    prefix: str,
+    *,
+    was_running: bool,
+    raw: bool = False,
+) -> None:
+    """Restart the stack on its previous host if it was running there."""
     if not was_running:
         err_console.print(
             f"{prefix} [dim]Stack was not running on [magenta]{current_host}[/], skipping rollback[/]"
@@ -220,6 +238,30 @@ def _report_preflight_failures(
         print_error(f"  missing device: {dev}")
     for err in preflight.plugin_errors:
         print_error(f"  {err}")
+
+
+async def _run_before_up(ctx: HookContext, *, label: str = "") -> CommandResult | None:
+    """Run before_up hooks; report and return a failed result if a plugin fails."""
+    try:
+        await run_hook(ctx, "before_up")
+    except PluginError as e:
+        print_error(f"{format_stack_prefix(ctx.stack)} {e}")
+        return CommandResult(
+            stack=ctx.stack, exit_code=1, success=False, stderr=str(e), host=ctx.host, label=label
+        )
+    return None
+
+
+async def _run_after_up(ctx: HookContext) -> None:
+    """Run after_up hooks; failures are warnings because the stack is already up."""
+    errors = await run_hook_all(ctx, "after_up")
+    for error in errors:
+        print_warning(f"{format_stack_prefix(ctx.stack)} {error}")
+    if errors and ctx.source_host:
+        print_warning(
+            f"{format_stack_prefix(ctx.stack)} Leftovers on "
+            f"[magenta]{ctx.source_host}[/] may need manual cleanup"
+        )
 
 
 def build_up_cmd(
@@ -259,19 +301,17 @@ async def _up_multi_host_stack(
     stack_dir = cfg.get_stack_dir(stack)
     up_cmd = build_up_cmd(pull=pull, build=build)
 
-    # Pre-flight checks on all hosts
+    # Plugin preparation and pre-flight checks on all hosts before starting any
     for host_name in host_names:
+        label = f"{stack}@{host_name}"
+        if failure := await _run_before_up(HookContext(cfg, stack, host_name), label=label):
+            results.append(failure)
+            return results
         preflight = await check_stack_requirements(cfg, stack, host_name)
         if not preflight.ok:
             _report_preflight_failures(stack, host_name, preflight)
             results.append(
-                CommandResult(
-                    stack=stack,
-                    exit_code=1,
-                    success=False,
-                    host=host_name,
-                    label=f"{stack}@{host_name}",
-                )
+                CommandResult(stack=stack, exit_code=1, success=False, host=host_name, label=label)
             )
             return results
 
@@ -305,6 +345,8 @@ async def _up_multi_host_stack(
     # Update state with hosts that succeeded (partial success is tracked)
     if succeeded_hosts:
         set_multi_host_stack(cfg, stack, succeeded_hosts)
+        for host_name in succeeded_hosts:
+            await _run_after_up(HookContext(cfg, stack, host_name))
 
     return results
 
@@ -317,10 +359,12 @@ async def _migrate_stack(
     prefix: str,
     *,
     raw: bool = False,
+    was_running: bool,
 ) -> CommandResult | None:
     """Migrate a stack from current_host to target_host.
 
-    Pre-pulls/builds images on target, then stops stack on current host.
+    Pre-pulls/builds images on target, stops the stack on the current host, then
+    runs after_source_stopped hooks (rolling back to the source if one fails).
     Returns failure result if migration prep fails, None on success.
     """
     console.print(
@@ -341,7 +385,20 @@ async def _migrate_stack(
 
     # Stop on current host
     down_result = await _run_compose_step(cfg, stack, "down", raw=raw, host=current_host)
-    return down_result if not down_result.success else None
+    if not down_result.success:
+        return down_result
+
+    try:
+        await run_hook(HookContext(cfg, stack, target_host, current_host), "after_source_stopped")
+    except PluginError as e:
+        print_error(f"{prefix} {e}")
+        await _rollback_to_source(
+            cfg, stack, current_host, prefix, was_running=was_running, raw=raw
+        )
+        return CommandResult(
+            stack=stack, exit_code=1, success=False, stderr=str(e), host=target_host
+        )
+    return None
 
 
 async def _up_single_stack(
@@ -356,6 +413,11 @@ async def _up_single_stack(
     """Start a single-host stack with migration support."""
     target_host = cfg.get_hosts(stack)[0]
     current_host = get_stack_host(cfg, stack)
+    source_host = current_host if current_host and current_host != target_host else None
+    ctx = HookContext(cfg, stack, target_host, source_host)
+
+    if failure := await _run_before_up(ctx):
+        return failure
 
     # Pre-flight check: verify paths, networks, and devices exist on target
     preflight = await check_stack_requirements(cfg, stack, target_host)
@@ -369,7 +431,9 @@ async def _up_single_stack(
     if current_host and current_host != target_host:
         if current_host in cfg.hosts:
             was_running = await check_stack_running(cfg, stack, current_host)
-            failure = await _migrate_stack(cfg, stack, current_host, target_host, prefix, raw=raw)
+            failure = await _migrate_stack(
+                cfg, stack, current_host, target_host, prefix, raw=raw, was_running=was_running
+            )
             if failure:
                 return failure
             did_migration = True
@@ -387,6 +451,7 @@ async def _up_single_stack(
     # Update state on success, or rollback on failure
     if up_result.success:
         set_stack_host(cfg, stack, target_host)
+        await _run_after_up(ctx)
     elif did_migration and current_host:
         await _cleanup_and_rollback(
             cfg,
@@ -411,6 +476,10 @@ async def _up_stack_simple(
 ) -> CommandResult:
     """Start a single-host stack without migration (parallel-safe)."""
     target_host = cfg.get_hosts(stack)[0]
+    ctx = HookContext(cfg, stack, target_host)
+
+    if failure := await _run_before_up(ctx):
+        return failure
 
     # Pre-flight check
     preflight = await check_stack_requirements(cfg, stack, target_host)
@@ -428,6 +497,7 @@ async def _up_stack_simple(
     # Update state on success
     if result.success:
         set_stack_host(cfg, stack, target_host)
+        await _run_after_up(ctx)
 
     return result
 
