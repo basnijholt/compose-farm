@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,8 +13,8 @@ from starlette.websockets import WebSocketDisconnect
 from compose_farm.web.app import create_app
 from compose_farm.web.auth import AuthSettings
 
-LOCAL = {"base_url": "http://localhost", "client": ("127.0.0.1", 50000)}
-REMOTE = {"base_url": "http://cf.example.com", "client": ("203.0.113.5", 50000)}
+LOCAL: dict[str, Any] = {"base_url": "http://localhost", "client": ("127.0.0.1", 50000)}
+REMOTE: dict[str, Any] = {"base_url": "http://cf.example.com", "client": ("203.0.113.5", 50000)}
 STATIC = "/static/app.js"
 
 

@@ -2596,7 +2596,9 @@ class TestBasicAuth:
         """After logging in, terminal WebSockets connect without extra handling."""
         context = browser.new_context(http_credentials={"username": "admin", "password": "s3cret"})
         page = context.new_page()
-        assert page.goto(f"{password_server_url}/static/app.js").status == 200
+        response = page.goto(f"{password_server_url}/static/app.js")
+        assert response is not None
+        assert response.status == 200
         message = page.evaluate(
             """() => new Promise(resolve => {
                 const ws = new WebSocket(location.origin.replace('http', 'ws') + '/ws/terminal/x');
