@@ -31,12 +31,7 @@ lint:
 
 # Audit the exact locked production dependencies, including web extras
 audit:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    audit_requirements="$(mktemp)"
-    trap 'rm -f "$audit_requirements"' EXIT
-    uv export --frozen --all-extras --no-dev --no-emit-project --no-hashes --output-file "$audit_requirements"
-    uvx pip-audit==2.10.1 --requirement "$audit_requirements"
+    uv audit --preview-features audit-command --locked --no-dev
 
 # Start web UI in development mode with auto-reload
 web:
