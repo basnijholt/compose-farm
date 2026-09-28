@@ -53,6 +53,19 @@ class TestOptions:
             policy.TraefikPolicyPlugin(options)
 
 
+class TestBeforeUp:
+    """Direct starts (up --host/--service) skip preflight, so before_up enforces it too."""
+
+    async def test_refuses_to_start(self, tmp_path: Path) -> None:
+        plugin = policy.TraefikPolicyPlugin({"entrypoints_require": {"wan": ["websecure"]}})
+        with pytest.raises(PluginError, match="router web-pub is on entrypoint wan"):
+            await plugin.before_up(_ctx(tmp_path))
+
+    async def test_compliant_stack_starts(self, tmp_path: Path) -> None:
+        plugin = policy.TraefikPolicyPlugin({"entrypoints_require": {"web": ["websecure"]}})
+        await plugin.before_up(_ctx(tmp_path))
+
+
 class TestPreflight:
     """Routers on an entrypoint must also be on the required ones."""
 

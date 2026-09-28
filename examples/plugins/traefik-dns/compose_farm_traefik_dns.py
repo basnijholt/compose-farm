@@ -22,12 +22,16 @@ from __future__ import annotations
 import re
 from typing import Any
 
+import yaml
+
 from compose_farm.console import print_success
 from compose_farm.executor import run_on_stacks
-from compose_farm.plugins import ChangesContext, Plugin, PluginError
+from compose_farm.plugins import ChangesContext, HookContext, Plugin, PluginError, run_hook
 from compose_farm.traefik import generate_traefik_config
 
-_HOST_RULE = re.compile(r"Host\(`([^`]+)`\)")
+_HOST_ARGS = re.compile(r"Host\(([^)]*)\)")  # Host(`a`) or Host(`a`, `b`)
+_QUOTED = re.compile(r"`([^`]*)`")
+_HOSTNAME = re.compile(r"[A-Za-z0-9.-]+")
 _FORMATS = ("headscale", "hosts")
 
 
@@ -72,6 +76,10 @@ class TraefikDnsPlugin(Plugin):
         print_success(f"traefik-dns: updated {path}")
         if not self.restart:
             return
+        # Prepare the reader like `cf up` would, so e.g. the sync plugin copies the new
+        # file to its hosts (hooks are idempotent by contract)
+        for host in ctx.cfg.get_hosts(self.restart):
+            await run_hook(HookContext(ctx.cfg, self.restart, host), "before_up")
         failed = [
             r.host for r in await run_on_stacks(ctx.cfg, [self.restart], "restart") if not r.success
         ]
@@ -92,9 +100,14 @@ class TraefikDnsPlugin(Plugin):
             routers = dynamic.get("http", {}).get("routers", {})
             rules.extend(str(router.get("rule", "")) for router in routers.values())
         for rule_file in self.rule_files:
-            lines = (ctx.cfg.compose_dir / rule_file).read_text().splitlines()
-            rules.extend(line for line in lines if not line.lstrip().startswith("#"))
-        names = {name for rule in rules for name in _HOST_RULE.findall(rule)}
+            rules.extend(_rules(yaml.safe_load((ctx.cfg.compose_dir / rule_file).read_text())))
+        names = {
+            name
+            for rule in rules
+            for args in _HOST_ARGS.findall(rule)
+            for name in _QUOTED.findall(args)
+            if _HOSTNAME.fullmatch(name)
+        }
         return {n for n in names if n == self.domain or n.endswith(f".{self.domain}")}
 
     def _records(self, names: list[str]) -> list[str]:
@@ -114,9 +127,25 @@ class TraefikDnsPlugin(Plugin):
             msg = f"add '{self.begin}' and '{self.end}' lines to {self.file} where the records go"
             raise PluginError(msg)
         start, stop = stripped.index(self.begin), stripped.index(self.end)
+        if stop < start:
+            msg = f"'{self.begin}' must come before '{self.end}' in {self.file}"
+            raise PluginError(msg)
         indent = lines[start][: len(lines[start]) - len(lines[start].lstrip())]
         block = [f"{indent}{record}\n" for record in records]
         return "".join([*lines[: start + 1], *block, *lines[stop:]])
+
+
+def _rules(node: object) -> list[str]:
+    """Every ``rule:`` value in a Traefik dynamic config file (comments are not values)."""
+    if isinstance(node, dict):
+        return [
+            rule
+            for key, value in node.items()
+            for rule in ([value] if key == "rule" and isinstance(value, str) else _rules(value))
+        ]
+    if isinstance(node, list):
+        return [rule for item in node for rule in _rules(item)]
+    return []
 
 
 def _required(options: dict[str, Any], key: str) -> str:

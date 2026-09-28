@@ -468,6 +468,8 @@ def test_traefik_dns(cf: Path) -> None:
     farm.cf("up", "grafana")
     records = (STACKS / "dnsreader" / "records.yaml").read_text()
     assert "  - name: grafana.lab.test\n    type: A\n    value: 100.64.0.28\n" in records
+    # The reader's host got the new file (via sync's before_up) before the restart
+    assert vm("vm1", f"cat {STACKS}/dnsreader/records.yaml") == records
     restarted = started_at()
     assert restarted != first
 

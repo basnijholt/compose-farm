@@ -2,7 +2,7 @@
 
 Example [compose-farm plugin](../../../docs/plugins.md) that keeps DNS records in sync with your Traefik hostnames. After every `cf` command that starts, moves, or stops stacks, it:
 
-1. collects every `` Host(`...`) `` rule under a domain from all configured stacks' Traefik labels (with `${DOMAIN}` from each stack's `.env` filled in), plus optional hand-written route files;
+1. collects every `` Host(`...`) `` name under a domain from all configured stacks' Traefik labels (with `${DOMAIN}` from each stack's `.env` filled in), plus the `rule:` values in optional hand-written route files;
 2. writes one record per name, all pointing at your Traefik entry, between `# BEGIN <marker>` and `# END <marker>` in a file;
 3. restarts the stack that reads the file, but only when the records changed.
 
@@ -47,5 +47,5 @@ With `format: hosts`, each record is a line like `100.64.0.28 grafana.lab.exampl
 - Only stacks in `compose-farm.yaml` count, so commented-out stacks don't leave stale records behind.
 - If a stack's compose file can't be read, the update stops with an error and the existing records stay as they are, instead of silently dropping that stack's names.
 - The restart covers every host of the `restart` stack. If it fails anywhere, the file is put back, so the next `cf` command writes it again and retries the restart.
-- The file is written on the machine running `cf`, which works when `compose_dir` is shared (NFS). If you copy compose files with the `sync` plugin instead, the restarted stack still sees the old copy until its next `cf up`.
+- The file is written on the machine running `cf`. Before restarting, the plugin runs the reader stack's `before_up` hooks on its hosts, as `cf up` would. With the `sync` plugin, that copies the new file to them; with a shared (NFS) `compose_dir`, the hosts already see it.
 - Records point at the Traefik entry, not at the host that runs each service.

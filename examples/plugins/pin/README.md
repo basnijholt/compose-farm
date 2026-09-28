@@ -17,7 +17,10 @@ uv tool install compose-farm \
 # compose-farm.yaml
 plugins:
   pin:                     # list it first, so it runs before plugins that move data
-    gitea: nas             # host only
+    gitea:
+      host: nas
+      reason: router forwards ports to it
+    emby: nas              # host only
     frigate:
       host: nas
       reason: static IP used in Home Assistant

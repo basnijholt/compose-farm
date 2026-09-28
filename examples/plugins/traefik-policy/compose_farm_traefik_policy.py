@@ -39,7 +39,15 @@ class TraefikPolicyPlugin(Plugin):
         }
 
     async def preflight(self, ctx: HookContext) -> list[str]:
-        """Check the stack's routers against the rules."""
+        """Report rule violations (also shown by `cf check`)."""
+        return self._problems(ctx)
+
+    async def before_up(self, ctx: HookContext) -> None:
+        """Refuse to start, also on `up --host`/`--service`, which skip preflight."""
+        if problems := self._problems(ctx):
+            raise PluginError("; ".join(problems))
+
+    def _problems(self, ctx: HookContext) -> list[str]:
         try:
             dynamic, _ = generate_traefik_config(ctx.cfg, [ctx.stack], check_all=True)
         except (FileNotFoundError, ValueError):

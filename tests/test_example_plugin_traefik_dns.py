@@ -11,7 +11,7 @@ import pytest
 
 from compose_farm.executor import CommandResult
 from compose_farm.plugins import ChangesContext, PluginError
-from tests.plugin_helpers import load_example_plugin, make_config
+from tests.plugin_helpers import Recorder, load_example_plugin, make_config, use_plugins
 
 if TYPE_CHECKING:
     from compose_farm.config import Config
@@ -50,8 +50,10 @@ def _cfg(tmp_path: Path) -> Config:
     manual = stacks / "traefik" / "dynamic.d"
     manual.mkdir(parents=True)
     (manual / "manual.yml").write_text(
-        "http:\n  routers:\n    ha:\n      rule: Host(`home.lab.test`)\n"
+        "http:\n  routers:\n    ha:\n      rule: Host(`home.lab.test`)  # was Host(`old.lab.test`)\n"
         "    # old:\n    #   rule: Host(`gone.lab.test`)\n"
+        "    multi:\n      rule: Host(`a.lab.test`, `b.lab.test`)\n"
+        "    bad:\n      rule: Host(`outside.example.org inside.lab.test`)\n"
     )
     return cfg
 
@@ -109,7 +111,14 @@ class TestHeadscale:
             await plugin.after_changes(ChangesContext(cfg, ("web",)))  # Nothing changed
         text = (cfg.compose_dir / "headscale" / "config.yaml").read_text()
         names = [line.split()[-1] for line in text.splitlines() if "- name:" in line]
-        assert names == ["docs.lab.test", "home.lab.test", "web.lab.test", "wiki.lab.test"]
+        assert names == [
+            "a.lab.test",
+            "b.lab.test",
+            "docs.lab.test",
+            "home.lab.test",
+            "web.lab.test",
+            "wiki.lab.test",
+        ]
         assert "    - name: docs.lab.test\n      type: A\n      value: 100.64.0.28\n" in text
         assert text.startswith("dns:\n  extra_records:\n    # BEGIN MANAGED DNS\n")
         assert text.endswith(
@@ -149,6 +158,37 @@ class TestHeadscale:
         cfg = _cfg(tmp_path)
         with pytest.raises(PluginError, match="restart stack 'nope' is not in the config"):
             await _plugin(restart="nope").after_changes(ChangesContext(cfg, ("web",)))
+
+    async def test_reversed_markers_are_an_error(self, tmp_path: Path) -> None:
+        cfg = _cfg(tmp_path)
+        path = cfg.compose_dir / "headscale" / "config.yaml"
+        reversed_markers = "# END MANAGED DNS\nkeep: me\n# BEGIN MANAGED DNS\n"
+        path.write_text(reversed_markers)
+        with pytest.raises(PluginError, match="must come before"):
+            await _plugin().after_changes(ChangesContext(cfg, ("web",)))
+        assert path.read_text() == reversed_markers
+
+    async def test_reader_is_prepared_like_cf_up_before_restart(self, tmp_path: Path) -> None:
+        """With the sync plugin, the reader's host only sees the new file after before_up."""
+        events: list[Any] = []
+        sync_like = Recorder({"events": events})
+        sync_like.name = "sync"
+        dns_plugin = _plugin(restart="headscale")
+        dns_plugin.name = "traefik-dns"
+        cfg = use_plugins(_cfg(tmp_path), sync_like, dns_plugin)
+        cfg.stacks["headscale"] = ["h1", "h2"]
+
+        async def restart(*_: Any) -> list[CommandResult]:
+            events.append("restart")
+            return []
+
+        with patch.object(dns, "run_on_stacks", AsyncMock(side_effect=restart)):
+            await dns_plugin.after_changes(ChangesContext(cfg, ("web",)))
+        assert events == [
+            ("before_up", "headscale", "h1", None),
+            ("before_up", "headscale", "h2", None),
+            "restart",
+        ]
 
     async def test_missing_markers_are_an_error(self, tmp_path: Path) -> None:
         cfg = _cfg(tmp_path)
