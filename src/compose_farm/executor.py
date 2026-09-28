@@ -301,6 +301,22 @@ async def _run_ssh_command(
     label: str = "",
 ) -> CommandResult:
     """Run a command on a remote host via SSH with streaming output."""
+    if not SSH_KNOWN_HOSTS_PATH.is_file():
+        detail = (
+            f"SSH host key database not found at {SSH_KNOWN_HOSTS_PATH}. "
+            "Run 'cf ssh setup --trust-only' to verify and trust configured hosts."
+        )
+        if stream:
+            err_console.print(f"{format_stack_prefix(prefix or stack)} [red]SSH error:[/] {detail}")
+        return CommandResult(
+            stack=stack,
+            exit_code=1,
+            success=False,
+            stderr=detail,
+            host=host_name,
+            label=label,
+        )
+
     if raw:
         # Use native ssh with TTY for proper progress bar rendering
         ssh_args = build_ssh_command(host, command, tty=True)

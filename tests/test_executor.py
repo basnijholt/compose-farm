@@ -133,15 +133,20 @@ class TestRunCommand:
         assert result.success is True
 
     async def test_non_streaming_ssh_error_is_returned_not_printed(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
         """Preflight checks run under progress bars and must not print mid-render."""
         from compose_farm import executor
 
         output = _RecordingConsole()
         monkeypatch.setattr(executor, "err_console", output)
+        known_hosts = tmp_path / "known_hosts"
+        known_hosts.touch()
 
-        with patch("asyncssh.connect", side_effect=OSError("Connection lost")):
+        with (
+            patch("compose_farm.executor.SSH_KNOWN_HOSTS_PATH", known_hosts),
+            patch("asyncssh.connect", side_effect=OSError("Connection lost")),
+        ):
             result = await _run_ssh_command(
                 Host(address="192.168.1.10"),
                 "true",
@@ -152,6 +157,22 @@ class TestRunCommand:
         assert result.success is False
         assert result.stderr == "Connection lost"
         assert output.calls == []
+
+    async def test_missing_known_hosts_returns_setup_guidance(self, tmp_path: Path) -> None:
+        """A missing trust database should produce an actionable failure."""
+        missing = tmp_path / "known_hosts"
+
+        with patch("compose_farm.executor.SSH_KNOWN_HOSTS_PATH", missing):
+            result = await _run_ssh_command(
+                Host(address="192.168.1.10"),
+                "true",
+                "mount-check",
+                stream=False,
+            )
+
+        assert result.success is False
+        assert "known_hosts" in result.stderr
+        assert "cf ssh setup --trust-only" in result.stderr
 
 
 class TestBuildSshCommand:
