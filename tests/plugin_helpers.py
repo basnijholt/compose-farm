@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from compose_farm.config import Config, Host
-from compose_farm.plugins import HookContext, Plugin
+from compose_farm.plugins import ChangesContext, HookContext, Plugin
 
 if TYPE_CHECKING:
     from types import ModuleType
@@ -46,6 +46,12 @@ class Recorder(Plugin):
 
     async def after_stack_removed(self, ctx: HookContext) -> None:
         self._record("after_stack_removed", ctx)
+
+    async def after_changes(self, ctx: ChangesContext) -> None:
+        self.events.append(("after_changes", ctx.stacks))
+        if ("after_changes", "*") in self.fail:
+            msg = "after_changes failed"
+            raise RuntimeError(msg)
 
     def compose_args(self, ctx: HookContext) -> list[str]:
         return [arg.format(stack=ctx.stack, host=ctx.host) for arg in self.args]

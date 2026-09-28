@@ -18,6 +18,7 @@ from compose_farm.console import (
     print_success,
     print_warning,
 )
+from compose_farm.plugins import ChangesContext, run_hook_all
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine, Generator
@@ -246,6 +247,18 @@ def report_results(results: list[CommandResult]) -> None:
 
     if failed:
         raise typer.Exit(1)
+
+
+def maybe_run_after_changes(cfg: Config, results: list[CommandResult]) -> None:
+    """Run plugins' after_changes hooks once for the stacks this command changed.
+
+    Failures are warnings: the stacks are already up or down.
+    """
+    stacks = tuple(sorted({result.stack for result in results if result.success}))
+    if not stacks or not cfg.plugins:
+        return
+    for error in run_async(run_hook_all(ChangesContext(cfg, stacks), "after_changes")):
+        print_warning(error)
 
 
 def maybe_regenerate_traefik(

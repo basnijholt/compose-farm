@@ -22,6 +22,7 @@ from compose_farm.cli.common import (
     get_stacks,
     load_config_or_exit,
     maybe_regenerate_traefik,
+    maybe_run_after_changes,
     report_results,
     run_async,
     validate_host_for_stack,
@@ -104,6 +105,7 @@ def up(
             )
         )
     maybe_regenerate_traefik(cfg, results)
+    maybe_run_after_changes(cfg, results)
     report_results(results)
 
 
@@ -139,6 +141,7 @@ def down(
             f"{', '.join(orphaned_stacks.keys())}"
         )
         results = run_async(stop_orphaned_stacks(cfg))
+        maybe_run_after_changes(cfg, results)
         report_results(results)
         return
 
@@ -159,6 +162,7 @@ def down(
                 updated_stacks.add(key)
 
     maybe_regenerate_traefik(cfg, results)
+    maybe_run_after_changes(cfg, results)
     report_results(results)
 
 
@@ -420,6 +424,7 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
         all_results.extend(refresh_results)
         maybe_regenerate_traefik(cfg, refresh_results)
 
+    maybe_run_after_changes(cfg, all_results)
     report_results(all_results)
 
 
