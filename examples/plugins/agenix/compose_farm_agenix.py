@@ -16,6 +16,10 @@ checks during preflight that they exist on the target host::
 
 Relative names are resolved in ``secrets_dir``; absolute paths are used as-is.
 Stacks that are not listed are left alone.
+
+With ``mode: symlink``, each listed stack's single env file is linked as the
+stack's ``.env`` on the target host instead, so compose files that use
+``env_file: .env`` get the secrets without changes.
 """
 
 from __future__ import annotations
@@ -33,7 +37,7 @@ class AgenixPlugin(Plugin):
     def __init__(self, options: dict[str, Any]) -> None:
         """Validate ``secrets_dir`` and the per-stack secrets."""
         super().__init__(options)
-        unknown = sorted(set(options) - {"secrets_dir", "stacks"})
+        unknown = sorted(set(options) - {"secrets_dir", "stacks", "mode"})
         if unknown:
             msg = f"unknown option(s): {', '.join(unknown)}"
             raise PluginError(msg)
@@ -52,18 +56,38 @@ class AgenixPlugin(Plugin):
         if not isinstance(stacks, dict):
             msg = "stacks must map stack names to secret files"
             raise PluginError(msg)
+        self.mode = options.get("mode", "env-file")
+        if self.mode not in ("env-file", "symlink"):
+            msg = "mode must be 'env-file' or 'symlink'"
+            raise PluginError(msg)
         base = PurePosixPath(secrets_dir)
         self.env: dict[str, list[str]] = {}
         self.files: dict[str, list[str]] = {}
         for stack, spec in stacks.items():
             env, files = _parse_stack(stack, spec)
+            if self.mode == "symlink" and len(env) > 1:
+                msg = f"stacks.{stack}: symlink mode links one env file per stack as .env"
+                raise PluginError(msg)
             self.env[stack] = [str(base / name) for name in env]
             self.files[stack] = [str(base / name) for name in files]
+
+    async def before_up(self, ctx: HookContext) -> None:
+        """In symlink mode, link the env file as the stack's ``.env`` on ctx.host."""
+        env_files = self.env.get(ctx.stack, [])
+        if self.mode != "symlink" or not env_files:
+            return
+        dotenv = shlex.quote(str(ctx.cfg.get_stack_dir(ctx.stack) / ".env"))
+        refuse = "echo '.env is a regular file; not replacing it with a symlink' >&2; exit 1"
+        await ctx.run(
+            f"if [ -e {dotenv} ] && [ ! -L {dotenv} ]; then {refuse}; fi; "
+            f"ln -sfn {shlex.quote(env_files[0])} {dotenv}",
+            stream=False,
+        )
 
     def compose_args(self, ctx: HookContext) -> list[str]:
         """Add ``--env-file`` per secret, keeping the stack's own ``.env`` first."""
         env_files = self.env.get(ctx.stack, [])
-        if not env_files:
+        if self.mode == "symlink" or not env_files:
             return []
         args: list[str] = []
         # Any --env-file stops compose from reading .env implicitly, so pass it explicitly.
