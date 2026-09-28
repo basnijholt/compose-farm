@@ -1,6 +1,7 @@
 """Tests for executor module."""
 
 import shlex
+import subprocess
 import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -13,6 +14,7 @@ from compose_farm.config import Config, Host
 from compose_farm.executor import (
     CommandResult,
     RemoteCheckError,
+    _build_compose_command,
     _run_local_command,
     _run_ssh_command,
     _stream_output_lines,
@@ -131,6 +133,30 @@ class TestRunCommand:
         assert result.stack == "my-service"
         assert result.exit_code == 0
         assert result.success is True
+
+    def test_compose_command_executes_hostile_path_literally(self, tmp_path: Path) -> None:
+        """Exercise the generated command through a real shell with a fake Docker binary."""
+        stack_dir = tmp_path / "$(touch injected)"
+        stack_dir.mkdir()
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        docker = bin_dir / "docker"
+        docker.write_text('#!/bin/sh\nprintf "%s\\n" "$PWD"\n')
+        docker.chmod(0o755)
+
+        command = _build_compose_command(stack_dir, "ps")
+        result = subprocess.run(  # noqa: S602
+            command,
+            shell=True,
+            check=True,
+            capture_output=True,
+            text=True,
+            cwd=tmp_path,
+            env={"PATH": str(bin_dir)},
+        )
+
+        assert result.stdout.strip() == str(stack_dir)
+        assert not (tmp_path / "injected").exists()
 
     async def test_non_streaming_ssh_error_is_returned_not_printed(
         self, monkeypatch: pytest.MonkeyPatch
