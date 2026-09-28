@@ -1109,6 +1109,7 @@ let liveStats = {
 
 const REFRESH_INTERVAL = 5000;
 const UPDATE_CHECK_TTL = 120000;
+const UPDATE_CHECK_BATCH_SIZE = 100;
 const NUMERIC_COLS = new Set([8, 9, 10, 11]);  // uptime, cpu, mem, net
 
 function filterTable() {
@@ -1239,19 +1240,22 @@ async function checkUpdatesForHost(host) {
     if (items.length === 0) return;
 
     try {
-        const response = await fetch('/api/containers/check-updates', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items })
-        });
-        if (!response.ok) return;
-        const data = await response.json();
-        const results = Array.isArray(data?.results) ? data.results : [];
         const htmlMap = new Map();
-        results.forEach(result => {
-            const key = `${result.image}:${result.tag}`;
-            htmlMap.set(key, result.html);
-        });
+        for (let start = 0; start < items.length; start += UPDATE_CHECK_BATCH_SIZE) {
+            const batch = items.slice(start, start + UPDATE_CHECK_BATCH_SIZE);
+            const response = await fetch('/api/containers/check-updates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ items: batch })
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            const results = Array.isArray(data?.results) ? data.results : [];
+            results.forEach(result => {
+                const key = `${result.image}:${result.tag}`;
+                htmlMap.set(key, result.html);
+            });
+        }
 
         cells.forEach(cell => {
             const image = decodeURIComponent(cell.dataset.image || '');

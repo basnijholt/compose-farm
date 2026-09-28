@@ -2393,6 +2393,46 @@ class TestContainersPagePause:
 </tr>
 """
 
+    def test_update_checks_are_split_into_bounded_batches(
+        self, page: Page, server_url: str
+    ) -> None:
+        """Hosts with over 100 images must stay within the API request limit."""
+        rows = "".join(
+            f'<tr data-host="server-1"><td class="update-cell" '
+            f'data-image="example%2Fimage-{index}" data-tag="latest"></td></tr>'
+            for index in range(101)
+        )
+        batch_sizes: list[int] = []
+
+        def route_rows(route: Route) -> None:
+            body = rows if route.request.url.endswith("/server-1") else ""
+            route.fulfill(status=200, content_type="text/html", body=body)
+
+        def route_updates(route: Route) -> None:
+            payload = route.request.post_data_json
+            assert isinstance(payload, dict)
+            items = payload["items"]
+            assert isinstance(items, list)
+            batch_sizes.append(len(items))
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"results": []}',
+            )
+
+        page.route("**/api/containers/rows/*", route_rows)
+        page.route("**/api/containers/check-updates", route_updates)
+        page.goto(f"{server_url}/live-stats")
+        page.wait_for_function(
+            "document.querySelectorAll('#container-rows tr[data-host=\"server-1\"]').length === 101",
+            timeout=TIMEOUT,
+        )
+        page.wait_for_timeout(500)
+
+        assert sum(batch_sizes) == 101
+        assert len(batch_sizes) == 2
+        assert max(batch_sizes) <= 100
+
     def test_dropdown_pauses_refresh(self, page: Page, server_url: str) -> None:
         """Opening action dropdown pauses auto-refresh.
 
