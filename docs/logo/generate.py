@@ -163,14 +163,20 @@ def vane(*, arrow: bool = True) -> list[str]:
     ball = f'<circle class="vfill" cx="{bx:.1f}" cy="{by - 40:.1f}" r="3"/>'
     if not arrow:
         return [f'<path class="vcase" d="{pole}"/><path class="vcore" d="{pole}"/>', ball]
+    # The arrow's near half always projects below the pivot and its far half above it,
+    # so pole-below / arrow / pole-above gives correct occlusion at every heading.
+    pivot = by - 26
+    below = f"M{bx:.1f},{by:.1f} V{pivot:.1f}"
+    above = f"M{bx:.1f},{pivot:.1f} V{by - 39:.1f}"
     return [
-        f'<path class="vcase" d="{pole}"/><path class="vcore" d="{pole}"/>',
-        f'<g transform="translate({bx:.1f} {by - 26:.1f}) {iso}"><g class="spin">',
+        f'<path class="vcase" d="{below}"/><path class="vcore" d="{below}"/>',
+        f'<g transform="translate({bx:.1f} {pivot:.1f}) {iso}"><g class="spin">',
         f'<path class="vcase" d="{shaft}"/>',
         '<polygon class="vfill" points="1.15,0 0.5,0.42 0.5,-0.42"/>',
         '<polygon class="vfill" points="-0.35,0 -0.8,0.4 -1.15,0.4 -0.85,0 -1.15,-0.4 -0.8,-0.4"/>',
         f'<path class="vcore" d="{shaft}"/>',
         "</g></g>",
+        f'<path class="vcase" d="{above}"/><path class="vcore" d="{above}"/>',
         ball,
     ]
 

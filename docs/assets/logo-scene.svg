@@ -216,12 +216,13 @@
 <line class="rib" x1="233.7" y1="109.0" x2="233.7" y2="95.0"/>
 </g>
 <!-- weathervane -->
-<path class="vcase" d="M386.1,108.0 V69.0"/><path class="vcore" d="M386.1,108.0 V69.0"/>
+<path class="vcase" d="M386.1,108.0 V82.0"/><path class="vcore" d="M386.1,108.0 V82.0"/>
 <g transform="translate(386.1 82.0) matrix(12.12 7.00 -12.12 7.00 0 0)"><g class="spin">
 <path class="vcase" d="M-0.7,0 H0.6"/>
 <polygon class="vfill" points="1.15,0 0.5,0.42 0.5,-0.42"/>
 <polygon class="vfill" points="-0.35,0 -0.8,0.4 -1.15,0.4 -0.85,0 -1.15,-0.4 -0.8,-0.4"/>
 <path class="vcore" d="M-0.7,0 H0.6"/>
 </g></g>
+<path class="vcase" d="M386.1,82.0 V69.0"/><path class="vcore" d="M386.1,82.0 V69.0"/>
 <circle class="vfill" cx="386.1" cy="68.0" r="3"/>
 </svg>
