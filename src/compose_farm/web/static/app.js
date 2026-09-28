@@ -884,7 +884,8 @@ function initPage() {
 }
 
 function navigateToStack(stack, action = null) {
-    const url = action ? `/stack/${stack}?action=${action}` : `/stack/${stack}`;
+    const path = `/stack/${encodeURIComponent(stack)}`;
+    const url = action ? `${path}?action=${encodeURIComponent(action)}` : path;
     window.location.href = url;
 }
 
@@ -943,12 +944,11 @@ function initSharedActionMenu() {
             const btn = e.target.closest('button[onclick^="openActionMenu"]');
             if (!btn) return;
 
-            // Extract stack from onclick attribute
-            const match = btn.getAttribute('onclick')?.match(/openActionMenu\(event,\s*'([^']+)'\)/);
-            if (!match) return;
+            const stack = btn.dataset.stack;
+            if (!stack) return;
 
             cancelClose();
-            showMenuForButton(btn, match[1]);
+            showMenuForButton(btn, stack);
         }, true);
 
         tbody.addEventListener('mouseleave', (e) => {

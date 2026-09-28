@@ -14,6 +14,7 @@ from compose_farm.web.routes.containers import (
     _infer_stack_service,
     _parse_image,
     _parse_uptime_seconds,
+    _render_row,
     _render_update_badge,
 )
 
@@ -286,3 +287,84 @@ class TestUpdateBadge:
         assert "2 new" in html
         assert "tooltip whitespace-nowrap" in html
         assert "badge badge-warning badge-xs cursor-help whitespace-nowrap" in html
+
+
+def _stats(**overrides: str) -> ContainerStats:
+    fields = {
+        "name": "web",
+        "host": "nas",
+        "status": "running",
+        "image": "nginx:latest",
+        "uptime": "1 hour",
+        "stack": "web",
+        "service": "app",
+    }
+    fields.update(overrides)
+    return ContainerStats(
+        cpu_percent=1.0,
+        memory_usage=100,
+        memory_limit=1000,
+        memory_percent=10.0,
+        network_rx=0,
+        network_tx=0,
+        ports="",
+        engine="docker",
+        **fields,
+    )
+
+
+class TestHtmlEscaping:
+    """Container data from remote hosts must be HTML-escaped (stored XSS)."""
+
+    XSS = "<script>alert(1)</script>"
+
+    def test_render_row_escapes_untrusted_fields(self) -> None:
+        c = _stats(
+            name=f'x"{self.XSS}',
+            image=f'evil/{self.XSS}:"tag',
+            status=self.XSS,
+            uptime=self.XSS,
+            stack=f"s'\"{self.XSS}",
+            service=self.XSS,
+        )
+        html = _render_row(c, 1)
+
+        assert "<script>" not in html
+        assert "&lt;script&gt;" in html
+        # Quotes must not break out of attributes
+        assert 'x"<' not in html
+        assert "&quot;" in html
+
+    def test_action_menu_stack_not_in_js_context(self) -> None:
+        html = _render_row(_stats(stack="a');alert(1);//"), 1)
+
+        assert "openActionMenu(event, this.dataset.stack)" in html
+        assert 'data-stack="a&#x27;);alert(1);//"' in html
+        assert "a');alert" not in html
+
+    def test_stack_link_is_url_encoded(self) -> None:
+        html = _render_row(_stats(stack="a b/c"), 1)
+
+        assert 'href="/stack/a%20b%2Fc"' in html
+
+    def test_host_error_row_escapes_error(self) -> None:
+        client = TestClient(create_app())
+        with (
+            patch("compose_farm.web.routes.containers.get_config") as mock_config,
+            patch(
+                "compose_farm.glances.fetch_container_stats",
+                new_callable=AsyncMock,
+                return_value=(None, self.XSS),
+            ),
+        ):
+            mock_config.return_value = Config(
+                compose_dir=Path("/opt/compose"),
+                hosts={"nas": Host(address="192.168.1.6")},
+                stacks={"test": "nas"},
+                glances_stack="glances",
+            )
+            response = client.get("/api/containers/rows/nas")
+
+        assert response.status_code == 200
+        assert "<script>" not in response.text
+        assert "&lt;script&gt;" in response.text
