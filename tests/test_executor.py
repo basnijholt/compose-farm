@@ -26,6 +26,7 @@ from compose_farm.executor import (
     run_compose_on_host,
     run_on_stacks,
 )
+from compose_farm.ssh_keys import SSH_KEY_PATH
 
 # These tests run actual shell commands that only work on Linux
 linux_only = pytest.mark.skipif(sys.platform != "linux", reason="Linux-only shell commands")
@@ -155,6 +156,14 @@ class TestRunCommand:
 
 class TestBuildSshCommand:
     """Tests for native SSH command construction."""
+
+    def test_requires_a_known_host_key(self) -> None:
+        """Native SSH must reject unknown or changed server host keys."""
+        args = build_ssh_command(Host(address="192.168.1.10"), "true")
+
+        assert "StrictHostKeyChecking=yes" in args
+        assert "StrictHostKeyChecking=no" not in args
+        assert f"UserKnownHostsFile={SSH_KEY_PATH.parent / 'known_hosts'}" in args
 
     def test_uses_only_compose_farm_key_when_present(self, tmp_path: Path) -> None:
         """Native ssh should match asyncssh by not falling back to agent keys."""

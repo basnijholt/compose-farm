@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 from compose_farm.ssh_keys import (
     SSH_KEY_PATH,
+    SSH_KNOWN_HOSTS_PATH,
     SSH_PUBKEY_PATH,
     get_pubkey_content,
     get_ssh_env,
@@ -100,10 +101,8 @@ def _copy_key_to_host(host_name: str, address: str, user: str, port: int) -> boo
     console.print(f"[dim]Copying key to {host_name} ({target})...[/]")
 
     cmd = ["ssh-copy-id"]
-
-    # Disable strict host key checking (consistent with executor.py)
-    cmd.extend(["-o", "StrictHostKeyChecking=no"])
-    cmd.extend(["-o", "UserKnownHostsFile=/dev/null"])
+    cmd.extend(["-o", "StrictHostKeyChecking=ask"])
+    cmd.extend(["-o", f"UserKnownHostsFile={SSH_KNOWN_HOSTS_PATH}"])
 
     if port != _DEFAULT_SSH_PORT:
         cmd.extend(["-p", str(port)])

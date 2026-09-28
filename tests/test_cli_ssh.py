@@ -1,11 +1,13 @@
 """Tests for CLI ssh commands."""
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
 from compose_farm.cli.app import app
+from compose_farm.cli.ssh import _copy_key_to_host
+from compose_farm.ssh_keys import SSH_KEY_PATH
 
 runner = CliRunner()
 
@@ -99,6 +101,17 @@ stacks:
         result = runner.invoke(app, ["ssh", "setup", f"--config={config_file}"])
 
         assert "No remote hosts" in result.output
+
+    def test_copy_key_uses_standard_host_key_verification(self) -> None:
+        """First-time setup must not discard or bypass the server host key."""
+        completed = MagicMock(returncode=0)
+        with patch("compose_farm.cli.ssh.subprocess.run", return_value=completed) as run:
+            assert _copy_key_to_host("nas", "192.168.1.10", "root", 22) is True
+
+        command = run.call_args.args[0]
+        assert "StrictHostKeyChecking=ask" in command
+        assert "StrictHostKeyChecking=no" not in command
+        assert f"UserKnownHostsFile={SSH_KEY_PATH.parent / 'known_hosts'}" in command
 
 
 class TestSshHelp:
