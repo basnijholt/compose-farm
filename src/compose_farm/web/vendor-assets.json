@@ -3,120 +3,141 @@
   "$comment": "CDN assets vendored into production builds and cached for tests",
   "assets": [
     {
-      "url": "https://cdn.jsdelivr.net/npm/daisyui@5",
+      "url": "https://cdn.jsdelivr.net/npm/daisyui@5.7.46",
       "filename": "daisyui.css",
       "content_type": "text/css",
-      "package": "daisyui"
+      "package": "daisyui",
+      "sha256": "c4d91e78cab604f1f077c8084079fd282772fa6fefdaeffdade0353f5c5a24c0"
     },
     {
-      "url": "https://cdn.jsdelivr.net/npm/daisyui@5/themes.css",
+      "url": "https://cdn.jsdelivr.net/npm/daisyui@5.7.46/themes.css",
       "filename": "daisyui-themes.css",
       "content_type": "text/css",
-      "package": "daisyui"
+      "package": "daisyui",
+      "sha256": "ab0c26a1d2d41c7f657b899a20a2f934ff7c0e8312466851181ab98181bced15"
     },
     {
-      "url": "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4",
+      "url": "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3",
       "filename": "tailwind.js",
       "content_type": "application/javascript",
-      "package": "tailwindcss"
+      "package": "tailwindcss",
+      "sha256": "6d8c473ef2f8ad63feafc0bd76502dda31501a6c135dc4c6173f6268cde595be"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css",
       "filename": "xterm.css",
       "content_type": "text/css",
-      "package": "xterm"
+      "package": "xterm",
+      "sha256": "ba8e6985669488981ccf40c0cefe3aba80722cb6c92de7ad628b0bd717faf2b6"
     },
     {
       "url": "https://unpkg.com/htmx.org@2.0.4",
       "filename": "htmx.js",
       "content_type": "application/javascript",
-      "package": "htmx"
+      "package": "htmx",
+      "sha256": "e209dda5c8235479f3166defc7750e1dbcd5a5c1808b7792fc2e6733768fb447"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js",
       "filename": "xterm.js",
       "content_type": "application/javascript",
-      "package": "xterm"
+      "package": "xterm",
+      "sha256": "1f991ac3b4b283ebf96e60ae23a00a52765dd3a2e46fa6fdda9f1aab032f7495"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js",
       "filename": "xterm-fit.js",
       "content_type": "application/javascript",
-      "package": "xterm"
+      "package": "xterm",
+      "sha256": "bdaefa370b1bfc42ee88d46fe6072400902a4d4b2d45cd93438dda9b23c97089"
     },
     {
-      "url": "https://unpkg.com/idiomorph/dist/idiomorph.min.js",
+      "url": "https://unpkg.com/idiomorph@0.8.0/dist/idiomorph.min.js",
       "filename": "idiomorph.js",
       "content_type": "application/javascript",
-      "package": "idiomorph"
+      "package": "idiomorph",
+      "sha256": "4cbd535caf7663a51eda9bce6595371c384fc430d54b8d414e29a61167f19f96"
     },
     {
-      "url": "https://unpkg.com/idiomorph/dist/idiomorph-ext.min.js",
+      "url": "https://unpkg.com/idiomorph@0.8.0/dist/idiomorph-ext.min.js",
       "filename": "idiomorph-ext.js",
       "content_type": "application/javascript",
-      "package": "idiomorph"
+      "package": "idiomorph",
+      "sha256": "5811b9a7eda14878b7dab4378bf60432e1bb6f11fcfb970cc26540642650181e"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js",
       "filename": "monaco/loader.js",
       "content_type": "application/javascript",
-      "package": "monaco-editor"
+      "package": "monaco-editor",
+      "sha256": "28f3584fd04b182dfce15a9a1ce35b25bea22b31464aee500372bed18b7fee1a"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.js",
       "filename": "monaco/editor/editor.main.js",
       "content_type": "application/javascript",
-      "package": "monaco-editor"
+      "package": "monaco-editor",
+      "sha256": "90b588bc0b624e24052a576e1bcab2eaffec7bc666895188862eebd9c9745782"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/editor/editor.main.css",
       "filename": "monaco/editor/editor.main.css",
       "content_type": "text/css",
-      "package": "monaco-editor"
+      "package": "monaco-editor",
+      "sha256": "857bc0beafefbcc83ab5cf3510e929391c0314add43ee1a4cb8ecaf4726abbac"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/worker/workerMain.js",
       "filename": "monaco/base/worker/workerMain.js",
       "content_type": "application/javascript",
-      "package": "monaco-editor"
+      "package": "monaco-editor",
+      "sha256": "dbe4aa4f2874f5768e8d98e94281667c0bc493e02dd9760adca930699ff3279b"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/basic-languages/yaml/yaml.js",
       "filename": "monaco/basic-languages/yaml/yaml.js",
       "content_type": "application/javascript",
-      "package": "monaco-editor"
+      "package": "monaco-editor",
+      "sha256": "f4407dcc5601eec349552548557f3656a907b094575e7395402390aa08f8d7f2"
     },
     {
       "url": "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/base/browser/ui/codicons/codicon/codicon.ttf",
       "filename": "monaco/base/browser/ui/codicons/codicon/codicon.ttf",
       "content_type": "font/ttf",
-      "package": "monaco-editor"
+      "package": "monaco-editor",
+      "sha256": "0f1d5219934e96e83b8db162d60b4d8c09b5de1e7d38031cbafe4a3c0f2889c9"
     }
   ],
   "licenses": {
     "htmx": {
-      "type": "MIT",
-      "url": "https://raw.githubusercontent.com/bigskysoftware/htmx/master/LICENSE"
+      "type": "0BSD",
+      "url": "https://raw.githubusercontent.com/bigskysoftware/htmx/v2.0.4/LICENSE",
+      "sha256": "d3d2456f76414f2456104660ebd65aff1c04cd7966b942bdabd63f3cdb316a38"
     },
     "idiomorph": {
-      "type": "BSD-2-Clause",
-      "url": "https://raw.githubusercontent.com/bigskysoftware/idiomorph/main/LICENSE"
+      "type": "0BSD",
+      "url": "https://raw.githubusercontent.com/bigskysoftware/idiomorph/v0.8.0/LICENSE",
+      "sha256": "d3d2456f76414f2456104660ebd65aff1c04cd7966b942bdabd63f3cdb316a38"
     },
     "xterm": {
       "type": "MIT",
-      "url": "https://raw.githubusercontent.com/xtermjs/xterm.js/master/LICENSE"
+      "url": "https://raw.githubusercontent.com/xtermjs/xterm.js/5.5.0/LICENSE",
+      "sha256": "b569f629d00f2626a8100df2a1798210535621e42164dfd426a6fe5aac7b0ccd"
     },
     "daisyui": {
       "type": "MIT",
-      "url": "https://raw.githubusercontent.com/saadeghi/daisyui/master/LICENSE"
+      "url": "https://raw.githubusercontent.com/saadeghi/daisyui/v5.7.46/LICENSE",
+      "sha256": "8709e3ac65c84637c422dc8082b893d9997fce093751c77b2f1983bf29dbf9ea"
     },
     "tailwindcss": {
       "type": "MIT",
-      "url": "https://raw.githubusercontent.com/tailwindlabs/tailwindcss/master/LICENSE"
+      "url": "https://raw.githubusercontent.com/tailwindlabs/tailwindcss/v4.3.3/LICENSE",
+      "sha256": "60e0b68c0f35c078eef3a5d29419d0b03ff84ec1df9c3f9d6e39a519a5ae7985"
     },
     "monaco-editor": {
       "type": "MIT",
-      "url": "https://raw.githubusercontent.com/microsoft/monaco-editor/main/LICENSE.txt"
+      "url": "https://raw.githubusercontent.com/microsoft/monaco-editor/v0.52.2/LICENSE.txt",
+      "sha256": "33e4ff1a06ef62ba21788ea162564ee8165269a24a9ce6ef301837447eab0ac6"
     }
   }
 }

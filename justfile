@@ -29,6 +29,10 @@ lint:
     uv run mypy src
     uv run ty check src
 
+# Audit the exact locked production dependencies, including web extras
+audit:
+    uv audit --preview-features audit-command --locked --no-dev
+
 # Start web UI in development mode with auto-reload
 web:
     uv run cf web --reload --port 9001
@@ -36,6 +40,11 @@ web:
 # Kill the web server
 kill-web:
     lsof -ti :9001 | xargs kill -9 2>/dev/null || true
+
+# Regenerate logo, icon, and social preview (PNG needs inkscape)
+logo:
+    python docs/logo/generate.py
+    inkscape docs/assets/social-preview.svg -o docs/assets/social-preview.png
 
 # Build docs and serve locally
 doc:

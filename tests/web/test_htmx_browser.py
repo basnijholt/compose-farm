@@ -24,14 +24,16 @@ import pytest
 import uvicorn
 
 from compose_farm.config import load_config
+from compose_farm.glances import ContainerStats
 from compose_farm.web import deps as web_deps
 from compose_farm.web.app import create_app
 from compose_farm.web.cdn import CDN_ASSETS, ensure_vendor_cache
 from compose_farm.web.routes import api as web_api
 from compose_farm.web.routes import pages as web_pages
+from compose_farm.web.routes.containers import _render_row
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Page, Route, WebSocket
+    from playwright.sync_api import Browser, Page, Route, WebSocket
 
 # Default timeout for Playwright waits (ms) - higher for CI stability
 TIMEOUT = 10000
@@ -80,7 +82,7 @@ def page(page: Page, vendor_cache: Path) -> Page:
     Any CDN request not in CDN_ASSETS will abort with an error, forcing developers
     to add new CDN URLs to the cache. This catches both static and dynamic loads.
     """
-    cache = {url: (vendor_cache / f, ct) for url, (f, ct) in CDN_ASSETS.items()}
+    cache = {url: (vendor_cache / f, ct) for url, (f, ct, _sha256) in CDN_ASSETS.items()}
 
     def handle_cdn(route: Route) -> None:
         url = route.request.url
@@ -2391,6 +2393,46 @@ class TestContainersPagePause:
 </tr>
 """
 
+    def test_update_checks_are_split_into_bounded_batches(
+        self, page: Page, server_url: str
+    ) -> None:
+        """Hosts with over 100 images must stay within the API request limit."""
+        rows = "".join(
+            f'<tr data-host="server-1"><td class="update-cell" '
+            f'data-image="example%2Fimage-{index}" data-tag="latest"></td></tr>'
+            for index in range(101)
+        )
+        batch_sizes: list[int] = []
+
+        def route_rows(route: Route) -> None:
+            body = rows if route.request.url.endswith("/server-1") else ""
+            route.fulfill(status=200, content_type="text/html", body=body)
+
+        def route_updates(route: Route) -> None:
+            payload = route.request.post_data_json
+            assert isinstance(payload, dict)
+            items = payload["items"]
+            assert isinstance(items, list)
+            batch_sizes.append(len(items))
+            route.fulfill(
+                status=200,
+                content_type="application/json",
+                body='{"results": []}',
+            )
+
+        page.route("**/api/containers/rows/*", route_rows)
+        page.route("**/api/containers/check-updates", route_updates)
+        page.goto(f"{server_url}/live-stats")
+        page.wait_for_function(
+            "document.querySelectorAll('#container-rows tr[data-host=\"server-1\"]').length === 101",
+            timeout=TIMEOUT,
+        )
+        page.wait_for_timeout(500)
+
+        assert sum(batch_sizes) == 101
+        assert len(batch_sizes) == 2
+        assert max(batch_sizes) <= 100
+
     def test_dropdown_pauses_refresh(self, page: Page, server_url: str) -> None:
         """Opening action dropdown pauses auto-refresh.
 
@@ -2565,3 +2607,128 @@ class TestContainersPagePause:
             f"Refresh should resume after closing dropdown. timer='{timer_text}'"
         )
         assert "↻" in timer_text, f"Timer should show countdown, got '{timer_text}'"
+
+
+class TestLiveStatsActionMenu:
+    """Action menu on live-stats rows reads the stack name from data-stack."""
+
+    def test_action_menu_with_hostile_stack_name(self, page: Page, server_url: str) -> None:
+        """A stack name with quotes/HTML must not execute and must round-trip intact."""
+        hostile = "x');window.__pwned=1;//<img src=x onerror=window.__pwned=2>"
+        row = _render_row(
+            ContainerStats(
+                name="evil-1",
+                host="server-1",
+                status="running",
+                image="nginx:latest",
+                cpu_percent=1.0,
+                memory_usage=100,
+                memory_limit=1000,
+                memory_percent=10.0,
+                network_rx=0,
+                network_tx=0,
+                uptime="1 hour",
+                ports="",
+                engine="docker",
+                stack=hostile,
+                service="web",
+            ),
+            "-",
+        )
+        page.route(
+            "**/api/containers/rows/*",
+            lambda route: route.fulfill(status=200, content_type="text/html", body=row),
+        )
+        page.route(
+            "**/api/containers/check-updates",
+            lambda route: route.fulfill(
+                status=200, content_type="application/json", body='{"results": []}'
+            ),
+        )
+
+        page.goto(f"{server_url}/live-stats")
+        button = page.locator("#container-rows button[data-stack]").first
+        button.wait_for(timeout=TIMEOUT)
+        button.hover()
+
+        menu = page.locator("#shared-action-menu")
+        menu.wait_for(state="visible", timeout=TIMEOUT)
+        assert menu.get_attribute("data-stack") == hostile
+
+        button.click()
+        assert menu.get_attribute("data-stack") == hostile
+        assert page.evaluate("window.__pwned") is None
+
+    def test_host_row_escapes_host_and_message(self, page: Page, server_url: str) -> None:
+        """Client-built fallback rows (empty/error) render host and message as text."""
+        page.goto(f"{server_url}/live-stats")
+        page.wait_for_selector("#container-rows", timeout=TIMEOUT)
+        hostile = "<img src=x onerror=window.__pwned=1>"
+        text = page.evaluate(
+            """(hostile) => {
+                const tbody = document.createElement('tbody');
+                tbody.innerHTML = buildHostRow(hostile, `Error: ${hostile}`, 'text-error');
+                document.body.appendChild(tbody);
+                return {
+                    imgs: tbody.querySelectorAll('img').length,
+                    host: tbody.querySelector('tr').dataset.host,
+                    text: tbody.textContent.trim(),
+                };
+            }""",
+            hostile,
+        )
+        assert text == {"imgs": 0, "host": hostile, "text": f"Error: {hostile}"}
+        assert page.evaluate("window.__pwned") is None
+
+
+@pytest.fixture
+def password_server_url(monkeypatch: pytest.MonkeyPatch) -> Generator[str, None, None]:
+    """Start a server with CF_WEB_PASSWORD set (static files and WebSockets need no config)."""
+    monkeypatch.setenv("CF_WEB_PASSWORD", "s3cret")
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    server = uvicorn.Server(
+        uvicorn.Config(create_app(), host="127.0.0.1", port=port, log_level="error")
+    )
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 30
+    while not server.started and time.monotonic() < deadline:
+        time.sleep(0.02)
+    if not server.started:
+        msg = f"Password test server failed to start on port {port}"
+        raise RuntimeError(msg)
+    yield f"http://127.0.0.1:{port}"
+    server.should_exit = True
+    thread.join(timeout=2)
+
+
+class TestBasicAuth:
+    """Browsers must send cached Basic credentials on WebSocket handshakes too."""
+
+    def test_websocket_uses_browser_credentials(
+        self, browser: Browser, password_server_url: str
+    ) -> None:
+        """After logging in, terminal WebSockets connect without extra handling."""
+        context = browser.new_context(http_credentials={"username": "admin", "password": "s3cret"})
+        page = context.new_page()
+        response = page.goto(f"{password_server_url}/static/app.js")
+        assert response is not None
+        assert response.status == 200
+        message = page.evaluate(
+            """() => new Promise(resolve => {
+                const ws = new WebSocket(location.origin.replace('http', 'ws') + '/ws/terminal/x');
+                ws.onmessage = e => resolve(e.data);
+                ws.onerror = () => resolve('error');
+            })"""
+        )
+        assert "Task not found" in message
+        context.close()
+
+    def test_requests_without_credentials_rejected(
+        self, browser: Browser, password_server_url: str
+    ) -> None:
+        context = browser.new_context()
+        assert context.request.get(f"{password_server_url}/static/app.js").status == 401
+        context.close()
