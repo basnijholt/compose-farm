@@ -8,7 +8,7 @@
 name: paperless-ngx
 services:
   broker:
-    image: redis:7
+    image: redis:8
     container_name: paperless-redis
     restart: unless-stopped
     networks:
