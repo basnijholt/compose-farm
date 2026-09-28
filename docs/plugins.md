@@ -63,13 +63,15 @@ plugins:
 
 ## Hooks
 
+Hooks run in config order. The first failure stops the chain for that call, except for `preflight` (problems from every plugin are collected) and `after_up` (every plugin still runs; failures are warnings).
+
 | Hook | Called | On failure |
 |------|--------|------------|
 | `before_up` | Before preflight on the target host, on every start (`up`, `update`, `apply`, including `--service` and `--host`). During a migration the source is still running. | This stack is not started; the source is untouched |
 | `preflight` | During preflight (`up`) and `cf check`. Must not change anything. | Returned problems are reported like missing paths |
 | `after_source_stopped` | Migration only: the source is stopped, the target not started yet | Rollback: the stack is restarted on the source if it was running there |
 | `after_up` | The stack started on the host (after the state update) | Warning only |
-| `on_stack_removed` | An orphaned stack (removed from config) was stopped via `cf down --orphaned` or `cf apply`. Not called for strays or a plain `down` | The stack stays in the state file, so the next `cf down --orphaned`/`cf apply` retries |
+| `on_stack_removed` | An orphaned stack (removed from config) was stopped via `cf down --orphaned` or `cf apply`. Not called for strays or a plain `down` | Later plugins are skipped, and the stack stays in the state file, so the next `cf down --orphaned`/`cf apply` retries |
 | `compose_args` | Every time a compose command is built for a stack on a host (`up`, `down`, `ps`, `logs`, `pull`, `restart`, `compose`, ...) | The whole `cf` command aborts with the error |
 
 Migrating a stack runs:

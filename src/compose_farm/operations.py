@@ -584,13 +584,6 @@ async def up_stacks(
     return results
 
 
-def _direct_up_hosts(cfg: Config, stack: str, filter_host: str | None) -> list[str]:
-    """Hosts that run_on_stacks touches for a stack (filter applies to multi-host stacks)."""
-    if filter_host and cfg.is_multi_host(stack):
-        return [filter_host]
-    return cfg.get_hosts(stack)
-
-
 async def up_stacks_direct(
     cfg: Config,
     stacks: list[str],
@@ -606,7 +599,10 @@ async def up_stacks_direct(
     """
 
     async def prepare(stack: str) -> CommandResult | None:
-        for host_name in _direct_up_hosts(cfg, stack, filter_host):
+        hosts = cfg.get_hosts(stack)
+        if filter_host and cfg.is_multi_host(stack):  # As run_on_stacks applies the filter
+            hosts = [filter_host]
+        for host_name in hosts:
             ctx = HookContext(cfg, stack, host_name)
             if failure := await _run_before_up(ctx, label=f"{stack}@{host_name}"):
                 return failure
@@ -654,19 +650,24 @@ async def check_host_compatibility(
     return results
 
 
-async def _run_stack_removed(cfg: Config, result: CommandResult, host: str) -> CommandResult:
-    """Run on_stack_removed hooks; a failure keeps the stack in state so it is retried."""
-    errors = await run_hook_all(HookContext(cfg, result.stack, host), "on_stack_removed")
-    if not errors:
-        return result
-    return CommandResult(
-        stack=result.stack,
-        exit_code=1,
-        success=False,
-        stderr=f"stopped, but {'; '.join(errors)} (will retry)",
-        host=host,
-        label=result.label,
-    )
+async def _run_stack_removed(cfg: Config, result: CommandResult) -> CommandResult:
+    """Run on_stack_removed hooks; a failure keeps the stack in state so it is retried.
+
+    The first failure stops the chain: a later plugin may remove the stack
+    directory, which the retry's `docker compose down` still needs.
+    """
+    try:
+        await run_hook(HookContext(cfg, result.stack, result.host), "on_stack_removed")
+    except PluginError as e:
+        return CommandResult(
+            stack=result.stack,
+            exit_code=1,
+            success=False,
+            stderr=f"stopped, but {e} (will retry)",
+            host=result.host,
+            label=result.label,
+        )
+    return result
 
 
 async def _stop_stacks_on_hosts(
@@ -720,7 +721,7 @@ async def _stop_stacks_on_hosts(
         try:
             result = await task
             if removed and result.success:
-                result = await _run_stack_removed(cfg, result, host)
+                result = await _run_stack_removed(cfg, result)
             results.append(result)
             if result.success:
                 print_success(f"{stack}@{host}: stopped{suffix}")
@@ -820,9 +821,6 @@ def build_discovery_results(
     stack_list = stacks if stacks is not None else list(cfg.stacks)
     all_hosts = list(running_on_host.keys())
 
-    def machine(host: str) -> tuple[str, int]:
-        return host_machine(cfg, host)
-
     def running_hosts(stack: str, configured: list[str]) -> list[str]:
         # Hosts sharing an address+port reach the same Docker daemon, so each
         # container shows up under every such name. Count each machine once,
@@ -831,13 +829,13 @@ def build_discovery_results(
         # stack) so a failed probe on the configured name can't make its alias
         # a stray.
         running = [h for h in all_hosts if stack in running_on_host[h]]
-        seen = {machine(h) for h in configured}
+        seen = {host_machine(cfg, h) for h in configured}
         kept: list[str] = []
         for h in running:
             if h not in configured:
-                if machine(h) in seen:
+                if host_machine(cfg, h) in seen:
                     continue
-                seen.add(machine(h))
+                seen.add(host_machine(cfg, h))
             kept.append(h)
         return kept
 

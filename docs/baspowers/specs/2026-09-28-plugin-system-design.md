@@ -190,8 +190,9 @@ existing plugins.
 | `on_stack_removed` | After a successful `down` of an **orphaned** stack (removed from config) via `cf down --orphaned` / `cf apply`. Not fired for strays or plain `down` | That host counts as not stopped, so the stack stays in state and the next `cf down --orphaned`/`cf apply` retries | ZFS retire/destroy dataset |
 | `compose_args` | Synchronously, whenever a compose command is built for (stack, host). No I/O. | Exception propagates (options are validated at load, so this indicates a plugin bug) | agenix `--env-file`, extra `-f`, `--profile` |
 
-Hooks run sequentially in config order within one stack. For blocking hooks
-the first failure stops the chain; for warning hooks every plugin still runs.
+Hooks run sequentially in config order within one stack. The first failure
+stops the chain, except for `preflight` (problems from every plugin are
+collected) and `after_up` (every plugin still runs; failures are warnings).
 Different stacks still run concurrently, so hooks must be async and use
 `ctx.run` (or `asyncio` subprocesses), never blocking calls.
 
