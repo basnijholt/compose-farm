@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Compose Farm{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
 
     <!-- daisyUI + Tailwind -->
     <link href="https://cdn.jsdelivr.net/npm/daisyui@5" data-vendor="daisyui.css" rel="stylesheet" type="text/css" />
@@ -53,6 +54,7 @@
                 <label for="drawer-toggle" class="btn btn-ghost btn-square">
                     {{ hamburger() }}
                 </label>
+                <img src="/static/icon.svg" alt="" class="w-6 h-6">
                 <span class="font-semibold rainbow-hover">Compose Farm</span>
             </header>
 
@@ -67,7 +69,8 @@
             <aside id="sidebar" class="w-64 bg-base-100 border-r border-base-300 flex flex-col min-h-screen">
                 <header class="p-4 border-b border-base-300">
                     <h2 class="text-lg font-semibold flex items-center gap-2">
-                        <span class="rainbow-hover">Compose Farm</span>
+                        <img src="/static/icon.svg" alt="" class="w-6 h-6 shrink-0">
+                        <span class="rainbow-hover whitespace-nowrap">Compose Farm</span>
                         <div class="tooltip tooltip-bottom" data-tip="Docs">
                             <a href="https://compose-farm.nijho.lt/" target="_blank" class="opacity-50 hover:opacity-100 transition-opacity">
                                 {{ book_open() }}

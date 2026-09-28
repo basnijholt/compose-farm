@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="276 45 248 248" width="248" height="248" role="img" aria-label="Compose Farm">
+<title>Compose Farm</title>
+<style>
+.o{stroke:#1e2a38;stroke-width:2.2;stroke-linejoin:round}
+.o.thin{stroke-width:1.4}
+.rib{stroke:#1e2a38;stroke-opacity:.35;stroke-width:1.2}
+.furrow{stroke:#3f8f43;stroke-width:2;stroke-linecap:round}
+.dash{fill:none;stroke:#1e2a38;stroke-width:2.2;stroke-dasharray:6 5;stroke-linecap:round;stroke-linejoin:round}
+.term{fill:none;stroke:#4ade80;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.vcase{fill:none;stroke:#1e2a38;stroke-width:5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.vcore{fill:none;stroke:#fbbf24;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.vfill{fill:#fbbf24;stroke:#1e2a38;stroke-width:1.5;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.word{fill:none;stroke:#1e2a38;stroke-width:13;stroke-linejoin:miter}
+.wfill{fill:#1e2a38;stroke:none}
+.pulse{display:none}
+.vcase,.vcore,.vfill,.term{vector-effect:none}.term{stroke-width:.1}
+</style>
+<polygon class="o" points="282.2,208.0 386.1,268.0 386.1,275.0 282.2,215.0" fill="#3a7d3e"/>
+<polygon class="o" points="517.8,192.0 386.1,268.0 386.1,275.0 517.8,199.0" fill="#3f8f43"/>
+<polygon class="o" points="413.9,132.0 517.8,192.0 386.1,268.0 282.2,208.0" fill="#5cb85c"/>
+<polygon class="o" points="413.9,88.0 452.0,70.0 348.0,130.0 309.9,148.0" fill="#3d92e3"/>
+<polygon class="o" points="490.1,192.0 386.1,252.0 386.1,192.0 490.1,132.0" fill="#2a74c4"/>
+<polygon class="o" points="309.9,208.0 386.1,252.0 386.1,192.0 348.0,130.0 309.9,148.0" fill="#3d92e3"/>
+<polygon class="o" points="452.0,70.0 496.1,140.5 392.2,200.5 348.0,130.0" fill="#6cb4f5"/>
+<polygon class="o" points="332.5,221.0 363.6,239.0 363.6,197.0 332.5,179.0" fill="#1e2a38"/>
+<polygon class="o" points="337.3,161.8 358.8,174.2 358.8,155.2 337.3,142.8" fill="#1e2a38"/>
+<g transform="matrix(17.32 10.00 0 -20.00 348.0 230.0)">
+<path class="term" d="M-0.42,3.83 L-0.2,3.575 L-0.42,3.32"/>
+<path class="term cursor" d="M-0.02,3.32 H0.36"/>
+</g>
+<path class="vcase" d="M386.1,108.0 V69.0"/><path class="vcore" d="M386.1,108.0 V69.0"/>
+<circle class="vfill" cx="386.1" cy="68.0" r="3"/>
+</svg>

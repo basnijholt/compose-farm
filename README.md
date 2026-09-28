@@ -6,7 +6,7 @@
 [![GitHub stars](https://img.shields.io/github/stars/basnijholt/compose-farm)](https://github.com/basnijholt/compose-farm/stargazers)
 
 <p align="center">
-  <img src="docs/assets/logo.svg" alt="Compose Farm logo" width="420" />
+  <img src="https://raw.githubusercontent.com/basnijholt/compose-farm/main/docs/assets/logo-scene.svg" alt="Compose Farm logo" width="420" />
 </p>
 
 A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
