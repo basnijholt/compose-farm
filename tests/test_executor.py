@@ -1,5 +1,6 @@
 """Tests for executor module."""
 
+import os
 import shlex
 import subprocess
 import sys
@@ -152,7 +153,7 @@ class TestRunCommand:
             capture_output=True,
             text=True,
             cwd=tmp_path,
-            env={"PATH": str(bin_dir)},
+            env={"PATH": f"{bin_dir}{os.pathsep}{os.defpath}"},
         )
 
         assert result.stdout.strip() == str(stack_dir)
