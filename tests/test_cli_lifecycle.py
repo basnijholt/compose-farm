@@ -162,6 +162,34 @@ class TestApplyCommand:
             call_args = mock_up.call_args
             assert call_args[0][1] == ["svc1"]  # stacks list
 
+    def test_apply_leaves_migration_source_to_the_migration(self, tmp_path: Path) -> None:
+        """A stack running on its old host is migrated, not stopped as a stray first."""
+        cfg = _make_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_stacks", return_value={}),
+            patch(
+                "compose_farm.cli.lifecycle.get_stacks_needing_migration",
+                return_value=["svc1"],
+            ),
+            patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_stack_host", return_value="host2"),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={"svc1": ["host2"]}),
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                side_effect=_run_async_returns([_make_result("svc1")]),
+            ),
+            patch("compose_farm.cli.lifecycle.stop_stray_stacks") as mock_stop_strays,
+            patch("compose_farm.cli.lifecycle.up_stacks") as mock_up,
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            apply(dry_run=False, no_orphans=False, no_strays=False, full=False, config=None)
+
+        mock_stop_strays.assert_not_called()
+        mock_up.assert_called_once()
+
     def test_apply_executes_orphan_cleanup(self, tmp_path: Path) -> None:
         """Apply stops orphaned stacks."""
         cfg = _make_config(tmp_path)
@@ -626,7 +654,6 @@ class TestLifecycleHostFilters:
                     ]
                 ),
             ),
-            patch("compose_farm.cli.lifecycle.add_stack_host"),
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
@@ -648,7 +675,6 @@ class TestLifecycleHostFilters:
                 "compose_farm.cli.lifecycle.run_async",
                 side_effect=_run_async_returns([_make_result("svc1")]),
             ),
-            patch("compose_farm.cli.lifecycle.add_stack_host"),
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):

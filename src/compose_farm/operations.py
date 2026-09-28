@@ -33,6 +33,7 @@ from .executor import (
 )
 from .plugins import HookContext, PluginError, run_hook, run_hook_all, run_preflight
 from .state import (
+    add_stack_host,
     get_orphaned_stacks,
     get_stack_host,
     remove_stack,
@@ -595,7 +596,8 @@ async def up_stacks_direct(
 ) -> list[CommandResult]:
     """Run an up command without migration or preflight, wrapped in before_up/after_up hooks.
 
-    Used by `up --service` and `up --host`.
+    Used by `up --service` and `up --host`. With filter_host, successful hosts are
+    recorded in state (before after_up).
     """
 
     async def prepare(stack: str) -> CommandResult | None:
@@ -614,8 +616,11 @@ async def up_stacks_direct(
         else []
     )
     for result in results:
-        if result.success and result.host:
-            await _run_after_up(HookContext(cfg, result.stack, result.host))
+        if not (result.success and result.host):
+            continue
+        if filter_host:
+            add_stack_host(cfg, result.stack, result.host)
+        await _run_after_up(HookContext(cfg, result.stack, result.host))
     return [*failures, *results]
 
 
@@ -735,8 +740,8 @@ async def _stop_stacks_on_hosts(
 async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
     """Stop orphaned stacks (in state but not in config).
 
-    Runs docker compose down on each stack on its tracked host(s).
-    Only removes from state on successful stop.
+    Runs docker compose down on each stack on its tracked host(s), then
+    on_stack_removed hooks. Removes each host from state once both succeed.
 
     Returns list of CommandResults for each stack@host.
     """
@@ -750,16 +755,10 @@ async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
 
     results = await _stop_stacks_on_hosts(cfg, normalized, removed=True)
 
-    # Remove from state only for stacks where ALL hosts succeeded
-    for stack, hosts in normalized.items():
-        expected_hosts = set(hosts)
-        matching_results = [r for r in results if r.stack == stack and r.host in expected_hosts]
-        all_succeeded = (
-            all(r.success for r in matching_results)
-            and {r.host for r in matching_results} == expected_hosts
-        )
-        if all_succeeded:
-            remove_stack(cfg, stack)
+    # Drop each host that stopped (and cleaned up) from state; failed hosts stay for a retry
+    for result in results:
+        if result.success and result.host:
+            remove_stack(cfg, result.stack, result.host)
 
     return results
 

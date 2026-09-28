@@ -38,7 +38,6 @@ from compose_farm.operations import (
     up_stacks_direct,
 )
 from compose_farm.state import (
-    add_stack_host,
     get_orphaned_stacks,
     get_stack_host,
     get_stacks_needing_migration,
@@ -93,10 +92,6 @@ def up(
                 filter_host=host,
             )
         )
-        # Update state for successful host-filtered operations
-        for result in results:
-            if result.success:
-                add_stack_host(cfg, result.stack, result.host or host)
     else:
         results = run_async(
             up_stacks(

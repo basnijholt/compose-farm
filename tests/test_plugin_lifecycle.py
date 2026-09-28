@@ -14,7 +14,8 @@ from compose_farm.operations import (
     up_stacks,
     up_stacks_direct,
 )
-from compose_farm.state import get_stack_host, load_state, set_stack_host
+from compose_farm.plugins import HookContext, Plugin
+from compose_farm.state import get_stack_host, load_state, set_multi_host_stack, set_stack_host
 from tests.plugin_helpers import Recorder, make_config, use_plugins
 
 if TYPE_CHECKING:
@@ -281,6 +282,20 @@ class TestDirectUp:
             ("after_up", "glances", "h2", None),
         ]
 
+    async def test_host_filter_records_state_before_after_up(self, tmp_path: Path) -> None:
+        seen: list[str | None] = []
+
+        class Check(Plugin):
+            async def after_up(self, ctx: HookContext) -> None:
+                seen.append(get_stack_host(ctx.cfg, ctx.stack))
+
+        plugin = Check({})
+        plugin.name = "check"
+        cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), plugin)
+        with patch("compose_farm.operations.run_on_stacks", _fake_run_on_stacks()):
+            await up_stacks_direct(cfg, ["web"], "up -d", filter_host="h1")
+        assert seen == ["h1"]
+
     async def test_no_after_up_for_failed_run(self, tmp_path: Path) -> None:
         events: list[Any] = []
         cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), _recorder(events))
@@ -301,7 +316,7 @@ def _fake_down() -> AsyncMock:
 class TestStackRemoved:
     """on_stack_removed for orphans only; failures keep state for retry."""
 
-    async def test_orphan_fires_hook_and_leaves_state(self, tmp_path: Path) -> None:
+    async def test_orphan_fires_hook_and_clears_state(self, tmp_path: Path) -> None:
         events: list[Any] = []
         cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), _recorder(events))
         set_stack_host(cfg, "old", "h1")
@@ -321,6 +336,30 @@ class TestStackRemoved:
         assert not result.success
         assert "will retry" in result.stderr
         assert load_state(cfg)["old"] == "h1"
+
+    async def test_retry_only_revisits_hosts_that_failed(self, tmp_path: Path) -> None:
+        cleaned: list[str] = []
+        broken = {"h2"}
+
+        class Retire(Plugin):
+            async def on_stack_removed(self, ctx: HookContext) -> None:
+                if ctx.host in broken:
+                    msg = "zfs busy"
+                    raise RuntimeError(msg)
+                cleaned.append(ctx.host)
+
+        plugin = Retire({})
+        plugin.name = "zfs"
+        cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), plugin)
+        set_multi_host_stack(cfg, "old", ["h1", "h2"])
+        with patch("compose_farm.operations.run_compose_on_host", _fake_down()) as down:
+            await stop_orphaned_stacks(cfg)
+            assert load_state(cfg)["old"] == ["h2"]
+            broken.clear()
+            await stop_orphaned_stacks(cfg)
+        assert cleaned == ["h1", "h2"]
+        assert [call.args[2] for call in down.await_args_list] == ["h1", "h2", "h2"]
+        assert "old" not in load_state(cfg)
 
     async def test_strays_do_not_fire_hook(self, tmp_path: Path) -> None:
         events: list[Any] = []
