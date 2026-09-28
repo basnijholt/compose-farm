@@ -24,7 +24,7 @@ def test_verify_download_rejects_changed_content() -> None:
     """A CDN response that differs from the reviewed bytes is rejected."""
     asset = {"url": "https://cdn.example/asset.js", "sha256": "0" * 64}
 
-    with pytest.raises(ValueError, match="SHA-256 mismatch.*cdn.example/asset.js"):
+    with pytest.raises(ValueError, match=r"SHA-256 mismatch.*cdn\.example/asset\.js"):
         hatch_build._verify_download(asset, b"tampered asset")
 
 
