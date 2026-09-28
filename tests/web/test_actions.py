@@ -31,14 +31,23 @@ def client(mock_config: Config, monkeypatch: pytest.MonkeyPatch) -> TestClient:
 class TestServiceAction:
     """Tests for POST /api/stack/{name}/service/{service}/{command}."""
 
-    def test_unknown_service_returns_404(self, client: TestClient) -> None:
-        """Services not defined in the stack's compose file are rejected."""
+    @pytest.mark.parametrize("service", ["x;id", "$(id)", "a b", "-d", "--build", "x`id`"])
+    def test_invalid_service_name_returns_400(self, client: TestClient, service: str) -> None:
+        """Names outside the compose service-name charset are rejected before running."""
         with patch.object(actions, "_start_task") as mock_start:
-            response = client.post("/api/stack/plex/service/x;id/restart")
+            response = client.post(f"/api/stack/plex/service/{service}/restart")
 
-        assert response.status_code == 404
-        assert response.json()["detail"] == "Service 'x;id' not found in 'plex'"
+        assert response.status_code == 400
+        assert response.json()["detail"] == f"Invalid service name '{service}'"
         mock_start.assert_not_called()
+
+    def test_service_not_in_local_compose_file_is_allowed(self, client: TestClient) -> None:
+        """No local compose lookup: the file may only exist on the target host."""
+        with patch.object(actions, "run_compose_streaming", new=AsyncMock()) as mock_stream:
+            response = client.post("/api/stack/plex/service/remote-only.v2/restart")
+
+        assert response.status_code == 200
+        assert mock_stream.await_args.args[4] == ["--service=remote-only.v2"]
 
     def test_known_service_passes_single_argv_item(self, client: TestClient) -> None:
         """Valid services are passed as one --service=<name> argv item."""
