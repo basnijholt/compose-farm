@@ -243,9 +243,14 @@ def _report_preflight_failures(
 
 
 async def _run_before_up(ctx: HookContext, *, label: str = "") -> CommandResult | None:
-    """Run before_up hooks; report and return a failed result if a plugin fails."""
+    """Run before_up hooks and resolve compose args; report and return a failure.
+
+    Resolving compose_args here means a broken plugin fails before anything is
+    stopped (migration) or started (multi-host), not halfway through.
+    """
     try:
         await run_hook(ctx, "before_up")
+        ctx.cfg.compose_args(ctx.stack, ctx.host)
     except PluginError as e:
         print_error(f"{format_stack_prefix(ctx.stack)} {e}")
         return CommandResult(
@@ -780,6 +785,12 @@ async def stop_stray_stacks(
     return await _stop_stacks_on_hosts(cfg, strays, label="stray")
 
 
+def host_machine(cfg: Config, host: str) -> tuple[str, int]:
+    """Identify the machine behind a host name (names sharing address and port are one machine)."""
+    h = cfg.hosts[host]
+    return h.address.lower(), h.port
+
+
 def build_discovery_results(
     cfg: Config,
     running_on_host: dict[str, set[str]],
@@ -810,8 +821,7 @@ def build_discovery_results(
     all_hosts = list(running_on_host.keys())
 
     def machine(host: str) -> tuple[str, int]:
-        h = cfg.hosts[host]
-        return h.address.lower(), h.port
+        return host_machine(cfg, host)
 
     def running_hosts(stack: str, configured: list[str]) -> list[str]:
         # Hosts sharing an address+port reach the same Docker daemon, so each

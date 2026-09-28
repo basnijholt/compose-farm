@@ -183,6 +183,18 @@ class TestDispatch:
             "h1",
         ]
 
+    def test_compose_args_failure_names_the_plugin(self, tmp_path: Path) -> None:
+        class Broken(Plugin):
+            def compose_args(self, ctx: HookContext) -> list[str]:
+                msg = "boom"
+                raise RuntimeError(msg)
+
+        plugin = Broken({})
+        plugin.name = "broken"
+        cfg = use_plugins(make_config(tmp_path, {"web": "h1"}), plugin)
+        with pytest.raises(PluginError, match=r"plugin broken\.compose_args: boom"):
+            cfg.compose_args("web", "h1")
+
     def test_compose_args_empty_without_plugins(self, tmp_path: Path) -> None:
         assert make_config(tmp_path, {"web": "h1"}).compose_args("web", "h1") == []
 

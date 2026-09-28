@@ -204,6 +204,45 @@ class TestMigration:
         assert ("compose", "web", "up -d", "h2") in events
 
 
+class _BadArgs(Plugin):
+    """compose_args fails for the given hosts."""
+
+    def compose_args(self, ctx: HookContext) -> list[str]:
+        if ctx.host in self.options["hosts"]:
+            msg = "boom"
+            raise RuntimeError(msg)
+        return []
+
+
+def _bad_args(*hosts: str) -> _BadArgs:
+    plugin = _BadArgs({"hosts": hosts})
+    plugin.name = "bad"
+    return plugin
+
+
+class TestComposeArgsFailures:
+    """A broken compose_args fails the stack before anything is stopped or started."""
+
+    async def test_migration_keeps_source_running(self, tmp_path: Path) -> None:
+        events: list[Any] = []
+        cfg = use_plugins(make_config(tmp_path, {"web": "h2"}), _bad_args("h2"))
+        set_stack_host(cfg, "web", "h1")
+        with Harness(events):
+            [result] = await up_stacks(cfg, ["web"])
+        assert not result.success
+        assert "plugin bad.compose_args: boom" in result.stderr
+        assert not any(e[0] == "compose" for e in events)
+        assert get_stack_host(cfg, "web") == "h1"
+
+    async def test_multi_host_starts_no_host(self, tmp_path: Path) -> None:
+        events: list[Any] = []
+        cfg = use_plugins(make_config(tmp_path, {"glances": ["h1", "h2"]}), _bad_args("h2"))
+        with Harness(events):
+            [result] = await up_stacks(cfg, ["glances"])
+        assert not result.success
+        assert not any(e[0] == "compose" for e in events)
+
+
 class TestMultiHost:
     """Multi-host barrier and per-host after_up."""
 

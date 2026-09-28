@@ -190,4 +190,11 @@ async def run_preflight(ctx: HookContext) -> list[str]:
 def compose_args(cfg: Config, stack: str, host: str) -> list[str]:
     """Extra docker compose arguments from every plugin, in config order."""
     ctx = HookContext(cfg, stack, host)
-    return [arg for plugin in cfg.get_plugins() for arg in plugin.compose_args(ctx)]
+    args: list[str] = []
+    for plugin in cfg.get_plugins():
+        try:
+            args.extend(plugin.compose_args(ctx))
+        except Exception as e:
+            msg = f"plugin {plugin.name}.compose_args: {e}"
+            raise PluginError(msg) from e
+    return args
