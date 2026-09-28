@@ -53,3 +53,18 @@ def test_web_command_prints_banner_and_starts_uvicorn(monkeypatch: Any) -> None:
             },
         )
     ]
+
+
+def test_web_command_binds_to_loopback_by_default(monkeypatch: Any) -> None:
+    """The default CLI bind must not expose the privileged UI to the network."""
+    calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+    def fake_run(*args: Any, **kwargs: Any) -> None:
+        calls.append((args, kwargs))
+
+    monkeypatch.setitem(sys.modules, "uvicorn", SimpleNamespace(run=fake_run))
+
+    result = CliRunner().invoke(app, ["web"])
+
+    assert result.exit_code == 0
+    assert calls[0][1]["host"] == "127.0.0.1"

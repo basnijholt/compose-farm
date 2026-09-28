@@ -22,6 +22,7 @@ from .console import (
 from .executor import (
     CommandResult,
     RemoteCheckError,
+    _build_compose_command,
     check_networks_exist,
     check_paths_exist,
     check_stack_running,
@@ -246,7 +247,7 @@ async def _up_multi_host_stack(
     results: list[CommandResult] = []
     stack_dir = cfg.get_stack_dir(stack)
     # Use cd to let docker compose find the compose file on the remote host
-    command = f'cd "{stack_dir}" && docker compose {build_up_cmd(pull=pull, build=build)}'
+    command = _build_compose_command(stack_dir, build_up_cmd(pull=pull, build=build))
 
     # Pre-flight checks on all hosts
     for host_name in host_names:

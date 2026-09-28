@@ -29,6 +29,10 @@ lint:
     uv run mypy src
     uv run ty check src
 
+# Audit the exact locked production dependencies, including web extras
+audit:
+    uv audit --preview-features audit-command --locked --no-dev
+
 # Start web UI in development mode with auto-reload
 web:
     uv run cf web --reload --port 9001
