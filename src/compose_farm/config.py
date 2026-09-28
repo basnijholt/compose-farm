@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 
 from .paths import config_search_paths, find_config_path
+from .plugins import Plugin, load_plugins
+from .plugins import compose_args as plugin_compose_args
 
 # Supported compose filenames, in priority order
 COMPOSE_FILENAMES = ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml")
@@ -35,7 +37,17 @@ class Config(BaseModel, extra="forbid"):
     glances_stack: str | None = (
         None  # Stack name for Glances (enables host resource stats in web UI)
     )
+    # Plugin name -> options (None for no options); mapping order is hook order
+    plugins: dict[str, dict[str, Any] | None] = Field(default_factory=dict)
     config_path: Path = Path()  # Set by load_config()
+
+    _loaded_plugins: tuple[Plugin, ...] | None = PrivateAttr(default=None)
+
+    @field_validator("plugins", mode="before")
+    @classmethod
+    def empty_plugins(cls, value: Any) -> Any:
+        """Treat an empty ``plugins:`` section (YAML null) as no plugins."""
+        return {} if value is None else value
 
     def get_state_path(self) -> Path:
         """Get the state file path (stored alongside config)."""
@@ -100,6 +112,16 @@ class Config(BaseModel, extra="forbid"):
     def get_stack_dir(self, stack: str) -> Path:
         """Get stack directory path."""
         return self.compose_dir / stack
+
+    def get_plugins(self) -> tuple[Plugin, ...]:
+        """Enabled plugin instances, loaded once and cached."""
+        if self._loaded_plugins is None:
+            self._loaded_plugins = load_plugins(self)
+        return self._loaded_plugins
+
+    def compose_args(self, stack: str, host: str) -> list[str]:
+        """Extra docker compose arguments contributed by plugins for a stack on a host."""
+        return plugin_compose_args(self, stack, host)
 
     def get_compose_path(self, stack: str) -> Path:
         """Get compose file path for a stack (tries compose.yaml first).
@@ -193,4 +215,6 @@ def load_config(path: Path | None = None) -> Config:
     raw["hosts"] = _parse_hosts(raw.get("hosts", {}))
     raw["config_path"] = config_path.resolve()
 
-    return Config(**raw)
+    config = Config(**raw)
+    config.get_plugins()  # Fail early on unknown plugins or invalid plugin options
+    return config

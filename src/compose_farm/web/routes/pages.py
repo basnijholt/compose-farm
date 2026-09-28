@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from compose_farm.compose import extract_services, get_container_name, parse_compose_data
 from compose_farm.paths import find_config_path
+from compose_farm.plugins import PluginError
 from compose_farm.state import (
     get_orphaned_stacks,
     get_stack_host,
@@ -64,7 +65,7 @@ async def index(request: Request) -> HTMLResponse:
     config_error = None
     try:
         config = get_config()
-    except (ValidationError, FileNotFoundError) as e:
+    except (ValidationError, FileNotFoundError, PluginError) as e:
         config_error = extract_config_error(e)
 
         # Read raw config content for the editor
@@ -241,7 +242,7 @@ async def config_error_partial(request: Request) -> HTMLResponse:
     try:
         get_config()
         return HTMLResponse("")  # No error
-    except (ValidationError, FileNotFoundError) as e:
+    except (ValidationError, FileNotFoundError, PluginError) as e:
         error = extract_config_error(e)
         return templates.TemplateResponse(
             request, "partials/config_error.html", {"request": request, "config_error": error}

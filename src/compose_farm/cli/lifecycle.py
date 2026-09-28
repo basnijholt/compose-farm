@@ -32,12 +32,13 @@ from compose_farm.console import MSG_DRY_RUN, console, print_error, print_succes
 from compose_farm.executor import run_compose_on_host, run_on_stacks
 from compose_farm.operations import (
     build_up_cmd,
+    host_machine,
     stop_orphaned_stacks,
     stop_stray_stacks,
     up_stacks,
+    up_stacks_direct,
 )
 from compose_farm.state import (
-    add_stack_host,
     get_orphaned_stacks,
     get_stack_host,
     get_stacks_needing_migration,
@@ -73,18 +74,18 @@ def up(
         if len(stack_list) != 1:
             print_error("--service requires exactly one stack")
             raise typer.Exit(1)
-        # For service-level up, use run_on_stacks directly (no migration logic)
+        # For service-level up, skip migration logic (plugin hooks still run)
         results = run_async(
-            run_on_stacks(
+            up_stacks_direct(
                 cfg, stack_list, build_up_cmd(pull=pull, build=build, service=service), raw=True
             )
         )
     elif host:
-        # For host-filtered up, use run_on_stacks to only affect that host
-        # (skips migration logic, which is intended when explicitly specifying a host)
+        # For host-filtered up, only affect that host (skips migration logic, which is
+        # intended when explicitly specifying a host; plugin hooks still run)
         raw = len(stack_list) == 1
         results = run_async(
-            run_on_stacks(
+            up_stacks_direct(
                 cfg,
                 stack_list,
                 build_up_cmd(pull=pull, build=build),
@@ -92,10 +93,6 @@ def up(
                 filter_host=host,
             )
         )
-        # Update state for successful host-filtered operations
-        for result in results:
-            if result.success:
-                add_stack_host(cfg, result.stack, result.host or host)
     else:
         results = run_async(
             up_stacks(
@@ -262,6 +259,35 @@ def _discover_strays(cfg: Config) -> dict[str, list[str]]:
     return strays
 
 
+def _exclude_migration_sources(
+    cfg: Config,
+    strays: dict[str, list[str]],
+    migrations: list[str],
+) -> dict[str, list[str]]:
+    """Drop migration sources from strays so the migration stops them itself.
+
+    Stopping the source early would turn a live data transfer into downtime and
+    disable rollback (the stack no longer counts as running on the source).
+    """
+    sources = {stack: get_stack_host(cfg, stack) for stack in migrations}
+
+    def is_source(stack: str, host: str) -> bool:
+        source = sources.get(stack)
+        if source is None:
+            return False
+        if host == source:
+            return True
+        # Discovery may report the source under another name for the same machine
+        both_known = host in cfg.hosts and source in cfg.hosts
+        return both_known and host_machine(cfg, host) == host_machine(cfg, source)
+
+    filtered = {
+        stack: [host for host in hosts if not is_source(stack, host)]
+        for stack, hosts in strays.items()
+    }
+    return {stack: hosts for stack, hosts in filtered.items() if hosts}
+
+
 @app.command(rich_help_panel="Lifecycle")
 def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs these branches)
     dry_run: Annotated[
@@ -305,7 +331,7 @@ def apply(  # noqa: C901, PLR0912, PLR0915 (multi-phase reconciliation needs the
     strays: dict[str, list[str]] = {}
     if not no_strays:
         console.print("[dim]Scanning hosts for stray containers...[/]")
-        strays = _discover_strays(cfg)
+        strays = _exclude_migration_sources(cfg, _discover_strays(cfg), migrations)
 
     # For --full: refresh all stacks not already being started/migrated
     handled = set(migrations) | set(missing)

@@ -69,6 +69,10 @@ Changelog = "https://github.com/basnijholt/compose-farm/releases"
 compose-farm = "compose_farm.cli:app"
 cf = "compose_farm.cli:app"
 
+[project.entry-points."compose_farm.plugins"]
+commands = "compose_farm.plugins.commands:CommandsPlugin"
+sync = "compose_farm.plugins.sync:SyncPlugin"
+
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
@@ -116,6 +120,8 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"examples/plugins/*/*.py" = ["INP001"]
+"e2e/*" = ["S101", "S108", "S607", "PLR2004", "D103", "INP001"]  # VM end-to-end tests  # standalone single-module example packages
 "tests/*" = ["S101", "PLR2004", "S108", "D102", "D103", "PLC0415", "ARG001", "ARG002", "TC003"]  # relaxed for tests
 
 [tool.ruff.lint.mccabe]

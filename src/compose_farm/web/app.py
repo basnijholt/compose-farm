@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 from rich.logging import RichHandler
 
+from compose_farm.plugins import PluginError
 from compose_farm.web.auth import AuthMiddleware, AuthSettings
 from compose_farm.web.deps import STATIC_DIR, get_config
 from compose_farm.web.routes import actions, api, containers, pages
@@ -44,7 +45,7 @@ async def _task_cleanup_loop() -> None:
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler."""
     # Startup: pre-load config (ignore errors - handled per-request)
-    with suppress(ValidationError, FileNotFoundError):
+    with suppress(ValidationError, FileNotFoundError, PluginError):
         get_config()
 
     # Start background cleanup task

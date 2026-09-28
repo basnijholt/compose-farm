@@ -8,9 +8,20 @@ from unittest.mock import call, patch
 import pytest
 import typer
 
-from compose_farm.cli.lifecycle import apply, down, pull, restart, stop, up, update
+from compose_farm.cli.lifecycle import (
+    _exclude_migration_sources,
+    apply,
+    down,
+    pull,
+    restart,
+    stop,
+    up,
+    update,
+)
 from compose_farm.config import Config, Host
 from compose_farm.executor import CommandResult
+from compose_farm.state import set_stack_host
+from tests.plugin_helpers import make_config
 
 
 def _make_config(tmp_path: Path, stacks: dict[str, str | list[str]] | None = None) -> Config:
@@ -150,6 +161,34 @@ class TestApplyCommand:
             mock_up.assert_called_once()
             call_args = mock_up.call_args
             assert call_args[0][1] == ["svc1"]  # stacks list
+
+    def test_apply_leaves_migration_source_to_the_migration(self, tmp_path: Path) -> None:
+        """A stack running on its old host is migrated, not stopped as a stray first."""
+        cfg = _make_config(tmp_path)
+
+        with (
+            patch("compose_farm.cli.lifecycle.load_config_or_exit", return_value=cfg),
+            patch("compose_farm.cli.lifecycle.get_orphaned_stacks", return_value={}),
+            patch(
+                "compose_farm.cli.lifecycle.get_stacks_needing_migration",
+                return_value=["svc1"],
+            ),
+            patch("compose_farm.cli.lifecycle.get_stacks_not_in_state", return_value=[]),
+            patch("compose_farm.cli.lifecycle.get_stack_host", return_value="host2"),
+            patch("compose_farm.cli.lifecycle._discover_strays", return_value={"svc1": ["host2"]}),
+            patch(
+                "compose_farm.cli.lifecycle.run_async",
+                side_effect=_run_async_returns([_make_result("svc1")]),
+            ),
+            patch("compose_farm.cli.lifecycle.stop_stray_stacks") as mock_stop_strays,
+            patch("compose_farm.cli.lifecycle.up_stacks") as mock_up,
+            patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
+            patch("compose_farm.cli.lifecycle.report_results"),
+        ):
+            apply(dry_run=False, no_orphans=False, no_strays=False, full=False, config=None)
+
+        mock_stop_strays.assert_not_called()
+        mock_up.assert_called_once()
 
     def test_apply_executes_orphan_cleanup(self, tmp_path: Path) -> None:
         """Apply stops orphaned stacks."""
@@ -553,18 +592,19 @@ class TestLifecycleHostFilters:
         assert mock_run.call_args.kwargs.get("filter_host") == "host1"
 
     @pytest.mark.parametrize(
-        ("command_fn", "compose_cmd"),
+        ("command_fn", "compose_cmd", "runner"),
         [
-            (stop, "stop"),
-            (pull, "pull --ignore-buildable"),
-            (restart, "restart"),
-            (up, "up -d"),
+            (stop, "stop", "run_on_stacks"),
+            (pull, "pull --ignore-buildable", "run_on_stacks"),
+            (restart, "restart", "run_on_stacks"),
+            (up, "up -d", "up_stacks_direct"),
         ],
     )
     def test_service_is_shell_quoted(
         self,
         command_fn: Callable[..., None],
         compose_cmd: str,
+        runner: str,
         tmp_path: Path,
     ) -> None:
         """--service values are shell-quoted so they cannot inject commands."""
@@ -572,7 +612,7 @@ class TestLifecycleHostFilters:
 
         with (
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
+            patch(f"compose_farm.cli.lifecycle.{runner}") as mock_run,
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 side_effect=_run_async_returns([_make_result("svc1", host="host1")]),
@@ -604,7 +644,7 @@ class TestLifecycleHostFilters:
 
         with (
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
+            patch("compose_farm.cli.lifecycle.up_stacks_direct") as mock_run,
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 side_effect=_run_async_returns(
@@ -614,7 +654,6 @@ class TestLifecycleHostFilters:
                     ]
                 ),
             ),
-            patch("compose_farm.cli.lifecycle.add_stack_host"),
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
@@ -631,12 +670,11 @@ class TestLifecycleHostFilters:
 
         with (
             patch("compose_farm.cli.common.load_config_or_exit", return_value=cfg),
-            patch("compose_farm.cli.lifecycle.run_on_stacks") as mock_run,
+            patch("compose_farm.cli.lifecycle.up_stacks_direct") as mock_run,
             patch(
                 "compose_farm.cli.lifecycle.run_async",
                 side_effect=_run_async_returns([_make_result("svc1")]),
             ),
-            patch("compose_farm.cli.lifecycle.add_stack_host"),
             patch("compose_farm.cli.lifecycle.maybe_regenerate_traefik"),
             patch("compose_farm.cli.lifecycle.report_results"),
         ):
@@ -854,3 +892,24 @@ class TestHostFilterMultiHost:
                 call(cfg, "multi-host", "host2"),
                 call(cfg, "multi-host", "host3"),
             ]
+
+
+def test_apply_keeps_migration_source_running(tmp_path: Path) -> None:
+    """A stack pending migration is not stopped as a stray on its state host."""
+    cfg = make_config(tmp_path, {"web": "h2", "db": "h2"}, hosts=("h1", "h2", "h3"))
+    for index, name in enumerate(("h1", "h2", "h3")):
+        cfg.hosts[name] = Host(address=f"192.0.2.{index + 1}")
+    set_stack_host(cfg, "web", "h1")
+    strays = {"web": ["h1", "h3"], "db": ["h1"]}
+    assert _exclude_migration_sources(cfg, strays, ["web"]) == {"web": ["h3"], "db": ["h1"]}
+    assert _exclude_migration_sources(cfg, {"web": ["h1"]}, ["web"]) == {}
+
+
+def test_apply_keeps_migration_source_running_under_an_alias(tmp_path: Path) -> None:
+    """Discovery may report the source under another name for the same machine."""
+    cfg = make_config(tmp_path, {"web": "far"}, hosts=("old", "new", "far"))
+    cfg.hosts["old"] = Host(address="192.0.2.1")
+    cfg.hosts["new"] = Host(address="192.0.2.1")
+    cfg.hosts["far"] = Host(address="192.0.2.9")
+    set_stack_host(cfg, "web", "old")
+    assert _exclude_migration_sources(cfg, {"web": ["new"]}, ["web"]) == {}

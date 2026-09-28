@@ -11,7 +11,7 @@ FROM python:3.14-alpine
 
 # Install only runtime requirements. nss_wrapper provides an identity for
 # arbitrary runtime UIDs without modifying the image's system account files.
-RUN apk add --no-cache nss_wrapper openssh-client
+RUN apk add --no-cache nss_wrapper openssh-client rsync
 
 # Copy installed tool virtualenv and bin symlinks from builder
 COPY --from=builder /root/.local/share/uv/tools/compose-farm /root/.local/share/uv/tools/compose-farm

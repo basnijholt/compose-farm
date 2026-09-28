@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -18,9 +19,11 @@ from compose_farm.operations import (
     _up_action_label,
     build_discovery_results,
     build_up_cmd,
+    check_host_compatibility,
     check_stack_requirements,
     up_stacks,
 )
+from tests.plugin_helpers import Recorder, make_config, use_plugins
 
 
 @pytest.fixture
@@ -89,6 +92,7 @@ class TestMigrationCommands:
                 target_host="host2",
                 prefix="[test]",
                 raw=False,
+                was_running=True,
             )
 
         # Migration should call pull with --ignore-buildable, then build, then down
@@ -468,3 +472,72 @@ class TestBuildDiscoveryResultsSharedAddress:
 
         assert strays == {"app": ["b"]}
         assert duplicates == {"app": ["a", "b"]}
+
+
+class TestMultiHostComposeArgs:
+    """Multi-host up builds each host's command with that host's plugin args."""
+
+    async def test_up_multi_host_builds_command_per_host(self, tmp_path: Path) -> None:
+        plugin = Recorder({"args": ["--env-file", "/run/{host}.env"]})
+        plugin.name = "env"
+        cfg = use_plugins(make_config(tmp_path, {"glances": ["h1", "h2"]}), plugin)
+        ok = CommandResult(stack="glances", exit_code=0, success=True)
+        with (
+            patch(
+                "compose_farm.operations.check_stack_requirements",
+                AsyncMock(return_value=PreflightResult([], [], [], [])),
+            ),
+            patch("compose_farm.operations.run_command", AsyncMock(return_value=ok)) as mock,
+            patch("compose_farm.operations.set_multi_host_stack"),
+        ):
+            await up_stacks(cfg, ["glances"])
+        commands = [call.args[1] for call in mock.call_args_list]
+        assert "--env-file /run/h1.env up -d" in commands[0]
+        assert "--env-file /run/h2.env up -d" in commands[1]
+
+
+class TestPluginPreflight:
+    """Plugin preflight problems flow into preflight results and reports."""
+
+    @staticmethod
+    def _cfg(tmp_path: Path, **options: Any) -> Config:
+        plugin = Recorder(options)
+        plugin.name = "zfs"
+        return use_plugins(make_config(tmp_path, {"web": "h1"}), plugin)
+
+    async def test_plugin_problems_fail_preflight(self, tmp_path: Path) -> None:
+        cfg = self._cfg(tmp_path, problems=["pool tank missing"])
+        with patch(
+            "compose_farm.operations.check_paths_exist",
+            AsyncMock(side_effect=lambda _cfg, _host, paths: dict.fromkeys(paths, True)),
+        ):
+            result = await check_stack_requirements(cfg, "web", "h1")
+        assert result.plugin_errors == ("plugin zfs: pool tank missing",)
+        assert not result.ok
+
+    async def test_plugin_exception_is_reported(self, tmp_path: Path) -> None:
+        cfg = self._cfg(tmp_path, fail=[("preflight", "web")])
+        with patch(
+            "compose_farm.operations.check_paths_exist",
+            AsyncMock(side_effect=lambda _cfg, _host, paths: dict.fromkeys(paths, True)),
+        ):
+            result = await check_stack_requirements(cfg, "web", "h1")
+        assert result.plugin_errors == ("plugin zfs: preflight failed",)
+
+    def test_report_includes_plugin_errors(self) -> None:
+        preflight = PreflightResult([], [], [], [], ("plugin zfs: pool tank missing",))
+        with patch("compose_farm.operations.print_error") as mock_print:
+            _report_preflight_failures("web", "h1", preflight)
+        printed = [call.args[0] for call in mock_print.call_args_list]
+        assert "  plugin zfs: pool tank missing" in printed
+
+    async def test_host_compatibility_counts_errors(self, tmp_path: Path) -> None:
+        cfg = make_config(tmp_path, {"web": "h1"})
+        preflight = PreflightResult([], [], [], ["ssh down"], ("plugin zfs: pool missing",))
+        with patch(
+            "compose_farm.operations.check_stack_requirements", AsyncMock(return_value=preflight)
+        ):
+            compat = await check_host_compatibility(cfg, "web")
+        found, total, missing = compat["h1"]
+        assert found < total
+        assert missing == ["ssh down", "plugin zfs: pool missing"]

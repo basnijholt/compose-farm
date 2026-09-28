@@ -29,8 +29,11 @@ from .executor import (
     run_command,
     run_compose,
     run_compose_on_host,
+    run_on_stacks,
 )
+from .plugins import HookContext, PluginError, run_hook, run_hook_all, run_preflight
 from .state import (
+    add_stack_host,
     get_orphaned_stacks,
     get_stack_host,
     remove_stack,
@@ -53,12 +56,17 @@ class PreflightResult(NamedTuple):
     missing_networks: list[str]
     missing_devices: list[str]
     check_errors: list[str]
+    plugin_errors: tuple[str, ...] = ()
 
     @property
     def ok(self) -> bool:
         """Return True if all checks passed."""
         return not (
-            self.missing_paths or self.missing_networks or self.missing_devices or self.check_errors
+            self.missing_paths
+            or self.missing_networks
+            or self.missing_devices
+            or self.check_errors
+            or self.plugin_errors
         )
 
 
@@ -161,7 +169,10 @@ async def check_stack_requirements(
         except RemoteCheckError as e:
             check_errors.append(str(e))
 
-    return PreflightResult(missing_paths, missing_networks, missing_devices, check_errors)
+    plugin_errors = await run_preflight(HookContext(cfg, stack, host_name))
+    return PreflightResult(
+        missing_paths, missing_networks, missing_devices, check_errors, tuple(plugin_errors)
+    )
 
 
 async def _cleanup_and_rollback(
@@ -176,8 +187,26 @@ async def _cleanup_and_rollback(
 ) -> None:
     """Clean up failed start and attempt rollback to old host if it was running."""
     print_warning(f"{prefix} Cleaning up failed start on [magenta]{target_host}[/]")
-    await run_compose(cfg, stack, "down", raw=raw)
+    cleanup = await run_compose(cfg, stack, "down", raw=raw)
+    if not cleanup.success:
+        print_error(
+            f"{prefix} Cleanup failed on [magenta]{target_host}[/]; not restarting on "
+            f"[magenta]{current_host}[/] to avoid running on both hosts"
+        )
+        return
+    await _rollback_to_source(cfg, stack, current_host, prefix, was_running=was_running, raw=raw)
 
+
+async def _rollback_to_source(
+    cfg: Config,
+    stack: str,
+    current_host: str,
+    prefix: str,
+    *,
+    was_running: bool,
+    raw: bool = False,
+) -> None:
+    """Restart the stack on its previous host if it was running there."""
     if not was_running:
         err_console.print(
             f"{prefix} [dim]Stack was not running on [magenta]{current_host}[/], skipping rollback[/]"
@@ -209,6 +238,37 @@ def _report_preflight_failures(
         err_console.print(f"  [dim]Hint: cf init-network {target_host}[/]")
     for dev in preflight.missing_devices:
         print_error(f"  missing device: {dev}")
+    for err in preflight.plugin_errors:
+        print_error(f"  {err}")
+
+
+async def _run_before_up(ctx: HookContext, *, label: str = "") -> CommandResult | None:
+    """Run before_up hooks and resolve compose args; report and return a failure.
+
+    Resolving compose_args here means a broken plugin fails before anything is
+    stopped (migration) or started (multi-host), not halfway through.
+    """
+    try:
+        await run_hook(ctx, "before_up")
+        ctx.cfg.compose_args(ctx.stack, ctx.host)
+    except PluginError as e:
+        print_error(f"{format_stack_prefix(ctx.stack)} {e}")
+        return CommandResult(
+            stack=ctx.stack, exit_code=1, success=False, stderr=str(e), host=ctx.host, label=label
+        )
+    return None
+
+
+async def _run_after_up(ctx: HookContext) -> None:
+    """Run after_up hooks; failures are warnings because the stack is already up."""
+    errors = await run_hook_all(ctx, "after_up")
+    for error in errors:
+        print_warning(f"{format_stack_prefix(ctx.stack)} {error}")
+    if errors and ctx.source_host:
+        print_warning(
+            f"{format_stack_prefix(ctx.stack)} Leftovers on "
+            f"[magenta]{ctx.source_host}[/] may need manual cleanup"
+        )
 
 
 def build_up_cmd(
@@ -246,22 +306,19 @@ async def _up_multi_host_stack(
     host_names = cfg.get_hosts(stack)
     results: list[CommandResult] = []
     stack_dir = cfg.get_stack_dir(stack)
-    # Use cd to let docker compose find the compose file on the remote host
-    command = _build_compose_command(stack_dir, build_up_cmd(pull=pull, build=build))
+    up_cmd = build_up_cmd(pull=pull, build=build)
 
-    # Pre-flight checks on all hosts
+    # Plugin preparation and pre-flight checks on all hosts before starting any
     for host_name in host_names:
+        label = f"{stack}@{host_name}"
+        if failure := await _run_before_up(HookContext(cfg, stack, host_name), label=label):
+            results.append(failure)
+            return results
         preflight = await check_stack_requirements(cfg, stack, host_name)
         if not preflight.ok:
             _report_preflight_failures(stack, host_name, preflight)
             results.append(
-                CommandResult(
-                    stack=stack,
-                    exit_code=1,
-                    success=False,
-                    host=host_name,
-                    label=f"{stack}@{host_name}",
-                )
+                CommandResult(stack=stack, exit_code=1, success=False, host=host_name, label=label)
             )
             return results
 
@@ -274,6 +331,8 @@ async def _up_multi_host_stack(
     for host_name in host_names:
         host = cfg.hosts[host_name]
         label = f"{stack}@{host_name}"
+        # Use cd to let docker compose find the compose file on the remote host
+        command = _build_compose_command(stack_dir, up_cmd, cfg.compose_args(stack, host_name))
         result = await run_command(
             host,
             command,
@@ -293,6 +352,8 @@ async def _up_multi_host_stack(
     # Update state with hosts that succeeded (partial success is tracked)
     if succeeded_hosts:
         set_multi_host_stack(cfg, stack, succeeded_hosts)
+        for host_name in succeeded_hosts:
+            await _run_after_up(HookContext(cfg, stack, host_name))
 
     return results
 
@@ -305,10 +366,12 @@ async def _migrate_stack(
     prefix: str,
     *,
     raw: bool = False,
+    was_running: bool,
 ) -> CommandResult | None:
     """Migrate a stack from current_host to target_host.
 
-    Pre-pulls/builds images on target, then stops stack on current host.
+    Pre-pulls/builds images on target, stops the stack on the current host, then
+    runs after_source_stopped hooks (rolling back to the source if one fails).
     Returns failure result if migration prep fails, None on success.
     """
     console.print(
@@ -329,7 +392,20 @@ async def _migrate_stack(
 
     # Stop on current host
     down_result = await _run_compose_step(cfg, stack, "down", raw=raw, host=current_host)
-    return down_result if not down_result.success else None
+    if not down_result.success:
+        return down_result
+
+    try:
+        await run_hook(HookContext(cfg, stack, target_host, current_host), "after_source_stopped")
+    except PluginError as e:
+        print_error(f"{prefix} {e}")
+        await _rollback_to_source(
+            cfg, stack, current_host, prefix, was_running=was_running, raw=raw
+        )
+        return CommandResult(
+            stack=stack, exit_code=1, success=False, stderr=str(e), host=target_host
+        )
+    return None
 
 
 async def _up_single_stack(
@@ -344,6 +420,11 @@ async def _up_single_stack(
     """Start a single-host stack with migration support."""
     target_host = cfg.get_hosts(stack)[0]
     current_host = get_stack_host(cfg, stack)
+    source_host = current_host if current_host and current_host != target_host else None
+    ctx = HookContext(cfg, stack, target_host, source_host)
+
+    if failure := await _run_before_up(ctx):
+        return failure
 
     # Pre-flight check: verify paths, networks, and devices exist on target
     preflight = await check_stack_requirements(cfg, stack, target_host)
@@ -357,7 +438,9 @@ async def _up_single_stack(
     if current_host and current_host != target_host:
         if current_host in cfg.hosts:
             was_running = await check_stack_running(cfg, stack, current_host)
-            failure = await _migrate_stack(cfg, stack, current_host, target_host, prefix, raw=raw)
+            failure = await _migrate_stack(
+                cfg, stack, current_host, target_host, prefix, raw=raw, was_running=was_running
+            )
             if failure:
                 return failure
             did_migration = True
@@ -375,6 +458,7 @@ async def _up_single_stack(
     # Update state on success, or rollback on failure
     if up_result.success:
         set_stack_host(cfg, stack, target_host)
+        await _run_after_up(ctx)
     elif did_migration and current_host:
         await _cleanup_and_rollback(
             cfg,
@@ -399,6 +483,10 @@ async def _up_stack_simple(
 ) -> CommandResult:
     """Start a single-host stack without migration (parallel-safe)."""
     target_host = cfg.get_hosts(stack)[0]
+    ctx = HookContext(cfg, stack, target_host)
+
+    if failure := await _run_before_up(ctx):
+        return failure
 
     # Pre-flight check
     preflight = await check_stack_requirements(cfg, stack, target_host)
@@ -416,6 +504,7 @@ async def _up_stack_simple(
     # Update state on success
     if result.success:
         set_stack_host(cfg, stack, target_host)
+        await _run_after_up(ctx)
 
     return result
 
@@ -495,6 +584,47 @@ async def up_stacks(
     return results
 
 
+async def up_stacks_direct(
+    cfg: Config,
+    stacks: list[str],
+    compose_cmd: str,
+    *,
+    raw: bool = False,
+    filter_host: str | None = None,
+) -> list[CommandResult]:
+    """Run an up command without migration or preflight, wrapped in before_up/after_up hooks.
+
+    Used by `up --service` and `up --host`. With filter_host, successful hosts are
+    recorded in state (before after_up).
+    """
+
+    async def prepare(stack: str) -> CommandResult | None:
+        hosts = cfg.get_hosts(stack)
+        if filter_host and cfg.is_multi_host(stack):  # As run_on_stacks applies the filter
+            hosts = [filter_host]
+        for host_name in hosts:
+            ctx = HookContext(cfg, stack, host_name)
+            if failure := await _run_before_up(ctx, label=f"{stack}@{host_name}"):
+                return failure
+        return None
+
+    prepared = await asyncio.gather(*(prepare(stack) for stack in stacks))
+    failures = [failure for failure in prepared if failure is not None]
+    ready = [stack for stack, failure in zip(stacks, prepared, strict=True) if failure is None]
+    results = (
+        await run_on_stacks(cfg, ready, compose_cmd, raw=raw, filter_host=filter_host)
+        if ready
+        else []
+    )
+    for result in results:
+        if not (result.success and result.host):
+            continue
+        if filter_host:
+            add_stack_host(cfg, result.stack, result.host)
+        await _run_after_up(HookContext(cfg, result.stack, result.host))
+    return [*failures, *results]
+
+
 async def check_host_compatibility(
     cfg: Config,
     stack: str,
@@ -513,19 +643,39 @@ async def check_host_compatibility(
 
     for host_name in cfg.hosts:
         preflight = await check_stack_requirements(cfg, stack, host_name)
-        all_missing = (
-            preflight.missing_paths + preflight.missing_networks + preflight.missing_devices
-        )
-        found = total - len(all_missing)
-        results[host_name] = (found, total, all_missing)
+        missing = preflight.missing_paths + preflight.missing_networks + preflight.missing_devices
+        errors = [*preflight.check_errors, *preflight.plugin_errors]
+        results[host_name] = (total - len(missing), total + len(errors), missing + errors)
 
     return results
+
+
+async def _run_after_stack_removed(cfg: Config, result: CommandResult) -> CommandResult:
+    """Run after_stack_removed hooks; a failure keeps the stack in state so it is retried.
+
+    The first failure stops the chain: a later plugin may remove the stack
+    directory, which the retry's `docker compose down` still needs.
+    """
+    try:
+        await run_hook(HookContext(cfg, result.stack, result.host), "after_stack_removed")
+    except PluginError as e:
+        return CommandResult(
+            stack=result.stack,
+            exit_code=1,
+            success=False,
+            stderr=f"stopped, but {e} (will retry)",
+            host=result.host,
+            label=result.label,
+        )
+    return result
 
 
 async def _stop_stacks_on_hosts(
     cfg: Config,
     stacks_to_hosts: dict[str, list[str]],
     label: str = "",
+    *,
+    removed: bool = False,
 ) -> list[CommandResult]:
     """Stop stacks on specific hosts.
 
@@ -535,6 +685,8 @@ async def _stop_stacks_on_hosts(
         cfg: Config object.
         stacks_to_hosts: Dict mapping stack name to list of hosts to stop on.
         label: Optional label for success message (e.g., "stray", "orphaned").
+        removed: Stacks were removed from config; run after_stack_removed hooks
+            after each successful stop.
 
     Returns:
         List of CommandResults for each stack@host.
@@ -568,6 +720,8 @@ async def _stop_stacks_on_hosts(
     for stack, host, task in tasks:
         try:
             result = await task
+            if removed and result.success:
+                result = await _run_after_stack_removed(cfg, result)
             results.append(result)
             if result.success:
                 print_success(f"{stack}@{host}: stopped{suffix}")
@@ -592,8 +746,8 @@ async def _stop_stacks_on_hosts(
 async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
     """Stop orphaned stacks (in state but not in config).
 
-    Runs docker compose down on each stack on its tracked host(s).
-    Only removes from state on successful stop.
+    Runs docker compose down on each stack on its tracked host(s), then
+    after_stack_removed hooks. Removes each host from state once both succeed.
 
     Returns list of CommandResults for each stack@host.
     """
@@ -605,18 +759,12 @@ async def stop_orphaned_stacks(cfg: Config) -> list[CommandResult]:
         stack: (hosts if isinstance(hosts, list) else [hosts]) for stack, hosts in orphaned.items()
     }
 
-    results = await _stop_stacks_on_hosts(cfg, normalized)
+    results = await _stop_stacks_on_hosts(cfg, normalized, removed=True)
 
-    # Remove from state only for stacks where ALL hosts succeeded
-    for stack, hosts in normalized.items():
-        expected_hosts = set(hosts)
-        matching_results = [r for r in results if r.stack == stack and r.host in expected_hosts]
-        all_succeeded = (
-            all(r.success for r in matching_results)
-            and {r.host for r in matching_results} == expected_hosts
-        )
-        if all_succeeded:
-            remove_stack(cfg, stack)
+    # Drop each host that stopped (and cleaned up) from state; failed hosts stay for a retry
+    for result in results:
+        if result.success and result.host:
+            remove_stack(cfg, result.stack, result.host)
 
     return results
 
@@ -636,6 +784,12 @@ async def stop_stray_stacks(
 
     """
     return await _stop_stacks_on_hosts(cfg, strays, label="stray")
+
+
+def host_machine(cfg: Config, host: str) -> tuple[str, int]:
+    """Identify the machine behind a host name (names sharing address and port are one machine)."""
+    h = cfg.hosts[host]
+    return h.address.lower(), h.port
 
 
 def build_discovery_results(
@@ -667,10 +821,6 @@ def build_discovery_results(
     stack_list = stacks if stacks is not None else list(cfg.stacks)
     all_hosts = list(running_on_host.keys())
 
-    def machine(host: str) -> tuple[str, int]:
-        h = cfg.hosts[host]
-        return h.address.lower(), h.port
-
     def running_hosts(stack: str, configured: list[str]) -> list[str]:
         # Hosts sharing an address+port reach the same Docker daemon, so each
         # container shows up under every such name. Count each machine once,
@@ -679,13 +829,13 @@ def build_discovery_results(
         # stack) so a failed probe on the configured name can't make its alias
         # a stray.
         running = [h for h in all_hosts if stack in running_on_host[h]]
-        seen = {machine(h) for h in configured}
+        seen = {host_machine(cfg, h) for h in configured}
         kept: list[str] = []
         for h in running:
             if h not in configured:
-                if machine(h) in seen:
+                if host_machine(cfg, h) in seen:
                     continue
-                seen.add(machine(h))
+                seen.add(host_machine(cfg, h))
             kept.append(h)
         return kept
 

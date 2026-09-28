@@ -88,6 +88,16 @@ SSH and local command execution:
 - **Streaming output**: Real-time stdout/stderr with `[stack]` prefix
 - **Local detection**: Skips SSH when target matches local machine IP
 
+### Plugins (`src/compose_farm/plugins/`)
+
+Entry-point plugins enabled in the config's `plugins:` mapping:
+
+- **Lifecycle hooks**: `before_up`, `preflight`, `after_source_stopped`, `after_up`, `after_stack_removed`, called from operations
+- **Compose arguments**: `compose_args` adds global `docker compose` flags to every command; the executor reaches it only through `Config.compose_args`
+- **Builtins**: `commands` (shell commands from config) and `sync` (rsync stack directories instead of NFS)
+
+See [Plugins](plugins.md).
+
 ### CLI (`src/compose_farm/cli/`)
 
 Typer-based CLI with subcommand modules:

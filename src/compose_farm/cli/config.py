@@ -234,6 +234,8 @@ def config_validate(
     print_success(f"Valid config: {config_file}")
     console.print(f"  Hosts: {len(cfg.hosts)}")
     console.print(f"  Stacks: {len(cfg.stacks)}")
+    if cfg.plugins:
+        console.print(f"  Plugins: {', '.join(cfg.plugins)}")
 
 
 @config_app.command("symlink")

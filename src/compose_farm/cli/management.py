@@ -271,7 +271,9 @@ def _check_stack_requirements(
             mount_errors.extend((stack, host_name, p) for p in preflight.missing_paths)
             network_errors.extend((stack, host_name, n) for n in preflight.missing_networks)
             device_errors.extend((stack, host_name, d) for d in preflight.missing_devices)
-            preflight_errors.extend((stack, host_name, e) for e in preflight.check_errors)
+            preflight_errors.extend(
+                (stack, host_name, e) for e in [*preflight.check_errors, *preflight.plugin_errors]
+            )
 
         return stack, mount_errors, network_errors, device_errors, preflight_errors
 
@@ -607,6 +609,8 @@ def check(
 
     # Run checks
     has_errors = _report_config_status(cfg)
+    if cfg.plugins:
+        console.print(f"Plugins: {', '.join(cfg.plugins)}")
     _report_traefik_status(cfg, stack_list)
 
     if not local and _run_remote_checks(cfg, stack_list, show_host_compat=show_host_compat):

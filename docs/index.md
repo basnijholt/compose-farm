@@ -147,6 +147,7 @@ cf logs -f plex
 - **Parallel execution**: Multiple stacks start/stop concurrently
 - **State tracking**: Knows which stacks are running where
 - **Traefik integration**: Generate file-provider config for cross-host routing
+- **Plugins**: Replace NFS with rsync, pass host-decrypted secrets, move per-stack ZFS datasets ([Plugins](plugins.md))
 - **Zero changes**: Your compose files work as-is
 
 ## Requirements
@@ -154,12 +155,13 @@ cf logs -f plex
 - [uv](https://docs.astral.sh/uv/) (recommended) or Python 3.11+
 - SSH key-based authentication to your Docker hosts
 - Docker and Docker Compose on all target hosts
-- Shared storage (compose files at same path on all hosts)
+- Shared storage (compose files at same path on all hosts), or the [`sync` plugin](plugins.md#sync)
 
 ## Documentation
 
 - [Getting Started](getting-started.md) - Installation and first steps
 - [Configuration](configuration.md) - All configuration options
+- [Plugins](plugins.md) - Hooks, builtin plugins, and writing your own
 - [Commands](commands.md) - CLI reference
 - [Web UI](web-ui.md) - Browser-based management interface
 - [Architecture](architecture.md) - How it works under the hood

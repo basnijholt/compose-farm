@@ -15,7 +15,7 @@ from .console import console, err_console, format_stack_prefix
 from .ssh_keys import SSH_KNOWN_HOSTS_PATH, get_key_path, get_ssh_auth_sock, get_ssh_env
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
     from pathlib import Path
 
     from .config import Config, Host
@@ -61,16 +61,23 @@ def _print_compose_command(
     host_name: str,
     stack: str,
     compose_cmd: str,
+    extra_args: Sequence[str] = (),
 ) -> None:
     """Print the docker compose command being executed."""
+    args = f"{shlex.join(extra_args)} " if extra_args else ""
     console.print(
-        f"[dim][magenta]{host_name}[/magenta]: ({stack}) docker compose {compose_cmd}[/dim]"
+        f"[dim][magenta]{host_name}[/magenta]: ({stack}) docker compose {args}{compose_cmd}[/dim]"
     )
 
 
-def _build_compose_command(stack_dir: Path, compose_cmd: str) -> str:
-    """Build a compose command with a shell-safe working directory."""
-    return f"cd {shlex.quote(str(stack_dir))} && docker compose {compose_cmd}"
+def _build_compose_command(
+    stack_dir: Path,
+    compose_cmd: str,
+    extra_args: Sequence[str] = (),
+) -> str:
+    """Build a compose command with a shell-safe working directory and extra global args."""
+    args = f"{shlex.join(extra_args)} " if extra_args else ""
+    return f"cd {shlex.quote(str(stack_dir))} && docker compose {args}{compose_cmd}"
 
 
 async def _stream_output_lines(
@@ -443,11 +450,12 @@ async def run_compose(
     host_name = config.get_hosts(stack)[0]
     host = config.hosts[host_name]
     stack_dir = config.get_stack_dir(stack)
+    extra_args = config.compose_args(stack, host_name)
 
-    _print_compose_command(host_name, stack, compose_cmd)
+    _print_compose_command(host_name, stack, compose_cmd, extra_args)
 
     # Use cd to let docker compose find the compose file on the remote host
-    command = _build_compose_command(stack_dir, compose_cmd)
+    command = _build_compose_command(stack_dir, compose_cmd, extra_args)
     return await run_command(
         host,
         command,
@@ -476,11 +484,12 @@ async def run_compose_on_host(
     """
     host = config.hosts[host_name]
     stack_dir = config.get_stack_dir(stack)
+    extra_args = config.compose_args(stack, host_name)
 
-    _print_compose_command(host_name, stack, compose_cmd)
+    _print_compose_command(host_name, stack, compose_cmd, extra_args)
 
     # Use cd to let docker compose find the compose file on the remote host
-    command = _build_compose_command(stack_dir, compose_cmd)
+    command = _build_compose_command(stack_dir, compose_cmd, extra_args)
     return await run_command(
         host,
         command,
@@ -553,10 +562,11 @@ async def _run_sequential_stack_commands_on_host(
     stack_dir = config.get_stack_dir(stack)
     host = config.hosts[host_name]
     label = f"{stack}@{host_name}"
+    extra_args = config.compose_args(stack, host_name)
 
     for cmd in commands:
-        _print_compose_command(host_name, stack, cmd)
-        command = _build_compose_command(stack_dir, cmd)
+        _print_compose_command(host_name, stack, cmd, extra_args)
+        command = _build_compose_command(stack_dir, cmd, extra_args)
         result = await run_command(
             host,
             command,
@@ -591,13 +601,14 @@ async def _run_sequential_stack_commands_multi_host(
     final_results: list[CommandResult] = []
 
     for cmd in commands:
-        # Use cd to let docker compose find the compose file on the remote host
-        command = _build_compose_command(stack_dir, cmd)
         tasks = []
         use_raw = raw and len(host_names) == 1
         for host_name in host_names:
-            _print_compose_command(host_name, stack, cmd)
             host = config.hosts[host_name]
+            extra_args = config.compose_args(stack, host_name)
+            _print_compose_command(host_name, stack, cmd, extra_args)
+            # Use cd to let docker compose find the compose file on the remote host
+            command = _build_compose_command(stack_dir, cmd, extra_args)
             # For multi-host stacks, always use stack@host prefix to distinguish output
             label = f"{stack}@{host_name}" if len(host_names) > 1 else stack
             # Multi-host stacks always need prefixes to distinguish output from different hosts
@@ -696,7 +707,9 @@ async def check_stack_running(
 
     # Use ps --status running to check for running containers
     # Use cd to let docker compose find the compose file on the remote host
-    command = _build_compose_command(stack_dir, "ps --status running -q")
+    command = _build_compose_command(
+        stack_dir, "ps --status running -q", config.compose_args(stack, host_name)
+    )
     result = await run_command(host, command, stack, stream=False)
 
     # If command succeeded and has output, containers are running
