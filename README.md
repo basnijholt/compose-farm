@@ -245,6 +245,10 @@ Compose Farm verifies SSH server host keys using
 by `ssh-copy-id` against the host's fingerprint. Later connections fail closed
 if the key is missing or changes.
 
+When upgrading from a release that did not verify host keys, run `cf ssh setup`
+once before other remote commands. Confirm each displayed fingerprint against the
+host itself; this enrolls the key in Compose Farm's dedicated `known_hosts` file.
+
 <details><summary>🐳 Docker volume options for SSH keys</summary>
 
 When running in Docker, mount a volume to persist the SSH keys. Choose ONE option and use it for both `cf` and `web` Compose services:

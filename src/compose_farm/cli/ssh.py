@@ -11,7 +11,7 @@ import typer
 from compose_farm.cli.app import app
 from compose_farm.cli.common import ConfigOption, load_config_or_exit, run_parallel_with_progress
 from compose_farm.console import console, err_console
-from compose_farm.executor import run_command
+from compose_farm.executor import CommandResult, run_command
 
 if TYPE_CHECKING:
     from compose_farm.config import Host
@@ -38,6 +38,17 @@ _ForceOption = Annotated[
     bool,
     typer.Option("--force", "-f", help="Regenerate key even if it exists."),
 ]
+
+
+def _format_connectivity_status(result: CommandResult) -> str:
+    """Format a failed SSH probe without hiding its actual cause."""
+    if result.success:
+        return "[green]OK[/]"
+    # Lazy import keeps the common CLI startup path fast.
+    from rich.markup import escape  # noqa: PLC0415
+
+    detail = result.stderr.strip() or f"SSH exited with status {result.exit_code}"
+    return f"[red]Failed: {escape(detail)}[/]"
 
 
 def _generate_key(*, force: bool = False) -> bool:
@@ -249,7 +260,7 @@ def ssh_status(
                 run_command(host, "echo ok", host_name, stream=False),
                 timeout=5.0,
             )
-            status = "[green]OK[/]" if result.success else "[red]Auth failed[/]"
+            status = _format_connectivity_status(result)
         except TimeoutError:
             status = "[red]Timeout (5s)[/]"
         except Exception as e:

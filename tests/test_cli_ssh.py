@@ -6,7 +6,8 @@ from unittest.mock import MagicMock, patch
 from typer.testing import CliRunner
 
 from compose_farm.cli.app import app
-from compose_farm.cli.ssh import _copy_key_to_host
+from compose_farm.cli.ssh import _copy_key_to_host, _format_connectivity_status
+from compose_farm.executor import CommandResult
 from compose_farm.ssh_keys import SSH_KEY_PATH
 
 runner = CliRunner()
@@ -82,6 +83,20 @@ stacks:
             result = runner.invoke(app, ["ssh", "status", f"--config={config_file}"])
 
             assert "Key exists" in result.output
+
+    def test_failed_status_reports_host_key_error(self) -> None:
+        """Do not mislabel host-key failures as authentication failures."""
+        result = CommandResult(
+            stack="nas",
+            exit_code=255,
+            success=False,
+            stderr="Host key verification failed.",
+        )
+
+        status = _format_connectivity_status(result)
+
+        assert "Host key verification failed." in status
+        assert "Auth failed" not in status
 
 
 class TestSshSetup:
