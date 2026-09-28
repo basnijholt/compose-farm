@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import importlib.util
+import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from compose_farm.config import Config, Host
 from compose_farm.plugins import HookContext, Plugin
 
 if TYPE_CHECKING:
-    from pathlib import Path
+    from types import ModuleType
 
 
 class Recorder(Plugin):
@@ -73,3 +76,16 @@ def use_plugins(cfg: Config, *plugins: Plugin) -> Config:
     cfg.plugins = {plugin.name: None for plugin in plugins}
     cfg._loaded_plugins = plugins
     return cfg
+
+
+def load_example_plugin(name: str) -> ModuleType:
+    """Import ``examples/plugins/<name>/compose_farm_<name>.py`` without installing it."""
+    path = Path(__file__).parent.parent / "examples" / "plugins" / name / f"compose_farm_{name}.py"
+    module_name = f"compose_farm_{name}"
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module

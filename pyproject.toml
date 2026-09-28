@@ -120,6 +120,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+"examples/plugins/*/*.py" = ["INP001"]  # standalone single-module example packages
 "tests/*" = ["S101", "PLR2004", "S108", "D102", "D103", "PLC0415", "ARG001", "ARG002", "TC003"]  # relaxed for tests
 
 [tool.ruff.lint.mccabe]
