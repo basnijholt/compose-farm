@@ -66,7 +66,7 @@ class HookContext:
 
 @dataclass(frozen=True)
 class ChangesContext:
-    """The stacks a cf command started, moved, or stopped, plus helpers to run commands."""
+    """The stacks a cf up/update, down, or apply changed, plus helpers to run commands."""
 
     cfg: Config
     stacks: tuple[str, ...]
@@ -161,7 +161,7 @@ class Plugin:
         """An orphaned stack (removed from config) was stopped on ctx.host."""
 
     async def after_changes(self, ctx: ChangesContext) -> None:
-        """Once per cf command that started, moved, or stopped stacks (ctx.stacks)."""
+        """Once after a cf up/update, down, or apply that changed stacks (ctx.stacks)."""
 
     def compose_args(self, ctx: HookContext) -> list[str]:  # noqa: ARG002
         """Extra global docker compose arguments for ctx.stack on ctx.host. No I/O, no secrets."""

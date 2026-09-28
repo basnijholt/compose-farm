@@ -45,5 +45,7 @@ With `format: hosts`, each record is a line like `100.64.0.28 grafana.lab.exampl
 ## Notes
 
 - Only stacks in `compose-farm.yaml` count, so commented-out stacks don't leave stale records behind.
+- If a stack's compose file can't be read, the update stops with an error and the existing records stay as they are, instead of silently dropping that stack's names.
+- The restart covers every host of the `restart` stack. If it fails anywhere, the file is put back, so the next `cf` command writes it again and retries the restart.
 - The file is written on the machine running `cf`, which works when `compose_dir` is shared (NFS). If you copy compose files with the `sync` plugin instead, the restarted stack still sees the old copy until its next `cf up`.
 - Records point at the Traefik entry, not at the host that runs each service.

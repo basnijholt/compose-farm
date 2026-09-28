@@ -69,8 +69,13 @@ def _plugin(**options: Any) -> Any:
     )
 
 
-def _ok() -> AsyncMock:
-    return AsyncMock(return_value=CommandResult(stack="headscale", exit_code=0, success=True))
+def _restart(*outcomes: str) -> AsyncMock:
+    """Fake run_on_stacks: one result per host of the restarted stack ("ok" or "fail")."""
+    results = [
+        CommandResult(stack="headscale", exit_code=int(o != "ok"), success=o == "ok", host=f"h{i}")
+        for i, o in enumerate(outcomes, 1)
+    ]
+    return AsyncMock(return_value=results)
 
 
 class TestOptions:
@@ -98,8 +103,8 @@ class TestHeadscale:
     async def test_writes_block_and_restarts_once(self, tmp_path: Path) -> None:
         cfg = _cfg(tmp_path)
         plugin = _plugin(restart="headscale")
-        restart = _ok()
-        with patch.object(dns, "run_compose", restart):
+        restart = _restart("ok")
+        with patch.object(dns, "run_on_stacks", restart):
             await plugin.after_changes(ChangesContext(cfg, ("web",)))
             await plugin.after_changes(ChangesContext(cfg, ("web",)))  # Nothing changed
         text = (cfg.compose_dir / "headscale" / "config.yaml").read_text()
@@ -110,20 +115,35 @@ class TestHeadscale:
         assert text.endswith(
             "    # END MANAGED DNS\nunix_socket: /var/run/headscale/headscale.sock\n"
         )
-        restart.assert_awaited_once_with(cfg, "headscale", "restart")
+        restart.assert_awaited_once_with(cfg, ["headscale"], "restart")
 
     async def test_ipv6_address_uses_aaaa(self, tmp_path: Path) -> None:
         cfg = _cfg(tmp_path)
         await _plugin(address="fd7a::1c").after_changes(ChangesContext(cfg, ("web",)))
         assert "type: AAAA" in (cfg.compose_dir / "headscale" / "config.yaml").read_text()
 
-    async def test_failed_restart_is_an_error(self, tmp_path: Path) -> None:
+    async def test_failed_restart_restores_the_file_for_a_retry(self, tmp_path: Path) -> None:
+        """A multi-host reader must restart everywhere; otherwise the next run tries again."""
         cfg = _cfg(tmp_path)
-        failed = AsyncMock(
-            return_value=CommandResult(stack="headscale", exit_code=1, success=False)
-        )
-        with patch.object(dns, "run_compose", failed), pytest.raises(PluginError, match="restart"):
+        path = cfg.compose_dir / "headscale" / "config.yaml"
+        with (
+            patch.object(dns, "run_on_stacks", _restart("ok", "fail")),
+            pytest.raises(PluginError, match="restart of headscale failed on h2"),
+        ):
             await _plugin(restart="headscale").after_changes(ChangesContext(cfg, ("web",)))
+        assert path.read_text() == HEADSCALE
+        restart = _restart("ok", "ok")
+        with patch.object(dns, "run_on_stacks", restart):
+            await _plugin(restart="headscale").after_changes(ChangesContext(cfg, ("web",)))
+        restart.assert_awaited_once()
+        assert "web.lab.test" in path.read_text()
+
+    async def test_unreadable_stack_keeps_existing_records(self, tmp_path: Path) -> None:
+        cfg = _cfg(tmp_path)
+        (cfg.compose_dir / "wiki" / "compose.yaml").unlink()
+        with pytest.raises(PluginError, match="cannot read Traefik labels of wiki"):
+            await _plugin().after_changes(ChangesContext(cfg, ("web",)))
+        assert (cfg.compose_dir / "headscale" / "config.yaml").read_text() == HEADSCALE
 
     async def test_unknown_restart_stack_is_an_error(self, tmp_path: Path) -> None:
         cfg = _cfg(tmp_path)

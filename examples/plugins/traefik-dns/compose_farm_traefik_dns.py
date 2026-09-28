@@ -20,15 +20,12 @@ changed, it can restart the stack that reads the file::
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from compose_farm.console import print_success
-from compose_farm.executor import run_compose
+from compose_farm.executor import run_on_stacks
 from compose_farm.plugins import ChangesContext, Plugin, PluginError
 from compose_farm.traefik import generate_traefik_config
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 _HOST_RULE = re.compile(r"Host\(`([^`]+)`\)")
 _FORMATS = ("headscale", "hosts")
@@ -66,30 +63,36 @@ class TraefikDnsPlugin(Plugin):
         if self.restart and self.restart not in ctx.cfg.stacks:
             msg = f"restart stack {self.restart!r} is not in the config"
             raise PluginError(msg)
-        path = _resolve(ctx, self.file)
+        path = ctx.cfg.compose_dir / self.file  # An absolute path replaces compose_dir
         old = path.read_text()
         new = self._replace_block(old, self._records(sorted(self._names(ctx))))
         if new == old:
             return
         path.write_text(new)
         print_success(f"traefik-dns: updated {path}")
-        if self.restart:
-            result = await run_compose(ctx.cfg, self.restart, "restart")
-            if not result.success:
-                msg = f"restart of {self.restart} failed (exit {result.exit_code})"
-                raise PluginError(msg)
+        if not self.restart:
+            return
+        failed = [
+            r.host for r in await run_on_stacks(ctx.cfg, [self.restart], "restart") if not r.success
+        ]
+        if failed:
+            path.write_text(old)  # So the next run sees the change again and retries
+            msg = f"restart of {self.restart} failed on {', '.join(failed)}"
+            raise PluginError(msg)
 
     def _names(self, ctx: ChangesContext) -> set[str]:
         rules: list[str] = []
         for stack in ctx.cfg.stacks:
             try:
                 dynamic, _ = generate_traefik_config(ctx.cfg, [stack], check_all=True)
-            except (FileNotFoundError, ValueError):
-                continue  # compose-farm's own checks report broken stacks
+            except (FileNotFoundError, ValueError) as e:
+                # Skipping the stack would delete its records; keep the old ones instead
+                msg = f"cannot read Traefik labels of {stack}: {e}"
+                raise PluginError(msg) from e
             routers = dynamic.get("http", {}).get("routers", {})
             rules.extend(str(router.get("rule", "")) for router in routers.values())
         for rule_file in self.rule_files:
-            lines = _resolve(ctx, rule_file).read_text().splitlines()
+            lines = (ctx.cfg.compose_dir / rule_file).read_text().splitlines()
             rules.extend(line for line in lines if not line.lstrip().startswith("#"))
         names = {name for rule in rules for name in _HOST_RULE.findall(rule)}
         return {n for n in names if n == self.domain or n.endswith(f".{self.domain}")}
@@ -122,8 +125,3 @@ def _required(options: dict[str, Any], key: str) -> str:
         msg = f"{key} is required"
         raise PluginError(msg)
     return value
-
-
-def _resolve(ctx: ChangesContext, path: str) -> Path:
-    """Paths are relative to compose_dir, which compose-farm reads locally."""
-    return ctx.cfg.compose_dir / path  # An absolute path replaces compose_dir

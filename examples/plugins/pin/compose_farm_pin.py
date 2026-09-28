@@ -38,7 +38,7 @@ class PinPlugin(Plugin):
         return [problem] if problem else []
 
     async def before_up(self, ctx: HookContext) -> None:
-        """Stop the start before any other plugin (e.g. a data transfer) runs."""
+        """Refuse to start the stack on a host outside its pin."""
         if problem := self._problem(ctx):
             raise PluginError(problem)
 

@@ -46,9 +46,7 @@ class TraefikPolicyPlugin(Plugin):
             return []  # compose-farm's own checks report broken compose files
         problems = []
         for name, router in dynamic.get("http", {}).get("routers", {}).items():
-            entrypoints = router.get("entrypoints", [])
-            if isinstance(entrypoints, str):
-                entrypoints = [entrypoints]
+            entrypoints = router.get("entrypoints", [])  # Always a list after parsing
             for entrypoint, required in self.rules.items():
                 missing = [ep for ep in required if ep not in entrypoints]
                 if entrypoint in entrypoints and missing:
