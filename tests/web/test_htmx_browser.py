@@ -82,7 +82,7 @@ def page(page: Page, vendor_cache: Path) -> Page:
     Any CDN request not in CDN_ASSETS will abort with an error, forcing developers
     to add new CDN URLs to the cache. This catches both static and dynamic loads.
     """
-    cache = {url: (vendor_cache / f, ct) for url, (f, ct) in CDN_ASSETS.items()}
+    cache = {url: (vendor_cache / f, ct) for url, (f, ct, _sha256) in CDN_ASSETS.items()}
 
     def handle_cdn(route: Route) -> None:
         url = route.request.url

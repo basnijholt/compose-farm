@@ -68,3 +68,39 @@ def test_initialize_cleans_temp_dir_after_integrity_failure(
         hook.initialize("1.0", {})
 
     assert not temp_dir.exists()
+
+
+def test_initialize_rejects_unresolved_vendor_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A template URL that does not match the manifest must fail the wheel build."""
+    template = tmp_path / "src/compose_farm/web/templates/base.html"
+    template.parent.mkdir(parents=True)
+    template.write_text(
+        '<head><script src="https://cdn.example/changed.js" data-vendor="asset.js"></script>'
+    )
+    content = b"trusted asset"
+    temp_dir = tmp_path / "vendor-temp"
+    temp_dir.mkdir()
+    monkeypatch.setattr(tempfile, "mkdtemp", lambda **_kwargs: str(temp_dir))
+    monkeypatch.setattr(
+        hatch_build,
+        "_load_vendor_assets",
+        lambda _root: {
+            "assets": [
+                {
+                    "url": "https://cdn.example/asset.js",
+                    "filename": "asset.js",
+                    "sha256": hashlib.sha256(content).hexdigest(),
+                }
+            ],
+            "licenses": {},
+        },
+    )
+    monkeypatch.setattr(hatch_build, "_download", lambda _url: content)
+    hook = hatch_build.VendorAssetsHook(str(tmp_path), {}, MagicMock(), MagicMock(), "", "wheel")
+
+    with pytest.raises(ValueError, match="Unresolved data-vendor"):
+        hook.initialize("1.0", {})
+
+    assert not temp_dir.exists()

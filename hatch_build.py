@@ -68,6 +68,13 @@ def _load_vendor_assets(root: Path) -> dict[str, Any]:
         return cast("dict[str, Any]", json.load(f))
 
 
+def _verify_vendor_rewrite(html_content: str) -> None:
+    """Reject templates containing vendor markers that were not rewritten."""
+    if "data-vendor" in html_content:
+        msg = "Unresolved data-vendor attribute in base.html"
+        raise ValueError(msg)
+
+
 def _generate_licenses_file(temp_dir: Path, licenses: dict[str, dict[str, str]]) -> None:
     """Download and combine license files into LICENSES.txt."""
     lines = [
@@ -163,6 +170,7 @@ class VendorAssetsHook(BuildHookInterface[Any]):
                 return match.group(0)
 
             modified_html = vendor_pattern.sub(replace_vendor_tag, html_content)
+            _verify_vendor_rewrite(modified_html)
 
             # Inject vendored mode flag for JavaScript to detect
             # Insert right after <head> tag so it's available early
