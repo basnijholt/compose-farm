@@ -58,6 +58,7 @@ A minimal CLI tool to run Docker Compose commands across multiple hosts via SSH.
   - [Aliases](#aliases)
   - [CLI `--help` Output](#cli---help-output)
   - [Auto-Migration](#auto-migration)
+- [Plugins](#plugins)
 - [Traefik Multihost Ingress (File Provider)](#traefik-multihost-ingress-file-provider)
 - [Host Resource Monitoring (Glances)](#host-resource-monitoring-glances)
 - [Comparison with Alternatives](#comparison-with-alternatives)
@@ -115,7 +116,7 @@ That's it. No orchestration, no service discovery, no magic.
 - Python 3.11+ (we recommend [uv](https://docs.astral.sh/uv/) for installation)
 - SSH key-based authentication to your hosts (uses ssh-agent)
 - Docker and Docker Compose installed on all target hosts
-- **Shared storage**: All compose files must be accessible at the same path on all hosts
+- **Shared storage**: All compose files must be accessible at the same path on all hosts (or copied there by the [`sync` plugin](#plugins))
 - **Docker networks**: External networks must exist on all hosts (use `cf init-network` to create)
 
 Compose Farm assumes your compose files are accessible at the same path on all hosts. This is typically achieved via:
@@ -131,7 +132,7 @@ nas:/volume1/compose  →  /opt/compose (on server-2)
 nas:/volume1/compose  →  /opt/compose (on server-3)
 ```
 
-Compose Farm simply runs `docker compose -f /opt/compose/{stack}/docker-compose.yml` on the appropriate host—it doesn't copy or sync files.
+Compose Farm simply runs `docker compose -f /opt/compose/{stack}/docker-compose.yml` on the appropriate host. Out of the box it doesn't copy or sync files; the builtin [`sync` plugin](#plugins) can rsync them instead.
 
 ## Limitations & Best Practices
 
@@ -1307,6 +1308,21 @@ stacks:
 - `cf apply --dry-run` — Preview what would change before applying
 
 This makes the config truly declarative: comment out a stack, run `cf apply`, and it stops.
+
+## Plugins
+
+Plugins replace built-in assumptions without forking: copy compose files with rsync instead of NFS (`sync`), run your own commands at lifecycle hooks and add `docker compose` arguments (`commands`), or install third-party plugins such as the example [agenix](examples/plugins/agenix/) (host-decrypted secrets) and [zfs](examples/plugins/zfs/) (a dataset per stack that moves with it) plugins.
+
+```yaml
+plugins:
+  sync:
+    excludes: [".git"]
+  commands:
+    before_up:
+      - run: "mkdir -p /srv/data/{stack}"
+```
+
+See [docs/plugins.md](docs/plugins.md) for the hooks, the builtin plugins, and writing your own.
 
 ## Traefik Multihost Ingress (File Provider)
 

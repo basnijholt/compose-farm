@@ -20,6 +20,8 @@ plugins:
 
 An unknown plugin name or invalid options make config loading fail, so `cf config validate` and `cf check` catch mistakes early. `cf check` also lists the enabled plugins.
 
+Plugins run wherever `cf` runs, including the web UI (which runs `cf` for its actions). The Docker image includes the builtin plugins; for others, build your own image that installs them next to compose-farm (`uv tool install "compose-farm[web]" --with <plugin>`).
+
 ## Builtin plugins
 
 ### commands
@@ -72,7 +74,7 @@ Hooks run in config order. The first failure stops the chain for that call, exce
 | `after_source_stopped` | Migration only: the source is stopped, the target not started yet | Rollback: the stack is restarted on the source if it was running there |
 | `after_up` | The stack started on the host (after the state update) | Warning only |
 | `on_stack_removed` | An orphaned stack (removed from config) was stopped via `cf down --orphaned` or `cf apply`. Not called for strays or a plain `down` | Later plugins are skipped, and the stack stays in the state file, so the next `cf down --orphaned`/`cf apply` retries |
-| `compose_args` | Every time a compose command is built for a stack on a host (`up`, `down`, `ps`, `logs`, `pull`, `restart`, `compose`, ...) | The whole `cf` command aborts with the error |
+| `compose_args` | Every time a compose command is built for a stack on a host (`up`, `down`, `ps`, `logs`, `pull`, `restart`, `compose`, ...) | On start, the stack fails before anything is stopped or started; other commands abort with the error |
 
 Migrating a stack runs:
 
@@ -93,31 +95,35 @@ Multi-host stacks run `before_up` and preflight on every host before starting an
 A plugin is a Python class registered under the `compose_farm.plugins` entry-point group. Override any subset of the hooks.
 
 ```python
+import shlex
+
 from compose_farm.plugins import HookContext, Plugin, PluginError
 
 
-class ZfsPlugin(Plugin):
+class DataDirPlugin(Plugin):
+    """Create /srv/data/<stack> on the target host before each start."""
+
     def __init__(self, options):
         super().__init__(options)
-        self.parent = options.get("parent") or ""
-        if not self.parent:
-            raise PluginError("parent is required")
+        self.root = options.get("root", "/srv/data")
+        if not self.root.startswith("/"):
+            raise PluginError("root must be an absolute path")
 
     async def preflight(self, ctx: HookContext) -> list[str]:
-        result = await ctx.run(f"zfs list {self.parent}", stream=False, check=False)
-        return [] if result.success else [f"dataset {self.parent} not found"]
+        result = await ctx.run(f"test -w {shlex.quote(self.root)}", stream=False, check=False)
+        return [] if result.success else [f"{self.root} is not writable"]
 
     async def before_up(self, ctx: HookContext) -> None:
-        await ctx.run(f"zfs create -p {self.parent}/{ctx.stack}")
+        await ctx.run(f"mkdir -p {shlex.quote(f'{self.root}/{ctx.stack}')}", stream=False)
 ```
 
 ```toml
 # pyproject.toml of your package
 [project.entry-points."compose_farm.plugins"]
-zfs = "my_package:ZfsPlugin"
+datadir = "my_package:DataDirPlugin"
 ```
 
-Install the package next to compose-farm (for example `uv tool install compose-farm --with my-package`) and enable it with `plugins: {zfs: {parent: tank/stacks}}`. See [Example plugins](#example-plugins) for complete versions.
+Install the package next to compose-farm (for example `uv tool install compose-farm --with my-package`) and enable it with `plugins: {datadir: {root: /srv/data}}`. See [Example plugins](#example-plugins) for complete ones.
 
 `HookContext` has:
 
@@ -137,7 +143,7 @@ Rules for plugins:
 - **Don't treat a missing `source_host` as proof of a first deploy**: `cf down` removes the stack from the state file, so a later `cf up` on another host has no `source_host`. A data-moving plugin should check whether the data already exists elsewhere before creating it empty.
 - **`on_stack_removed` needs the stack directory**: it runs after `docker compose down` succeeds in that directory, and a retry runs `down` again. If your plugin removes or renames the directory, list it last, so a failure in another plugin does not leave the stack stuck in the state file.
 - **No blocking calls**: hooks for different stacks run concurrently. Use `ctx.run`/`ctx.run_local` or asyncio subprocesses.
-- **`compose_args` does no I/O**: it is called for every compose command.
+- **`compose_args` stays cheap**: it is called for every compose command, so no remote commands or slow work there.
 
 ## Example plugins
 
