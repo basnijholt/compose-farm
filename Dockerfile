@@ -4,7 +4,10 @@
 FROM ghcr.io/astral-sh/uv:python3.14-alpine AS builder
 
 ARG VERSION
-RUN uv tool install --compile-bytecode "compose-farm[web]${VERSION:+==$VERSION}"
+# The example plugins from this repo; each only runs when listed under `plugins:`
+COPY examples/plugins /tmp/plugins
+RUN uv tool install --compile-bytecode "compose-farm[web]${VERSION:+==$VERSION}" \
+    $(for plugin in /tmp/plugins/*/; do printf -- '--with %s ' "$plugin"; done)
 
 # Runtime stage - minimal image without uv
 FROM python:3.14-alpine

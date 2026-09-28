@@ -49,6 +49,27 @@ jobs:
             test ! -w /etc/passwd
           '
 
+      - name: Verify bundled plugins load
+        run: |
+          mkdir -p "$RUNNER_TEMP/stacks/web"
+          echo 'services: {}' > "$RUNNER_TEMP/stacks/web/compose.yaml"
+          cat > "$RUNNER_TEMP/compose-farm.yaml" <<EOF
+          compose_dir: $RUNNER_TEMP/stacks
+          hosts: {h1: localhost}
+          stacks: {web: h1}
+          plugins:
+            pin: {web: h1}
+            traefik-policy: {entrypoints_require: {wan: [websecure]}}
+            traefik-dns: {file: web/compose.yaml, domain: lab.test, address: 192.0.2.1}
+            agenix: {stacks: {}}
+            zfs: {dataset: tank/data}
+            sync: {}
+            commands: {}
+          EOF
+          docker run --rm -v "$RUNNER_TEMP:$RUNNER_TEMP" compose-farm:test \
+            config validate -p "$RUNNER_TEMP/compose-farm.yaml" | tee validate.txt
+          grep -Fx "  Plugins: pin, traefik-policy, traefik-dns, agenix, zfs, sync, commands" validate.txt
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:
