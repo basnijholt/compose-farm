@@ -61,7 +61,7 @@ class SyncPlugin(Plugin):
             raise PluginError(msg)
         await ctx.run(f"mkdir -p {shlex.quote(str(stack_dir))}", stream=False)
         command = shlex.join(
-            rsync_argv(host, stack_dir, excludes=self.excludes, delete=self.delete)
+            _rsync_argv(host, stack_dir, excludes=self.excludes, delete=self.delete)
         )
         # Use the same agent auto-detection as compose-farm's own SSH connections
         if sock := get_ssh_auth_sock():
@@ -69,7 +69,7 @@ class SyncPlugin(Plugin):
         await ctx.run_local(command, stream=False)
 
 
-def rsync_argv(host: Host, stack_dir: Path, *, excludes: list[str], delete: bool) -> list[str]:
+def _rsync_argv(host: Host, stack_dir: Path, *, excludes: list[str], delete: bool) -> list[str]:
     """Build the rsync command copying stack_dir to the same path on host over compose-farm's SSH."""
     ssh = build_ssh_command(host, "")[:-2]  # Drop "user@address" and the remote command
     argv = ["rsync", "-az", "-e", shlex.join(ssh)]

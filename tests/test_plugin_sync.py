@@ -11,7 +11,7 @@ import pytest
 
 from compose_farm.config import Host
 from compose_farm.plugins import HookContext, PluginError
-from compose_farm.plugins.sync import SyncPlugin, rsync_argv
+from compose_farm.plugins.sync import SyncPlugin, _rsync_argv
 from tests.plugin_helpers import make_config
 
 
@@ -40,7 +40,7 @@ class TestRsyncArgv:
 
     def test_uses_compose_farm_ssh_options(self) -> None:
         host = Host(address="10.0.0.5", user="bas", port=2222)
-        argv = rsync_argv(host, Path("/opt/compose/web"), excludes=[".git"], delete=True)
+        argv = _rsync_argv(host, Path("/opt/compose/web"), excludes=[".git"], delete=True)
         assert argv[:3] == ["rsync", "-az", "-e"]
         ssh = shlex.split(argv[3])
         assert ssh[0] == "ssh"
@@ -56,13 +56,13 @@ class TestRsyncArgv:
         ]
 
     def test_ipv6_destination_is_bracketed(self) -> None:
-        argv = rsync_argv(
+        argv = _rsync_argv(
             Host(address="fd00::5", user="u"), Path("/c/web"), excludes=[], delete=False
         )
         assert argv[-1] == "u@[fd00::5]:/c/web/"
 
     def test_without_delete(self) -> None:
-        argv = rsync_argv(Host(address="h", user="u"), Path("/c/web"), excludes=[], delete=False)
+        argv = _rsync_argv(Host(address="h", user="u"), Path("/c/web"), excludes=[], delete=False)
         assert "--delete" not in argv
 
 
