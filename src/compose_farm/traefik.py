@@ -426,7 +426,9 @@ def extract_website_urls(config: Config, stack: str) -> list[str]:
 
         rule = router_info.get("rule", "")
         # Label keys are case-insensitive in Traefik (entrypoints or entryPoints)
-        entrypoints = next((v for k, v in router_info.items() if k.lower() == "entrypoints"), [])
+        entrypoints: Any = next(
+            (v for k, v in router_info.items() if k.lower() == "entrypoints"), []
+        )
 
         # entrypoints can be a list or string
         if isinstance(entrypoints, list):
