@@ -28,7 +28,8 @@ This auto-detects settings from your `compose-farm.yaml`:
 It also generates `CF_WEB_PASSWORD`, the web UI login (user `admin`), and prints it
 once. The login is required because the container is reached through a
 non-loopback Docker network. Save it in your password manager before starting the UI.
-Re-running `init-env` rewrites the whole file and keeps only an existing `CF_WEB_PASSWORD` and `CF_WEB_USERNAME`, exactly as written.
+Re-running `init-env` rewrites the whole file and keeps only an existing
+`CF_WEB_PASSWORD` and `CF_WEB_USERNAME`, exactly as written.
 
 Upgrading an older setup? Download the current `docker-compose.yml` too. Older files
 don't pass these variables to the container (`CF_WEB_PASSWORD` needs v1.22.0 or later,

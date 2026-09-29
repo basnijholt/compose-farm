@@ -506,7 +506,7 @@ class TestConfigInitEnv:
         assert "CF_WEB_USERNAME=admin" not in content
         password = _env_value(content, "CF_WEB_PASSWORD")
         assert re.fullmatch(r"[0-9a-f]{64}", password)
-        assert f"Web UI login: the kept CF_WEB_USERNAME / {password}" in result.stdout
+        assert f"Web UI login: CF_WEB_USERNAME from .env / {password}" in result.stdout
 
     def test_init_env_warns_about_shell_overrides(
         self,

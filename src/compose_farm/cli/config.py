@@ -452,8 +452,8 @@ def config_init_env(
     console.print(f"  CF_COMPOSE_DIR: {compose_dir}")
     console.print(f"  CF_UID/GID: {uid}:{gid}")
     if password:
-        user = "the kept CF_WEB_USERNAME" if kept_username else "admin"
-        console.print(f"  Web UI login: {user} / {password}", soft_wrap=True)
+        login_user = "CF_WEB_USERNAME from .env" if kept_username else "admin"
+        console.print(f"  Web UI login: {login_user} / {password}", soft_wrap=True)
         console.print("  [dim](save the password in your password manager)[/dim]")
     else:
         console.print("  CF_WEB_PASSWORD: kept from existing .env")
