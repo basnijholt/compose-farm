@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -340,28 +341,20 @@ def _detect_domain(cfg: Config) -> str | None:
     return None
 
 
-def _web_password(env_path: Path) -> str:
-    """Keep the CF_WEB_PASSWORD of an existing .env as written (the last one wins), else generate one."""
-    if env_path.exists():
-        lines = env_path.read_text(encoding="utf-8").splitlines()
-        values = [
-            value.strip()
-            for key, sep, value in (line.partition("=") for line in lines)
-            if sep and key.strip() == "CF_WEB_PASSWORD" and value.strip()
-        ]
-        if values:
-            return values[-1]
-    # Lazy import: secrets is only needed by init-env, so keep it out of CLI startup.
-    import secrets  # noqa: PLC0415
-
-    return secrets.token_hex(32)
+_PASSWORD_LINE = re.compile(r"\s*(?:export\s+)?CF_WEB_PASSWORD\s*=")
 
 
-def _unquote(value: str) -> str:
-    """The value Docker Compose passes on for a quoted .env value."""
-    if len(value) > 1 and value[0] == value[-1] and value[0] in "\"'":
-        return value[1:-1]
-    return value
+def _kept_password_line(env_path: Path) -> str | None:
+    """The existing .env's CF_WEB_PASSWORD line, verbatim, if it sets a password."""
+    if not env_path.exists():
+        return None
+    # Lazy import: dotenv parsing is only needed by init-env, not for CLI help.
+    from dotenv import dotenv_values  # noqa: PLC0415
+
+    if not dotenv_values(env_path).get("CF_WEB_PASSWORD"):
+        return None
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+    return [line for line in lines if _PASSWORD_LINE.match(line)][-1]
 
 
 @config_app.command("init-env")
@@ -383,6 +376,7 @@ def config_init_env(
     - CF_UID/GID/HOME/USER from current user
     - DOMAIN from traefik labels in stacks (if found)
     - CF_WEB_PASSWORD, the web UI login: kept from an existing .env, else generated
+      and printed once
 
     Example::
 
@@ -408,7 +402,14 @@ def config_init_env(
     user = os.environ.get("USER", "root")
     compose_dir = str(cfg.compose_dir)
     domain = _detect_domain(cfg)
-    password = _web_password(env_path)
+    password = None
+    password_line = _kept_password_line(env_path)
+    if password_line is None:
+        # Lazy import: secrets is only needed by init-env, so keep it out of CLI startup.
+        import secrets  # noqa: PLC0415
+
+        password = secrets.token_hex(32)
+        password_line = f"CF_WEB_PASSWORD={password}"
 
     # Generate .env content
     lines = [
@@ -429,12 +430,12 @@ def config_init_env(
         "",
         "# Web UI login (HTTP Basic auth); required for access through a reverse proxy",
         "# CF_WEB_USERNAME=admin",
-        f"CF_WEB_PASSWORD={password}",
+        password_line,
         "",
     ]
 
     # The file holds the web UI password: make it private before writing
-    env_path.touch(mode=0o600)
+    env_path.touch()
     env_path.chmod(0o600)
     env_path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -444,8 +445,11 @@ def config_init_env(
     console.print(f"  DOMAIN: {domain or '[yellow]example.com[/] (edit this)'}")
     console.print(f"  CF_COMPOSE_DIR: {compose_dir}")
     console.print(f"  CF_UID/GID: {uid}:{gid}")
-    console.print(f"  Web UI login: admin / {_unquote(password)}", markup=False, soft_wrap=True)
-    console.print("  [dim](save the password in your password manager)[/dim]")
+    if password:
+        console.print(f"  Web UI login: admin / {password}", soft_wrap=True)
+        console.print("  [dim](save the password in your password manager)[/dim]")
+    else:
+        console.print("  CF_WEB_PASSWORD: kept from existing .env")
     for var in ("CF_WEB_USERNAME", "CF_WEB_PASSWORD"):
         if var in os.environ:
             print_warning(f"{var} is set in your shell; docker compose uses it instead of .env")

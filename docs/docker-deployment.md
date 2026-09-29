@@ -30,9 +30,9 @@ once. The login is required because the container is reached through a
 non-loopback Docker network. Save it in your password manager before starting the UI.
 Re-running `init-env` keeps an existing password.
 
-Upgrading from before v1.22.1? Download the current `docker-compose.yml` too: older
-versions don't pass the `CF_WEB_*` variables to the container, so the web UI answers
-403 until you do.
+Upgrading an older setup? Download the current `docker-compose.yml` too. Older files
+don't pass these variables to the container (`CF_WEB_PASSWORD` needs v1.22.0 or later,
+`CF_WEB_NO_AUTH` v1.22.1 or later), so the web UI answers 403 until you do.
 
 Review the output and edit if needed.
 

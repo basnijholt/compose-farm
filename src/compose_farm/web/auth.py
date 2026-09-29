@@ -169,8 +169,8 @@ class AuthMiddleware:
                 403,
                 "Remote access requires CF_WEB_PASSWORD (log in as CF_WEB_USERNAME, default admin). "
                 "Set CF_WEB_NO_AUTH=1 only behind a trusted access layer.\n"
-                "With Docker, set them in .env; docker-compose.yml files from before v1.22.1 "
-                "don't pass them to the container.\n",
+                "With Docker, set them in .env. Older docker-compose.yml files don't pass them "
+                "to the container (CF_WEB_PASSWORD needs v1.22.0+, CF_WEB_NO_AUTH v1.22.1+).\n",
             )
             return
 
