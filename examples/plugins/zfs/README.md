@@ -9,10 +9,13 @@ Example [compose-farm plugin](../../../docs/plugins.md) that gives every stack i
 
 ## Install
 
-```bash
-uv tool install compose-farm \
-  --with "compose-farm-zfs @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/zfs"
+```yaml
+# compose-farm.yaml
+plugin_packages:
+  - github:basnijholt/compose-farm/examples/plugins/zfs
 ```
+
+Then run `cf plugins install`. The Docker image already includes this plugin.
 
 ## Configure
 

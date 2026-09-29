@@ -30,6 +30,7 @@ Commands are either **Docker Compose wrappers** (`up`, `down`, `stop`, `restart`
 | | `traefik-file` | Generate Traefik config |
 | | `config` | Manage config files |
 | | `ssh` | Manage SSH keys |
+| | `plugins` | Install plugin packages |
 | **Server** | `web` | Start web UI |
 
 ## Global Options
@@ -765,6 +766,30 @@ cf ssh status
 # Generate key only (don't distribute)
 cf ssh keygen
 ```
+
+---
+
+### cf plugins
+
+Manage plugin packages.
+
+```bash
+cf plugins COMMAND
+```
+
+**Subcommands:**
+
+| Command | Description |
+|---------|-------------|
+| `install` | Install the config's `plugin_packages` into the environment that runs `cf` |
+
+**Options for `cf plugins install`:**
+
+| Option | Description |
+|--------|-------------|
+| `--config, -c PATH` | Path to config file |
+
+`install` uses `uv pip install` when uv is available, else pip, and then loads the enabled plugins to check them. Run it again after `uv tool upgrade compose-farm`, which recreates the tool's environment. See [Installing plugins](plugins.md#installing-plugins).
 
 ---
 

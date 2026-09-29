@@ -136,13 +136,13 @@ def run_parallel_with_progress(
     return asyncio.run(gather())
 
 
-def load_config_or_exit(config_path: Path | None) -> Config:
+def load_config_or_exit(config_path: Path | None, *, check_plugins: bool = True) -> Config:
     """Load config or exit with a friendly error message."""
     # Lazy import: pydantic adds ~50ms to startup, only load when actually needed
     from compose_farm.config import load_config  # noqa: PLC0415
 
     try:
-        return load_config(config_path)
+        return load_config(config_path, check_plugins=check_plugins)
     except FileNotFoundError as e:
         print_error(str(e))
         raise typer.Exit(1) from e

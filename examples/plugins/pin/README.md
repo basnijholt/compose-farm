@@ -6,10 +6,13 @@ Some stacks can't move. Their host's IP is configured elsewhere (router port for
 
 ## Install
 
-```bash
-uv tool install compose-farm \
-  --with "compose-farm-pin @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/pin"
+```yaml
+# compose-farm.yaml
+plugin_packages:
+  - github:basnijholt/compose-farm/examples/plugins/pin
 ```
+
+Then run `cf plugins install`. The Docker image already includes this plugin.
 
 ## Configure
 

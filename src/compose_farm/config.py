@@ -39,6 +39,8 @@ class Config(BaseModel, extra="forbid"):
     )
     # Plugin name -> options (None for no options); mapping order is hook order
     plugins: dict[str, dict[str, Any] | None] = Field(default_factory=dict)
+    # Pip requirements providing plugins; `cf plugins install` installs them next to cf
+    plugin_packages: list[str] = Field(default_factory=list)
     config_path: Path = Path()  # Set by load_config()
 
     _loaded_plugins: tuple[Plugin, ...] | None = PrivateAttr(default=None)
@@ -48,6 +50,12 @@ class Config(BaseModel, extra="forbid"):
     def empty_plugins(cls, value: Any) -> Any:
         """Treat an empty ``plugins:`` section (YAML null) as no plugins."""
         return {} if value is None else value
+
+    @field_validator("plugin_packages", mode="before")
+    @classmethod
+    def empty_plugin_packages(cls, value: Any) -> Any:
+        """Treat an empty ``plugin_packages:`` section (YAML null) as none."""
+        return [] if value is None else value
 
     def get_state_path(self) -> Path:
         """Get the state file path (stored alongside config)."""
@@ -186,7 +194,7 @@ def _parse_hosts(raw_hosts: dict[str, Any]) -> dict[str, Host]:
     return hosts
 
 
-def load_config(path: Path | None = None) -> Config:
+def load_config(path: Path | None = None, *, check_plugins: bool = True) -> Config:
     """Load configuration from YAML file.
 
     Search order:
@@ -194,6 +202,8 @@ def load_config(path: Path | None = None) -> Config:
     2. CF_CONFIG environment variable
     3. ./compose-farm.yaml
     4. $XDG_CONFIG_HOME/compose-farm/compose-farm.yaml (defaults to ~/.config)
+
+    Pass check_plugins=False to read a config whose plugins aren't installed yet.
     """
     config_path = path or find_config_path()
 
@@ -216,5 +226,6 @@ def load_config(path: Path | None = None) -> Config:
     raw["config_path"] = config_path.resolve()
 
     config = Config(**raw)
-    config.get_plugins()  # Fail early on unknown plugins or invalid plugin options
+    if check_plugins:
+        config.get_plugins()  # Fail early on unknown plugins or invalid plugin options
     return config
