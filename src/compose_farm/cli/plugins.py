@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib
-import shlex
 import shutil
 import subprocess
 import sys
@@ -13,7 +12,7 @@ import typer
 
 from compose_farm.cli.app import app
 from compose_farm.cli.common import ConfigOption, load_config_or_exit
-from compose_farm.console import console, print_error, print_success, print_warning
+from compose_farm.console import print_error, print_success, print_warning
 
 plugins_app = typer.Typer(
     name="plugins",
@@ -40,11 +39,11 @@ def _requirement(package: str) -> str:
 def _install_command(packages: list[str]) -> list[str]:
     """Install packages into the Python environment running compose-farm."""
     if uv := shutil.which("uv"):
-        return [uv, "pip", "install", "--python", sys.executable, *packages]
+        return [uv, "pip", "install", "--python", sys.executable, "--", *packages]
     if find_spec("pip") is None:  # uv tool environments (and the Docker image) have no pip
         print_error("Installing plugin_packages needs uv on PATH or pip in compose-farm's Python")
         raise typer.Exit(1)
-    return [sys.executable, "-m", "pip", "install", *packages]
+    return [sys.executable, "-m", "pip", "install", "--", *packages]
 
 
 @plugins_app.command("install")
@@ -58,7 +57,6 @@ def plugins_install(config: ConfigOption = None) -> None:
     cfg = load_config_or_exit(config, check_plugins=False)
     if cfg.plugin_packages:
         command = _install_command([_requirement(package) for package in cfg.plugin_packages])
-        console.print(f"$ {shlex.join(command)}", style="dim", markup=False, soft_wrap=True)
         # Run next to the config so relative local paths resolve against it
         if subprocess.run(command, check=False, cwd=cfg.config_path.parent).returncode != 0:
             print_error("Installing plugin_packages failed")

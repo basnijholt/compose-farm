@@ -50,20 +50,17 @@ def test_installs_with_uv_into_this_python(tmp_path: Path) -> None:
     path = _config(tmp_path, "plugin_packages: [pkg-a, ./b]\nplugins: {commands: null}\n")
     result, calls = _install(path, uv="/usr/bin/uv")
     assert result.exit_code == 0, result.output
-    assert calls == [["/usr/bin/uv", "pip", "install", "--python", sys.executable, "pkg-a", "./b"]]
+    assert calls == [
+        ["/usr/bin/uv", "pip", "install", "--python", sys.executable, "--", "pkg-a", "./b"]
+    ]
     assert "Plugins: commands" in result.output
 
 
 def test_falls_back_to_pip(tmp_path: Path) -> None:
     result, calls = _install(_config(tmp_path, "plugin_packages: [pkg-a]\n"), uv=None)
     assert result.exit_code == 0, result.output
-    assert calls == [[sys.executable, "-m", "pip", "install", "pkg-a"]]
+    assert calls == [[sys.executable, "-m", "pip", "install", "--", "pkg-a"]]
     assert "Plugins: none enabled" in result.output
-
-
-def test_echoes_extras_verbatim(tmp_path: Path) -> None:
-    result, _ = _install(_config(tmp_path, "plugin_packages: ['pkg[extra]']\n"), uv=None)
-    assert "'pkg[extra]'" in result.output
 
 
 def test_reads_config_whose_plugins_are_missing(tmp_path: Path) -> None:
@@ -131,5 +128,5 @@ def test_installs_expanded_shorthand(tmp_path: Path) -> None:
     path = _config(tmp_path, "plugin_packages: ['github:o/r/p']\n")
     _, calls = _install(path, uv=None)
     assert calls == [
-        [sys.executable, "-m", "pip", "install", "git+https://github.com/o/r#subdirectory=p"]
+        [sys.executable, "-m", "pip", "install", "--", "git+https://github.com/o/r#subdirectory=p"]
     ]
