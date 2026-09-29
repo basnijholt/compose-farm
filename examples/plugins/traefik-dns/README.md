@@ -16,7 +16,7 @@ plugin_packages:
   - github:basnijholt/compose-farm/examples/plugins/traefik-dns
 ```
 
-Then run `cf plugins install`. The Docker image already includes this plugin.
+`cf` installs it the next time it runs (or run `cf plugins install`). The Docker image already includes this plugin.
 
 ## Configure
 

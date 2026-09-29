@@ -39,7 +39,7 @@ class Config(BaseModel, extra="forbid"):
     )
     # Plugin name -> options (None for no options); mapping order is hook order
     plugins: dict[str, dict[str, Any] | None] = Field(default_factory=dict)
-    # Pip requirements providing plugins; `cf plugins install` installs them next to cf
+    # Pip requirements providing plugins, installed next to cf when a plugin is missing
     plugin_packages: list[str] = Field(default_factory=list)
     # Install missing plugin_packages automatically when an enabled plugin is not found
     plugin_auto_install: bool = True

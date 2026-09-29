@@ -23,11 +23,19 @@ TEMPLATES_DIR = WEB_DIR / "templates"
 STATIC_DIR = WEB_DIR / "static"
 
 
-def get_config() -> Config:
-    """Load config from disk (always fresh)."""
+def get_config(*, install_plugins: bool = False) -> Config:
+    """Load config from disk (always fresh).
+
+    Only the startup load installs missing plugin_packages: an install inside a
+    request would block the event loop.
+    """
     from compose_farm.config import load_config  # noqa: PLC0415
 
-    return load_config()
+    cfg = load_config(check_plugins=False)
+    if not install_plugins:
+        cfg.plugin_auto_install = False
+    cfg.get_plugins()  # Fail early on unknown plugins or invalid plugin options
+    return cfg
 
 
 def get_templates() -> Jinja2Templates:

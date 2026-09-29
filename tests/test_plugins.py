@@ -166,7 +166,7 @@ class TestAutoInstall:
 
     @pytest.fixture(autouse=True)
     def _fresh_attempts(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr("compose_farm.plugins._auto_install_hints", {})
+        monkeypatch.setattr("compose_farm.plugins._auto_install_results", {})
 
     def _cfg(
         self, tmp_path: Path, *, auto: bool = True, packages: tuple[str, ...] = ("pkg",)
@@ -231,6 +231,67 @@ class TestAutoInstall:
             pytest.raises(PluginError, match="don't provide them"),
         ):
             load_plugins(self._cfg(tmp_path))
+
+    def test_success_is_not_repeated(self, tmp_path: Path) -> None:
+        with _entry_points(), patch("compose_farm.plugins.install_packages") as install:
+            for _ in range(2):
+                with pytest.raises(PluginError, match="don't provide them"):
+                    load_plugins(self._cfg(tmp_path))
+        install.assert_called_once()
+
+    def test_changed_package_list_tries_again(self, tmp_path: Path) -> None:
+        with (
+            _entry_points(),
+            patch(
+                "compose_farm.plugins.install_packages",
+                side_effect=PluginError("the installer exited with status 1"),
+            ) as install,
+        ):
+            for packages in (("a",), ("a", "b")):
+                with pytest.raises(PluginError):
+                    load_plugins(self._cfg(tmp_path, packages=packages))
+        assert install.call_count == 2
+
+    def test_failed_install_stops_even_if_plugins_load(self, tmp_path: Path) -> None:
+        """A partial install must not let the command continue as if it succeeded."""
+        scans = [[], [_EntryPoint("rec", Recorder)]]
+        with (
+            patch("importlib.metadata.entry_points", side_effect=lambda **_: scans.pop(0)),
+            patch(
+                "compose_farm.plugins.install_packages",
+                side_effect=PluginError("the installer exited with status 1"),
+            ),
+            pytest.raises(PluginError, match="Installing plugin_packages failed"),
+        ):
+            load_plugins(self._cfg(tmp_path))
+
+    def test_launch_error_is_reported_and_not_retried(self, tmp_path: Path) -> None:
+        with (
+            _entry_points(),
+            patch("compose_farm.plugins.shutil.which", return_value="/usr/bin/uv"),
+            patch(
+                "compose_farm.plugins.subprocess.run", side_effect=OSError(9, "Bad file descriptor")
+            ) as run,
+        ):
+            for _ in range(2):
+                with pytest.raises(PluginError, match="Bad file descriptor"):
+                    load_plugins(self._cfg(tmp_path))
+        run.assert_called_once()
+
+    def test_notice_goes_to_stderr_without_package_urls(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        cfg = self._cfg(tmp_path, packages=("git+https://user:secret@example.com/r",))
+        with (
+            _entry_points(),
+            patch("compose_farm.plugins.install_packages"),
+            pytest.raises(PluginError),
+        ):
+            load_plugins(cfg)
+        out, err = capsys.readouterr()
+        assert out == ""
+        assert "Installing plugin_packages for rec" in err
+        assert "secret" not in err
 
     def test_enabled_by_default(self, tmp_path: Path) -> None:
         path = tmp_path / "compose-farm.yaml"

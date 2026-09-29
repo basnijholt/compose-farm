@@ -19,13 +19,17 @@ from compose_farm.console import err_console
 from compose_farm.executor import _run_local_command, run_command
 
 if TYPE_CHECKING:
+    from importlib.metadata import EntryPoint
     from pathlib import Path
 
     from compose_farm.config import Config
     from compose_farm.executor import CommandResult
 
 ENTRY_POINT_GROUP = "compose_farm.plugins"
-_STDERR = 2  # File descriptor for installer output during automatic installs
+
+# Automatic install outcome per (config, plugin_packages): None or the failure.
+# One attempt per process, because the web UI loads the config on every request.
+_auto_install_results: dict[tuple[str, ...], str | None] = {}
 
 Hook = Literal[
     "before_up", "after_source_stopped", "after_up", "after_stack_removed", "after_changes"
@@ -189,9 +193,12 @@ def load_plugins(cfg: Config) -> tuple[Plugin, ...]:
     missing = [name for name in cfg.plugins if name not in available]
     hint = "List their packages under plugin_packages and run `cf plugins install`."
     if missing and cfg.plugin_auto_install and cfg.plugin_packages:
-        hint = _auto_install(cfg, missing)
-        available = _available_plugins()
-        missing = [name for name in cfg.plugins if name not in available]
+        if failure := _auto_install(cfg, missing):
+            hint = f"Installing plugin_packages failed: {failure}. Run `cf plugins install` to see why."
+        else:
+            available = _available_plugins()
+            missing = [name for name in cfg.plugins if name not in available]
+            hint = "The installed plugin_packages don't provide them."
     if missing:
         names = ", ".join(sorted(available)) or "none"
         msg = f"Unknown plugin(s): {', '.join(missing)} (available: {names}). {hint}"
@@ -212,34 +219,27 @@ def load_plugins(cfg: Config) -> tuple[Plugin, ...]:
     return tuple(plugins)
 
 
-def _available_plugins() -> dict[str, Any]:
+def _available_plugins() -> dict[str, EntryPoint]:
     # Lazy import: entry-point scanning costs ~25ms and is only needed when plugins are enabled.
     from importlib.metadata import entry_points  # noqa: PLC0415
 
     return {ep.name: ep for ep in entry_points(group=ENTRY_POINT_GROUP)}
 
 
-# Hint per (config, plugin_packages): one install attempt per process, because
-# the web UI loads the config on every request
-_auto_install_hints: dict[tuple[str, ...], str] = {}
-
-
-def _auto_install(cfg: Config, missing: list[str]) -> str:
-    """Install plugin_packages once; return the hint for plugins that are still missing."""
+def _auto_install(cfg: Config, missing: list[str]) -> str | None:
+    """Install plugin_packages once; return why it failed, if it did."""
     key = (str(cfg.config_path), *cfg.plugin_packages)
-    if key not in _auto_install_hints:
+    if key not in _auto_install_results:
         # Names the plugins, not the packages: package URLs can hold credentials
         err_console.print(f"[dim]Installing plugin_packages for {', '.join(missing)}...[/]")
         try:
-            # Installer output goes to stderr, so scripted stdout (cf list --simple) stays clean
-            install_packages(cfg.plugin_packages, cfg.config_path.parent, stdout=_STDERR)
+            # Installer output goes to stderr (fd 2), so scripted stdout stays clean
+            install_packages(cfg.plugin_packages, cfg.config_path.parent, stdout=2)
         except PluginError as e:
-            _auto_install_hints[key] = (
-                f"Installing plugin_packages failed: {e}. Run `cf plugins install` to see why."
-            )
+            _auto_install_results[key] = str(e)
         else:
-            _auto_install_hints[key] = "The installed plugin_packages don't provide them."
-    return _auto_install_hints[key]
+            _auto_install_results[key] = None
+    return _auto_install_results[key]
 
 
 def install_packages(packages: list[str], cwd: Path, *, stdout: int | None = None) -> None:
@@ -249,7 +249,11 @@ def install_packages(packages: list[str], cwd: Path, *, stdout: int | None = Non
     paths resolve against it.
     """
     command = [*_installer(), "--", *(_requirement(package) for package in packages)]
-    returncode = subprocess.run(command, check=False, cwd=cwd, stdout=stdout).returncode
+    try:
+        returncode = subprocess.run(command, check=False, cwd=cwd, stdout=stdout).returncode
+    except OSError as e:
+        msg = f"could not run the installer: {e}"
+        raise PluginError(msg) from e
     if returncode != 0:
         msg = f"the installer exited with status {returncode}"
         raise PluginError(msg)
