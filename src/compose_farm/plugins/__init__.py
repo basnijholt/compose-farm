@@ -179,7 +179,10 @@ def load_plugins(cfg: Config) -> tuple[Plugin, ...]:
     missing = [name for name in cfg.plugins if name not in available]
     if missing:
         names = ", ".join(sorted(available)) or "none"
-        msg = f"Unknown plugin(s): {', '.join(missing)} (available: {names})"
+        msg = (
+            f"Unknown plugin(s): {', '.join(missing)} (available: {names}). "
+            "List their packages under plugin_packages and run `cf plugins install`."
+        )
         raise PluginError(msg)
 
     plugins: list[Plugin] = []

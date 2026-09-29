@@ -81,6 +81,12 @@ class TestLoader:
         ):
             load_plugins(cfg)
 
+    def test_unknown_plugin_hints_at_plugin_packages(self, tmp_path: Path) -> None:
+        cfg = make_config(tmp_path, {"web": "h1"})
+        cfg.plugins = {"nope": None}
+        with _entry_points(), pytest.raises(PluginError, match=r"run `cf plugins install`"):
+            load_plugins(cfg)
+
     def test_option_error_names_plugin(self, tmp_path: Path) -> None:
         cfg = make_config(tmp_path, {"web": "h1"})
         cfg.plugins = {"strict": {"x": 1}}
@@ -110,6 +116,25 @@ class TestLoader:
         )
         with _entry_points(), pytest.raises(PluginError, match="Unknown plugin"):
             load_config(path)
+
+    def test_load_config_can_skip_plugins(self, tmp_path: Path) -> None:
+        path = tmp_path / "compose-farm.yaml"
+        path.write_text(
+            "compose_dir: /opt/compose\n"
+            "hosts: {h1: localhost}\n"
+            "stacks: {web: h1}\n"
+            "plugins: {nope: null}\n"
+        )
+        with patch("importlib.metadata.entry_points", side_effect=AssertionError):
+            assert load_config(path, check_plugins=False).plugins == {"nope": None}
+
+    def test_plugin_packages_parse_and_allow_null(self, tmp_path: Path) -> None:
+        path = tmp_path / "compose-farm.yaml"
+        base = "compose_dir: /opt/compose\nhosts: {h1: localhost}\nstacks: {web: h1}\n"
+        path.write_text(base + "plugin_packages: [compose-farm-pin, ./local]\n")
+        assert load_config(path).plugin_packages == ["compose-farm-pin", "./local"]
+        path.write_text(base + "plugin_packages:\n")
+        assert load_config(path).plugin_packages == []
 
     def test_non_plugin_class_is_rejected(self, tmp_path: Path) -> None:
         cfg = make_config(tmp_path, {"web": "h1"})
