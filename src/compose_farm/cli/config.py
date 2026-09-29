@@ -341,20 +341,24 @@ def _detect_domain(cfg: Config) -> str | None:
     return None
 
 
-_PASSWORD_LINE = re.compile(r"\s*(?:export\s+)?CF_WEB_PASSWORD\s*=")
+# A definition whose key isn't quoted (Compose rejects quoted keys; parse_stream checks the name)
+_PLAIN_KEY = re.compile(r"\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=")
 
 
-def _kept_password_line(env_path: Path) -> str | None:
-    """The existing .env's CF_WEB_PASSWORD line, verbatim, if it sets a password."""
+def _kept_line(env_path: Path, key: str) -> str | None:
+    """The existing .env's last definition of KEY, as written, if it sets a value."""
     if not env_path.exists():
         return None
     # Lazy import: dotenv parsing is only needed by init-env, not for CLI help.
-    from dotenv import dotenv_values  # noqa: PLC0415
+    # parse_stream isn't public API, but it gives each definition's original text.
+    from dotenv.parser import parse_stream  # noqa: PLC0415
 
-    if not dotenv_values(env_path).get("CF_WEB_PASSWORD"):
+    with env_path.open(encoding="utf-8") as f:
+        definitions = [binding for binding in parse_stream(f) if binding.key == key]
+    if not definitions or not definitions[-1].value:
         return None
-    lines = env_path.read_text(encoding="utf-8").splitlines()
-    return [line for line in lines if _PASSWORD_LINE.match(line)][-1]
+    text = definitions[-1].original.string.rstrip("\n")
+    return text if _PLAIN_KEY.match(text) else None
 
 
 @config_app.command("init-env")
@@ -376,7 +380,7 @@ def config_init_env(
     - CF_UID/GID/HOME/USER from current user
     - DOMAIN from traefik labels in stacks (if found)
     - CF_WEB_PASSWORD, the web UI login: kept from an existing .env, else generated
-      and printed once
+      and printed once (a CF_WEB_USERNAME in an existing .env is kept too, as written)
 
     Example::
 
@@ -402,8 +406,10 @@ def config_init_env(
     user = os.environ.get("USER", "root")
     compose_dir = str(cfg.compose_dir)
     domain = _detect_domain(cfg)
+    kept_username = _kept_line(env_path, "CF_WEB_USERNAME")
+    username_line = kept_username or "# CF_WEB_USERNAME=admin"
     password = None
-    password_line = _kept_password_line(env_path)
+    password_line = _kept_line(env_path, "CF_WEB_PASSWORD")
     if password_line is None:
         # Lazy import: secrets is only needed by init-env, so keep it out of CLI startup.
         import secrets  # noqa: PLC0415
@@ -429,7 +435,7 @@ def config_init_env(
         f"CF_USER={user}",
         "",
         "# Web UI login (HTTP Basic auth); required for access through a reverse proxy",
-        "# CF_WEB_USERNAME=admin",
+        username_line,
         password_line,
         "",
     ]
@@ -446,7 +452,8 @@ def config_init_env(
     console.print(f"  CF_COMPOSE_DIR: {compose_dir}")
     console.print(f"  CF_UID/GID: {uid}:{gid}")
     if password:
-        console.print(f"  Web UI login: admin / {password}", soft_wrap=True)
+        login_user = "CF_WEB_USERNAME from .env" if kept_username else "admin"
+        console.print(f"  Web UI login: {login_user} / {password}", soft_wrap=True)
         console.print("  [dim](save the password in your password manager)[/dim]")
     else:
         console.print("  CF_WEB_PASSWORD: kept from existing .env")
