@@ -308,6 +308,7 @@ These environment variables configure Compose Farm itself:
 | `CF_COMPOSE_DIR` | Compose files directory | `cf config init-env` |
 | `CF_UID` / `CF_GID` | User/group ID for containers | `cf config init-env` |
 | `CF_HOME` / `CF_USER` | Home directory and username | `cf config init-env` |
+| `CF_WEB_PASSWORD` | Web UI login password (user `CF_WEB_USERNAME`, default `admin`) | `cf config init-env` |
 | `CF_SSH_DIR` | SSH keys volume mount | Manual |
 | `CF_XDG_CONFIG` | Config backup volume mount | Manual |
 

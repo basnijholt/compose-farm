@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import typer
 
 from compose_farm.cli.app import app
-from compose_farm.console import MSG_CONFIG_NOT_FOUND, console, print_error, print_success
+from compose_farm.console import (
+    MSG_CONFIG_NOT_FOUND,
+    console,
+    print_error,
+    print_success,
+    print_warning,
+)
 from compose_farm.paths import config_search_paths, default_config_path, find_config_path
 
 if TYPE_CHECKING:
@@ -334,6 +341,22 @@ def _detect_domain(cfg: Config) -> str | None:
     return None
 
 
+_PASSWORD_LINE = re.compile(r"\s*(?:export\s+)?CF_WEB_PASSWORD\s*=")
+
+
+def _kept_password_line(env_path: Path) -> str | None:
+    """The existing .env's CF_WEB_PASSWORD line, verbatim, if it sets a password."""
+    if not env_path.exists():
+        return None
+    # Lazy import: dotenv parsing is only needed by init-env, not for CLI help.
+    from dotenv import dotenv_values  # noqa: PLC0415
+
+    if not dotenv_values(env_path).get("CF_WEB_PASSWORD"):
+        return None
+    lines = env_path.read_text(encoding="utf-8").splitlines()
+    return [line for line in lines if _PASSWORD_LINE.match(line)][-1]
+
+
 @config_app.command("init-env")
 def config_init_env(
     path: _PathOption = None,
@@ -352,6 +375,8 @@ def config_init_env(
     - CF_COMPOSE_DIR from compose_dir
     - CF_UID/GID/HOME/USER from current user
     - DOMAIN from traefik labels in stacks (if found)
+    - CF_WEB_PASSWORD, the web UI login: kept from an existing .env, else generated
+      and printed once
 
     Example::
 
@@ -377,6 +402,14 @@ def config_init_env(
     user = os.environ.get("USER", "root")
     compose_dir = str(cfg.compose_dir)
     domain = _detect_domain(cfg)
+    password = None
+    password_line = _kept_password_line(env_path)
+    if password_line is None:
+        # Lazy import: secrets is only needed by init-env, so keep it out of CLI startup.
+        import secrets  # noqa: PLC0415
+
+        password = secrets.token_hex(32)
+        password_line = f"CF_WEB_PASSWORD={password}"
 
     # Generate .env content
     lines = [
@@ -395,12 +428,15 @@ def config_init_env(
         f"CF_HOME={home}",
         f"CF_USER={user}",
         "",
-        "# Optional: require a login for the web UI (HTTP Basic auth)",
+        "# Web UI login (HTTP Basic auth); required for access through a reverse proxy",
         "# CF_WEB_USERNAME=admin",
-        "# CF_WEB_PASSWORD=",
+        password_line,
         "",
     ]
 
+    # The file holds the web UI password: make it private before writing
+    env_path.touch()
+    env_path.chmod(0o600)
     env_path.write_text("\n".join(lines), encoding="utf-8")
 
     print_success(f"Created .env file: {env_path}")
@@ -409,6 +445,14 @@ def config_init_env(
     console.print(f"  DOMAIN: {domain or '[yellow]example.com[/] (edit this)'}")
     console.print(f"  CF_COMPOSE_DIR: {compose_dir}")
     console.print(f"  CF_UID/GID: {uid}:{gid}")
+    if password:
+        console.print(f"  Web UI login: admin / {password}", soft_wrap=True)
+        console.print("  [dim](save the password in your password manager)[/dim]")
+    else:
+        console.print("  CF_WEB_PASSWORD: kept from existing .env")
+    for var in ("CF_WEB_USERNAME", "CF_WEB_PASSWORD"):
+        if var in os.environ:
+            print_warning(f"{var} is set in your shell; docker compose uses it instead of .env")
     console.print()
     console.print("[dim]Review and edit as needed:[/dim]")
     console.print(f"  [cyan]$EDITOR {env_path}[/cyan]")

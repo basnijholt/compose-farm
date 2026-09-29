@@ -183,6 +183,9 @@ Using the provided `docker-compose.yml`:
 docker compose run --rm cf up --all
 ```
 
+For the web UI, create `.env` with `cf config init-env`: it generates the login
+password (`CF_WEB_PASSWORD`, user `admin`). See [Docker deployment](docs/docker-deployment.md).
+
 Or directly:
 ```bash
 docker run --rm \

@@ -269,6 +269,13 @@ services:
         assert result is None
 
 
+def _env_value(content: str, key: str) -> str:
+    """The value of an uncommented KEY=value line."""
+    values = [line.split("=", 1)[1] for line in content.splitlines() if line.startswith(f"{key}=")]
+    assert len(values) == 1, content
+    return values[0]
+
+
 class TestConfigInitEnv:
     """Tests for cf config init-env command."""
 
@@ -294,7 +301,48 @@ class TestConfigInitEnv:
         assert "CF_COMPOSE_DIR=/opt/compose" in content
         assert "CF_UID=" in content
         assert "CF_GID=" in content
-        assert "# CF_WEB_PASSWORD=" in content
+        password = _env_value(content, "CF_WEB_PASSWORD")
+        assert len(password) >= 32
+        assert f"Web UI login: admin / {password}" in result.stdout
+
+    def test_init_env_generates_a_new_password_each_time(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+        passwords = set()
+        for name in ("a.env", "b.env"):
+            env_file = tmp_path / name
+            runner.invoke(app, ["config", "init-env", "-p", str(config_file), "-o", str(env_file)])
+            passwords.add(_env_value(env_file.read_text(), "CF_WEB_PASSWORD"))
+        assert len(passwords) == 2
+
+    def test_init_env_force_keeps_existing_password(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+        env_file = tmp_path / ".env"
+        env_file.write_text("OLD=1\nCF_WEB_PASSWORD=keep[me]\n")
+
+        result = runner.invoke(
+            app, ["config", "init-env", "-p", str(config_file), "-o", str(env_file), "-f"]
+        )
+
+        assert result.exit_code == 0
+        assert _env_value(env_file.read_text(), "CF_WEB_PASSWORD") == "keep[me]"
+        assert "CF_WEB_PASSWORD: kept from existing .env" in result.stdout
+        assert "keep[me]" not in result.output
 
     def test_init_env_force_overwrites(
         self,
@@ -317,6 +365,91 @@ class TestConfigInitEnv:
         content = env_file.read_text()
         assert "OLD_CONTENT" not in content
         assert "CF_COMPOSE_DIR" in content
+
+    @pytest.mark.parametrize("existing", [True, False])
+    def test_init_env_file_is_private(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+        existing: bool,
+    ) -> None:
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+        env_file = tmp_path / ".env"
+        if existing:
+            env_file.write_text("OLD=1\n")
+            env_file.chmod(0o644)
+
+        runner.invoke(
+            app, ["config", "init-env", "-p", str(config_file), "-o", str(env_file), "-f"]
+        )
+
+        assert env_file.stat().st_mode & 0o777 == 0o600
+
+    def test_init_env_keeps_the_definition_compose_uses(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The last definition wins; export, quotes, and comments are kept as written."""
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+        env_file = tmp_path / ".env"
+        env_file.write_text('CF_WEB_PASSWORD=first\nexport CF_WEB_PASSWORD="second one" # note\n')
+
+        result = runner.invoke(
+            app, ["config", "init-env", "-p", str(config_file), "-o", str(env_file), "-f"]
+        )
+
+        content = env_file.read_text()
+        assert 'export CF_WEB_PASSWORD="second one" # note' in content.splitlines()
+        assert "first" not in content
+        assert "kept from existing .env" in result.stdout
+
+    def test_init_env_replaces_an_empty_password(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+        env_file = tmp_path / ".env"
+        env_file.write_text('CF_WEB_PASSWORD=""\n')
+
+        result = runner.invoke(
+            app, ["config", "init-env", "-p", str(config_file), "-o", str(env_file), "-f"]
+        )
+
+        password = _env_value(env_file.read_text(), "CF_WEB_PASSWORD")
+        assert len(password) == 64
+        assert f"Web UI login: admin / {password}" in result.stdout
+
+    def test_init_env_warns_about_shell_overrides(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        monkeypatch.setenv("CF_WEB_PASSWORD", "from-shell")
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+
+        result = runner.invoke(
+            app, ["config", "init-env", "-p", str(config_file), "-o", str(tmp_path / ".env")]
+        )
+
+        assert "CF_WEB_PASSWORD is set in your shell" in result.output
 
     def test_init_env_prompts_on_existing(
         self,
