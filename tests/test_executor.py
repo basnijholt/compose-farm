@@ -1,5 +1,6 @@
 """Tests for executor module."""
 
+import asyncio
 import os
 import shlex
 import subprocess
@@ -202,6 +203,94 @@ class TestRunCommand:
         assert result.success is False
         assert "known_hosts" in result.stderr
         assert "cf ssh setup --trust-only" in result.stderr
+
+
+class _FakeProcess:
+    """Minimal asyncssh process: empty output, exit 0, optionally blocks until released."""
+
+    def __init__(self, release: asyncio.Event | None, running: list[int], ssh: "_FakeSsh") -> None:
+        self._release = release
+        self._running = running
+        self._ssh = ssh
+        self.exit_status = 0
+        self.stdout = AsyncMock(read=AsyncMock(return_value=""))
+        self.stderr = AsyncMock(read=AsyncMock(return_value=""))
+
+    async def __aenter__(self) -> "_FakeProcess":
+        self._running[0] += 1
+        if self._running[0] == self._ssh.expect_running:
+            self._ssh.all_running.set()
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        self._running[0] -= 1
+
+    async def wait(self) -> None:
+        if self._release is not None:
+            await self._release.wait()
+
+
+class _FakeSsh:
+    """Fake asyncssh.connect that records how many handshakes are in flight per host."""
+
+    def __init__(self, release: asyncio.Event | None = None, expect_running: int = 0) -> None:
+        self.release = release
+        self.in_flight: dict[str, int] = {}
+        self.max_in_flight: dict[str, int] = {}
+        self.running = [0]
+        self.expect_running = expect_running
+        self.all_running = asyncio.Event()
+
+    async def connect(self, **kwargs: Any) -> Any:
+        host = kwargs["host"]
+        self.in_flight[host] = self.in_flight.get(host, 0) + 1
+        self.max_in_flight[host] = max(self.max_in_flight.get(host, 0), self.in_flight[host])
+        await asyncio.sleep(0.01)  # The handshake
+        self.in_flight[host] -= 1
+        conn = AsyncMock()
+        conn.__aenter__.return_value = conn
+
+        def create_process(_command: str) -> _FakeProcess:
+            return _FakeProcess(self.release, self.running, self)
+
+        conn.create_process = create_process
+        return conn
+
+
+class TestSshHandshakeLimit:
+    """sshd drops unauthenticated connections past MaxStartups, so handshakes are capped per host."""
+
+    async def _run_many(
+        self, fake: _FakeSsh, hosts: list[str], tmp_path: Path
+    ) -> list[CommandResult]:
+        known_hosts = tmp_path / "known_hosts"
+        known_hosts.touch()
+        with (
+            patch("compose_farm.executor.SSH_KNOWN_HOSTS_PATH", known_hosts),
+            patch("asyncssh.connect", side_effect=fake.connect),
+        ):
+            return await asyncio.gather(
+                *(
+                    _run_ssh_command(Host(address=address), "true", f"s{i}", stream=False)
+                    for i, address in enumerate(hosts)
+                )
+            )
+
+    async def test_caps_concurrent_handshakes_per_host(self, tmp_path: Path) -> None:
+        fake = _FakeSsh()
+        results = await self._run_many(fake, ["10.0.0.1"] * 30 + ["10.0.0.2"] * 30, tmp_path)
+        assert all(result.success for result in results)
+        assert fake.max_in_flight == {"10.0.0.1": 8, "10.0.0.2": 8}
+
+    async def test_does_not_cap_established_sessions(self, tmp_path: Path) -> None:
+        """Long-running commands (cf logs -f) keep running side by side after their handshake."""
+        release = asyncio.Event()
+        fake = _FakeSsh(release, expect_running=20)
+        task = asyncio.ensure_future(self._run_many(fake, ["10.0.0.1"] * 20, tmp_path))
+        await asyncio.wait_for(fake.all_running.wait(), timeout=5)
+        assert fake.running[0] == 20
+        release.set()
+        assert all(result.success for result in await task)
 
 
 class TestBuildSshCommand:

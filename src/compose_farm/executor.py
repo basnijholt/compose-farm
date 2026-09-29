@@ -7,6 +7,7 @@ import shlex
 import socket
 import subprocess
 import time
+import weakref
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
@@ -303,6 +304,20 @@ async def _run_local_command(
         )
 
 
+# sshd drops unauthenticated connections past MaxStartups (10 by default). Commands
+# run in parallel, one connection per stack, so cap the handshakes in flight per host.
+_MAX_HANDSHAKES_PER_HOST = 8
+_handshake_slots: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, dict[tuple[str, int], asyncio.Semaphore]
+] = weakref.WeakKeyDictionary()
+
+
+def _handshake_slot(host: Host) -> asyncio.Semaphore:
+    """The semaphore limiting concurrent SSH handshakes to ``host`` in this event loop."""
+    slots = _handshake_slots.setdefault(asyncio.get_running_loop(), {})
+    return slots.setdefault((host.address, host.port), asyncio.Semaphore(_MAX_HANDSHAKES_PER_HOST))
+
+
 async def _run_ssh_command(
     host: Host,
     command: str,
@@ -353,7 +368,10 @@ async def _run_ssh_command(
 
     proc: asyncssh.SSHClientProcess[Any]
     try:
-        async with asyncssh.connect(**ssh_connect_kwargs(host)) as conn:  # noqa: SIM117
+        # Only the handshake takes a slot: long-running commands keep their connection
+        async with _handshake_slot(host):
+            conn = await asyncssh.connect(**ssh_connect_kwargs(host))
+        async with conn:  # noqa: SIM117
             async with conn.create_process(command) as proc:
                 if stream:
                     await asyncio.gather(
@@ -368,15 +386,15 @@ async def _run_ssh_command(
                     stderr_data = await proc.stderr.read()
 
                 await proc.wait()
-                return CommandResult(
-                    stack=stack,
-                    exit_code=proc.exit_status or 0,
-                    success=proc.exit_status == 0,
-                    stdout=stdout_data,
-                    stderr=stderr_data,
-                    host=host_name,
-                    label=label,
-                )
+        return CommandResult(
+            stack=stack,
+            exit_code=proc.exit_status or 0,
+            success=proc.exit_status == 0,
+            stdout=stdout_data,
+            stderr=stderr_data,
+            host=host_name,
+            label=label,
+        )
     except (OSError, asyncssh.Error) as e:
         if stream:
             err_console.print(f"{format_stack_prefix(prefix or stack)} [red]SSH error:[/] {e}")
