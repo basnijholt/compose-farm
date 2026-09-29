@@ -167,8 +167,10 @@ class AuthMiddleware:
                 scope,
                 send,
                 403,
-                "Remote access requires CF_WEB_PASSWORD. "
-                "Set CF_WEB_NO_AUTH=1 only behind a trusted access layer.\n",
+                "Remote access requires CF_WEB_PASSWORD (log in as CF_WEB_USERNAME, default admin). "
+                "Set CF_WEB_NO_AUTH=1 only behind a trusted access layer.\n"
+                "With Docker, set them in .env; docker-compose.yml files from before v1.22.1 "
+                "don't pass them to the container.\n",
             )
             return
 

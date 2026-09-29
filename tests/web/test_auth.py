@@ -62,6 +62,8 @@ class TestNoPassword:
         response = TestClient(create_app(), **REMOTE).get(STATIC)
         assert response.status_code == 403
         assert "CF_WEB_PASSWORD" in response.text
+        assert "CF_WEB_NO_AUTH=1" in response.text
+        assert "docker-compose.yml" in response.text  # Old compose files don't pass the variables
 
     def test_local_allowed(self) -> None:
         assert TestClient(create_app(), **LOCAL).get(STATIC).status_code == 200

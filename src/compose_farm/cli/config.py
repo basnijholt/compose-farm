@@ -334,6 +334,19 @@ def _detect_domain(cfg: Config) -> str | None:
     return None
 
 
+def _web_password(env_path: Path) -> str:
+    """Keep the CF_WEB_PASSWORD of an existing .env, else generate one."""
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            key, sep, value = line.partition("=")
+            if sep and key.strip() == "CF_WEB_PASSWORD" and value.strip():
+                return value.strip()
+    # Lazy import: secrets is only needed when generating a .env file.
+    import secrets  # noqa: PLC0415
+
+    return secrets.token_hex(32)
+
+
 @config_app.command("init-env")
 def config_init_env(
     path: _PathOption = None,
@@ -352,6 +365,7 @@ def config_init_env(
     - CF_COMPOSE_DIR from compose_dir
     - CF_UID/GID/HOME/USER from current user
     - DOMAIN from traefik labels in stacks (if found)
+    - CF_WEB_PASSWORD, the web UI login: kept from an existing .env, else generated
 
     Example::
 
@@ -377,6 +391,7 @@ def config_init_env(
     user = os.environ.get("USER", "root")
     compose_dir = str(cfg.compose_dir)
     domain = _detect_domain(cfg)
+    password = _web_password(env_path)
 
     # Generate .env content
     lines = [
@@ -395,9 +410,9 @@ def config_init_env(
         f"CF_HOME={home}",
         f"CF_USER={user}",
         "",
-        "# Optional: require a login for the web UI (HTTP Basic auth)",
+        "# Web UI login (HTTP Basic auth); required for access through a reverse proxy",
         "# CF_WEB_USERNAME=admin",
-        "# CF_WEB_PASSWORD=",
+        f"CF_WEB_PASSWORD={password}",
         "",
     ]
 
@@ -409,6 +424,8 @@ def config_init_env(
     console.print(f"  DOMAIN: {domain or '[yellow]example.com[/] (edit this)'}")
     console.print(f"  CF_COMPOSE_DIR: {compose_dir}")
     console.print(f"  CF_UID/GID: {uid}:{gid}")
+    console.print(f"  Web UI login: admin / {password}", markup=False, soft_wrap=True)
+    console.print("  [dim](save the password in your password manager)[/dim]")
     console.print()
     console.print("[dim]Review and edit as needed:[/dim]")
     console.print(f"  [cyan]$EDITOR {env_path}[/cyan]")
