@@ -53,6 +53,11 @@ def test_falls_back_to_pip(tmp_path: Path) -> None:
     assert "Plugins: none enabled" in result.output
 
 
+def test_echoes_extras_verbatim(tmp_path: Path) -> None:
+    result, _ = _install(_config(tmp_path, "plugin_packages: ['pkg[extra]']\n"), uv=None)
+    assert "'pkg[extra]'" in result.output
+
+
 def test_reads_config_whose_plugins_are_missing(tmp_path: Path) -> None:
     path = _config(tmp_path, "plugin_packages: [pkg-a]\nplugins: {nope: null}\n")
     result, calls = _install(path, uv="/usr/bin/uv")

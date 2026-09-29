@@ -40,7 +40,7 @@ def plugins_install(config: ConfigOption = None) -> None:
         print_warning("No plugin_packages in config")
         return
     command = _install_command(cfg.plugin_packages)
-    console.print(f"[dim]$ {shlex.join(command)}[/]")
+    console.print(f"$ {shlex.join(command)}", style="dim", markup=False, soft_wrap=True)
     if subprocess.run(command, check=False).returncode != 0:
         print_error("Installing plugin_packages failed")
         raise typer.Exit(1)
