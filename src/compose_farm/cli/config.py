@@ -343,36 +343,22 @@ def _detect_domain(cfg: Config) -> str | None:
 
 # A definition whose key isn't quoted (Compose rejects quoted keys; parse_stream checks the name)
 _PLAIN_KEY = re.compile(r"\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=")
-# A reference Compose expands, $NAME or ${NAME}; $$ is an escaped dollar
-_REFERENCE = re.compile(r"(?<!\$)\$(?:\{|[A-Za-z_])")
 
 
-def _kept_definition(env_path: Path, key: str) -> tuple[str, str] | None:
-    """The last definition of KEY in an existing .env as (value, text as written).
-
-    Only a definition Compose can keep using as written counts: init-env rewrites
-    the whole file, so a quoted key (which Compose rejects) or a ``$NAME`` reference
-    outside single quotes (whose target the rewrite drops) is treated as unset.
-    """
+def _kept_line(env_path: Path, key: str) -> str | None:
+    """The existing .env's last definition of KEY, as written, if it sets a value."""
     if not env_path.exists():
         return None
     # Lazy import: dotenv parsing is only needed by init-env, not for CLI help.
-    # parse_stream isn't public API, but it yields each definition's value and
-    # original text from one parse, so the two always match.
+    # parse_stream isn't public API, but it gives each definition's original text.
     from dotenv.parser import parse_stream  # noqa: PLC0415
 
     with env_path.open(encoding="utf-8") as f:
         definitions = [binding for binding in parse_stream(f) if binding.key == key]
-    if not definitions:
+    if not definitions or not definitions[-1].value:
         return None
-    last = definitions[-1]
-    text = last.original.string.rstrip("\n")
-    if not last.value or not _PLAIN_KEY.match(text):
-        return None
-    literal = text.split("=", 1)[1].lstrip().startswith("'")
-    if not literal and _REFERENCE.search(last.value):
-        return None
-    return last.value, text
+    text = definitions[-1].original.string.rstrip("\n")
+    return text if _PLAIN_KEY.match(text) else None
 
 
 @config_app.command("init-env")
@@ -394,7 +380,7 @@ def config_init_env(
     - CF_UID/GID/HOME/USER from current user
     - DOMAIN from traefik labels in stacks (if found)
     - CF_WEB_PASSWORD, the web UI login: kept from an existing .env, else generated
-      and printed once (a CF_WEB_USERNAME in an existing .env is kept too)
+      and printed once (a CF_WEB_USERNAME in an existing .env is kept too, as written)
 
     Example::
 
@@ -420,13 +406,11 @@ def config_init_env(
     user = os.environ.get("USER", "root")
     compose_dir = str(cfg.compose_dir)
     domain = _detect_domain(cfg)
-    kept_username = _kept_definition(env_path, "CF_WEB_USERNAME")
-    username, username_line = kept_username or ("admin", "# CF_WEB_USERNAME=admin")
+    kept_username = _kept_line(env_path, "CF_WEB_USERNAME")
+    username_line = kept_username or "# CF_WEB_USERNAME=admin"
     password = None
-    kept_password = _kept_definition(env_path, "CF_WEB_PASSWORD")
-    if kept_password:
-        _, password_line = kept_password
-    else:
+    password_line = _kept_line(env_path, "CF_WEB_PASSWORD")
+    if password_line is None:
         # Lazy import: secrets is only needed by init-env, so keep it out of CLI startup.
         import secrets  # noqa: PLC0415
 
@@ -468,10 +452,8 @@ def config_init_env(
     console.print(f"  CF_COMPOSE_DIR: {compose_dir}")
     console.print(f"  CF_UID/GID: {uid}:{gid}")
     if password:
-        # The username comes from .env: print it verbatim (no Rich markup or emoji codes)
-        console.print(
-            f"  Web UI login: {username} / {password}", soft_wrap=True, markup=False, emoji=False
-        )
+        user = "the kept CF_WEB_USERNAME" if kept_username else "admin"
+        console.print(f"  Web UI login: {user} / {password}", soft_wrap=True)
         console.print("  [dim](save the password in your password manager)[/dim]")
     else:
         console.print("  CF_WEB_PASSWORD: kept from existing .env")

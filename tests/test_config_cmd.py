@@ -489,7 +489,7 @@ class TestConfigInitEnv:
         valid_config_data: dict[str, Any],
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The definition is kept verbatim; the login shows the parsed username."""
+        """The definition is kept verbatim; the login names it instead of printing a value."""
         monkeypatch.delenv("CF_CONFIG", raising=False)
         config_file = tmp_path / "compose-farm.yaml"
         config_file.write_text(yaml.dump(valid_config_data))
@@ -506,7 +506,7 @@ class TestConfigInitEnv:
         assert "CF_WEB_USERNAME=admin" not in content
         password = _env_value(content, "CF_WEB_PASSWORD")
         assert re.fullmatch(r"[0-9a-f]{64}", password)
-        assert f"Web UI login: bob / {password}" in result.stdout
+        assert f"Web UI login: the kept CF_WEB_USERNAME / {password}" in result.stdout
 
     def test_init_env_warns_about_shell_overrides(
         self,
@@ -526,32 +526,10 @@ class TestConfigInitEnv:
 
         assert "CF_WEB_PASSWORD is set in your shell" in result.output
 
-    def test_init_env_prints_a_kept_username_verbatim(
-        self,
-        runner: CliRunner,
-        tmp_path: Path,
-        valid_config_data: dict[str, Any],
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        monkeypatch.delenv("CF_CONFIG", raising=False)
-        config_file = tmp_path / "compose-farm.yaml"
-        config_file.write_text(yaml.dump(valid_config_data))
-        env_file = tmp_path / ".env"
-        env_file.write_text("CF_WEB_USERNAME=[b]ob:smile:\n")
-
-        result = runner.invoke(
-            app, ["config", "init-env", "-p", str(config_file), "-o", str(env_file), "-f"]
-        )
-
-        assert result.exit_code == 0
-        password = _env_value(env_file.read_text(), "CF_WEB_PASSWORD")
-        assert f"Web UI login: [b]ob:smile: / {password}" in result.stdout
-
     @pytest.mark.parametrize(
         "existing",
         [
             "CF_WEB_USERNAME=alice\n'CF_WEB_USERNAME'=bob\n",  # dotenv's last one: a quoted key Compose rejects
-            "SOME_KEY=bob\nCF_WEB_USERNAME=${SOME_KEY}\n",  # the rewrite drops SOME_KEY
             "CF_WEB_USERNAME=bob\nCF_WEB_USERNAME=\n",  # the last definition is empty
         ],
     )
@@ -586,6 +564,7 @@ class TestConfigInitEnv:
             ("CF_WEB_PASSWORD=hunter$2\n", None),  # $2 is not a variable name
             ("CF_WEB_PASSWORD=pa$$word\n", None),  # $$ is an escaped dollar
             ("CF_WEB_USERNAME='b$ob'\nCF_WEB_PASSWORD=x\n", "b$ob"),
+            ("CF_WEB_PASSWORD=${SECRET}\n", None),  # kept as written; --force drops SECRET
         ],
     )
     def test_init_env_keeps_literal_dollars(
@@ -597,7 +576,7 @@ class TestConfigInitEnv:
         existing: str,
         username: str | None,
     ) -> None:
-        """Only $NAME and ${NAME} references (outside single quotes) make a definition fall back."""
+        """Definitions are kept exactly as written, without interpreting $."""
         monkeypatch.delenv("CF_CONFIG", raising=False)
         config_file = tmp_path / "compose-farm.yaml"
         config_file.write_text(yaml.dump(valid_config_data))
