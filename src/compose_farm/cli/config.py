@@ -341,22 +341,32 @@ def _detect_domain(cfg: Config) -> str | None:
     return None
 
 
+_PLAIN_KEY = re.compile(r"\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=")
+
+
 def _kept_definition(env_path: Path, key: str) -> tuple[str, str] | None:
-    """The existing .env's value of KEY and its last line, verbatim, if it sets a value."""
+    """The last definition of KEY in an existing .env as (value, text as written).
+
+    Only a definition Compose can keep using as written counts: init-env rewrites
+    the whole file, so a quoted key (which Compose rejects) or a ``$`` reference to
+    another variable (which the rewrite drops) is treated as unset.
+    """
     if not env_path.exists():
         return None
     # Lazy import: dotenv parsing is only needed by init-env, not for CLI help.
-    from dotenv import dotenv_values  # noqa: PLC0415
+    # parse_stream isn't public API, but it yields each definition's value and
+    # original text from one parse, so the two always match.
+    from dotenv.parser import parse_stream  # noqa: PLC0415
 
-    value = dotenv_values(env_path).get(key)
-    if not value:
+    with env_path.open(encoding="utf-8") as f:
+        definitions = [binding for binding in parse_stream(f) if binding.key == key]
+    if not definitions:
         return None
-    pattern = re.compile(rf"\s*(?:export\s+)?{re.escape(key)}\s*=")
-    lines = [
-        line for line in env_path.read_text(encoding="utf-8").splitlines() if pattern.match(line)
-    ]
-    # python-dotenv also accepts lines the pattern misses (e.g. a quoted key): treat as unset
-    return (value, lines[-1]) if lines else None
+    last = definitions[-1]
+    text = last.original.string.rstrip("\n")
+    if not last.value or "$" in last.value or not _PLAIN_KEY.match(text):
+        return None
+    return last.value, text
 
 
 @config_app.command("init-env")
@@ -409,7 +419,7 @@ def config_init_env(
     password = None
     kept_password = _kept_definition(env_path, "CF_WEB_PASSWORD")
     if kept_password:
-        password_line = kept_password[1]
+        _, password_line = kept_password
     else:
         # Lazy import: secrets is only needed by init-env, so keep it out of CLI startup.
         import secrets  # noqa: PLC0415
