@@ -9,7 +9,7 @@ Some stacks can't move. Their host's IP is configured elsewhere (router port for
 ```yaml
 # compose-farm.yaml
 plugin_packages:
-  - "compose-farm-pin @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/pin"
+  - github:basnijholt/compose-farm/examples/plugins/pin
 ```
 
 Then run `cf plugins install`. The Docker image already includes this plugin.

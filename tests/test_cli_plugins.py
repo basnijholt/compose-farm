@@ -5,10 +5,12 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from click.testing import Result
 from typer.testing import CliRunner
 
 from compose_farm.cli.app import app
+from compose_farm.cli.plugins import _requirement
 
 runner = CliRunner()
 
@@ -79,3 +81,33 @@ def test_no_packages_warns(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert calls == []
     assert "No plugin_packages" in result.output
+
+
+@pytest.mark.parametrize(
+    ("package", "requirement"),
+    [
+        ("github:o/r", "git+https://github.com/o/r"),
+        ("github:o/r@v1", "git+https://github.com/o/r@v1"),
+        ("github:o/r/sub/dir", "git+https://github.com/o/r#subdirectory=sub/dir"),
+        ("github:o/r/sub@feat/x", "git+https://github.com/o/r@feat/x#subdirectory=sub"),
+        ("pkg>=1", "pkg>=1"),
+        ("git+https://example.com/r", "git+https://example.com/r"),
+    ],
+)
+def test_github_shorthand(package: str, requirement: str) -> None:
+    assert _requirement(package) == requirement
+
+
+def test_github_shorthand_needs_owner_and_repo(tmp_path: Path) -> None:
+    result, calls = _install(_config(tmp_path, "plugin_packages: ['github:o']\n"), uv=None)
+    assert result.exit_code == 1
+    assert calls == []
+    assert "use github:OWNER/REPO/SUBDIR@REF" in result.output
+
+
+def test_installs_expanded_shorthand(tmp_path: Path) -> None:
+    path = _config(tmp_path, "plugin_packages: ['github:o/r/p']\n")
+    _, calls = _install(path, uv=None)
+    assert calls == [
+        [sys.executable, "-m", "pip", "install", "git+https://github.com/o/r#subdirectory=p"]
+    ]

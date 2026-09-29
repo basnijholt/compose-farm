@@ -9,7 +9,7 @@ It shows the pattern for any label policy: parse the stack's Traefik labels with
 ```yaml
 # compose-farm.yaml
 plugin_packages:
-  - "compose-farm-traefik-policy @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/traefik-policy"
+  - github:basnijholt/compose-farm/examples/plugins/traefik-policy
 ```
 
 Then run `cf plugins install`. The Docker image already includes this plugin.

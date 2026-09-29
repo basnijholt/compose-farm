@@ -21,6 +21,21 @@ plugins_app = typer.Typer(
 )
 
 
+def _requirement(package: str) -> str:
+    """Expand ``github:OWNER/REPO[/SUBDIR][@REF]`` into a pip git URL; pass others through."""
+    if not package.startswith("github:"):
+        return package
+    path, _, ref = package.removeprefix("github:").partition("@")
+    owner, _, rest = path.partition("/")
+    repo, _, subdir = rest.partition("/")
+    if not owner or not repo:
+        msg = f"Invalid plugin package {package!r}: use github:OWNER/REPO/SUBDIR@REF"
+        print_error(f"{msg} (SUBDIR and REF are optional)")
+        raise typer.Exit(1)
+    url = f"git+https://github.com/{owner}/{repo}" + (f"@{ref}" if ref else "")
+    return f"{url}#subdirectory={subdir}" if subdir else url
+
+
 def _install_command(packages: list[str]) -> list[str]:
     """Install packages into the Python environment running compose-farm."""
     if uv := shutil.which("uv"):
@@ -32,6 +47,7 @@ def _install_command(packages: list[str]) -> list[str]:
 def plugins_install(config: ConfigOption = None) -> None:
     """Install the config's plugin_packages next to compose-farm.
 
+    Entries are pip requirements or github:OWNER/REPO[/SUBDIR][@REF].
     Uses uv when available, else pip. Run it again after
     `uv tool upgrade compose-farm`, which resets the tool's environment.
     """
@@ -39,7 +55,7 @@ def plugins_install(config: ConfigOption = None) -> None:
     if not cfg.plugin_packages:
         print_warning("No plugin_packages in config")
         return
-    command = _install_command(cfg.plugin_packages)
+    command = _install_command([_requirement(package) for package in cfg.plugin_packages])
     console.print(f"$ {shlex.join(command)}", style="dim", markup=False, soft_wrap=True)
     if subprocess.run(command, check=False).returncode != 0:
         print_error("Installing plugin_packages failed")

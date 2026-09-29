@@ -12,7 +12,7 @@ Example [compose-farm plugin](../../../docs/plugins.md) that gives every stack i
 ```yaml
 # compose-farm.yaml
 plugin_packages:
-  - "compose-farm-zfs @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/zfs"
+  - github:basnijholt/compose-farm/examples/plugins/zfs
 ```
 
 Then run `cf plugins install`. The Docker image already includes this plugin.

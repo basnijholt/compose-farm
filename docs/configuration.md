@@ -147,11 +147,11 @@ See [Plugins](plugins.md) for the builtin plugins, hooks, and writing your own.
 
 ### plugin_packages
 
-Pip requirements for the packages that provide your plugins: PyPI names, `git+https://...` URLs, or local paths. `cf plugins install` installs them into the Python environment that runs `cf`.
+Packages that provide your plugins: pip requirements (PyPI names, `git+https://...` URLs, local paths) or `github:OWNER/REPO/SUBDIR@REF`, where `/SUBDIR` and `@REF` are optional. `cf plugins install` installs them into the Python environment that runs `cf`.
 
 ```yaml
 plugin_packages:
-  - "compose-farm-pin @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/pin"
+  - github:basnijholt/compose-farm/examples/plugins/pin
 ```
 
 See [Installing plugins](plugins.md#installing-plugins).

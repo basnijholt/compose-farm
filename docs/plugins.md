@@ -26,13 +26,13 @@ List the packages that provide your plugins under `plugin_packages` and run `cf 
 
 ```yaml
 plugin_packages:
-  - "compose-farm-pin @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/pin"
+  - github:basnijholt/compose-farm/examples/plugins/pin
 plugins:
   pin:
     gitea: nas
 ```
 
-Each entry is a pip requirement: a PyPI name, a `git+https://...` URL, or a local path. `cf plugins install` installs them into the Python environment that runs `cf`, with `uv pip install` when uv is available and pip otherwise. `uv tool upgrade compose-farm` recreates the tool's environment without them; the next `cf` command then reports the plugins as unknown, and `cf plugins install` brings them back.
+Each entry is a pip requirement (a PyPI name, a `git+https://...` URL, or a local path) or the GitHub shorthand `github:OWNER/REPO/SUBDIR@REF`, where `/SUBDIR` and `@REF` (a branch, tag, or commit) are optional. `cf plugins install` installs them into the Python environment that runs `cf`, with `uv pip install` when uv is available and pip otherwise. `uv tool upgrade compose-farm` recreates the tool's environment without them; the next `cf` command then reports the plugins as unknown, and `cf plugins install` brings them back.
 
 Plugins run wherever `cf` runs, including the web UI (which runs `cf` for its actions). The Docker image includes the builtin plugins and the [example plugins](#example-plugins); for others, build your own image that installs them next to compose-farm (`uv tool install "compose-farm[web]" --with <plugin>`).
 
@@ -180,7 +180,7 @@ To use one, list it under `plugin_packages` and run `cf plugins install`:
 
 ```yaml
 plugin_packages:
-  - "compose-farm-zfs @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/zfs"
+  - github:basnijholt/compose-farm/examples/plugins/zfs
 ```
 
 Without installing anything, the `commands` plugin covers simple cases. For example, a secret env file for every stack:
