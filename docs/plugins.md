@@ -39,7 +39,7 @@ Each entry is a pip requirement (a PyPI name, a `git+https://...` URL, or a loca
 
 The config decides what gets installed and run, so treat `plugin_packages` like the `commands` plugin: only list sources you trust. With automatic installs, any command that loads the config can install packages, including read-only ones like `cf ps` and a `compose-farm.yaml` found in the current directory. Set `plugin_auto_install: false` if you run `cf` next to configs you don't trust.
 
-The web UI installs missing plugins only when it starts, since an install during a request would block it; restart it after adding a plugin there.
+The web UI installs missing plugins only when it starts, since an install during a request would block it. After adding a plugin, restart it or run `cf plugins install`.
 
 Plugins run wherever `cf` runs, including the web UI (which runs `cf` for its actions). The Docker image includes the builtin plugins and the [example plugins](#example-plugins); for others, build your own image that installs them next to compose-farm (`uv tool install "compose-farm[web]" --with <plugin>`).
 

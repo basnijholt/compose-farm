@@ -194,7 +194,8 @@ def load_plugins(cfg: Config) -> tuple[Plugin, ...]:
     hint = "List their packages under plugin_packages and run `cf plugins install`."
     if missing and cfg.plugin_auto_install and cfg.plugin_packages:
         if failure := _auto_install(cfg, missing):
-            hint = f"Installing plugin_packages failed: {failure}. Run `cf plugins install` to see why."
+            hint = f"Installing plugin_packages failed: {failure}. "
+            hint += "Run `cf plugins install` to see why."
         else:
             available = _available_plugins()
             missing = [name for name in cfg.plugins if name not in available]
