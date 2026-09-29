@@ -579,6 +579,43 @@ class TestConfigInitEnv:
         assert "# CF_WEB_USERNAME=admin" in content.splitlines()
         assert f"Web UI login: admin / {_env_value(content, 'CF_WEB_PASSWORD')}" in result.stdout
 
+    @pytest.mark.parametrize(
+        ("existing", "username"),
+        [
+            ("CF_WEB_PASSWORD='pa$$word'\n", None),  # single quotes: literal
+            ("CF_WEB_PASSWORD=hunter$2\n", None),  # $2 is not a variable name
+            ("CF_WEB_PASSWORD=pa$$word\n", None),  # $$ is an escaped dollar
+            ("CF_WEB_USERNAME='b$ob'\nCF_WEB_PASSWORD=x\n", "b$ob"),
+        ],
+    )
+    def test_init_env_keeps_literal_dollars(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+        existing: str,
+        username: str | None,
+    ) -> None:
+        """Only $NAME and ${NAME} references (outside single quotes) make a definition fall back."""
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+        env_file = tmp_path / ".env"
+        env_file.write_text(existing)
+
+        result = runner.invoke(
+            app, ["config", "init-env", "-p", str(config_file), "-o", str(env_file), "-f"]
+        )
+
+        assert result.exit_code == 0
+        content = env_file.read_text()
+        for line in existing.splitlines():
+            assert line in content.splitlines()
+        assert "CF_WEB_PASSWORD: kept from existing .env" in result.stdout
+        if username:
+            assert f"CF_WEB_USERNAME='{username}'" in content
+
     def test_init_env_keeps_a_multiline_password_intact(
         self,
         runner: CliRunner,

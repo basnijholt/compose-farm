@@ -341,15 +341,18 @@ def _detect_domain(cfg: Config) -> str | None:
     return None
 
 
+# A definition whose key isn't quoted (Compose rejects quoted keys; parse_stream checks the name)
 _PLAIN_KEY = re.compile(r"\s*(?:export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=")
+# A reference Compose expands, $NAME or ${NAME}; $$ is an escaped dollar
+_REFERENCE = re.compile(r"(?<!\$)\$(?:\{|[A-Za-z_])")
 
 
 def _kept_definition(env_path: Path, key: str) -> tuple[str, str] | None:
     """The last definition of KEY in an existing .env as (value, text as written).
 
     Only a definition Compose can keep using as written counts: init-env rewrites
-    the whole file, so a quoted key (which Compose rejects) or a ``$`` reference to
-    another variable (which the rewrite drops) is treated as unset.
+    the whole file, so a quoted key (which Compose rejects) or a ``$NAME`` reference
+    outside single quotes (whose target the rewrite drops) is treated as unset.
     """
     if not env_path.exists():
         return None
@@ -364,7 +367,10 @@ def _kept_definition(env_path: Path, key: str) -> tuple[str, str] | None:
         return None
     last = definitions[-1]
     text = last.original.string.rstrip("\n")
-    if not last.value or "$" in last.value or not _PLAIN_KEY.match(text):
+    if not last.value or not _PLAIN_KEY.match(text):
+        return None
+    literal = text.split("=", 1)[1].lstrip().startswith("'")
+    if not literal and _REFERENCE.search(last.value):
         return None
     return last.value, text
 
