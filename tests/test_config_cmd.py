@@ -525,6 +525,26 @@ class TestConfigInitEnv:
 
         assert "CF_WEB_PASSWORD is set in your shell" in result.output
 
+    def test_init_env_prints_a_kept_username_verbatim(
+        self,
+        runner: CliRunner,
+        tmp_path: Path,
+        valid_config_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("CF_CONFIG", raising=False)
+        config_file = tmp_path / "compose-farm.yaml"
+        config_file.write_text(yaml.dump(valid_config_data))
+        env_file = tmp_path / ".env"
+        env_file.write_text("CF_WEB_USERNAME=[b]ob:smile:\n")
+
+        result = runner.invoke(
+            app, ["config", "init-env", "-p", str(config_file), "-o", str(env_file), "-f"]
+        )
+
+        password = _env_value(env_file.read_text(), "CF_WEB_PASSWORD")
+        assert f"Web UI login: [b]ob:smile: / {password}" in result.stdout
+
     def test_init_env_prompts_on_existing(
         self,
         runner: CliRunner,
