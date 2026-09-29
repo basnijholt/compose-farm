@@ -23,17 +23,23 @@ def _config(tmp_path: Path, extra: str) -> Path:
     return path
 
 
-def _install(path: Path, *, uv: str | None, returncode: int = 0) -> tuple[Result, list[list[str]]]:
+def _install(
+    path: Path, *, uv: str | None, pip: bool = True, returncode: int = 0
+) -> tuple[Result, list[list[str]]]:
     """Run `cf plugins install` with the installer faked; return the result and its commands."""
     calls: list[list[str]] = []
 
-    def fake_run(command: list[str], *, check: bool) -> subprocess.CompletedProcess[bytes]:
+    def fake_run(
+        command: list[str], *, check: bool, cwd: Path
+    ) -> subprocess.CompletedProcess[bytes]:
         assert check is False
+        assert cwd == path.parent  # Relative local paths resolve next to the config
         calls.append(command)
         return subprocess.CompletedProcess(command, returncode)
 
     with (
         patch("compose_farm.cli.plugins.shutil.which", return_value=uv),
+        patch("compose_farm.cli.plugins.find_spec", return_value=object() if pip else None),
         patch("compose_farm.cli.plugins.subprocess.run", side_effect=fake_run),
     ):
         result = runner.invoke(app, ["plugins", "install", "-c", str(path)])
@@ -81,6 +87,22 @@ def test_no_packages_warns(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert calls == []
     assert "No plugin_packages" in result.output
+    assert "Plugins: none enabled" in result.output
+
+
+def test_no_packages_still_checks_plugins(tmp_path: Path) -> None:
+    result, calls = _install(_config(tmp_path, "plugins: {nope: null}\n"), uv="/usr/bin/uv")
+    assert result.exit_code == 1
+    assert calls == []
+    assert "Unknown plugin(s): nope" in result.output
+
+
+def test_needs_uv_or_pip(tmp_path: Path) -> None:
+    path = _config(tmp_path, "plugin_packages: [pkg-a]\n")
+    result, calls = _install(path, uv=None, pip=False)
+    assert result.exit_code == 1
+    assert calls == []
+    assert "needs uv on PATH or pip" in result.output
 
 
 @pytest.mark.parametrize(
