@@ -192,6 +192,7 @@ class TestSshConnectKwargs:
             assert result["known_hosts"] == str(SSH_KEY_PATH.parent / "known_hosts")
             assert "agent_path" not in result
             assert "client_keys" not in result
+            assert result["connect_timeout"] == 10  # A dead host fails fast instead of TCP's ~2 min
 
     def test_includes_agent_path_when_available(self) -> None:
         """Include agent_path when SSH agent is available."""

@@ -1,13 +1,15 @@
 """Tests for executor module."""
 
 import asyncio
+import gc
 import os
 import shlex
 import subprocess
 import sys
-from collections.abc import AsyncIterator
+import weakref
+from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -216,7 +218,7 @@ class _FakeProcess:
         self.stdout = AsyncMock(read=AsyncMock(return_value=""))
         self.stderr = AsyncMock(read=AsyncMock(return_value=""))
 
-    async def __aenter__(self) -> "_FakeProcess":
+    async def __aenter__(self) -> Self:
         self._running[0] += 1
         if self._running[0] == self._ssh.expect_running:
             self._ssh.all_running.set()
@@ -233,8 +235,11 @@ class _FakeProcess:
 class _FakeSsh:
     """Fake asyncssh.connect that records how many handshakes are in flight per host."""
 
-    def __init__(self, release: asyncio.Event | None = None, expect_running: int = 0) -> None:
+    def __init__(
+        self, release: asyncio.Event | None = None, expect_running: int = 0, fail_first: int = 0
+    ) -> None:
         self.release = release
+        self.fail_first = fail_first
         self.in_flight: dict[str, int] = {}
         self.max_in_flight: dict[str, int] = {}
         self.running = [0]
@@ -242,11 +247,15 @@ class _FakeSsh:
         self.all_running = asyncio.Event()
 
     async def connect(self, **kwargs: Any) -> Any:
-        host = kwargs["host"]
+        host = f"{kwargs['host'].lower()}:{kwargs['port']}"  # One sshd per address and port
         self.in_flight[host] = self.in_flight.get(host, 0) + 1
         self.max_in_flight[host] = max(self.max_in_flight.get(host, 0), self.in_flight[host])
         await asyncio.sleep(0.01)  # The handshake
         self.in_flight[host] -= 1
+        if self.fail_first > 0:
+            self.fail_first -= 1
+            msg = "Connection reset by peer"
+            raise OSError(msg)
         conn = AsyncMock()
         conn.__aenter__.return_value = conn
 
@@ -261,7 +270,7 @@ class TestSshHandshakeLimit:
     """sshd drops unauthenticated connections past MaxStartups, so handshakes are capped per host."""
 
     async def _run_many(
-        self, fake: _FakeSsh, hosts: list[str], tmp_path: Path
+        self, fake: _FakeSsh, hosts: Sequence[str | Host], tmp_path: Path
     ) -> list[CommandResult]:
         known_hosts = tmp_path / "known_hosts"
         known_hosts.touch()
@@ -271,8 +280,13 @@ class TestSshHandshakeLimit:
         ):
             return await asyncio.gather(
                 *(
-                    _run_ssh_command(Host(address=address), "true", f"s{i}", stream=False)
-                    for i, address in enumerate(hosts)
+                    _run_ssh_command(
+                        host if isinstance(host, Host) else Host(address=host),
+                        "true",
+                        f"s{i}",
+                        stream=False,
+                    )
+                    for i, host in enumerate(hosts)
                 )
             )
 
@@ -280,7 +294,34 @@ class TestSshHandshakeLimit:
         fake = _FakeSsh()
         results = await self._run_many(fake, ["10.0.0.1"] * 30 + ["10.0.0.2"] * 30, tmp_path)
         assert all(result.success for result in results)
-        assert fake.max_in_flight == {"10.0.0.1": 8, "10.0.0.2": 8}
+        assert fake.max_in_flight == {"10.0.0.1:22": 8, "10.0.0.2:22": 8}
+
+    async def test_limit_is_per_sshd(self, tmp_path: Path) -> None:
+        """Address case doesn't split the budget; another port is another sshd."""
+        hosts: list[str | Host] = [Host(address="Example.com")] * 15
+        hosts += [Host(address="example.com")] * 15 + [Host(address="example.com", port=2222)] * 15
+        fake = _FakeSsh()
+        results = await self._run_many(fake, hosts, tmp_path)
+        assert all(result.success for result in results)
+        assert fake.max_in_flight == {"example.com:22": 8, "example.com:2222": 8}
+
+    async def test_failed_handshakes_free_their_slots(self, tmp_path: Path) -> None:
+        fake = _FakeSsh(fail_first=8)
+        results = await self._run_many(fake, ["10.0.0.1"] * 20, tmp_path)
+        assert [result.success for result in results].count(False) == 8
+        assert fake.max_in_flight == {"10.0.0.1:22": 8}
+
+    def test_finished_event_loops_are_released(self, tmp_path: Path) -> None:
+        """A semaphore that had waiters references its loop; it must not keep the loop alive."""
+        loops: list[weakref.ref[asyncio.AbstractEventLoop]] = []
+
+        async def contended() -> None:
+            loops.append(weakref.ref(asyncio.get_running_loop()))
+            await self._run_many(_FakeSsh(), ["10.0.0.1"] * 20, tmp_path)
+
+        asyncio.run(contended())
+        gc.collect()
+        assert loops[0]() is None
 
     async def test_does_not_cap_established_sessions(self, tmp_path: Path) -> None:
         """Long-running commands (cf logs -f) keep running side by side after their handshake."""

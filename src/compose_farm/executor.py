@@ -218,6 +218,7 @@ def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
         "username": host.user,
         "known_hosts": str(SSH_KNOWN_HOSTS_PATH),
         "gss_auth": False,  # Disable GSSAPI - causes multi-second delays
+        "connect_timeout": 10,  # Fail a dead host fast instead of waiting out TCP's ~2 minutes
     }
     # Add key file fallback (prioritized over agent if present)
     key_path = get_key_path()
@@ -305,17 +306,21 @@ async def _run_local_command(
 
 
 # sshd drops unauthenticated connections past MaxStartups (10 by default). Commands
-# run in parallel, one connection per stack, so cap the handshakes in flight per host.
+# run in parallel, one connection per stack, so cap the handshakes in flight per host
+# (per process: a CLI run next to the web UI gets its own 8, under the default 10).
 _MAX_HANDSHAKES_PER_HOST = 8
+# Held weakly: a semaphore that had waiters references its event loop, so an idle one
+# is dropped and a finished loop can be collected.
 _handshake_slots: weakref.WeakKeyDictionary[
-    asyncio.AbstractEventLoop, dict[tuple[str, int], asyncio.Semaphore]
+    asyncio.AbstractEventLoop, weakref.WeakValueDictionary[tuple[str, int], asyncio.Semaphore]
 ] = weakref.WeakKeyDictionary()
 
 
 def _handshake_slot(host: Host) -> asyncio.Semaphore:
     """The semaphore limiting concurrent SSH handshakes to ``host`` in this event loop."""
-    slots = _handshake_slots.setdefault(asyncio.get_running_loop(), {})
-    return slots.setdefault((host.address, host.port), asyncio.Semaphore(_MAX_HANDSHAKES_PER_HOST))
+    slots = _handshake_slots.setdefault(asyncio.get_running_loop(), weakref.WeakValueDictionary())
+    key = (host.address.lower(), host.port)  # One sshd per address and port
+    return slots.setdefault(key, asyncio.Semaphore(_MAX_HANDSHAKES_PER_HOST))
 
 
 async def _run_ssh_command(
