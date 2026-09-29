@@ -14,7 +14,8 @@ FROM python:3.14-alpine
 
 # Install only runtime requirements. nss_wrapper provides an identity for
 # arbitrary runtime UIDs without modifying the image's system account files.
-RUN apk add --no-cache nss_wrapper openssh-client rsync
+# coreutils-env: busybox env lacks -S, needed by `#!/usr/bin/env -S uv run --script` shebangs.
+RUN apk add --no-cache coreutils-env nss_wrapper openssh-client rsync
 
 # Copy installed tool virtualenv and bin symlinks from builder
 COPY --from=builder /root/.local/share/uv/tools/compose-farm /root/.local/share/uv/tools/compose-farm
@@ -24,6 +25,8 @@ COPY --from=builder /usr/local/bin/cf /usr/local/bin/compose-farm /usr/local/bin
 # lives in /tmp because HOME isn't writable for arbitrary runtime UIDs.
 COPY --from=builder /usr/local/bin/uv /usr/local/bin/uvx /usr/local/bin/
 ENV UV_CACHE_DIR=/tmp/uv-cache
+# Scripts use the image's Python; downloading another one needs a writable HOME
+ENV UV_PYTHON_DOWNLOADS=never
 
 # Allow non-root users to access the installed tool
 # (required when running with user: "${CF_UID:-0}:${CF_GID:-0}")

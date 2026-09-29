@@ -748,6 +748,27 @@ class TestExtractWebsiteUrls:
         urls = extract_website_urls(config, "mystack")
         assert urls == ["https://app.example.com"]
 
+    def test_camelcase_entrypoints_key(self, tmp_path: Path) -> None:
+        """Traefik label keys are case-insensitive: entryPoints=web still means http."""
+        stack_dir = tmp_path / "mystack"
+        stack_dir.mkdir()
+        compose_data = {
+            "services": {
+                "web": {
+                    "image": "nginx",
+                    "labels": {
+                        "traefik.enable": "true",
+                        "traefik.http.routers.web.rule": "Host(`app.example.com`)",
+                        "traefik.http.routers.web.entryPoints": "web",
+                    },
+                }
+            }
+        }
+        (stack_dir / "compose.yaml").write_text(yaml.dump(compose_data))
+
+        config = self._create_config(tmp_path)
+        assert extract_website_urls(config, "mystack") == ["http://app.example.com"]
+
     def test_multiple_entrypoints_with_websecure(self, tmp_path: Path) -> None:
         """When entrypoints includes websecure, use https."""
         stack_dir = tmp_path / "mystack"

@@ -41,7 +41,7 @@ The config decides what gets installed and run, so treat `plugin_packages` like 
 
 The web UI installs missing plugins only when it starts, since an install during a request would block it. After adding a plugin, restart it or run `cf plugins install`.
 
-Plugins run wherever `cf` runs, including the web UI (which runs `cf` for its actions). The Docker image includes the builtin plugins, the [example plugins](#example-plugins), and uv (so `local:` steps can run `uv run --script` scripts); for other plugins, build your own image that installs them next to compose-farm (`uv tool install "compose-farm[web]" --with <plugin>`).
+Plugins run wherever `cf` runs, including the web UI (which runs `cf` for its actions). The Docker image includes the builtin plugins, the [example plugins](#example-plugins), and uv (so `local:` steps can run `uv run --script` scripts that work with the image's Python 3.14). Automatic installs of other plugins work in the container only when it runs as root and for sources that don't need git (PyPI names, local paths), and they are repeated whenever the container is recreated; for other plugins, build your own image that installs them next to compose-farm (`uv tool install "compose-farm[web]" --with <plugin>`).
 
 ## Builtin plugins
 
