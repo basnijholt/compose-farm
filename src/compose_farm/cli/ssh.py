@@ -109,16 +109,37 @@ def _generate_key(*, force: bool = False) -> bool:
     return True
 
 
+def _key_accepted(address: str, user: str, port: int) -> bool:
+    """Whether the host accepts the compose-farm key on its own, as compose-farm uses it.
+
+    Ignores ~/.ssh/config and the agent, which may hold other keys the host accepts.
+    """
+    cmd = ["ssh", "-F", "/dev/null", "-i", str(SSH_KEY_PATH)]
+    for option in ("IdentitiesOnly=yes", "IdentityAgent=none", "BatchMode=yes"):
+        cmd.extend(["-o", option])
+    cmd.extend(["-o", f"UserKnownHostsFile={SSH_KNOWN_HOSTS_PATH}"])
+    if port != _DEFAULT_SSH_PORT:
+        cmd.extend(["-p", str(port)])
+    cmd.extend([f"{user}@{address}", "true"])
+    result = subprocess.run(cmd, check=False, capture_output=True)
+    return result.returncode == 0
+
+
 def _copy_key_to_host(host_name: str, address: str, user: str, port: int) -> bool:
     """Copy public key to a host's authorized_keys.
 
     Uses ssh-copy-id which handles agent vs password fallback automatically.
+    Its own "already installed" check logs in with any key from ~/.ssh/config,
+    so the key is checked here instead, before and after installing it.
     Returns True on success, False on failure.
     """
     target = f"{user}@{address}"
+    if _key_accepted(address, user, port):
+        console.print(f"[green]Key already installed on {host_name}[/]")
+        return True
     console.print(f"[dim]Copying key to {host_name} ({target})...[/]")
 
-    cmd = ["ssh-copy-id"]
+    cmd = ["ssh-copy-id", "-f"]
     cmd.extend(["-o", "StrictHostKeyChecking=ask"])
     cmd.extend(["-o", f"UserKnownHostsFile={SSH_KNOWN_HOSTS_PATH}"])
 
@@ -130,11 +151,14 @@ def _copy_key_to_host(host_name: str, address: str, user: str, port: int) -> boo
     try:
         # Don't capture output so user can see password prompt
         result = subprocess.run(cmd, check=False, env=get_ssh_env())
-        if result.returncode == 0:
-            console.print(f"[green]Key copied to {host_name}[/]")
-            return True
-        err_console.print(f"[red]Failed to copy key to {host_name}[/]")
-        return False
+        if result.returncode != 0:
+            err_console.print(f"[red]Failed to copy key to {host_name}[/]")
+            return False
+        if not _key_accepted(address, user, port):
+            err_console.print(f"[red]{host_name} still rejects the key after ssh-copy-id[/]")
+            return False
+        console.print(f"[green]Key copied to {host_name}[/]")
+        return True
     except FileNotFoundError:
         err_console.print("[red]ssh-copy-id not found. Is OpenSSH installed?[/]")
         return False

@@ -119,14 +119,47 @@ stacks:
 
     def test_copy_key_uses_standard_host_key_verification(self) -> None:
         """First-time setup must not discard or bypass the server host key."""
-        completed = MagicMock(returncode=0)
-        with patch("compose_farm.cli.ssh.subprocess.run", return_value=completed) as run:
+        missing, ok = MagicMock(returncode=255), MagicMock(returncode=0)
+        with patch("compose_farm.cli.ssh.subprocess.run", side_effect=[missing, ok, ok]) as run:
             assert _copy_key_to_host("nas", "192.168.1.10", "root", 22) is True
 
-        command = run.call_args.args[0]
+        command = run.call_args_list[1].args[0]
+        assert command[0] == "ssh-copy-id"
         assert "StrictHostKeyChecking=ask" in command
         assert "StrictHostKeyChecking=no" not in command
         assert f"UserKnownHostsFile={SSH_KEY_PATH.parent / 'known_hosts'}" in command
+
+    def test_copy_key_skips_hosts_that_already_accept_it(self) -> None:
+        """The check logs in with the compose-farm key only, like compose-farm itself."""
+        ok = MagicMock(returncode=0)
+        with patch("compose_farm.cli.ssh.subprocess.run", return_value=ok) as run:
+            assert _copy_key_to_host("nas", "192.168.1.10", "root", 2222) is True
+
+        [check] = [call.args[0] for call in run.call_args_list]
+        assert check[0] == "ssh"
+        # Ignore ~/.ssh/config IdentityFile entries and agent keys that already work
+        assert check[check.index("-F") + 1] == "/dev/null"
+        assert check[check.index("-i") + 1] == str(SSH_KEY_PATH)
+        for option in ("IdentitiesOnly=yes", "IdentityAgent=none", "BatchMode=yes"):
+            assert option in check
+        assert check[check.index("-p") + 1] == "2222"
+        assert check[-2:] == ["root@192.168.1.10", "true"]
+
+    def test_copy_key_forces_install_and_verifies_it(self) -> None:
+        """ssh-copy-id's own check can pass through another key, so force and re-check."""
+        missing, ok = MagicMock(returncode=255), MagicMock(returncode=0)
+        with patch("compose_farm.cli.ssh.subprocess.run", side_effect=[missing, ok, ok]) as run:
+            assert _copy_key_to_host("nas", "192.168.1.10", "root", 22) is True
+
+        commands = [call.args[0] for call in run.call_args_list]
+        assert [c[0] for c in commands] == ["ssh", "ssh-copy-id", "ssh"]
+        assert "-f" in commands[1]
+
+    def test_copy_key_fails_when_the_key_still_is_not_accepted(self) -> None:
+        """A reported success that doesn't let compose-farm log in is a failure."""
+        missing, ok = MagicMock(returncode=255), MagicMock(returncode=0)
+        with patch("compose_farm.cli.ssh.subprocess.run", side_effect=[missing, ok, missing]):
+            assert _copy_key_to_host("nas", "192.168.1.10", "root", 22) is False
 
     def test_trust_host_key_uses_agent_without_installing_a_key(self, tmp_path: Path) -> None:
         """Agent users can enroll a host key without changing authentication keys."""
