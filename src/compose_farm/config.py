@@ -41,6 +41,8 @@ class Config(BaseModel, extra="forbid"):
     plugins: dict[str, dict[str, Any] | None] = Field(default_factory=dict)
     # Pip requirements providing plugins; `cf plugins install` installs them next to cf
     plugin_packages: list[str] = Field(default_factory=list)
+    # Install missing plugin_packages automatically when an enabled plugin is not found
+    plugin_auto_install: bool = True
     config_path: Path = Path()  # Set by load_config()
 
     _loaded_plugins: tuple[Plugin, ...] | None = PrivateAttr(default=None)

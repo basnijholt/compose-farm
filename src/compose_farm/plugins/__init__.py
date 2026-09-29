@@ -7,16 +7,25 @@ See docs/plugins.md for the hook contract.
 
 from __future__ import annotations
 
+import importlib
+import shutil
+import subprocess
+import sys
 from dataclasses import dataclass
+from importlib.util import find_spec
 from typing import TYPE_CHECKING, Any, Literal
 
+from compose_farm.console import err_console
 from compose_farm.executor import _run_local_command, run_command
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from compose_farm.config import Config
     from compose_farm.executor import CommandResult
 
 ENTRY_POINT_GROUP = "compose_farm.plugins"
+_STDERR = 2  # File descriptor for installer output during automatic installs
 
 Hook = Literal[
     "before_up", "after_source_stopped", "after_up", "after_stack_removed", "after_changes"
@@ -169,20 +178,23 @@ class Plugin:
 
 
 def load_plugins(cfg: Config) -> tuple[Plugin, ...]:
-    """Instantiate the plugins enabled in ``cfg.plugins``, in config order."""
+    """Instantiate the plugins enabled in ``cfg.plugins``, in config order.
+
+    Missing plugins are installed from ``cfg.plugin_packages`` first when
+    ``cfg.plugin_auto_install`` is on.
+    """
     if not cfg.plugins:
         return ()
-    # Lazy import: entry-point scanning costs ~25ms and is only needed when plugins are enabled.
-    from importlib.metadata import entry_points  # noqa: PLC0415
-
-    available = {ep.name: ep for ep in entry_points(group=ENTRY_POINT_GROUP)}
+    available = _available_plugins()
     missing = [name for name in cfg.plugins if name not in available]
+    hint = "List their packages under plugin_packages and run `cf plugins install`."
+    if missing and cfg.plugin_auto_install and cfg.plugin_packages:
+        hint = _auto_install(cfg, missing)
+        available = _available_plugins()
+        missing = [name for name in cfg.plugins if name not in available]
     if missing:
         names = ", ".join(sorted(available)) or "none"
-        msg = (
-            f"Unknown plugin(s): {', '.join(missing)} (available: {names}). "
-            "List their packages under plugin_packages and run `cf plugins install`."
-        )
+        msg = f"Unknown plugin(s): {', '.join(missing)} (available: {names}). {hint}"
         raise PluginError(msg)
 
     plugins: list[Plugin] = []
@@ -198,6 +210,73 @@ def load_plugins(cfg: Config) -> tuple[Plugin, ...]:
         plugin.name = name
         plugins.append(plugin)
     return tuple(plugins)
+
+
+def _available_plugins() -> dict[str, Any]:
+    # Lazy import: entry-point scanning costs ~25ms and is only needed when plugins are enabled.
+    from importlib.metadata import entry_points  # noqa: PLC0415
+
+    return {ep.name: ep for ep in entry_points(group=ENTRY_POINT_GROUP)}
+
+
+# Hint per (config, plugin_packages): one install attempt per process, because
+# the web UI loads the config on every request
+_auto_install_hints: dict[tuple[str, ...], str] = {}
+
+
+def _auto_install(cfg: Config, missing: list[str]) -> str:
+    """Install plugin_packages once; return the hint for plugins that are still missing."""
+    key = (str(cfg.config_path), *cfg.plugin_packages)
+    if key not in _auto_install_hints:
+        # Names the plugins, not the packages: package URLs can hold credentials
+        err_console.print(f"[dim]Installing plugin_packages for {', '.join(missing)}...[/]")
+        try:
+            # Installer output goes to stderr, so scripted stdout (cf list --simple) stays clean
+            install_packages(cfg.plugin_packages, cfg.config_path.parent, stdout=_STDERR)
+        except PluginError as e:
+            _auto_install_hints[key] = (
+                f"Installing plugin_packages failed: {e}. Run `cf plugins install` to see why."
+            )
+        else:
+            _auto_install_hints[key] = "The installed plugin_packages don't provide them."
+    return _auto_install_hints[key]
+
+
+def install_packages(packages: list[str], cwd: Path, *, stdout: int | None = None) -> None:
+    """Install plugin packages into the Python environment running compose-farm.
+
+    Uses uv when it is on PATH, else pip, and runs in ``cwd`` so relative local
+    paths resolve against it.
+    """
+    command = [*_installer(), "--", *(_requirement(package) for package in packages)]
+    returncode = subprocess.run(command, check=False, cwd=cwd, stdout=stdout).returncode
+    if returncode != 0:
+        msg = f"the installer exited with status {returncode}"
+        raise PluginError(msg)
+    importlib.invalidate_caches()  # Let the entry-point scan see the new packages
+
+
+def _installer() -> list[str]:
+    if uv := shutil.which("uv"):
+        return [uv, "pip", "install", "--python", sys.executable]
+    if find_spec("pip") is None:  # uv tool environments have no pip
+        msg = "it needs uv on PATH or pip in compose-farm's Python"
+        raise PluginError(msg)
+    return [sys.executable, "-m", "pip", "install"]
+
+
+def _requirement(package: str) -> str:
+    """Expand ``github:OWNER/REPO[/SUBDIR][@REF]`` into a pip git URL; pass others through."""
+    if not package.startswith("github:"):
+        return package
+    path, _, ref = package.removeprefix("github:").partition("@")
+    owner, _, rest = path.partition("/")
+    repo, _, subdir = rest.partition("/")
+    if not owner or not repo:
+        msg = f"invalid plugin package {package!r}: use github:OWNER/REPO/SUBDIR@REF (SUBDIR and REF are optional)"
+        raise PluginError(msg)
+    url = f"git+https://github.com/{owner}/{repo}" + (f"@{ref}" if ref else "")
+    return f"{url}#subdirectory={subdir}" if subdir else url
 
 
 async def run_hook(ctx: HookContext, hook: Hook) -> None:

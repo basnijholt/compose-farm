@@ -789,7 +789,7 @@ cf plugins COMMAND
 |--------|-------------|
 | `--config, -c PATH` | Path to config file |
 
-`install` uses `uv pip install` when uv is available, else pip, and then loads the enabled plugins to check them. Run it again after `uv tool upgrade compose-farm`, which recreates the tool's environment. See [Installing plugins](plugins.md#installing-plugins).
+`install` uses `uv pip install` when uv is available, else pip, and then loads the enabled plugins to check them. With `plugin_auto_install` (the default), `cf` also installs missing plugins by itself. See [Installing plugins](plugins.md#installing-plugins).
 
 ---
 

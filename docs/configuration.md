@@ -147,7 +147,7 @@ See [Plugins](plugins.md) for the builtin plugins, hooks, and writing your own.
 
 ### plugin_packages
 
-Packages that provide your plugins: pip requirements (PyPI names, `git+https://...` URLs, local paths) or `github:OWNER/REPO/SUBDIR@REF`, where `/SUBDIR` and `@REF` are optional. `cf plugins install` installs them into the Python environment that runs `cf`.
+Packages that provide your plugins: pip requirements (PyPI names, `git+https://...` URLs, local paths) or `github:OWNER/REPO/SUBDIR@REF`, where `/SUBDIR` and `@REF` are optional. They are installed into the Python environment that runs `cf`, automatically when an enabled plugin is missing, or with `cf plugins install`.
 
 ```yaml
 plugin_packages:
@@ -155,6 +155,14 @@ plugin_packages:
 ```
 
 See [Installing plugins](plugins.md#installing-plugins).
+
+### plugin_auto_install
+
+Whether `cf` installs `plugin_packages` by itself when an enabled plugin is missing. Defaults to `true`; set it to `false` to install only with `cf plugins install`.
+
+```yaml
+plugin_auto_install: false
+```
 
 ## Hosts Configuration
 
