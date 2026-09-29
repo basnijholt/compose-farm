@@ -1,13 +1,22 @@
 """Tests for CLI ssh commands."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import asyncssh
+import pytest
 from typer.testing import CliRunner
 
 from compose_farm.cli.app import app
-from compose_farm.cli.ssh import _copy_key_to_host, _format_connectivity_status, _trust_host_key
-from compose_farm.executor import CommandResult
+from compose_farm.cli.ssh import (
+    _copy_key_to_host,
+    _format_connectivity_status,
+    _probe_key,
+    _trust_host_key,
+)
+from compose_farm.config import Host
+from compose_farm.executor import CommandResult, ssh_connect_kwargs
 from compose_farm.ssh_keys import SSH_KEY_PATH
 
 runner = CliRunner()
@@ -117,49 +126,79 @@ stacks:
 
         assert "No remote hosts" in result.output
 
-    def test_copy_key_uses_standard_host_key_verification(self) -> None:
-        """First-time setup must not discard or bypass the server host key."""
-        missing, ok = MagicMock(returncode=255), MagicMock(returncode=0)
-        with patch("compose_farm.cli.ssh.subprocess.run", side_effect=[missing, ok, ok]) as run:
-            assert _copy_key_to_host("nas", "192.168.1.10", "root", 22) is True
-
-        command = run.call_args_list[1].args[0]
-        assert command[0] == "ssh-copy-id"
-        assert "StrictHostKeyChecking=ask" in command
-        assert "StrictHostKeyChecking=no" not in command
-        assert f"UserKnownHostsFile={SSH_KEY_PATH.parent / 'known_hosts'}" in command
+    @staticmethod
+    def _copy(probes: list[str], *, runs: int = 1, trust: bool = True) -> tuple[bool, Any, Any]:
+        """Run _copy_key_to_host with scripted probe results; return (ok, run, trust) mocks."""
+        host = Host(address="192.168.1.10", user="root", port=2222)
+        with (
+            patch("compose_farm.cli.ssh._probe_key", AsyncMock(side_effect=probes)),
+            patch(
+                "compose_farm.cli.ssh.subprocess.run", return_value=MagicMock(returncode=0)
+            ) as run,
+            patch("compose_farm.cli.ssh._trust_host_key", return_value=trust) as trust_mock,
+        ):
+            ok = _copy_key_to_host("nas", host)
+        assert run.call_count == runs
+        return ok, run, trust_mock
 
     def test_copy_key_skips_hosts_that_already_accept_it(self) -> None:
-        """The check logs in with the compose-farm key only, like compose-farm itself."""
-        ok = MagicMock(returncode=0)
-        with patch("compose_farm.cli.ssh.subprocess.run", return_value=ok) as run:
-            assert _copy_key_to_host("nas", "192.168.1.10", "root", 2222) is True
-
-        [check] = [call.args[0] for call in run.call_args_list]
-        assert check[0] == "ssh"
-        # Ignore ~/.ssh/config IdentityFile entries and agent keys that already work
-        assert check[check.index("-F") + 1] == "/dev/null"
-        assert check[check.index("-i") + 1] == str(SSH_KEY_PATH)
-        for option in ("IdentitiesOnly=yes", "IdentityAgent=none", "BatchMode=yes"):
-            assert option in check
-        assert check[check.index("-p") + 1] == "2222"
-        assert check[-2:] == ["root@192.168.1.10", "true"]
+        ok, _, trust = self._copy(["accepted"], runs=0)
+        assert ok is True
+        trust.assert_not_called()
 
     def test_copy_key_forces_install_and_verifies_it(self) -> None:
         """ssh-copy-id's own check can pass through another key, so force and re-check."""
-        missing, ok = MagicMock(returncode=255), MagicMock(returncode=0)
-        with patch("compose_farm.cli.ssh.subprocess.run", side_effect=[missing, ok, ok]) as run:
-            assert _copy_key_to_host("nas", "192.168.1.10", "root", 22) is True
-
-        commands = [call.args[0] for call in run.call_args_list]
-        assert [c[0] for c in commands] == ["ssh", "ssh-copy-id", "ssh"]
-        assert "-f" in commands[1]
+        ok, run, _ = self._copy(["rejected", "accepted"])
+        assert ok is True
+        command = run.call_args.args[0]
+        assert command[:2] == ["ssh-copy-id", "-f"]
+        assert "StrictHostKeyChecking=ask" in command
+        assert "StrictHostKeyChecking=no" not in command
+        assert f"UserKnownHostsFile={SSH_KEY_PATH.parent / 'known_hosts'}" in command
+        assert command[command.index("-p") + 1] == "2222"
 
     def test_copy_key_fails_when_the_key_still_is_not_accepted(self) -> None:
         """A reported success that doesn't let compose-farm log in is a failure."""
-        missing, ok = MagicMock(returncode=255), MagicMock(returncode=0)
-        with patch("compose_farm.cli.ssh.subprocess.run", side_effect=[missing, ok, missing]):
-            assert _copy_key_to_host("nas", "192.168.1.10", "root", 22) is False
+        ok, _, _ = self._copy(["rejected", "rejected"])
+        assert ok is False
+
+    def test_unknown_host_key_is_trusted_before_deciding(self) -> None:
+        """An unknown host key must not be mistaken for a missing client key (no duplicate)."""
+        ok, _, trust = self._copy(["unknown-host", "accepted"], runs=0)
+        assert ok is True
+        trust.assert_called_once_with("nas", Host(address="192.168.1.10", user="root", port=2222))
+
+    def test_unknown_host_key_that_is_not_trusted_fails(self) -> None:
+        ok, _, _ = self._copy(["unknown-host"], runs=0, trust=False)
+        assert ok is False
+
+    @pytest.mark.parametrize(
+        ("error", "expected"),
+        [
+            (None, "accepted"),
+            (asyncssh.PermissionDenied("denied"), "rejected"),
+            (asyncssh.HostKeyNotVerifiable("unknown"), "unknown-host"),
+        ],
+    )
+    async def test_probe_uses_compose_farm_connection(
+        self, tmp_path: Path, error: Exception | None, expected: str
+    ) -> None:
+        known_hosts = tmp_path / "known_hosts"
+        known_hosts.write_text("")
+        connect = MagicMock()
+        connect.return_value.__aenter__ = AsyncMock(side_effect=error)
+        connect.return_value.__aexit__ = AsyncMock(return_value=False)
+        host = Host(address="192.168.1.10", user="root")
+        with (
+            patch("compose_farm.cli.ssh.SSH_KNOWN_HOSTS_PATH", known_hosts),
+            patch("asyncssh.connect", connect),
+        ):
+            assert await _probe_key(host) == expected
+        assert connect.call_args.kwargs == ssh_connect_kwargs(host)
+
+    async def test_probe_without_known_hosts_file(self, tmp_path: Path) -> None:
+        with patch("compose_farm.cli.ssh.SSH_KNOWN_HOSTS_PATH", tmp_path / "missing"):
+            assert await _probe_key(Host(address="192.168.1.10")) == "unknown-host"
 
     def test_trust_host_key_uses_agent_without_installing_a_key(self, tmp_path: Path) -> None:
         """Agent users can enroll a host key without changing authentication keys."""
@@ -169,7 +208,7 @@ stacks:
             patch("compose_farm.cli.ssh.SSH_KNOWN_HOSTS_PATH", known_hosts),
             patch("compose_farm.cli.ssh.subprocess.run", return_value=completed) as run,
         ):
-            assert _trust_host_key("nas", "192.168.1.10", "root", 2222) is True
+            assert _trust_host_key("nas", Host(address="192.168.1.10", user="root", port=2222))
 
         command = run.call_args.args[0]
         assert command[0] == "ssh"
@@ -204,7 +243,7 @@ stacks:
         assert result.exit_code == 0
         generate.assert_not_called()
         copy.assert_not_called()
-        trust.assert_called_once_with("nas", "192.168.1.10", "root", 22)
+        trust.assert_called_once_with("nas", Host(address="192.168.1.10", user="root"))
 
 
 class TestSshHelp:

@@ -4,14 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Literal
 
 import typer
 
 from compose_farm.cli.app import app
-from compose_farm.cli.common import ConfigOption, load_config_or_exit, run_parallel_with_progress
+from compose_farm.cli.common import (
+    ConfigOption,
+    load_config_or_exit,
+    run_async,
+    run_parallel_with_progress,
+)
 from compose_farm.console import console, err_console
-from compose_farm.executor import CommandResult, run_command
+from compose_farm.executor import CommandResult, run_command, ssh_connect_kwargs
 
 if TYPE_CHECKING:
     from compose_farm.config import Host
@@ -109,23 +114,22 @@ def _generate_key(*, force: bool = False) -> bool:
     return True
 
 
-def _key_accepted(address: str, user: str, port: int) -> bool:
-    """Whether the host accepts the compose-farm key on its own, as compose-farm uses it.
+async def _probe_key(host: Host) -> Literal["accepted", "rejected", "unknown-host"]:
+    """Log in the way compose-farm does: its key only, its known_hosts, ~/.ssh/config settings."""
+    import asyncssh  # noqa: PLC0415 - lazy import for faster CLI startup
 
-    Ignores ~/.ssh/config and the agent, which may hold other keys the host accepts.
-    """
-    cmd = ["ssh", "-F", "/dev/null", "-i", str(SSH_KEY_PATH)]
-    for option in ("IdentitiesOnly=yes", "IdentityAgent=none", "BatchMode=yes"):
-        cmd.extend(["-o", option])
-    cmd.extend(["-o", f"UserKnownHostsFile={SSH_KNOWN_HOSTS_PATH}"])
-    if port != _DEFAULT_SSH_PORT:
-        cmd.extend(["-p", str(port)])
-    cmd.extend([f"{user}@{address}", "true"])
-    result = subprocess.run(cmd, check=False, capture_output=True)
-    return result.returncode == 0
+    if not SSH_KNOWN_HOSTS_PATH.is_file():
+        return "unknown-host"
+    try:
+        async with asyncssh.connect(**ssh_connect_kwargs(host)):
+            return "accepted"
+    except asyncssh.HostKeyNotVerifiable:
+        return "unknown-host"
+    except (OSError, asyncssh.Error):
+        return "rejected"  # ssh-copy-id then reports unreachable hosts itself
 
 
-def _copy_key_to_host(host_name: str, address: str, user: str, port: int) -> bool:
+def _copy_key_to_host(host_name: str, host: Host) -> bool:
     """Copy public key to a host's authorized_keys.
 
     Uses ssh-copy-id which handles agent vs password fallback automatically.
@@ -133,8 +137,14 @@ def _copy_key_to_host(host_name: str, address: str, user: str, port: int) -> boo
     so the key is checked here instead, before and after installing it.
     Returns True on success, False on failure.
     """
-    target = f"{user}@{address}"
-    if _key_accepted(address, user, port):
+    target = f"{host.user}@{host.address}"
+    status = run_async(_probe_key(host))
+    if status == "unknown-host":
+        # Trust the host key first so an unknown host isn't mistaken for a missing key
+        if not _trust_host_key(host_name, host):
+            return False
+        status = run_async(_probe_key(host))
+    if status == "accepted":
         console.print(f"[green]Key already installed on {host_name}[/]")
         return True
     console.print(f"[dim]Copying key to {host_name} ({target})...[/]")
@@ -143,8 +153,8 @@ def _copy_key_to_host(host_name: str, address: str, user: str, port: int) -> boo
     cmd.extend(["-o", "StrictHostKeyChecking=ask"])
     cmd.extend(["-o", f"UserKnownHostsFile={SSH_KNOWN_HOSTS_PATH}"])
 
-    if port != _DEFAULT_SSH_PORT:
-        cmd.extend(["-p", str(port)])
+    if host.port != _DEFAULT_SSH_PORT:
+        cmd.extend(["-p", str(host.port)])
 
     cmd.extend(["-i", str(SSH_PUBKEY_PATH), target])
 
@@ -154,7 +164,7 @@ def _copy_key_to_host(host_name: str, address: str, user: str, port: int) -> boo
         if result.returncode != 0:
             err_console.print(f"[red]Failed to copy key to {host_name}[/]")
             return False
-        if not _key_accepted(address, user, port):
+        if run_async(_probe_key(host)) != "accepted":
             err_console.print(f"[red]{host_name} still rejects the key after ssh-copy-id[/]")
             return False
         console.print(f"[green]Key copied to {host_name}[/]")
@@ -164,9 +174,9 @@ def _copy_key_to_host(host_name: str, address: str, user: str, port: int) -> boo
         return False
 
 
-def _trust_host_key(host_name: str, address: str, user: str, port: int) -> bool:
+def _trust_host_key(host_name: str, host: Host) -> bool:
     """Interactively enroll one server host key without installing a client key."""
-    target = f"{user}@{address}"
+    target = f"{host.user}@{host.address}"
     console.print(f"[dim]Trusting host key for {host_name} ({target})...[/]")
     SSH_KNOWN_HOSTS_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
 
@@ -177,8 +187,8 @@ def _trust_host_key(host_name: str, address: str, user: str, port: int) -> bool:
         "-o",
         f"UserKnownHostsFile={SSH_KNOWN_HOSTS_PATH}",
     ]
-    if port != _DEFAULT_SSH_PORT:
-        cmd.extend(["-p", str(port)])
+    if host.port != _DEFAULT_SSH_PORT:
+        cmd.extend(["-p", str(host.port)])
     cmd.extend([target, "true"])
 
     try:
@@ -258,7 +268,7 @@ def ssh_setup(
 
     for host_name, host in remote_hosts.items():
         operation = _trust_host_key if trust_only else _copy_key_to_host
-        if operation(host_name, host.address, host.user, host.port):
+        if operation(host_name, host):
             succeeded += 1
         else:
             failed += 1
