@@ -9,7 +9,13 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 
 from compose_farm.cli.app import app
-from compose_farm.console import MSG_CONFIG_NOT_FOUND, console, print_error, print_success
+from compose_farm.console import (
+    MSG_CONFIG_NOT_FOUND,
+    console,
+    print_error,
+    print_success,
+    print_warning,
+)
 from compose_farm.paths import config_search_paths, default_config_path, find_config_path
 
 if TYPE_CHECKING:
@@ -335,16 +341,27 @@ def _detect_domain(cfg: Config) -> str | None:
 
 
 def _web_password(env_path: Path) -> str:
-    """Keep the CF_WEB_PASSWORD of an existing .env, else generate one."""
+    """Keep the CF_WEB_PASSWORD of an existing .env as written (the last one wins), else generate one."""
     if env_path.exists():
-        for line in env_path.read_text(encoding="utf-8").splitlines():
-            key, sep, value = line.partition("=")
-            if sep and key.strip() == "CF_WEB_PASSWORD" and value.strip():
-                return value.strip()
-    # Lazy import: secrets is only needed when generating a .env file.
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+        values = [
+            value.strip()
+            for key, sep, value in (line.partition("=") for line in lines)
+            if sep and key.strip() == "CF_WEB_PASSWORD" and value.strip()
+        ]
+        if values:
+            return values[-1]
+    # Lazy import: secrets is only needed by init-env, so keep it out of CLI startup.
     import secrets  # noqa: PLC0415
 
     return secrets.token_hex(32)
+
+
+def _unquote(value: str) -> str:
+    """The value Docker Compose passes on for a quoted .env value."""
+    if len(value) > 1 and value[0] == value[-1] and value[0] in "\"'":
+        return value[1:-1]
+    return value
 
 
 @config_app.command("init-env")
@@ -416,6 +433,9 @@ def config_init_env(
         "",
     ]
 
+    # The file holds the web UI password: make it private before writing
+    env_path.touch(mode=0o600)
+    env_path.chmod(0o600)
     env_path.write_text("\n".join(lines), encoding="utf-8")
 
     print_success(f"Created .env file: {env_path}")
@@ -424,8 +444,11 @@ def config_init_env(
     console.print(f"  DOMAIN: {domain or '[yellow]example.com[/] (edit this)'}")
     console.print(f"  CF_COMPOSE_DIR: {compose_dir}")
     console.print(f"  CF_UID/GID: {uid}:{gid}")
-    console.print(f"  Web UI login: admin / {password}", markup=False, soft_wrap=True)
+    console.print(f"  Web UI login: admin / {_unquote(password)}", markup=False, soft_wrap=True)
     console.print("  [dim](save the password in your password manager)[/dim]")
+    for var in ("CF_WEB_USERNAME", "CF_WEB_PASSWORD"):
+        if var in os.environ:
+            print_warning(f"{var} is set in your shell; docker compose uses it instead of .env")
     console.print()
     console.print("[dim]Review and edit as needed:[/dim]")
     console.print(f"  [cyan]$EDITOR {env_path}[/cyan]")
