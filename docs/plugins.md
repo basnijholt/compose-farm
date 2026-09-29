@@ -34,7 +34,7 @@ plugins:
 
 Each entry is a pip requirement (a PyPI name, a `git+https://...` URL, or a local path) or the GitHub shorthand `github:OWNER/REPO/SUBDIR@REF`, where `/SUBDIR` and `@REF` (a branch, tag, or commit) are optional. Local paths are relative to the config file. `cf plugins install` installs them into the Python environment that runs `cf`, with `uv pip install` when uv is on `PATH` and pip otherwise. `uv tool upgrade compose-farm` recreates the tool's environment without them; the next `cf` command then reports the plugins as unknown, and `cf plugins install` brings them back.
 
-Plugins run wherever `cf` runs, including the web UI (which runs `cf` for its actions). The Docker image includes the builtin plugins and the [example plugins](#example-plugins); for others, build your own image that installs them next to compose-farm (`uv tool install "compose-farm[web]" --with <plugin>`).
+Plugins run wherever `cf` runs, including the web UI (which runs `cf` for its actions). The Docker image includes the builtin plugins, the [example plugins](#example-plugins), and uv (so `local:` steps can run `uv run --script` scripts); for other plugins, build your own image that installs them next to compose-farm (`uv tool install "compose-farm[web]" --with <plugin>`).
 
 ## Builtin plugins
 
