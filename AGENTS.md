@@ -18,6 +18,7 @@ src/compose_farm/
 │   ├── lifecycle.py   # up, down, stop, pull, restart, update, apply, compose commands
 │   ├── management.py  # refresh, check, init-network, traefik-file commands
 │   ├── monitoring.py  # logs, ps, stats, list commands
+│   ├── plugins.py     # Plugin package install (plugins install)
 │   ├── ssh.py         # SSH key management (setup, status, keygen)
 │   └── web.py         # Web UI server command
 ├── compose.py         # Compose file parsing (.env, ports, volumes, networks)
@@ -166,4 +167,5 @@ CLI available as `cf` or `compose-farm`.
 | `traefik-file` | Generate Traefik file-provider config from compose labels |
 | `config` | Manage config files (init, init-env, show, path, validate, edit, symlink) |
 | `ssh`   | Manage SSH keys (setup, status, keygen) |
+| `plugins` | Install the config's plugin_packages into cf's environment |
 | `web`   | Start web UI server |

@@ -20,6 +20,20 @@ plugins:
 
 An unknown plugin name or invalid options make config loading fail, so `cf config validate` and `cf check` catch mistakes early. `cf check` also lists the enabled plugins.
 
+## Installing plugins
+
+List the packages that provide your plugins under `plugin_packages` and run `cf plugins install`:
+
+```yaml
+plugin_packages:
+  - "compose-farm-pin @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/pin"
+plugins:
+  pin:
+    gitea: nas
+```
+
+Each entry is a pip requirement: a PyPI name, a `git+https://...` URL, or a local path. `cf plugins install` installs them into the Python environment that runs `cf`, with `uv pip install` when uv is available and pip otherwise. `uv tool upgrade compose-farm` recreates the tool's environment without them; the next `cf` command then reports the plugins as unknown, and `cf plugins install` brings them back.
+
 Plugins run wherever `cf` runs, including the web UI (which runs `cf` for its actions). The Docker image includes the builtin plugins and the [example plugins](#example-plugins); for others, build your own image that installs them next to compose-farm (`uv tool install "compose-farm[web]" --with <plugin>`).
 
 ## Builtin plugins
@@ -126,7 +140,7 @@ class DataDirPlugin(Plugin):
 datadir = "my_package:DataDirPlugin"
 ```
 
-Install the package next to compose-farm (for example `uv tool install compose-farm --with my-package`) and enable it with `plugins: {datadir: {root: /srv/data}}`. See [Example plugins](#example-plugins) for complete ones.
+List the package under [`plugin_packages`](#installing-plugins), run `cf plugins install`, and enable it with `plugins: {datadir: {root: /srv/data}}`. See [Example plugins](#example-plugins) for complete ones.
 
 `HookContext` has:
 
@@ -162,11 +176,11 @@ Complete, installable plugins live in [`examples/plugins/`](https://github.com/b
 | [traefik-dns](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins/traefik-dns) | After every change, writes one DNS record per Traefik `Host()` name under a domain into a managed block (Headscale `extra_records` or hosts lines) and restarts the reading stack if the records changed |
 | [traefik-policy](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins/traefik-policy) | Checks Traefik router labels in preflight, e.g. that a router on a public entrypoint is also on `websecure` |
 
-Install one next to compose-farm:
+To use one, list it under `plugin_packages` and run `cf plugins install`:
 
-```bash
-uv tool install compose-farm \
-  --with "compose-farm-zfs @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/zfs"
+```yaml
+plugin_packages:
+  - "compose-farm-zfs @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/zfs"
 ```
 
 Without installing anything, the `commands` plugin covers simple cases. For example, a secret env file for every stack:

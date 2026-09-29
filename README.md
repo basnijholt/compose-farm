@@ -1356,7 +1356,7 @@ plugins:
       - run: "mkdir -p /srv/data/{stack}"
 ```
 
-See [docs/plugins.md](docs/plugins.md) for the hooks, the builtin plugins, and writing your own.
+Install plugin packages by listing them under `plugin_packages` and running `cf plugins install`. See [docs/plugins.md](docs/plugins.md) for the hooks, the builtin plugins, and writing your own.
 
 ## Traefik Multihost Ingress (File Provider)
 

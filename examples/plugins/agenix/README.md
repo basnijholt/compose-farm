@@ -13,10 +13,13 @@ Stacks that are not listed are left alone.
 
 ## Install
 
-```bash
-uv tool install compose-farm \
-  --with "compose-farm-agenix @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/agenix"
+```yaml
+# compose-farm.yaml
+plugin_packages:
+  - "compose-farm-agenix @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/agenix"
 ```
+
+Then run `cf plugins install`. The Docker image already includes this plugin.
 
 ## Configure
 

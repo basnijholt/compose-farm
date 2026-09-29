@@ -10,10 +10,13 @@ Use it for [Headscale](https://headscale.net/) `extra_records` (so lab names res
 
 ## Install
 
-```bash
-uv tool install compose-farm \
-  --with "compose-farm-traefik-dns @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/traefik-dns"
+```yaml
+# compose-farm.yaml
+plugin_packages:
+  - "compose-farm-traefik-dns @ git+https://github.com/basnijholt/compose-farm#subdirectory=examples/plugins/traefik-dns"
 ```
+
+Then run `cf plugins install`. The Docker image already includes this plugin.
 
 ## Configure
 
