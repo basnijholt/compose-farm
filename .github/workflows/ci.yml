@@ -70,6 +70,12 @@ jobs:
             config validate -p "$RUNNER_TEMP/compose-farm.yaml" | tee validate.txt
           grep -Fx "  Plugins: pin, traefik-policy, traefik-dns, agenix, zfs, sync, commands" validate.txt
 
+      - name: Verify uv runs scripts with dependencies as a non-root user
+        run: |
+          printf '# /// script\n# dependencies = ["six"]\n# ///\nimport six\nprint("uv ok")\n' > "$RUNNER_TEMP/check.py"
+          docker run --rm --user 1234:1234 -v "$RUNNER_TEMP:$RUNNER_TEMP" --entrypoint uv compose-farm:test \
+            run --script "$RUNNER_TEMP/check.py" | grep -Fx "uv ok"
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:

@@ -433,8 +433,9 @@ def extract_website_urls(config: Config, stack: str) -> list[str]:
         else:
             entrypoints_str = str(entrypoints)
 
-        # Determine scheme from entrypoint
-        scheme = "https" if "websecure" in entrypoints_str else "http"
+        # Determine scheme from entrypoint; none means Traefik's default
+        # entrypoints, which in a TLS setup is websecure
+        scheme = "https" if not entrypoints_str or "websecure" in entrypoints_str else "http"
 
         # Extract host(s) from rule
         for match in _HOST_RULE_PATTERN.finditer(str(rule)):
