@@ -10,7 +10,7 @@ from click.testing import Result
 from typer.testing import CliRunner
 
 from compose_farm.cli.app import app
-from compose_farm.cli.plugins import _requirement
+from compose_farm.plugins import _requirement
 
 runner = CliRunner()
 
@@ -30,17 +30,18 @@ def _install(
     calls: list[list[str]] = []
 
     def fake_run(
-        command: list[str], *, check: bool, cwd: Path
+        command: list[str], *, check: bool, cwd: Path, stdout: int | None
     ) -> subprocess.CompletedProcess[bytes]:
         assert check is False
         assert cwd == path.parent  # Relative local paths resolve next to the config
+        assert stdout is None  # The explicit command shows the installer's output
         calls.append(command)
         return subprocess.CompletedProcess(command, returncode)
 
     with (
-        patch("compose_farm.cli.plugins.shutil.which", return_value=uv),
-        patch("compose_farm.cli.plugins.find_spec", return_value=object() if pip else None),
-        patch("compose_farm.cli.plugins.subprocess.run", side_effect=fake_run),
+        patch("compose_farm.plugins.shutil.which", return_value=uv),
+        patch("compose_farm.plugins.find_spec", return_value=object() if pip else None),
+        patch("compose_farm.plugins.subprocess.run", side_effect=fake_run),
     ):
         result = runner.invoke(app, ["plugins", "install", "-c", str(path)])
     return result, calls
@@ -76,7 +77,7 @@ def test_failing_installer_exits_nonzero(tmp_path: Path) -> None:
         _config(tmp_path, "plugin_packages: [pkg-a]\n"), uv="/usr/bin/uv", returncode=2
     )
     assert result.exit_code == 1
-    assert "Installing plugin_packages failed" in result.output
+    assert "Installing plugin_packages failed: the installer exited with status 2" in result.output
 
 
 def test_no_packages_warns(tmp_path: Path) -> None:
@@ -99,7 +100,7 @@ def test_needs_uv_or_pip(tmp_path: Path) -> None:
     result, calls = _install(path, uv=None, pip=False)
     assert result.exit_code == 1
     assert calls == []
-    assert "needs uv on PATH or pip" in result.output
+    assert "Installing plugin_packages failed: it needs uv on PATH or pip" in result.output
 
 
 @pytest.mark.parametrize(
@@ -121,7 +122,7 @@ def test_github_shorthand_needs_owner_and_repo(tmp_path: Path) -> None:
     result, calls = _install(_config(tmp_path, "plugin_packages: ['github:o']\n"), uv=None)
     assert result.exit_code == 1
     assert calls == []
-    assert "use github:OWNER/REPO/SUBDIR@REF" in result.output
+    assert "invalid plugin package 'github:o'" in result.output
 
 
 def test_installs_expanded_shorthand(tmp_path: Path) -> None:

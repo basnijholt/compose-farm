@@ -29,7 +29,7 @@ src/compose_farm/
 ├── logs.py            # Image digest snapshots (dockerfarm-log.toml)
 ├── operations.py      # Business logic (up, migrate, discover, preflight checks)
 ├── paths.py           # Path utilities, config file discovery
-├── plugins/           # Plugin API, loader, hook dispatch; builtin commands + sync plugins
+├── plugins/           # Plugin API, loader (installs plugin_packages), hook dispatch; builtin commands + sync plugins
 ├── registry.py        # Container registry client for update checking
 ├── ssh_keys.py        # SSH key path constants and utilities
 ├── state.py           # Deployment state tracking (which stack on which host)

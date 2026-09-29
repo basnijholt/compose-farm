@@ -44,9 +44,9 @@ async def _task_cleanup_loop() -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan handler."""
-    # Startup: pre-load config (ignore errors - handled per-request)
+    # Startup: pre-load config and install missing plugins (errors are shown per request)
     with suppress(ValidationError, FileNotFoundError, PluginError):
-        get_config()
+        get_config(install_plugins=True)
 
     # Start background cleanup task
     cleanup_task = asyncio.create_task(_task_cleanup_loop())

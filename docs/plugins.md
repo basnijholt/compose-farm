@@ -22,7 +22,7 @@ An unknown plugin name or invalid options make config loading fail, so `cf confi
 
 ## Installing plugins
 
-List the packages that provide your plugins under `plugin_packages` and run `cf plugins install`:
+List the packages that provide your plugins under `plugin_packages`. The next `cf` command that finds an enabled plugin missing installs them:
 
 ```yaml
 plugin_packages:
@@ -32,7 +32,14 @@ plugins:
     gitea: nas
 ```
 
-Each entry is a pip requirement (a PyPI name, a `git+https://...` URL, or a local path) or the GitHub shorthand `github:OWNER/REPO/SUBDIR@REF`, where `/SUBDIR` and `@REF` (a branch, tag, or commit) are optional. Local paths are relative to the config file. `cf plugins install` installs them into the Python environment that runs `cf`, with `uv pip install` when uv is on `PATH` and pip otherwise. `uv tool upgrade compose-farm` recreates the tool's environment without them; the next `cf` command then reports the plugins as unknown, and `cf plugins install` brings them back.
+Each entry is a pip requirement (a PyPI name, a `git+https://...` URL, or a local path) or the GitHub shorthand `github:OWNER/REPO/SUBDIR@REF`, where `/SUBDIR` and `@REF` (a branch, tag, or commit) are optional. Local paths are relative to the config file. They are installed into the Python environment that runs `cf`, with `uv pip install` when uv is on `PATH` and pip otherwise.
+
+- **Automatic (default):** when an enabled plugin is missing, `cf` installs `plugin_packages` once and continues. The installer's output goes to stderr, so scripted output such as `cf list --simple` stays clean. This also restores the plugins after `uv tool upgrade compose-farm`, which recreates the tool's environment without them. If the install fails, `cf` stops with the plugin error and doesn't retry in the same process.
+- **Explicit:** `cf plugins install` installs them now and shows the installer's output. Set `plugin_auto_install: false` to install only this way.
+
+The config decides what gets installed and run, so treat `plugin_packages` like the `commands` plugin: only list sources you trust. With automatic installs, any command that loads the config can install packages, including read-only ones like `cf ps` and a `compose-farm.yaml` found in the current directory. Set `plugin_auto_install: false` if you run `cf` next to configs you don't trust.
+
+The web UI installs missing plugins only when it starts, since an install during a request would block it. After adding a plugin, restart it or run `cf plugins install`.
 
 Plugins run wherever `cf` runs, including the web UI (which runs `cf` for its actions). The Docker image includes the builtin plugins and the [example plugins](#example-plugins); for others, build your own image that installs them next to compose-farm (`uv tool install "compose-farm[web]" --with <plugin>`).
 
@@ -140,7 +147,7 @@ class DataDirPlugin(Plugin):
 datadir = "my_package:DataDirPlugin"
 ```
 
-List the package under [`plugin_packages`](#installing-plugins), run `cf plugins install`, and enable it with `plugins: {datadir: {root: /srv/data}}`. See [Example plugins](#example-plugins) for complete ones.
+List the package under [`plugin_packages`](#installing-plugins) and enable it with `plugins: {datadir: {root: /srv/data}}`; `cf` installs it on its next run. See [Example plugins](#example-plugins) for complete ones.
 
 `HookContext` has:
 
@@ -176,7 +183,7 @@ Complete, installable plugins live in [`examples/plugins/`](https://github.com/b
 | [traefik-dns](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins/traefik-dns) | After every change, writes one DNS record per Traefik `Host()` name under a domain into a managed block (Headscale `extra_records` or hosts lines) and restarts the reading stack if the records changed |
 | [traefik-policy](https://github.com/basnijholt/compose-farm/tree/main/examples/plugins/traefik-policy) | Checks Traefik router labels in preflight, e.g. that a router on a public entrypoint is also on `websecure` |
 
-To use one, list it under `plugin_packages` and run `cf plugins install`:
+To use one, list it under `plugin_packages` and enable it under `plugins:`:
 
 ```yaml
 plugin_packages:
