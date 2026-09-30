@@ -4,6 +4,7 @@ import asyncio
 import gc
 import os
 import shlex
+import socket
 import subprocess
 import sys
 import weakref
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Any, Self
 from unittest.mock import AsyncMock, patch
 
+import asyncssh
 import pytest
 
 from compose_farm.config import Config, Host
@@ -239,10 +241,12 @@ class _FakeSsh:
         self,
         release: asyncio.Event | None = None,
         expect_running: int = 0,
-        fail: Callable[[], OSError] | None = None,
+        fail: Callable[[], Exception] | None = None,
         fail_first: int | None = None,
+        fail_delay: float = 0.01,
     ) -> None:
         self.release = release
+        self.fail_delay = fail_delay  # Seconds a failing handshake takes (successes take 0.01)
         self.fail = fail  # The error connects raise: for the first fail_first, or all if None
         self.fail_first = fail_first
         self.connects = 0
@@ -257,11 +261,13 @@ class _FakeSsh:
         self.connects += 1
         self.in_flight[host] = self.in_flight.get(host, 0) + 1
         self.max_in_flight[host] = max(self.max_in_flight.get(host, 0), self.in_flight[host])
-        await asyncio.sleep(0.01)  # The handshake
+        failing = self.fail is not None and (self.fail_first is None or self.fail_first > 0)
+        if failing and self.fail_first is not None:
+            self.fail_first -= 1
+        await asyncio.sleep(self.fail_delay if failing else 0.01)  # The handshake
         self.in_flight[host] -= 1
-        if self.fail and (self.fail_first is None or self.fail_first > 0):
-            if self.fail_first is not None:
-                self.fail_first -= 1
+        if failing:
+            assert self.fail is not None
             raise self.fail()
         conn = AsyncMock()
         conn.__aenter__.return_value = conn
@@ -353,6 +359,36 @@ class TestSshHandshakeLimit:
         fake = _FakeSsh(fail=lambda: TimeoutError(110, "Connection timed out"), fail_first=1)
         results = await self._run_many(fake, ["10.0.0.1"] * 20, tmp_path)
         assert [result.success for result in results].count(False) == 1
+        assert fake.connects == 20
+
+    async def test_an_early_failure_waits_for_the_handshakes_in_flight(
+        self, tmp_path: Path
+    ) -> None:
+        """A failure that lands before the host's successes doesn't fail the queue."""
+        fake = _FakeSsh(
+            fail=lambda: OSError(113, "No route to host"), fail_first=1, fail_delay=0.001
+        )
+        results = await self._run_many(fake, ["10.0.0.1"] * 20, tmp_path)
+        assert [result.success for result in results].count(False) == 1
+        assert fake.connects == 20
+
+    async def test_ssh_errors_show_the_host_is_up(self, tmp_path: Path) -> None:
+        """A dropped handshake after a timeout means the host answered, so queued work goes on."""
+        errors = iter(
+            [TimeoutError(), *(asyncssh.ConnectionLost("Connection lost") for _ in range(7))]
+        )
+        fake = _FakeSsh(fail=lambda: next(errors), fail_first=8)
+        results = await self._run_many(fake, ["10.0.0.1"] * 20, tmp_path)
+        assert [result.success for result in results].count(False) == 8
+        assert fake.connects == 20
+
+    async def test_dns_and_local_errors_dont_fail_queued_work(self, tmp_path: Path) -> None:
+        """Only a timeout or no route means the host is down; DNS and local errors fail on their own."""
+        fake = _FakeSsh(
+            fail=lambda: socket.gaierror(-3, "Temporary failure in name resolution"), fail_first=8
+        )
+        results = await self._run_many(fake, ["10.0.0.1"] * 20, tmp_path)
+        assert [result.success for result in results].count(False) == 8
         assert fake.connects == 20
 
     async def test_later_commands_try_again_after_a_dead_host(self, tmp_path: Path) -> None:

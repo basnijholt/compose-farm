@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import shlex
 import socket
 import subprocess
@@ -312,13 +313,20 @@ async def _run_local_command(
 _MAX_HANDSHAKES_PER_HOST = 8
 
 
+# Besides timeouts, the connect errors that mean the host is down or unreachable. Other
+# errors (resets, refusals, DNS, local files) come back quickly on their own.
+_UNREACHABLE_ERRNOS = frozenset({errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EHOSTDOWN})
+
+
 class _HostHandshakes:
-    """The handshake slots for one sshd, and how its connects have gone."""
+    """The handshake slots for one sshd, and what its connects have shown."""
 
     def __init__(self) -> None:
         self.slots = asyncio.Semaphore(_MAX_HANDSHAKES_PER_HOST)
-        self.connected = 0  # Connects that succeeded
-        self.unreachable = 0  # Connects that failed like a dead host: timeout, no route
+        self.finished = asyncio.Condition()  # Notified whenever a handshake ends
+        self.in_flight = 0
+        self.up = 0  # Connects that reached the host: succeeded, reset, refused, SSH errors
+        self.down = 0  # Connects that timed out or found no route
         self.error = ""  # Why the last of those failed
 
 
@@ -335,24 +343,40 @@ async def _connect(host: Host) -> asyncssh.SSHClientConnection:
 
     per_loop = _handshakes.setdefault(asyncio.get_running_loop(), weakref.WeakValueDictionary())
     handshakes = per_loop.setdefault((host.address.lower(), host.port), _HostHandshakes())
-    connected, unreachable = handshakes.connected, handshakes.unreachable
+    up, down = handshakes.up, handshakes.down
     async with handshakes.slots:
-        # Connects to a dead host each wait out the same timeout (TCP, ARP). If the ones
-        # queued ahead of this one failed that way and none succeeded, fail now instead of
-        # waiting again; a single success means the host is up, so keep trying.
-        if handshakes.unreachable != unreachable and handshakes.connected == connected:
-            raise OSError(handshakes.error)
+        if handshakes.down != down:
+            # A connect queued ahead of this one found the host down. Let the others in
+            # flight finish: if none reached the host either, fail now instead of waiting
+            # out the same timeout (TCP, ARP) again, batch after batch.
+            async with handshakes.finished:
+                await handshakes.finished.wait_for(
+                    lambda: handshakes.in_flight == 0 or handshakes.up != up
+                )
+            if handshakes.up == up:
+                raise OSError(handshakes.error)
+        handshakes.in_flight += 1
         try:
             conn = await asyncssh.connect(**ssh_connect_kwargs(host))
         except OSError as e:
-            if isinstance(e, ConnectionError):  # Resets (MaxStartups), refusals: host is up
-                raise
-            handshakes.unreachable += 1
-            # asyncio's TimeoutError has no message
-            handshakes.error = str(e) or f"connecting to {host.address} timed out"
-            raise OSError(handshakes.error) from e
-        handshakes.connected += 1
-        return conn
+            if isinstance(e, TimeoutError) or e.errno in _UNREACHABLE_ERRNOS:
+                handshakes.down += 1
+                # asyncio's TimeoutError has no message
+                handshakes.error = str(e) or f"connecting to {host.address} timed out"
+                raise OSError(handshakes.error) from e
+            if isinstance(e, ConnectionError):
+                handshakes.up += 1
+            raise
+        except asyncssh.Error:  # Login failed, or sshd dropped the handshake: the host answered
+            handshakes.up += 1
+            raise
+        else:
+            handshakes.up += 1
+            return conn
+        finally:
+            handshakes.in_flight -= 1
+            async with handshakes.finished:
+                handshakes.finished.notify_all()
 
 
 async def _run_ssh_command(
