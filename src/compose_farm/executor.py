@@ -312,7 +312,8 @@ _MAX_HANDSHAKES_PER_HOST = 8
 # Held weakly: a semaphore that had waiters references its event loop, so an idle one
 # is dropped and a finished loop can be collected.
 _handshake_slots: weakref.WeakKeyDictionary[
-    asyncio.AbstractEventLoop, weakref.WeakValueDictionary[tuple[str, int], asyncio.Semaphore]
+    asyncio.AbstractEventLoop,
+    weakref.WeakValueDictionary[tuple[str, int], asyncio.Semaphore],
 ] = weakref.WeakKeyDictionary()
 
 
