@@ -314,7 +314,8 @@ _MAX_HANDSHAKES_PER_HOST = 8
 
 
 # Besides timeouts, the connect errors that mean the host is down or unreachable. Other
-# errors (resets, refusals, DNS, local files) come back quickly on their own.
+# errors (resets, refusals, DNS, local files) come back quickly on their own. A name with
+# several addresses fails with asyncio's "Multiple exceptions" OSError, which has no errno.
 _UNREACHABLE_ERRNOS = frozenset({errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EHOSTDOWN})
 
 

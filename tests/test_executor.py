@@ -1,6 +1,7 @@
 """Tests for executor module."""
 
 import asyncio
+import errno
 import gc
 import os
 import shlex
@@ -244,8 +245,10 @@ class _FakeSsh:
         fail: Callable[[], Exception] | None = None,
         fail_first: int | None = None,
         fail_delay: float = 0.01,
+        hold: asyncio.Event | None = None,
     ) -> None:
         self.release = release
+        self.hold = hold  # Successful handshakes wait for it
         self.fail_delay = fail_delay  # Seconds a failing handshake takes (successes take 0.01)
         self.fail = fail  # The error connects raise: for the first fail_first, or all if None
         self.fail_first = fail_first
@@ -265,6 +268,8 @@ class _FakeSsh:
         if failing and self.fail_first is not None:
             self.fail_first -= 1
         await asyncio.sleep(self.fail_delay if failing else 0.01)  # The handshake
+        if self.hold and not failing:
+            await self.hold.wait()
         self.in_flight[host] -= 1
         if failing:
             assert self.fail is not None
@@ -340,8 +345,8 @@ class TestSshHandshakeLimit:
             (lambda: TimeoutError(110, "Connection timed out"), "[Errno 110] Connection timed out"),
             (TimeoutError, "connecting to 10.0.0.1 timed out"),  # asyncio's: no message
             (
-                lambda: OSError(113, "No route to host"),
-                "[Errno 113] No route to host",
+                lambda: OSError(errno.EHOSTUNREACH, "No route to host"),
+                f"[Errno {errno.EHOSTUNREACH}] No route to host",
             ),  # LAN, via ARP
         ],
     )
@@ -366,7 +371,9 @@ class TestSshHandshakeLimit:
     ) -> None:
         """A failure that lands before the host's successes doesn't fail the queue."""
         fake = _FakeSsh(
-            fail=lambda: OSError(113, "No route to host"), fail_first=1, fail_delay=0.001
+            fail=lambda: OSError(errno.EHOSTUNREACH, "No route to host"),
+            fail_first=1,
+            fail_delay=0.001,
         )
         results = await self._run_many(fake, ["10.0.0.1"] * 20, tmp_path)
         assert [result.success for result in results].count(False) == 1
@@ -382,14 +389,48 @@ class TestSshHandshakeLimit:
         assert [result.success for result in results].count(False) == 8
         assert fake.connects == 20
 
-    async def test_dns_and_local_errors_dont_fail_queued_work(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize(
+        "error",
+        [
+            lambda: socket.gaierror(-3, "Temporary failure in name resolution"),
+            lambda: FileNotFoundError(errno.ENOENT, "No such file or directory"),  # A key file
+            lambda: PermissionError(errno.EACCES, "Permission denied"),
+        ],
+    )
+    async def test_dns_and_local_errors_dont_fail_queued_work(
+        self, tmp_path: Path, error: Callable[[], OSError]
+    ) -> None:
         """Only a timeout or no route means the host is down; DNS and local errors fail on their own."""
-        fake = _FakeSsh(
-            fail=lambda: socket.gaierror(-3, "Temporary failure in name resolution"), fail_first=8
-        )
+        fake = _FakeSsh(fail=error, fail_first=8)
         results = await self._run_many(fake, ["10.0.0.1"] * 20, tmp_path)
         assert [result.success for result in results].count(False) == 8
         assert fake.connects == 20
+
+    async def test_cancelled_commands_dont_hold_up_the_others(self, tmp_path: Path) -> None:
+        """Commands cancelled mid-handshake or while they wait leave the rest to finish."""
+        hold = asyncio.Event()  # Keeps the successful handshakes in flight until cancelled
+        fake = _FakeSsh(fail=TimeoutError, fail_first=1, fail_delay=0, hold=hold)
+        known_hosts = tmp_path / "known_hosts"
+        known_hosts.touch()
+        with (
+            patch("compose_farm.executor.SSH_KNOWN_HOSTS_PATH", known_hosts),
+            patch("asyncssh.connect", side_effect=fake.connect),
+        ):
+            tasks = [
+                asyncio.create_task(
+                    _run_ssh_command(Host(address="10.0.0.1"), "true", f"s{i}", stream=False)
+                )
+                for i in range(20)
+            ]
+            await asyncio.sleep(0.05)  # 0 timed out, 1-7 in flight, 8 waits on them, 9-19 queued
+            for task in tasks[1:14]:
+                task.cancel()
+            results = await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), 5)
+        finished = [result for result in results if isinstance(result, CommandResult)]
+        assert len(finished) == 7  # 0 and 14-19; the other 13 were cancelled
+        # With 1-7 gone, nothing reached the host: 14-19 fail fast like 0
+        assert {result.stderr for result in finished} == {"connecting to 10.0.0.1 timed out"}
+        assert fake.connects == 8
 
     async def test_later_commands_try_again_after_a_dead_host(self, tmp_path: Path) -> None:
         """Only handshakes that were already queued fail fast; the host may be back."""
