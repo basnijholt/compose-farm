@@ -313,11 +313,13 @@ _MAX_HANDSHAKES_PER_HOST = 8
 
 
 class _HostHandshakes:
-    """The handshake slots for one sshd, and when a connect to it last timed out."""
+    """The handshake slots for one sshd, and how its connects have gone."""
 
     def __init__(self) -> None:
         self.slots = asyncio.Semaphore(_MAX_HANDSHAKES_PER_HOST)
-        self.timed_out_at = float("-inf")
+        self.connected = 0  # Connects that succeeded
+        self.unreachable = 0  # Connects that failed like a dead host: timeout, no route
+        self.error = ""  # Why the last of those failed
 
 
 # Held weakly: a semaphore that had waiters references its event loop, so an idle one
@@ -333,18 +335,24 @@ async def _connect(host: Host) -> asyncssh.SSHClientConnection:
 
     per_loop = _handshakes.setdefault(asyncio.get_running_loop(), weakref.WeakValueDictionary())
     handshakes = per_loop.setdefault((host.address.lower(), host.port), _HostHandshakes())
-    timed_out = f"connecting to {host.address} timed out"
-    queued_at = time.monotonic()
+    connected, unreachable = handshakes.connected, handshakes.unreachable
     async with handshakes.slots:
-        # A dead host makes each connect wait out the TCP timeout: once one times out,
-        # fail those queued behind it instead of repeating the wait batch after batch
-        if handshakes.timed_out_at > queued_at:
-            raise TimeoutError(timed_out)
+        # Connects to a dead host each wait out the same timeout (TCP, ARP). If the ones
+        # queued ahead of this one failed that way and none succeeded, fail now instead of
+        # waiting again; a single success means the host is up, so keep trying.
+        if handshakes.unreachable != unreachable and handshakes.connected == connected:
+            raise OSError(handshakes.error)
         try:
-            return await asyncssh.connect(**ssh_connect_kwargs(host))
-        except TimeoutError as e:  # asyncio's has no message
-            handshakes.timed_out_at = time.monotonic()
-            raise TimeoutError(timed_out) from e
+            conn = await asyncssh.connect(**ssh_connect_kwargs(host))
+        except OSError as e:
+            if isinstance(e, ConnectionError):  # Resets (MaxStartups), refusals: host is up
+                raise
+            handshakes.unreachable += 1
+            # asyncio's TimeoutError has no message
+            handshakes.error = str(e) or f"connecting to {host.address} timed out"
+            raise OSError(handshakes.error) from e
+        handshakes.connected += 1
+        return conn
 
 
 async def _run_ssh_command(
