@@ -95,6 +95,8 @@ uv run pytest
 
 Browser tests are marked with `@pytest.mark.browser`. They use Playwright to test HTMX behavior, JavaScript functionality (sidebar filter, command palette, terminals), and content stability during navigation.
 
+CI also runs the tests on macOS, so use `errno` constants instead of numbers: `EHOSTUNREACH` is 113 on Linux but 65 on macOS.
+
 ## Communication Notes
 
 - Clarify ambiguous wording (e.g., homophones like "right"/"write", "their"/"there").
