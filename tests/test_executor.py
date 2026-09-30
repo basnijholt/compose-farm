@@ -236,10 +236,16 @@ class _FakeSsh:
     """Fake asyncssh.connect that records how many handshakes are in flight per host."""
 
     def __init__(
-        self, release: asyncio.Event | None = None, expect_running: int = 0, fail_first: int = 0
+        self,
+        release: asyncio.Event | None = None,
+        expect_running: int = 0,
+        fail_first: int = 0,
+        timeout: bool = False,
     ) -> None:
         self.release = release
         self.fail_first = fail_first
+        self.timeout = timeout
+        self.connects = 0
         self.in_flight: dict[str, int] = {}
         self.max_in_flight: dict[str, int] = {}
         self.running = [0]
@@ -248,10 +254,13 @@ class _FakeSsh:
 
     async def connect(self, **kwargs: Any) -> Any:
         host = f"{kwargs['host'].lower()}:{kwargs['port']}"  # One sshd per address and port
+        self.connects += 1
         self.in_flight[host] = self.in_flight.get(host, 0) + 1
         self.max_in_flight[host] = max(self.max_in_flight.get(host, 0), self.in_flight[host])
         await asyncio.sleep(0.01)  # The handshake
         self.in_flight[host] -= 1
+        if self.timeout:  # A host that drops packets: TCP's connect timeout
+            raise TimeoutError(110, "Connection timed out")
         if self.fail_first > 0:
             self.fail_first -= 1
             msg = "Connection reset by peer"
@@ -310,6 +319,21 @@ class TestSshHandshakeLimit:
         results = await self._run_many(fake, ["10.0.0.1"] * 20, tmp_path)
         assert [result.success for result in results].count(False) == 8
         assert fake.max_in_flight == {"10.0.0.1:22": 8}
+
+    async def test_a_timeout_fails_the_queued_handshakes(self, tmp_path: Path) -> None:
+        """A dead host fails after one TCP timeout, not one per batch of eight."""
+        fake = _FakeSsh(timeout=True)
+        results = await self._run_many(fake, ["10.0.0.1"] * 20, tmp_path)
+        assert {result.stderr for result in results} == {"connecting to 10.0.0.1 timed out"}
+        assert fake.connects == 8  # The 12 queued behind the timeouts never connected
+
+    async def test_later_commands_try_again_after_a_timeout(self, tmp_path: Path) -> None:
+        """Only handshakes that were already queued fail fast; the host may be back."""
+        fake = _FakeSsh(timeout=True)
+        await self._run_many(fake, ["10.0.0.1"] * 9, tmp_path)
+        fake.timeout = False
+        results = await self._run_many(fake, ["10.0.0.1"] * 3, tmp_path)
+        assert all(result.success for result in results)
 
     def test_finished_event_loops_are_released(self, tmp_path: Path) -> None:
         """A semaphore that had waiters references its loop; it must not keep the loop alive."""

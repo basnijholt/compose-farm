@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from pathlib import Path
 
+    import asyncssh
+
     from .config import Config, Host
 
 LOCAL_ADDRESSES = frozenset({"local", "localhost", "127.0.0.1", "::1"})
@@ -218,7 +220,6 @@ def ssh_connect_kwargs(host: Host) -> dict[str, Any]:
         "username": host.user,
         "known_hosts": str(SSH_KNOWN_HOSTS_PATH),
         "gss_auth": False,  # Disable GSSAPI - causes multi-second delays
-        "connect_timeout": 10,  # Fail a dead host fast instead of waiting out TCP's ~2 minutes
     }
     # Add key file fallback (prioritized over agent if present)
     key_path = get_key_path()
@@ -309,19 +310,41 @@ async def _run_local_command(
 # run in parallel, one connection per stack, so cap the handshakes in flight per host
 # (per process: a CLI run next to the web UI gets its own 8, under the default 10).
 _MAX_HANDSHAKES_PER_HOST = 8
+
+
+class _HostHandshakes:
+    """The handshake slots for one sshd, and when a connect to it last timed out."""
+
+    def __init__(self) -> None:
+        self.slots = asyncio.Semaphore(_MAX_HANDSHAKES_PER_HOST)
+        self.timed_out_at = float("-inf")
+
+
 # Held weakly: a semaphore that had waiters references its event loop, so an idle one
 # is dropped and a finished loop can be collected.
-_handshake_slots: weakref.WeakKeyDictionary[
-    asyncio.AbstractEventLoop,
-    weakref.WeakValueDictionary[tuple[str, int], asyncio.Semaphore],
+_handshakes: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, weakref.WeakValueDictionary[tuple[str, int], _HostHandshakes]
 ] = weakref.WeakKeyDictionary()
 
 
-def _handshake_slot(host: Host) -> asyncio.Semaphore:
-    """The semaphore limiting concurrent SSH handshakes to ``host`` in this event loop."""
-    slots = _handshake_slots.setdefault(asyncio.get_running_loop(), weakref.WeakValueDictionary())
-    key = (host.address.lower(), host.port)  # One sshd per address and port
-    return slots.setdefault(key, asyncio.Semaphore(_MAX_HANDSHAKES_PER_HOST))
+async def _connect(host: Host) -> asyncssh.SSHClientConnection:
+    """Open an SSH connection to ``host``, with a capped number of handshakes in flight."""
+    import asyncssh  # noqa: PLC0415 - lazy import for faster CLI startup
+
+    per_loop = _handshakes.setdefault(asyncio.get_running_loop(), weakref.WeakValueDictionary())
+    handshakes = per_loop.setdefault((host.address.lower(), host.port), _HostHandshakes())
+    timed_out = f"connecting to {host.address} timed out"
+    queued_at = time.monotonic()
+    async with handshakes.slots:
+        # A dead host makes each connect wait out the TCP timeout: once one times out,
+        # fail those queued behind it instead of repeating the wait batch after batch
+        if handshakes.timed_out_at > queued_at:
+            raise TimeoutError(timed_out)
+        try:
+            return await asyncssh.connect(**ssh_connect_kwargs(host))
+        except TimeoutError as e:  # asyncio's has no message
+            handshakes.timed_out_at = time.monotonic()
+            raise TimeoutError(timed_out) from e
 
 
 async def _run_ssh_command(
@@ -375,8 +398,7 @@ async def _run_ssh_command(
     proc: asyncssh.SSHClientProcess[Any]
     try:
         # Only the handshake takes a slot: long-running commands keep their connection
-        async with _handshake_slot(host):
-            conn = await asyncssh.connect(**ssh_connect_kwargs(host))
+        conn = await _connect(host)
         async with conn:  # noqa: SIM117
             async with conn.create_process(command) as proc:
                 if stream:
