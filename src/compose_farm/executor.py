@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import errno
 import shlex
 import socket
 import subprocess
 import time
+import weakref
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any
@@ -17,6 +19,8 @@ from .ssh_keys import SSH_KNOWN_HOSTS_PATH, get_key_path, get_ssh_auth_sock, get
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
     from pathlib import Path
+
+    import asyncssh
 
     from .config import Config, Host
 
@@ -303,6 +307,79 @@ async def _run_local_command(
         )
 
 
+# sshd drops unauthenticated connections past MaxStartups (10 by default). Commands
+# run in parallel, one connection per stack, so cap the handshakes in flight per host
+# (per process: a CLI run next to the web UI gets its own 8, under the default 10).
+_MAX_HANDSHAKES_PER_HOST = 8
+
+
+# Besides timeouts, the connect errors that mean the host is down or unreachable. Other
+# errors (resets, refusals, DNS, local files) come back quickly on their own. A name with
+# several addresses fails with asyncio's "Multiple exceptions" OSError, which has no errno.
+_UNREACHABLE_ERRNOS = frozenset({errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EHOSTDOWN})
+
+
+class _HostHandshakes:
+    """The handshake slots for one sshd, and what its connects have shown."""
+
+    def __init__(self) -> None:
+        self.slots = asyncio.Semaphore(_MAX_HANDSHAKES_PER_HOST)
+        self.finished = asyncio.Condition()  # Notified whenever a handshake ends
+        self.in_flight = 0
+        self.up = 0  # Connects that reached the host: succeeded, reset, refused, SSH errors
+        self.down = 0  # Connects that timed out or found no route
+        self.error = ""  # Why the last of those failed
+
+
+# Held weakly: a semaphore that had waiters references its event loop, so an idle one
+# is dropped and a finished loop can be collected.
+_handshakes: weakref.WeakKeyDictionary[
+    asyncio.AbstractEventLoop, weakref.WeakValueDictionary[tuple[str, int], _HostHandshakes]
+] = weakref.WeakKeyDictionary()
+
+
+async def _connect(host: Host) -> asyncssh.SSHClientConnection:
+    """Open an SSH connection to ``host``, with a capped number of handshakes in flight."""
+    import asyncssh  # noqa: PLC0415 - lazy import for faster CLI startup
+
+    per_loop = _handshakes.setdefault(asyncio.get_running_loop(), weakref.WeakValueDictionary())
+    handshakes = per_loop.setdefault((host.address.lower(), host.port), _HostHandshakes())
+    up, down = handshakes.up, handshakes.down
+    async with handshakes.slots:
+        if handshakes.down != down:
+            # A connect queued ahead of this one found the host down. Let the others in
+            # flight finish: if none reached the host either, fail now instead of waiting
+            # out the same timeout (TCP, ARP) again, batch after batch.
+            async with handshakes.finished:
+                await handshakes.finished.wait_for(
+                    lambda: handshakes.in_flight == 0 or handshakes.up != up
+                )
+            if handshakes.up == up:
+                raise OSError(handshakes.error)
+        handshakes.in_flight += 1
+        try:
+            conn = await asyncssh.connect(**ssh_connect_kwargs(host))
+        except OSError as e:
+            if isinstance(e, TimeoutError) or e.errno in _UNREACHABLE_ERRNOS:
+                handshakes.down += 1
+                # asyncio's TimeoutError has no message
+                handshakes.error = str(e) or f"connecting to {host.address} timed out"
+                raise OSError(handshakes.error) from e
+            if isinstance(e, ConnectionError):
+                handshakes.up += 1
+            raise
+        except asyncssh.Error:  # Login failed, or sshd dropped the handshake: the host answered
+            handshakes.up += 1
+            raise
+        else:
+            handshakes.up += 1
+            return conn
+        finally:
+            handshakes.in_flight -= 1
+            async with handshakes.finished:
+                handshakes.finished.notify_all()
+
+
 async def _run_ssh_command(
     host: Host,
     command: str,
@@ -353,7 +430,9 @@ async def _run_ssh_command(
 
     proc: asyncssh.SSHClientProcess[Any]
     try:
-        async with asyncssh.connect(**ssh_connect_kwargs(host)) as conn:  # noqa: SIM117
+        # Only the handshake takes a slot: long-running commands keep their connection
+        conn = await _connect(host)
+        async with conn:  # noqa: SIM117
             async with conn.create_process(command) as proc:
                 if stream:
                     await asyncio.gather(
@@ -368,15 +447,15 @@ async def _run_ssh_command(
                     stderr_data = await proc.stderr.read()
 
                 await proc.wait()
-                return CommandResult(
-                    stack=stack,
-                    exit_code=proc.exit_status or 0,
-                    success=proc.exit_status == 0,
-                    stdout=stdout_data,
-                    stderr=stderr_data,
-                    host=host_name,
-                    label=label,
-                )
+        return CommandResult(
+            stack=stack,
+            exit_code=proc.exit_status or 0,
+            success=proc.exit_status == 0,
+            stdout=stdout_data,
+            stderr=stderr_data,
+            host=host_name,
+            label=label,
+        )
     except (OSError, asyncssh.Error) as e:
         if stream:
             err_console.print(f"{format_stack_prefix(prefix or stack)} [red]SSH error:[/] {e}")

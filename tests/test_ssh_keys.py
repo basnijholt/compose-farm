@@ -192,6 +192,7 @@ class TestSshConnectKwargs:
             assert result["known_hosts"] == str(SSH_KEY_PATH.parent / "known_hosts")
             assert "agent_path" not in result
             assert "client_keys" not in result
+            assert "connect_timeout" not in result  # ~/.ssh/config's ConnectTimeout applies
 
     def test_includes_agent_path_when_available(self) -> None:
         """Include agent_path when SSH agent is available."""
