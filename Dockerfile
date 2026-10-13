@@ -10,7 +10,7 @@ RUN uv tool install --compile-bytecode "compose-farm[web]${VERSION:+==$VERSION}"
     $(for plugin in /tmp/plugins/*/; do printf -- '--with %s ' "$plugin"; done)
 
 # Runtime stage - minimal image
-FROM python:3.14-alpine
+FROM python:3.15-alpine
 
 # Install only runtime requirements. nss_wrapper provides an identity for
 # arbitrary runtime UIDs without modifying the image's system account files.
