@@ -504,11 +504,11 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Compose Farm - run docker compose commands across multiple hosts
 
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --version             -v        Show version and exit                                  │
-│ --install-completion            Install completion for the current shell.              │
-│ --show-completion               Show completion for the current shell, to copy it or   │
-│                                 customize the installation.                            │
-│ --help                -h        Show this message and exit.                            │
+│ --version             -v      <bool>  Show version and exit                            │
+│ --install-completion          <bool>  Install completion for the current shell.        │
+│ --show-completion             <bool>  Show completion for the current shell, to copy   │
+│                                       it or customize the installation.                │
+│ --help                -h      <bool>  Show this message and exit.                      │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Configuration ────────────────────────────────────────────────────────────────────────╮
 │ traefik-file  Generate a Traefik file-provider fragment from compose Traefik labels.   │
@@ -568,16 +568,16 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Start stacks (docker compose up -d). Auto-migrates if host changed.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      <str>  Stacks to operate on                                              │
+│   stacks...      <list[str]>  Stacks to operate on                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --all      -a              Run on all stacks                                           │
+│ --all      -a      <bool>  Run on all stacks                                           │
 │ --host     -H      <str>   Filter to stacks on this host                               │
 │ --service  -s      <str>   Target a specific service within the stack                  │
-│ --pull                     Pull images before starting (--pull always)                 │
-│ --build                    Build images before starting                                │
+│ --pull             <bool>  Pull images before starting (--pull always)                 │
+│ --build            <bool>  Build images before starting                                │
 │ --config   -c      <path>  Path to config file                                         │
-│ --help     -h              Show this message and exit.                                 │
+│ --help     -h      <bool>  Show this message and exit.                                 │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -606,14 +606,14 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Stop stacks (docker compose down).
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      <str>  Stacks to operate on                                              │
+│   stacks...      <list[str]>  Stacks to operate on                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --all       -a              Run on all stacks                                          │
-│ --orphaned                  Stop orphaned stacks (in state but removed from config)    │
+│ --all       -a      <bool>  Run on all stacks                                          │
+│ --orphaned          <bool>  Stop orphaned stacks (in state but removed from config)    │
 │ --host      -H      <str>   Filter to stacks on this host                              │
 │ --config    -c      <path>  Path to config file                                        │
-│ --help      -h              Show this message and exit.                                │
+│ --help      -h      <bool>  Show this message and exit.                                │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -642,14 +642,14 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Stop services without removing containers (docker compose stop).
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      <str>  Stacks to operate on                                              │
+│   stacks...      <list[str]>  Stacks to operate on                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --all      -a              Run on all stacks                                           │
+│ --all      -a      <bool>  Run on all stacks                                           │
 │ --host     -H      <str>   Filter to stacks on this host                               │
 │ --service  -s      <str>   Target a specific service within the stack                  │
 │ --config   -c      <path>  Path to config file                                         │
-│ --help     -h              Show this message and exit.                                 │
+│ --help     -h      <bool>  Show this message and exit.                                 │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -678,14 +678,14 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Pull latest images (docker compose pull).
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      <str>  Stacks to operate on                                              │
+│   stacks...      <list[str]>  Stacks to operate on                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --all      -a              Run on all stacks                                           │
+│ --all      -a      <bool>  Run on all stacks                                           │
 │ --host     -H      <str>   Filter to stacks on this host                               │
 │ --service  -s      <str>   Target a specific service within the stack                  │
 │ --config   -c      <path>  Path to config file                                         │
-│ --help     -h              Show this message and exit.                                 │
+│ --help     -h      <bool>  Show this message and exit.                                 │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -714,14 +714,14 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Restart running containers (docker compose restart).
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      <str>  Stacks to operate on                                              │
+│   stacks...      <list[str]>  Stacks to operate on                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --all      -a              Run on all stacks                                           │
+│ --all      -a      <bool>  Run on all stacks                                           │
 │ --host     -H      <str>   Filter to stacks on this host                               │
 │ --service  -s      <str>   Target a specific service within the stack                  │
 │ --config   -c      <path>  Path to config file                                         │
-│ --help     -h              Show this message and exit.                                 │
+│ --help     -h      <bool>  Show this message and exit.                                 │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -750,14 +750,14 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Update stacks (pull + build + up). Shorthand for 'up --pull --build'.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      <str>  Stacks to operate on                                              │
+│   stacks...      <list[str]>  Stacks to operate on                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --all      -a              Run on all stacks                                           │
+│ --all      -a      <bool>  Run on all stacks                                           │
 │ --host     -H      <str>   Filter to stacks on this host                               │
 │ --service  -s      <str>   Target a specific service within the stack                  │
 │ --config   -c      <path>  Path to config file                                         │
-│ --help     -h              Show this message and exit.                                 │
+│ --help     -h      <bool>  Show this message and exit.                                 │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -799,12 +799,12 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Use --full to also run 'up' on all stacks (picks up compose/env changes).
 
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --dry-run     -n              Show what would change without executing                 │
-│ --no-orphans                  Only migrate, don't stop orphaned stacks                 │
-│ --no-strays                   Don't stop stray stacks (running on wrong host)          │
-│ --full        -f              Also run up on all stacks to apply config changes        │
+│ --dry-run     -n      <bool>  Show what would change without executing                 │
+│ --no-orphans          <bool>  Only migrate, don't stop orphaned stacks                 │
+│ --no-strays           <bool>  Don't stop stray stacks (running on wrong host)          │
+│ --full        -f      <bool>  Also run up on all stacks to apply config changes        │
 │ --config      -c      <path>  Path to config file                                      │
-│ --help        -h              Show this message and exit.                              │
+│ --help        -h      <bool>  Show this message and exit.                              │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -843,14 +843,15 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
    cf compose mystack config        - view parsed config
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│ *    stack        <str>  Stack to operate on (use '.' for current dir) [required]      │
-│ *    command      <str>  Docker compose command [required]                             │
-│      args         <str>  Additional arguments                                          │
+│ *    stack        <str>        Stack to operate on (use '.' for current dir)           │
+│                                [required]                                              │
+│ *    command      <str>        Docker compose command [required]                       │
+│      args...      <list[str]>  Additional arguments                                    │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --host    -H      <str>   Filter to stacks on this host                                │
 │ --config  -c      <path>  Path to config file                                          │
-│ --help    -h              Show this message and exit.                                  │
+│ --help    -h      <bool>  Show this message and exit.                                  │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -881,14 +882,14 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Generate a Traefik file-provider fragment from compose Traefik labels.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      <str>  Stacks to operate on                                              │
+│   stacks...      <list[str]>  Stacks to operate on                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --all     -a              Run on all stacks                                            │
+│ --all     -a      <bool>  Run on all stacks                                            │
 │ --output  -o      <path>  Write Traefik file-provider YAML to this path (stdout if     │
 │                           omitted)                                                     │
 │ --config  -c      <path>  Path to config file                                          │
-│ --help    -h              Show this message and exit.                                  │
+│ --help    -h      <bool>  Show this message and exit.                                  │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -926,14 +927,14 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Use 'cf apply' to make reality match your config (stop orphans, migrate).
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      <str>  Stacks to operate on                                              │
+│   stacks...      <list[str]>  Stacks to operate on                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --all       -a              Run on all stacks                                          │
+│ --all       -a      <bool>  Run on all stacks                                          │
 │ --config    -c      <path>  Path to config file                                        │
 │ --log-path  -l      <path>  Path to Dockerfarm TOML log                                │
-│ --dry-run   -n              Show what would change without writing                     │
-│ --help      -h              Show this message and exit.                                │
+│ --dry-run   -n      <bool>  Show what would change without writing                     │
+│ --help      -h      <bool>  Show this message and exit.                                │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -968,12 +969,12 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Use --local to skip SSH-based checks for faster validation.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      <str>  Stacks to operate on                                              │
+│   stacks...      <list[str]>  Stacks to operate on                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --local                   Skip SSH-based checks (faster)                               │
+│ --local           <bool>  Skip SSH-based checks (faster)                               │
 │ --config  -c      <path>  Path to config file                                          │
-│ --help    -h              Show this message and exit.                                  │
+│ --help    -h      <bool>  Show this message and exit.                                  │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -1007,14 +1008,14 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  consistent networking.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   hosts      <str>  Hosts to create network on (default: all)                          │
+│   hosts...      <list[str]>  Hosts to create network on (default: all)                 │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --network  -n      <str>   Network name [default: mynetwork]                           │
 │ --subnet   -s      <str>   Network subnet [default: 172.20.0.0/16]                     │
 │ --gateway  -g      <str>   Network gateway [default: 172.20.0.1]                       │
 │ --config   -c      <path>  Path to config file                                         │
-│ --help     -h              Show this message and exit.                                 │
+│ --help     -h      <bool>  Show this message and exit.                                 │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -1044,7 +1045,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Manage compose-farm configuration files.
 
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --help  -h        Show this message and exit.                                          │
+│ --help  -h      <bool>  Show this message and exit.                                    │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ─────────────────────────────────────────────────────────────────────────────╮
 │ init      Create a new config file with documented example.                            │
@@ -1083,7 +1084,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Manage SSH keys for passwordless authentication.
 
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --help  -h        Show this message and exit.                                          │
+│ --help  -h      <bool>  Show this message and exit.                                    │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ─────────────────────────────────────────────────────────────────────────────╮
 │ keygen  Generate SSH key (does not distribute to hosts).                               │
@@ -1117,7 +1118,7 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Manage plugin packages.
 
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --help  -h        Show this message and exit.                                          │
+│ --help  -h      <bool>  Show this message and exit.                                    │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ─────────────────────────────────────────────────────────────────────────────╮
 │ install  Install the config's plugin_packages next to compose-farm.                    │
@@ -1151,16 +1152,16 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  Show stack logs. With --service, shows logs for just that service.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      <str>  Stacks to operate on                                              │
+│   stacks...      <list[str]>  Stacks to operate on                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --all      -a              Run on all stacks                                           │
+│ --all      -a      <bool>  Run on all stacks                                           │
 │ --host     -H      <str>   Filter to stacks on this host                               │
 │ --service  -s      <str>   Target a specific service within the stack                  │
-│ --follow   -f              Follow logs                                                 │
+│ --follow   -f      <bool>  Follow logs                                                 │
 │ --tail     -n      <int>   Number of lines (default: 20 for --all, 100 otherwise)      │
 │ --config   -c      <path>  Path to config file                                         │
-│ --help     -h              Show this message and exit.                                 │
+│ --help     -h      <bool>  Show this message and exit.                                 │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -1195,14 +1196,14 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  With --service: filters to a specific service within the stack.
 
 ╭─ Arguments ────────────────────────────────────────────────────────────────────────────╮
-│   stacks      <str>  Stacks to operate on                                              │
+│   stacks...      <list[str]>  Stacks to operate on                                     │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --all      -a              Run on all stacks                                           │
+│ --all      -a      <bool>  Run on all stacks                                           │
 │ --host     -H      <str>   Filter to stacks on this host                               │
 │ --service  -s      <str>   Target a specific service within the stack                  │
 │ --config   -c      <path>  Path to config file                                         │
-│ --help     -h              Show this message and exit.                                 │
+│ --help     -h      <bool>  Show this message and exit.                                 │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -1236,11 +1237,11 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  With --containers: Shows per-container resource stats (requires Glances).
 
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --live        -l              Query Docker for live container stats                    │
-│ --containers  -C              Show per-container resource stats (requires Glances)     │
+│ --live        -l      <bool>  Query Docker for live container stats                    │
+│ --containers  -C      <bool>  Show per-container resource stats (requires Glances)     │
 │ --host        -H      <str>   Filter to stacks on this host                            │
 │ --config      -c      <path>  Path to config file                                      │
-│ --help        -h              Show this message and exit.                              │
+│ --help        -h      <bool>  Show this message and exit.                              │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -1270,9 +1271,9 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
 
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
 │ --host    -H      <str>   Filter to stacks on this host                                │
-│ --simple  -s              Plain output (one stack per line, for scripting)             │
+│ --simple  -s      <bool>  Plain output (one stack per line, for scripting)             │
 │ --config  -c      <path>  Path to config file                                          │
-│ --help    -h              Show this message and exit.                                  │
+│ --help    -h      <bool>  Show this message and exit.                                  │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
@@ -1306,10 +1307,10 @@ Full `--help` output for each command. See the [Usage](#usage) table above for a
  default admin). Set CF_WEB_NO_AUTH=1 only behind a trusted access layer.
 
 ╭─ Options ──────────────────────────────────────────────────────────────────────────────╮
-│ --host    -H      <str>  Host to bind to [default: 127.0.0.1]                          │
-│ --port    -p      <int>  Port to listen on [default: 8000]                             │
-│ --reload  -r             Enable auto-reload for development                            │
-│ --help    -h             Show this message and exit.                                   │
+│ --host    -H      <str>   Host to bind to [default: 127.0.0.1]                         │
+│ --port    -p      <int>   Port to listen on [default: 8000]                            │
+│ --reload  -r      <bool>  Enable auto-reload for development                           │
+│ --help    -h      <bool>  Show this message and exit.                                  │
 ╰────────────────────────────────────────────────────────────────────────────────────────╯
 
 ```
